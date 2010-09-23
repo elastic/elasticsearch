@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -50,11 +51,13 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
         if (files == null || files.length == 0) {
             return ImmutableMap.of();
         }
-        ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
+        MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
         for (File file : files) {
-            builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
+            if (file.isFile()) {
+                builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
+            }
         }
-        return builder.build();
+        return builder.immutableMap();
     }
 
     public boolean deleteBlob(String blobName) throws IOException {

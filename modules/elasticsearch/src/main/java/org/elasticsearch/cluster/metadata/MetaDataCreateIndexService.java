@@ -179,7 +179,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     if (request.settings.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                         if (request.index.equals(riverIndexName)) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 2));
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         } else {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         }

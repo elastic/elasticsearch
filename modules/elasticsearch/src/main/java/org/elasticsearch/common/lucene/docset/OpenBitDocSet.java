@@ -44,6 +44,10 @@ public class OpenBitDocSet extends DocSet {
         this.set = new OpenBitSetDISI(disi, numBits);
     }
 
+    public OpenBitSet set() {
+        return set;
+    }
+
     @Override public boolean get(int doc) throws IOException {
         return set.fastGet(doc);
     }

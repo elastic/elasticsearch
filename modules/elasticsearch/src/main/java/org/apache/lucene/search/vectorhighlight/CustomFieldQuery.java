@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
@@ -123,8 +124,8 @@ public class CustomFieldQuery extends FieldQuery {
                     // ignore
                 }
             }
-        } else if (sourceFilter instanceof PublicBooleanFilter) {
-            PublicBooleanFilter booleanFilter = (PublicBooleanFilter) sourceFilter;
+        } else if (sourceFilter instanceof XBooleanFilter) {
+            XBooleanFilter booleanFilter = (XBooleanFilter) sourceFilter;
             for (Filter filter : booleanFilter.getMustFilters()) {
                 flatten(filter, flatQueries);
             }

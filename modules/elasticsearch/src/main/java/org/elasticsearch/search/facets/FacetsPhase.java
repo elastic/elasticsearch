@@ -25,6 +25,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -67,7 +68,7 @@ public class FacetsPhase implements SearchPhase {
                     DocumentMapper docMapper = context.mapperService().documentMapper(type);
                     query = new FilteredQuery(query, context.filterCache().cache(docMapper.typeFilter()));
                 } else {
-                    BooleanFilter booleanFilter = new BooleanFilter();
+                    XBooleanFilter booleanFilter = new XBooleanFilter();
                     for (String type : context.types()) {
                         DocumentMapper docMapper = context.mapperService().documentMapper(type);
                         booleanFilter.add(new FilterClause(context.filterCache().cache(docMapper.typeFilter()), BooleanClause.Occur.SHOULD));

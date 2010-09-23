@@ -21,7 +21,10 @@ package org.elasticsearch.index.shard.service;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.FilterClause;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -517,7 +521,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 }
                 query = new FilteredQuery(query, indexCache.filter().cache(docMapper.typeFilter()));
             } else {
-                BooleanFilter booleanFilter = new BooleanFilter();
+                XBooleanFilter booleanFilter = new XBooleanFilter();
                 for (String type : types) {
                     DocumentMapper docMapper = mapperService.documentMapper(type);
                     if (docMapper == null) {

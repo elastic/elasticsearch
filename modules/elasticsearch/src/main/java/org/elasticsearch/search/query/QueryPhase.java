@@ -22,6 +22,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.Index;
@@ -88,7 +89,7 @@ public class QueryPhase implements SearchPhase {
                     }
                     query = new FilteredQuery(query, searchContext.filterCache().cache(docMapper.typeFilter()));
                 } else {
-                    BooleanFilter booleanFilter = new BooleanFilter();
+                    XBooleanFilter booleanFilter = new XBooleanFilter();
                     for (String type : searchContext.types()) {
                         DocumentMapper docMapper = searchContext.mapperService().documentMapper(type);
                         if (docMapper == null) {

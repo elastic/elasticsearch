@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.OpenFilterClause;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -92,7 +95,7 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
             }
         }
 
-        BooleanFilter filter = new PublicBooleanFilter();
+        XBooleanFilter filter = new XBooleanFilter();
         for (OpenFilterClause filterClause : clauses) {
 
             if (cache) {

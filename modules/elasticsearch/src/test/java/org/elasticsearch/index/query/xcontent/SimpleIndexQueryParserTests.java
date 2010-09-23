@@ -555,7 +555,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        BooleanFilter booleanFilter = (BooleanFilter) filteredQuery.getFilter();
+        XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
 
         // TODO get the content and test
     }

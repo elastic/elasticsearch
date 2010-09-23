@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.river.twitter;
+package org.elasticsearch.plugin.river.couchdb;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -25,16 +25,16 @@ import org.elasticsearch.plugins.AbstractPlugin;
 /**
  * @author kimchy (shay.banon)
  */
-public class RiverTwitterPlugin extends AbstractPlugin {
+public class CouchdbRiverPlugin extends AbstractPlugin {
 
-    @Inject public RiverTwitterPlugin() {
+    @Inject public CouchdbRiverPlugin() {
     }
 
     @Override public String name() {
-        return "river-twitter";
+        return "river-couchdb";
     }
 
     @Override public String description() {
-        return "River Twitter Plugin";
+        return "River CouchDB Plugin";
     }
 }

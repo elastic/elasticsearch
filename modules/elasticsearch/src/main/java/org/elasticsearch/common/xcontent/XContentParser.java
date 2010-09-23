@@ -92,6 +92,8 @@ public interface XContentParser {
 
     Map<String, Object> map() throws IOException;
 
+    Map<String, Object> mapAndClose() throws IOException;
+
     String text() throws IOException;
 
     String textOrNull() throws IOException;

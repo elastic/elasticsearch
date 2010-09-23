@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.river.rabbitmq;
+package org.elasticsearch.plugin.river.twitter;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -25,16 +25,16 @@ import org.elasticsearch.plugins.AbstractPlugin;
 /**
  * @author kimchy (shay.banon)
  */
-public class RiverRabbitMQPlugin extends AbstractPlugin {
+public class TwitterRiverPlugin extends AbstractPlugin {
 
-    @Inject public RiverRabbitMQPlugin() {
+    @Inject public TwitterRiverPlugin() {
     }
 
     @Override public String name() {
-        return "river-rabbitmq";
+        return "river-twitter";
     }
 
     @Override public String description() {
-        return "River RabbitMQ Plugin";
+        return "River Twitter Plugin";
     }
 }

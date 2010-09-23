@@ -67,18 +67,22 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
         super(riverName, settings);
         this.client = client;
 
-        String user = XContentMapValues.nodeStringValue(settings.settings().get("user"), null);
-        String password = XContentMapValues.nodeStringValue(settings.settings().get("password"), null);
+        String user = null;
+        String password = null;
+        if (settings.settings().containsKey("twitter")) {
+            Map<String, Object> twitterSettings = (Map<String, Object>) settings.settings().get("twitter");
+            user = XContentMapValues.nodeStringValue(twitterSettings.get("user"), null);
+            password = XContentMapValues.nodeStringValue(twitterSettings.get("password"), null);
+        }
 
         logger.info("creating twitter stream river for [{}]", user);
-
-        this.bulkSize = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_size"), 100);
-        this.dropThreshold = XContentMapValues.nodeIntegerValue(settings.settings().get("drop_threshold"), 10);
 
         if (user == null || password == null) {
             stream = null;
             indexName = null;
             typeName = null;
+            bulkSize = 100;
+            dropThreshold = 10;
             logger.warn("no user / password specified, disabling river...");
             return;
         }
@@ -87,9 +91,13 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
             Map<String, Object> indexSettings = (Map<String, Object>) settings.settings().get("index");
             indexName = XContentMapValues.nodeStringValue(indexSettings.get("index"), riverName.name());
             typeName = XContentMapValues.nodeStringValue(indexSettings.get("type"), "status");
+            this.bulkSize = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_size"), 100);
+            this.dropThreshold = XContentMapValues.nodeIntegerValue(settings.settings().get("drop_threshold"), 10);
         } else {
             indexName = riverName.name();
             typeName = "status";
+            bulkSize = 100;
+            dropThreshold = 10;
         }
 
         stream = new TwitterStreamFactory(new StatusHandler()).getInstance(user, password);

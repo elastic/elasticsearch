@@ -29,6 +29,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.river.AbstractRiverComponent;
@@ -38,6 +39,7 @@ import org.elasticsearch.river.RiverSettings;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -45,6 +47,20 @@ import java.util.List;
 public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     private final Client client;
+
+    private final String rabbitHost;
+    private final int rabbitPort;
+    private final String rabbitUser;
+    private final String rabbitPassword;
+    private final String rabbitVhost;
+
+    private final String rabbitQueue;
+    private final String rabbitExchange;
+    private final String rabbitRoutingKey;
+
+    private final int bulkSize;
+    private final TimeValue bulkTimeout;
+    private final boolean ordered;
 
     private volatile boolean closed = false;
 
@@ -55,15 +71,54 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     @Inject public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client) {
         super(riverName, settings);
         this.client = client;
+
+        if (settings.settings().containsKey("rabbitmq")) {
+            Map<String, Object> rabbitSettings = (Map<String, Object>) settings.settings().get("rabbitmq");
+            rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_HOST);
+            rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), ConnectionFactory.DEFAULT_AMQP_PORT);
+            rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_USER);
+            rabbitPassword = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_PASS);
+            rabbitVhost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_VHOST);
+
+
+            rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");
+            rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
+            rabbitRoutingKey = XContentMapValues.nodeStringValue(rabbitSettings.get("routing_key"), "elasticsearch");
+        } else {
+            rabbitHost = ConnectionFactory.DEFAULT_HOST;
+            rabbitPort = ConnectionFactory.DEFAULT_AMQP_PORT;
+            rabbitUser = ConnectionFactory.DEFAULT_USER;
+            rabbitPassword = ConnectionFactory.DEFAULT_PASS;
+            rabbitVhost = ConnectionFactory.DEFAULT_VHOST;
+
+            rabbitQueue = "elasticsearch";
+            rabbitExchange = "elasticsearch";
+            rabbitRoutingKey = "elasticsearch";
+        }
+
+        if (settings.settings().containsKey("index")) {
+            Map<String, Object> indexSettings = (Map<String, Object>) settings.settings().get("index");
+            bulkSize = XContentMapValues.nodeIntegerValue(indexSettings.get("bulk_size"), 100);
+            if (indexSettings.containsKey("bulk_timeout")) {
+                bulkTimeout = TimeValue.parseTimeValue(XContentMapValues.nodeStringValue(indexSettings.get("bulk_timeout"), "10ms"), TimeValue.timeValueMillis(10));
+            } else {
+                bulkTimeout = TimeValue.timeValueMillis(10);
+            }
+            ordered = XContentMapValues.nodeBooleanValue(indexSettings.get("ordered"), false);
+        } else {
+            bulkSize = 100;
+            bulkTimeout = TimeValue.timeValueMillis(10);
+            ordered = false;
+        }
     }
 
     @Override public void start() {
         connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(XContentMapValues.nodeStringValue(settings.settings().get("host"), ConnectionFactory.DEFAULT_HOST));
-        connectionFactory.setPort(XContentMapValues.nodeIntegerValue(settings.settings().get("port"), ConnectionFactory.DEFAULT_AMQP_PORT));
-        connectionFactory.setUsername(XContentMapValues.nodeStringValue(settings.settings().get("user"), ConnectionFactory.DEFAULT_USER));
-        connectionFactory.setPassword(XContentMapValues.nodeStringValue(settings.settings().get("password"), ConnectionFactory.DEFAULT_PASS));
-        connectionFactory.setVirtualHost(XContentMapValues.nodeStringValue(settings.settings().get("vhost"), ConnectionFactory.DEFAULT_VHOST));
+        connectionFactory.setHost(rabbitHost);
+        connectionFactory.setPort(rabbitPort);
+        connectionFactory.setUsername(rabbitUser);
+        connectionFactory.setPassword(rabbitPassword);
+        connectionFactory.setVirtualHost(rabbitVhost);
 
         logger.info("creating rabbitmq river, host [{}], port [{}], user [{}], vhost [{}]", connectionFactory.getHost(), connectionFactory.getPort(), connectionFactory.getUsername(), connectionFactory.getVirtualHost());
 
@@ -108,22 +163,16 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     }
                 }
 
-                int bulkSize = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_size"), 100);
-                long bulkTimeout = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_timeout"), 10);
-                String queue = XContentMapValues.nodeStringValue(settings.settings().get("queue"), "elasticsearch");
-                String exchange = XContentMapValues.nodeStringValue(settings.settings().get("exchange"), "elasticsearch");
-                String routingKey = XContentMapValues.nodeStringValue(settings.settings().get("routing_key"), "elasticsearch");
-
                 QueueingConsumer consumer = new QueueingConsumer(channel);
                 // define the queue
                 try {
-                    channel.exchangeDeclare(exchange/*exchange*/, "direct"/*type*/, true /*durable*/);
-                    channel.queueDeclare(queue/*queue*/, true /*durable*/, false/*exclusive*/, false/*autoDelete*/, null);
-                    channel.queueBind(queue/*queue*/, exchange/*exchange*/, routingKey/*routingKey*/);
-                    channel.basicConsume(queue/*queue*/, false/*noAck*/, consumer);
+                    channel.exchangeDeclare(rabbitExchange/*exchange*/, "direct"/*type*/, true /*durable*/);
+                    channel.queueDeclare(rabbitQueue/*queue*/, true /*durable*/, false/*exclusive*/, false/*autoDelete*/, null);
+                    channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
+                    channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
-                        logger.warn("failed to create queue [{}]", e, queue);
+                        logger.warn("failed to create queue [{}]", e, rabbitQueue);
                     }
                     cleanup(0, "failed to create queue");
                     continue;
@@ -167,7 +216,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         if (bulkRequestBuilder.numberOfActions() < bulkSize) {
                             // try and spin some more of those without timeout, so we have a bigger bulk (bounded by the bulk size)
                             try {
-                                while ((task = consumer.nextDelivery(bulkTimeout)) != null) {
+                                while ((task = consumer.nextDelivery(bulkTimeout.millis())) != null) {
                                     try {
                                         bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
                                     } catch (Exception e) {
@@ -194,8 +243,9 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             logger.trace("executing bulk with [{}] actions", bulkRequestBuilder.numberOfActions());
                         }
 
-                        bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
-                            @Override public void onResponse(BulkResponse response) {
+                        if (ordered) {
+                            try {
+                                BulkResponse response = bulkRequestBuilder.execute().actionGet();
                                 if (response.hasFailures()) {
                                     // TODO write to exception queue?
                                     logger.warn("failed to execute" + response.buildFailureMessage());
@@ -207,12 +257,30 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                         logger.warn("failed to ack [{}]", e1, deliveryTag);
                                     }
                                 }
+                            } catch (Exception e) {
+                                logger.warn("failed to execute bulk", e);
                             }
+                        } else {
+                            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
+                                @Override public void onResponse(BulkResponse response) {
+                                    if (response.hasFailures()) {
+                                        // TODO write to exception queue?
+                                        logger.warn("failed to execute" + response.buildFailureMessage());
+                                    }
+                                    for (Long deliveryTag : deliveryTags) {
+                                        try {
+                                            channel.basicAck(deliveryTag, false);
+                                        } catch (IOException e1) {
+                                            logger.warn("failed to ack [{}]", e1, deliveryTag);
+                                        }
+                                    }
+                                }
 
-                            @Override public void onFailure(Throwable e) {
-                                logger.warn("failed to execute bulk for delivery tags , not ack'ing", e, deliveryTags);
-                            }
-                        });
+                                @Override public void onFailure(Throwable e) {
+                                    logger.warn("failed to execute bulk for delivery tags , not ack'ing", e, deliveryTags);
+                                }
+                            });
+                        }
                     }
                 }
             }

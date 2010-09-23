@@ -37,6 +37,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.support.QueryParsers.*;
+
 /**
  * <pre>
  * {
@@ -167,7 +169,8 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
         }
         lonFieldName = mapper.names().indexName();
 
-        GeoDistanceFilter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        Filter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(latFieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

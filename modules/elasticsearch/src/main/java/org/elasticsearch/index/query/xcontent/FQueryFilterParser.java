@@ -33,6 +33,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 
 /**
+ * The "fquery" filter is the same as the {@link QueryFilterParser} except that it allows also to
+ * associate a name with the query filter.
+ *
  * @author kimchy (shay.banon)
  */
 public class FQueryFilterParser extends AbstractIndexComponent implements XContentFilterParser {

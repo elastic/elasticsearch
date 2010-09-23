@@ -35,6 +35,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.support.QueryParsers.*;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -148,6 +150,7 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
         }
 
         MapperService mapperService = parseContext.mapperService();
+
         FieldMapper mapper = mapperService.smartNameFieldMapper(latFieldName);
         if (mapper == null) {
             throw new QueryParsingException(index, "failed to find lat field [" + latFieldName + "]");
@@ -161,7 +164,8 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
         lonFieldName = mapper.names().indexName();
 
 
-        GeoBoundingBoxFilter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        Filter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(latFieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

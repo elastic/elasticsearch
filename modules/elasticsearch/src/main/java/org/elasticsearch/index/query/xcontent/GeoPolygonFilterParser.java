@@ -37,6 +37,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.query.support.QueryParsers.*;
+
 /**
  * <pre>
  * {
@@ -160,7 +162,8 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
         }
         lonFieldName = mapper.names().indexName();
 
-        GeoPolygonFilter filter = new GeoPolygonFilter(points.toArray(new GeoPolygonFilter.Point[points.size()]), latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        Filter filter = new GeoPolygonFilter(points.toArray(new GeoPolygonFilter.Point[points.size()]), latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(latFieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

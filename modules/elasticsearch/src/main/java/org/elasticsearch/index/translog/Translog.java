@@ -88,6 +88,11 @@ public interface Translog extends IndexShardComponent {
     Snapshot snapshot(Snapshot snapshot);
 
     /**
+     * Flushes the translog.
+     */
+    void flush();
+
+    /**
      * Closes the transaction log.
      */
     void close(boolean delete);

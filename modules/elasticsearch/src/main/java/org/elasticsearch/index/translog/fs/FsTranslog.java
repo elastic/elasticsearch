@@ -185,6 +185,18 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
+    @Override public void flush() {
+        synchronized (mutex) {
+            if (raf != null) {
+                try {
+                    raf.raf().getFD().sync();
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
+    }
+
     @Override public void close(boolean delete) {
         synchronized (mutex) {
             if (raf != null) {

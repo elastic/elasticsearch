@@ -40,6 +40,8 @@ import java.io.IOException;
  */
 public abstract class FsStore extends AbstractStore {
 
+    public static final boolean DEFAULT_SUGGEST_USE_COMPOUND_FILE = false;
+
     public FsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
         super(shardId, indexSettings, indexStore);
     }

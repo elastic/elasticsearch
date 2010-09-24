@@ -360,7 +360,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      * Explicitly set the post tags that will be used for highlighting.
      */
     public SearchRequestBuilder setHighlighterPostTags(String... postTags) {
-        highlightBuilder().preTags(postTags);
+        highlightBuilder().postTags(postTags);
         return this;
     }
 

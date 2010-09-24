@@ -60,12 +60,12 @@ public class MmapFsStore extends FsStore {
             if (switchDirectory.v2() != null) {
                 suggestUseCompoundFile = switchDirectory.v2();
             }
-            logger.debug("Using [mmap_fs] Store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.v1().primaryExtensions());
+            logger.debug("using [mmap_fs] store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.v1().primaryExtensions());
             directory = wrapDirectory(switchDirectory.v1());
         } else {
-            suggestUseCompoundFile = true;
+            suggestUseCompoundFile = DEFAULT_SUGGEST_USE_COMPOUND_FILE;
             directory = wrapDirectory(fsDirectory);
-            logger.debug("Using [mmap_fs] Store with path [{}]", fsDirectory.getFile());
+            logger.debug("using [mmap_fs] store with path [{}]", fsDirectory.getFile());
         }
         this.suggestUseCompoundFile = suggestUseCompoundFile;
     }

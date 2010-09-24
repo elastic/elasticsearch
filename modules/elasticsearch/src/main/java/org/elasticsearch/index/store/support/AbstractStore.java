@@ -55,7 +55,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     protected AbstractStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
         super(shardId, indexSettings);
         this.indexStore = indexStore;
-        this.sync = componentSettings.getAsBoolean("sync", false);
+        this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
     }
 
     protected Directory wrapDirectory(Directory dir) throws IOException {

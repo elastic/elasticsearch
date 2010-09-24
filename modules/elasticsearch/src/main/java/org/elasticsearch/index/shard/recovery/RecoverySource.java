@@ -35,7 +35,6 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,28 +96,28 @@ public class RecoverySource extends AbstractComponent {
                     StopWatch stopWatch = new StopWatch().start();
 
                     for (String name : snapshot.getFiles()) {
-                        StoreFileMetaData md = shard.store().metaData(name);
+                        long length = shard.store().directory().fileLength(name);
                         boolean useExisting = false;
                         if (request.existingFiles().containsKey(name)) {
-                            if (!md.name().contains("segment") && md.length() == request.existingFiles().get(name).length()) {
+                            if (!name.contains("segment") && length == request.existingFiles().get(name).length()) {
                                 response.phase1ExistingFileNames.add(name);
-                                response.phase1ExistingFileSizes.add(md.length());
-                                existingTotalSize += md.length();
+                                response.phase1ExistingFileSizes.add(length);
+                                existingTotalSize += length;
                                 useExisting = true;
                                 if (logger.isTraceEnabled()) {
-                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, md.length());
+                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, length);
                                 }
                             }
                         }
                         if (!useExisting) {
                             if (request.existingFiles().containsKey(name)) {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but has different length: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name).length(), md.length());
+                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but has different length: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name).length(), length);
                             } else {
                                 logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name);
                             }
                             response.phase1FileNames.add(name);
-                            response.phase1FileSizes.add(md.length());
-                            totalSize += md.length();
+                            response.phase1FileSizes.add(length);
+                            totalSize += length;
                         }
                     }
                     response.phase1TotalSize = totalSize;

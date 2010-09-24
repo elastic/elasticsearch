@@ -36,8 +36,6 @@ public interface Store extends IndexShardComponent {
      */
     Directory directory();
 
-    StoreFileMetaData metaData(String name) throws IOException;
-
     ImmutableMap<String, StoreFileMetaData> list() throws IOException;
 
     /**

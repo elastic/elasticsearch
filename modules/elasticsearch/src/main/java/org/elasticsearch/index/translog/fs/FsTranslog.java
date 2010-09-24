@@ -48,6 +48,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private final Object mutex = new Object();
 
+    private boolean syncOnEachOperation = false;
+
     private volatile long id = 0;
 
     private final AtomicInteger operationCounter = new AtomicInteger();
@@ -140,6 +142,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
             synchronized (mutex) {
                 raf.raf().write(out.unsafeByteArray(), 0, size);
+                if (syncOnEachOperation) {
+                    sync();
+                }
                 lastPosition += size;
                 operationCounter.incrementAndGet();
             }
@@ -185,7 +190,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public void flush() {
+    @Override public void sync() {
         synchronized (mutex) {
             if (raf != null) {
                 try {
@@ -194,6 +199,12 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     // ignore
                 }
             }
+        }
+    }
+
+    @Override public void syncOnEachOperation(boolean syncOnEachOperation) {
+        synchronized (mutex) {
+            this.syncOnEachOperation = syncOnEachOperation;
         }
     }
 

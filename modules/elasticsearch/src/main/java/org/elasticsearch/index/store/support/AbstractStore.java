@@ -62,18 +62,6 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         return new StoreDirectory(dir);
     }
 
-    @Override public StoreFileMetaData metaData(String name) throws IOException {
-        StoreFileMetaData md = filesMetadata.get(name);
-        if (md == null) {
-            return null;
-        }
-        // IndexOutput not closed, does not exists
-        if (md.lastModified() == -1 || md.length() == -1) {
-            return null;
-        }
-        return md;
-    }
-
     @Override public ImmutableMap<String, StoreFileMetaData> list() throws IOException {
         ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
         for (String name : files) {
@@ -83,6 +71,18 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             }
         }
         return builder.build();
+    }
+
+    private StoreFileMetaData metaData(String name) throws IOException {
+        StoreFileMetaData md = filesMetadata.get(name);
+        if (md == null) {
+            return null;
+        }
+        // IndexOutput not closed, does not exists
+        if (md.lastModified() == -1 || md.length() == -1) {
+            return null;
+        }
+        return md;
     }
 
     @Override public void deleteContent() throws IOException {

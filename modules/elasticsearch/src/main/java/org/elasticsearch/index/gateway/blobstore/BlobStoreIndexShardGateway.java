@@ -43,7 +43,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -182,9 +181,9 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         int indexNumberOfFiles = 0;
         long indexTotalFilesSize = 0;
         for (final String fileName : snapshotIndexCommit.getFiles()) {
-            StoreFileMetaData storeMetaData;
+            long fileLength = 0;
             try {
-                storeMetaData = store.metaData(fileName);
+                fileLength = store.directory().fileLength(fileName);
             } catch (IOException e) {
                 throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to get store file metadata", e);
             }
@@ -195,17 +194,17 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
 
             CommitPoint.FileInfo fileInfo = commitPoints.findPhysicalIndexFile(fileName);
-            if (fileInfo == null || fileInfo.length() != storeMetaData.length() || !commitPointFileExistsInBlobs(fileInfo, blobs)) {
+            if (fileInfo == null || fileInfo.length() != fileLength || !commitPointFileExistsInBlobs(fileInfo, blobs)) {
                 // commit point file does not exists in any commit point, or has different length, or does not fully exists in the listed blobs
                 snapshotRequired = true;
             }
 
             if (snapshotRequired) {
                 indexNumberOfFiles++;
-                indexTotalFilesSize += storeMetaData.length();
+                indexTotalFilesSize += fileLength;
                 // create a new FileInfo
                 try {
-                    CommitPoint.FileInfo snapshotFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), storeMetaData.name(), storeMetaData.length());
+                    CommitPoint.FileInfo snapshotFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), fileName, fileLength);
                     indexCommitPointFiles.add(snapshotFileInfo);
                     snapshotFile(snapshotIndexCommit.getDirectory(), snapshotFileInfo, indexLatch, failures);
                 } catch (IOException e) {
@@ -520,21 +519,27 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
         List<CommitPoint.FileInfo> filesToRecover = Lists.newArrayList();
         for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
-            StoreFileMetaData storeFile = store.metaData(fileInfo.physicalName());
-            if (storeFile != null && !storeFile.name().contains("segment") && storeFile.length() == fileInfo.length()) {
+            String fileName = fileInfo.physicalName();
+            long fileLength = -1;
+            try {
+                fileLength = store.directory().fileLength(fileName);
+            } catch (Exception e) {
+                // no file
+            }
+            if (!fileName.contains("segment") && fileLength == fileInfo.length()) {
                 numberOfFiles++;
-                totalSize += storeFile.length();
+                totalSize += fileLength;
                 numberOfReusedFiles++;
-                reusedTotalSize += storeFile.length();
+                reusedTotalSize += fileLength;
                 if (logger.isTraceEnabled()) {
                     logger.trace("not_recovering [{}], exists in local store and has same length [{}]", fileInfo.physicalName(), fileInfo.length());
                 }
             } else {
                 if (logger.isTraceEnabled()) {
-                    if (storeFile == null) {
+                    if (fileLength == -1) {
                         logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
                     } else {
-                        logger.trace("recovering [{}], exists in local store but has different length: gateway [{}], local [{}]", fileInfo.physicalName(), fileInfo.length(), storeFile.length());
+                        logger.trace("recovering [{}], exists in local store but has different length: gateway [{}], local [{}]", fileInfo.physicalName(), fileInfo.length(), fileLength);
                     }
                 }
                 numberOfFiles++;

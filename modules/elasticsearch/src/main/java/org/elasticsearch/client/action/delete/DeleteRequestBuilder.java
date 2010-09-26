@@ -64,6 +64,16 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
     }
 
     /**
+     * Should a refresh be executed post this index operation causing the operation to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public DeleteRequestBuilder setRefresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     public DeleteRequestBuilder setListenerThreaded(boolean threadedListener) {

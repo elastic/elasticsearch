@@ -244,6 +244,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             writer.addDocument(create.doc(), create.analyzer());
             translog.add(new Translog.Create(create));
             dirty = true;
+            if (create.refresh()) {
+                refresh(new Refresh(false));
+            }
         } catch (IOException e) {
             throw new CreateFailedEngineException(shardId, create, e);
         } finally {
@@ -261,6 +264,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             writer.updateDocument(index.uid(), index.doc(), index.analyzer());
             translog.add(new Translog.Index(index));
             dirty = true;
+            if (index.refresh()) {
+                refresh(new Refresh(false));
+            }
         } catch (IOException e) {
             throw new IndexFailedEngineException(shardId, index, e);
         } finally {
@@ -278,6 +284,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             writer.deleteDocuments(delete.uid());
             translog.add(new Translog.Delete(delete));
             dirty = true;
+            if (delete.refresh()) {
+                refresh(new Refresh(false));
+            }
         } catch (IOException e) {
             throw new DeleteFailedEngineException(shardId, delete, e);
         } finally {

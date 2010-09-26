@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,7 +104,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        indexShard(shardRequest).delete(request.type(), request.id());
+        IndexShard indexShard = indexShard(shardRequest);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id());
+        delete.refresh(request.refresh());
+        indexShard.delete(delete);
     }
 
     @Override protected ShardsIterator shards(ClusterState clusterState, DeleteRequest request) {

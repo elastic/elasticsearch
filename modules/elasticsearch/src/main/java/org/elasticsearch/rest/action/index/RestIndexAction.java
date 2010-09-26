@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestIndexAction extends BaseRestHandler {
 
@@ -60,6 +60,7 @@ public class RestIndexAction extends BaseRestHandler {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
+        indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {

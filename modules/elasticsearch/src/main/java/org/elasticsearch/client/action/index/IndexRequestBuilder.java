@@ -183,6 +183,16 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
+     * Should a refresh be executed post this index operation causing the operation to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public IndexRequestBuilder setRefresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
+    /**
      * Set the replication type for this operation.
      */
     public IndexRequestBuilder setReplicationType(ReplicationType replicationType) {

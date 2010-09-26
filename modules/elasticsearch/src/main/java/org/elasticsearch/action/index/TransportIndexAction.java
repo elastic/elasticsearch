@@ -35,9 +35,11 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -127,12 +129,17 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override protected IndexResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
+        IndexShard indexShard = indexShard(shardRequest);
         final IndexRequest request = shardRequest.request;
         ParsedDocument doc;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            doc = indexShard(shardRequest).index(request.type(), request.id(), request.source());
+            Engine.Index index = indexShard.prepareIndex(request.type(), request.id(), request.source());
+            index.refresh(request.refresh());
+            doc = indexShard.index(index);
         } else {
-            doc = indexShard(shardRequest).create(request.type(), request.id(), request.source());
+            Engine.Create create = indexShard(shardRequest).prepareCreate(request.type(), request.id(), request.source());
+            create.refresh(request.refresh());
+            doc = indexShard(shardRequest).create(create);
         }
         if (doc.mappersAdded()) {
             updateMappingOnMaster(request);

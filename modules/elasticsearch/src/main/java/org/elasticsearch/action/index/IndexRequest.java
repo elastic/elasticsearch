@@ -113,6 +113,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private OpType opType = OpType.INDEX;
 
+    private boolean refresh = false;
+
     public IndexRequest() {
     }
 
@@ -390,6 +392,20 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.opType;
     }
 
+    /**
+     * Should a refresh be executed post this index operation causing the operation to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public IndexRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
+    public boolean refresh() {
+        return this.refresh;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
@@ -404,6 +420,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         in.readFully(source);
 
         opType = OpType.fromId(in.readByte());
+        refresh = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -418,6 +435,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         out.writeVInt(sourceLength);
         out.writeBytes(source, sourceOffset, sourceLength);
         out.writeByte(opType.id());
+        out.writeBoolean(refresh);
     }
 
     @Override public String toString() {

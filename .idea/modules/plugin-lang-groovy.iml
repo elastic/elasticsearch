@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="JAVA_MODULE" version="4">
   <component name="NewModuleRootManager" inherit-compiler-output="false">
-    <output url="file://$MODULE_DIR$/../../plugins/client/groovy/build/classes/main" />
-    <output-test url="file://$MODULE_DIR$/../../plugins/client/groovy/build/classes/test" />
+    <output url="file://$MODULE_DIR$/../../plugins/lang/groovy/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../plugins/lang/groovy/build/classes/test" />
     <exclude-output />
-    <content url="file://$MODULE_DIR$/../../plugins/client/groovy">
-      <sourceFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/src/main/groovy" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/src/test/groovy" isTestSource="true" />
-      <excludeFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/build" />
+    <content url="file://$MODULE_DIR$/../../plugins/lang/groovy">
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/src/main/groovy" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/src/test/groovy" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/work" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

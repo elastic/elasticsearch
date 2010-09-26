@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +38,12 @@ public class Analysis {
 
     public static Set<?> parseStopWords(Settings settings, Set<?> defaultStopWords) {
         String value = settings.get("stopwords");
-        if (value != null && "_none_".equals(value)) {
-            return ImmutableSet.of();
+        if (value != null) {
+            if ("_none_".equals(value)) {
+                return ImmutableSet.of();
+            } else {
+                return ImmutableSet.copyOf(Strings.commaDelimitedListToSet(value));
+            }
         }
         String[] stopWords = settings.getAsArray("stopwords", null);
         if (stopWords != null) {

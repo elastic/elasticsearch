@@ -47,6 +47,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
+    private boolean refresh;
 
     /**
      * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
@@ -154,16 +155,32 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         return this;
     }
 
+    /**
+     * Should a refresh be executed post this index operation causing the operation to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public DeleteRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
+    public boolean refresh() {
+        return this.refresh;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
         id = in.readUTF();
+        refresh = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(type);
         out.writeUTF(id);
+        out.writeBoolean(refresh);
     }
 
     @Override public String toString() {

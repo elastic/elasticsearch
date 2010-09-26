@@ -111,7 +111,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client1.prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).execute().actionGet();
+        IndexResponse indexResponse = client1.prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true).execute().actionGet();
         assertThat(indexResponse.index(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));

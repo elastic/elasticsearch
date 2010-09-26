@@ -265,6 +265,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Create implements Operation {
         private final ParsedDocument doc;
         private final Analyzer analyzer;
+        private boolean refresh;
 
         public Create(ParsedDocument doc, Analyzer analyzer) {
             this.doc = doc;
@@ -298,12 +299,21 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public byte[] source() {
             return this.doc.source();
         }
+
+        public boolean refresh() {
+            return refresh;
+        }
+
+        public void refresh(boolean refresh) {
+            this.refresh = refresh;
+        }
     }
 
     static class Index implements Operation {
         private final Term uid;
         private final ParsedDocument doc;
         private final Analyzer analyzer;
+        private boolean refresh;
 
         public Index(Term uid, ParsedDocument doc, Analyzer analyzer) {
             this.uid = uid;
@@ -342,10 +352,19 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public byte[] source() {
             return this.doc.source();
         }
+
+        public boolean refresh() {
+            return refresh;
+        }
+
+        public void refresh(boolean refresh) {
+            this.refresh = refresh;
+        }
     }
 
     static class Delete implements Operation {
         private final Term uid;
+        private boolean refresh;
 
         public Delete(Term uid) {
             this.uid = uid;
@@ -357,6 +376,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Term uid() {
             return this.uid;
+        }
+
+        public boolean refresh() {
+            return refresh;
+        }
+
+        public void refresh(boolean refresh) {
+            this.refresh = refresh;
         }
     }
 

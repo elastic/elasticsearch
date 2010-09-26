@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestDeleteAction extends BaseRestHandler {
 
@@ -48,6 +48,7 @@ public class RestDeleteAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
+        deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
         // we just send a response, no need to fork
         deleteRequest.listenerThreaded(false);
         // we don't spawn, then fork if local

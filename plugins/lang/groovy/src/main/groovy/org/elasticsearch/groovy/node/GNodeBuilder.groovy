@@ -27,7 +27,7 @@ import org.elasticsearch.node.Node
 import org.elasticsearch.node.internal.InternalNode
 
 /**
- * The node builder allow to build a        {@link GNode}        instance.
+ * The node builder allow to build a         {@link GNode}         instance.
  *
  * @author kimchy (shay.banon)
  */

@@ -60,7 +60,7 @@ class GNode {
     }
 
     /**
-     * Closes the node (and    {@link #stop}   s if its running).
+     * Closes the node (and     {@link #stop}    s if its running).
      */
     def close() {
         node.close()

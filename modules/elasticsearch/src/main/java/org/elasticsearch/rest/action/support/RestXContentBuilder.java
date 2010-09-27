@@ -69,8 +69,7 @@ public class RestXContentBuilder {
             if (contentType == builder.contentType()) {
                 builder.rawField("_source", siLzf);
             } else {
-                // TODO, should we just return it as binary and not auto convert it?
-                XContentParser parser = XContentFactory.xContent(builder.contentType()).createParser(siLzf);
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(siLzf);
                 try {
                     parser.nextToken();
                     builder.field("_source");
@@ -80,11 +79,11 @@ public class RestXContentBuilder {
                 }
             }
         } else {
-            if (XContentFactory.xContentType(source) == builder.contentType()) {
+            XContentType contentType = XContentFactory.xContentType(source);
+            if (contentType == builder.contentType()) {
                 builder.rawField("_source", source);
             } else {
-                // TODO, should we just return it as binary and not auto convert it?
-                XContentParser parser = XContentFactory.xContent(builder.contentType()).createParser(source);
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
                 try {
                     parser.nextToken();
                     builder.field("_source");

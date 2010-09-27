@@ -251,6 +251,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     logger.warn("failed to get last_seq, throttling....", e);
                     try {
                         Thread.sleep(5000);
+                        continue;
                     } catch (InterruptedException e1) {
                         if (closed) {
                             return;

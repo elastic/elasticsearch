@@ -120,6 +120,13 @@ public class RestClusterStateAction extends BaseRestHandler {
                             builder.startObject(node.id());
                             builder.field("name", node.name());
                             builder.field("transport_address", node.address().toString());
+
+                            builder.startObject("attributes");
+                            for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                                builder.field(attr.getKey(), attr.getValue());
+                            }
+                            builder.endObject();
+
                             builder.endObject();
                         }
                         builder.endObject();

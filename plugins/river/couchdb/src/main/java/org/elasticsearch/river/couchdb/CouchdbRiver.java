@@ -259,7 +259,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     }
                 }
 
-                String file = "/" + couchDb + "/_changes?feed=continuous&include_docs=true&&heartbeat=10000";
+                String file = "/" + couchDb + "/_changes?feed=continuous&include_docs=true&heartbeat=10000";
                 if (couchFilter != null) {
                     file = file + "&filter=" + couchFilter;
                 }

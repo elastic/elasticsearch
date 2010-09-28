@@ -389,7 +389,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             parser.close();
         } catch (Exception e) {
-            throw new SearchParseException(context, "Failed to parse [" + Unicode.fromBytes(source, offset, length) + "]", e);
+            String sSource = "_na_";
+            try {
+                sSource = Unicode.fromBytes(source, offset, length);
+            } catch (Exception e1) {
+                // ignore
+            }
+            throw new SearchParseException(context, "Failed to parse [" + sSource + "]", e);
         }
     }
 

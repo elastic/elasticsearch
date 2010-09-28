@@ -56,11 +56,13 @@ public class AllTokenStream extends TokenFilter {
         if (!input.incrementToken()) {
             return false;
         }
-        float boost = allEntries.current().boost();
-        if (boost != 1.0f) {
-            payloadAttribute.setPayload(new Payload(encodeFloat(boost)));
-        } else {
-            payloadAttribute.setPayload(null);
+        if (allEntries.current() != null) {
+            float boost = allEntries.current().boost();
+            if (boost != 1.0f) {
+                payloadAttribute.setPayload(new Payload(encodeFloat(boost)));
+            } else {
+                payloadAttribute.setPayload(null);
+            }
         }
         return true;
     }

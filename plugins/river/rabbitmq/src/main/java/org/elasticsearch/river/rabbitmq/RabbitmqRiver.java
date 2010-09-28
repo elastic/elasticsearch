@@ -76,9 +76,9 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             Map<String, Object> rabbitSettings = (Map<String, Object>) settings.settings().get("rabbitmq");
             rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_HOST);
             rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), ConnectionFactory.DEFAULT_AMQP_PORT);
-            rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_USER);
-            rabbitPassword = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_PASS);
-            rabbitVhost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_VHOST);
+            rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("user"), ConnectionFactory.DEFAULT_USER);
+            rabbitPassword = XContentMapValues.nodeStringValue(rabbitSettings.get("pass"), ConnectionFactory.DEFAULT_PASS);
+            rabbitVhost = XContentMapValues.nodeStringValue(rabbitSettings.get("vhost"), ConnectionFactory.DEFAULT_VHOST);
 
 
             rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");

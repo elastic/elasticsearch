@@ -75,11 +75,19 @@ public class ScalingThreadPool extends AbstractThreadPool {
     }
 
     @Override public int getPoolSize() {
-        return ((TransferThreadPoolExecutor) executorService).getPoolSize();
+        if (executorService instanceof TransferThreadPoolExecutor) {
+            return ((TransferThreadPoolExecutor) executorService).getPoolSize();
+        } else {
+            return ((ThreadPoolExecutor) executorService).getPoolSize();
+        }
     }
 
     @Override public int getActiveCount() {
-        return ((TransferThreadPoolExecutor) executorService).getActiveCount();
+        if (executorService instanceof TransferThreadPoolExecutor) {
+            return ((TransferThreadPoolExecutor) executorService).getActiveCount();
+        } else {
+            return ((ThreadPoolExecutor) executorService).getActiveCount();
+        }
     }
 
     @Override public int getSchedulerPoolSize() {

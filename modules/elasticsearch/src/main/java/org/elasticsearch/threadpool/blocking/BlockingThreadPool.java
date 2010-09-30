@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TransferThreadPoolExecutor;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 
 import java.util.concurrent.Executors;
@@ -87,12 +88,21 @@ public class BlockingThreadPool extends AbstractThreadPool {
     }
 
     @Override public int getPoolSize() {
-        return ((ThreadPoolExecutor) executorService).getPoolSize();
+        if (executorService instanceof TransferThreadPoolExecutor) {
+            return ((TransferThreadPoolExecutor) executorService).getPoolSize();
+        } else {
+            return ((ThreadPoolExecutor) executorService).getPoolSize();
+        }
     }
 
     @Override public int getActiveCount() {
-        return ((ThreadPoolExecutor) executorService).getActiveCount();
+        if (executorService instanceof TransferThreadPoolExecutor) {
+            return ((TransferThreadPoolExecutor) executorService).getActiveCount();
+        } else {
+            return ((ThreadPoolExecutor) executorService).getActiveCount();
+        }
     }
+
 
     @Override public int getSchedulerPoolSize() {
         return ((ThreadPoolExecutor) scheduledExecutorService).getPoolSize();

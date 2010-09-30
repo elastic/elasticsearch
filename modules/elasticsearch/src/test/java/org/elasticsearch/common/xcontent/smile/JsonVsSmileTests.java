@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent.xson;
+package org.elasticsearch.common.xcontent.smile;
 
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,6 +35,15 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 public class JsonVsSmileTests {
+
+//    @Test public void testBinarySmileField() throws Exception {
+//        JsonGenerator gen = new SmileFactory().createJsonGenerator(new ByteArrayOutputStream());
+////        JsonGenerator gen = new JsonFactory().createJsonGenerator(new ByteArrayOutputStream(), JsonEncoding.UTF8);
+//        gen.writeStartObject();
+//        gen.writeFieldName("field1");
+//        gen.writeBinary(new byte[]{1, 2, 3});
+//        gen.writeEndObject();
+//    }
 
     @Test public void compareParsingTokens() throws IOException {
         FastByteArrayOutputStream xsonOs = new FastByteArrayOutputStream();

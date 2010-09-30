@@ -25,6 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -60,6 +61,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
     private final String couchDb;
     private final String couchFilter;
     private final String couchFilterParamsUrl;
+    private final String basicAuth;
 
     private final String indexName;
     private final String typeName;
@@ -97,12 +99,20 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             } else {
                 couchFilterParamsUrl = null;
             }
+            if (couchSettings.containsKey("user") && couchSettings.containsKey("password")) {
+                String user = couchSettings.get("user").toString();
+                String password = couchSettings.get("password").toString();
+                basicAuth = "Basic " + Base64.encodeBytes((user + ":" + password).getBytes());
+            } else {
+                basicAuth = null;
+            }
         } else {
             couchHost = "localhost";
             couchPort = 5984;
             couchDb = "db";
             couchFilter = null;
             couchFilterParamsUrl = null;
+            basicAuth = null;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -293,6 +303,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 try {
                     URL url = new URL("http", couchHost, couchPort, file);
                     connection = (HttpURLConnection) url.openConnection();
+                    if (basicAuth != null) {
+                        connection.addRequestProperty("Authorization", basicAuth);
+                    }
                     connection.setDoInput(true);
                     connection.setUseCaches(false);
                     is = connection.getInputStream();

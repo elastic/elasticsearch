@@ -20,7 +20,7 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
 
     private static final TField METHOD_FIELD_DESC = new TField("method", TType.I32, (short) 1);
     private static final TField URI_FIELD_DESC = new TField("uri", TType.STRING, (short) 2);
-    private static final TField PARAMS_FIELD_DESC = new TField("params", TType.MAP, (short) 3);
+    private static final TField PARAMETERS_FIELD_DESC = new TField("parameters", TType.MAP, (short) 3);
     private static final TField HEADERS_FIELD_DESC = new TField("headers", TType.MAP, (short) 4);
     private static final TField BODY_FIELD_DESC = new TField("body", TType.STRING, (short) 5);
 
@@ -29,7 +29,7 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
      */
     public Method method;
     public String uri;
-    public Map<String, String> params;
+    public Map<String, String> parameters;
     public Map<String, String> headers;
     public ByteBuffer body;
 
@@ -42,7 +42,7 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
          */
         METHOD((short) 1, "method"),
         URI((short) 2, "uri"),
-        PARAMS((short) 3, "params"),
+        PARAMETERS((short) 3, "parameters"),
         HEADERS((short) 4, "headers"),
         BODY((short) 5, "body");
 
@@ -63,8 +63,8 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                     return METHOD;
                 case 2: // URI
                     return URI;
-                case 3: // PARAMS
-                    return PARAMS;
+                case 3: // PARAMETERS
+                    return PARAMETERS;
                 case 4: // HEADERS
                     return HEADERS;
                 case 5: // BODY
@@ -118,7 +118,7 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                 new EnumMetaData(TType.ENUM, Method.class)));
         tmpMap.put(_Fields.URI, new FieldMetaData("uri", TFieldRequirementType.REQUIRED,
                 new FieldValueMetaData(TType.STRING)));
-        tmpMap.put(_Fields.PARAMS, new FieldMetaData("params", TFieldRequirementType.OPTIONAL,
+        tmpMap.put(_Fields.PARAMETERS, new FieldMetaData("parameters", TFieldRequirementType.OPTIONAL,
                 new MapMetaData(TType.MAP,
                         new FieldValueMetaData(TType.STRING),
                         new FieldValueMetaData(TType.STRING))));
@@ -153,20 +153,20 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
         if (other.isSetUri()) {
             this.uri = other.uri;
         }
-        if (other.isSetParams()) {
-            Map<String, String> __this__params = new HashMap<String, String>();
-            for (Map.Entry<String, String> other_element : other.params.entrySet()) {
+        if (other.isSetParameters()) {
+            Map<String, String> __this__parameters = new HashMap<String, String>();
+            for (Map.Entry<String, String> other_element : other.parameters.entrySet()) {
 
                 String other_element_key = other_element.getKey();
                 String other_element_value = other_element.getValue();
 
-                String __this__params_copy_key = other_element_key;
+                String __this__parameters_copy_key = other_element_key;
 
-                String __this__params_copy_value = other_element_value;
+                String __this__parameters_copy_value = other_element_value;
 
-                __this__params.put(__this__params_copy_key, __this__params_copy_value);
+                __this__parameters.put(__this__parameters_copy_key, __this__parameters_copy_value);
             }
-            this.params = __this__params;
+            this.parameters = __this__parameters;
         }
         if (other.isSetHeaders()) {
             Map<String, String> __this__headers = new HashMap<String, String>();
@@ -202,7 +202,7 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
     public void clear() {
         this.method = null;
         this.uri = null;
-        this.params = null;
+        this.parameters = null;
         this.headers = null;
         this.body = null;
     }
@@ -265,40 +265,40 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
         }
     }
 
-    public int getParamsSize() {
-        return (this.params == null) ? 0 : this.params.size();
+    public int getParametersSize() {
+        return (this.parameters == null) ? 0 : this.parameters.size();
     }
 
-    public void putToParams(String key, String val) {
-        if (this.params == null) {
-            this.params = new HashMap<String, String>();
+    public void putToParameters(String key, String val) {
+        if (this.parameters == null) {
+            this.parameters = new HashMap<String, String>();
         }
-        this.params.put(key, val);
+        this.parameters.put(key, val);
     }
 
-    public Map<String, String> getParams() {
-        return this.params;
+    public Map<String, String> getParameters() {
+        return this.parameters;
     }
 
-    public RestRequest setParams(Map<String, String> params) {
-        this.params = params;
+    public RestRequest setParameters(Map<String, String> parameters) {
+        this.parameters = parameters;
         return this;
     }
 
-    public void unsetParams() {
-        this.params = null;
+    public void unsetParameters() {
+        this.parameters = null;
     }
 
     /**
-     * Returns true if field params is set (has been asigned a value) and false otherwise
+     * Returns true if field parameters is set (has been asigned a value) and false otherwise
      */
-    public boolean isSetParams() {
-        return this.params != null;
+    public boolean isSetParameters() {
+        return this.parameters != null;
     }
 
-    public void setParamsIsSet(boolean value) {
+    public void setParametersIsSet(boolean value) {
         if (!value) {
-            this.params = null;
+            this.parameters = null;
         }
     }
 
@@ -383,11 +383,11 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                 }
                 break;
 
-            case PARAMS:
+            case PARAMETERS:
                 if (value == null) {
-                    unsetParams();
+                    unsetParameters();
                 } else {
-                    setParams((Map<String, String>) value);
+                    setParameters((Map<String, String>) value);
                 }
                 break;
 
@@ -422,8 +422,8 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
             case URI:
                 return getUri();
 
-            case PARAMS:
-                return getParams();
+            case PARAMETERS:
+                return getParameters();
 
             case HEADERS:
                 return getHeaders();
@@ -448,8 +448,8 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                 return isSetMethod();
             case URI:
                 return isSetUri();
-            case PARAMS:
-                return isSetParams();
+            case PARAMETERS:
+                return isSetParameters();
             case HEADERS:
                 return isSetHeaders();
             case BODY:
@@ -493,12 +493,12 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                 return false;
         }
 
-        boolean this_present_params = true && this.isSetParams();
-        boolean that_present_params = true && that.isSetParams();
-        if (this_present_params || that_present_params) {
-            if (!(this_present_params && that_present_params))
+        boolean this_present_parameters = true && this.isSetParameters();
+        boolean that_present_parameters = true && that.isSetParameters();
+        if (this_present_parameters || that_present_parameters) {
+            if (!(this_present_parameters && that_present_parameters))
                 return false;
-            if (!this.params.equals(that.params))
+            if (!this.parameters.equals(that.parameters))
                 return false;
         }
 
@@ -556,12 +556,12 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                 return lastComparison;
             }
         }
-        lastComparison = Boolean.valueOf(isSetParams()).compareTo(typedOther.isSetParams());
+        lastComparison = Boolean.valueOf(isSetParameters()).compareTo(typedOther.isSetParameters());
         if (lastComparison != 0) {
             return lastComparison;
         }
-        if (isSetParams()) {
-            lastComparison = TBaseHelper.compareTo(this.params, typedOther.params);
+        if (isSetParameters()) {
+            lastComparison = TBaseHelper.compareTo(this.parameters, typedOther.parameters);
             if (lastComparison != 0) {
                 return lastComparison;
             }
@@ -612,17 +612,17 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
                         TProtocolUtil.skip(iprot, field.type);
                     }
                     break;
-                case 3: // PARAMS
+                case 3: // PARAMETERS
                     if (field.type == TType.MAP) {
                         {
                             TMap _map0 = iprot.readMapBegin();
-                            this.params = new HashMap<String, String>(2 * _map0.size);
+                            this.parameters = new HashMap<String, String>(2 * _map0.size);
                             for (int _i1 = 0; _i1 < _map0.size; ++_i1) {
                                 String _key2;
                                 String _val3;
                                 _key2 = iprot.readString();
                                 _val3 = iprot.readString();
-                                this.params.put(_key2, _val3);
+                                this.parameters.put(_key2, _val3);
                             }
                             iprot.readMapEnd();
                         }
@@ -680,12 +680,12 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
             oprot.writeString(this.uri);
             oprot.writeFieldEnd();
         }
-        if (this.params != null) {
-            if (isSetParams()) {
-                oprot.writeFieldBegin(PARAMS_FIELD_DESC);
+        if (this.parameters != null) {
+            if (isSetParameters()) {
+                oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
                 {
-                    oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, this.params.size()));
-                    for (Map.Entry<String, String> _iter8 : this.params.entrySet()) {
+                    oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, this.parameters.size()));
+                    for (Map.Entry<String, String> _iter8 : this.parameters.entrySet()) {
                         oprot.writeString(_iter8.getKey());
                         oprot.writeString(_iter8.getValue());
                     }
@@ -739,13 +739,13 @@ public class RestRequest implements TBase<RestRequest, RestRequest._Fields>, jav
             sb.append(this.uri);
         }
         first = false;
-        if (isSetParams()) {
+        if (isSetParameters()) {
             if (!first) sb.append(", ");
-            sb.append("params:");
-            if (this.params == null) {
+            sb.append("parameters:");
+            if (this.parameters == null) {
                 sb.append("null");
             } else {
-                sb.append(this.params);
+                sb.append(this.parameters);
             }
             first = false;
         }

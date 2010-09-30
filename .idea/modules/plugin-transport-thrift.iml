@@ -8,6 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/transport/thrift/src/main/gen-java" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/transport/thrift/src/main/java" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/transport/thrift/src/test/java" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/transport/thrift/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

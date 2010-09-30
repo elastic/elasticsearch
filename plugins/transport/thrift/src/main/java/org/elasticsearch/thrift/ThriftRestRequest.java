@@ -41,7 +41,7 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
 
     public ThriftRestRequest(org.elasticsearch.thrift.RestRequest request) {
         this.request = request;
-        this.params = request.getParams() == null ? new HashMap<String, String>() : request.getParams();
+        this.params = request.getParameters() == null ? new HashMap<String, String>() : request.getParameters();
 
         int pathEndPos = request.getUri().indexOf('?');
         if (pathEndPos < 0) {

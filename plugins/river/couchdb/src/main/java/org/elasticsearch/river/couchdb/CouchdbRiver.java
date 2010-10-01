@@ -90,7 +90,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 StringBuilder sb = new StringBuilder();
                 for (Map.Entry<String, Object> entry : filterParams.entrySet()) {
                     try {
-                        sb.append("&").append(URLEncoder.encode(entry.getKey(), "UTF-8")).append(URLEncoder.encode(entry.getValue().toString(), "UTF-8"));
+                        sb.append("&").append(URLEncoder.encode(entry.getKey(), "UTF-8")).append("=").append(URLEncoder.encode(entry.getValue().toString(), "UTF-8"));
                     } catch (UnsupportedEncodingException e) {
                         // should not happen...
                     }

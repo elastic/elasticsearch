@@ -42,6 +42,7 @@ public class ScriptSortParser implements SortParser {
 
     @Override public SortField parse(XContentParser parser, SearchContext context) throws Exception {
         String script = null;
+        String scriptLang = null;
         String type = null;
         Map<String, Object> params = null;
         boolean reverse = false;
@@ -62,6 +63,8 @@ public class ScriptSortParser implements SortParser {
                     type = parser.text();
                 } else if ("params".equals(currentName)) {
                     params = parser.map();
+                } else if ("lang".equals(currentName)) {
+                    scriptLang = parser.text();
                 }
             }
         }
@@ -72,7 +75,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        FieldsFunction fieldsFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        FieldsFunction fieldsFunction = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache());
         FieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
             fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);

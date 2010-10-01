@@ -76,7 +76,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
     private final FieldsFunction scriptFunction;
 
     public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
-                               ImmutableSet<String> excluded, Pattern pattern, String script, Map<String, Object> params) {
+                               ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -100,7 +100,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            scriptFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), fieldDataCache);
+            scriptFunction = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), fieldDataCache);
             if (params == null) {
                 params = Maps.newHashMapWithExpectedSize(1);
             }

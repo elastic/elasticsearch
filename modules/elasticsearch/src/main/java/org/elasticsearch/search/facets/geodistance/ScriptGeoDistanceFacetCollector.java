@@ -40,11 +40,11 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
     public ScriptGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                            GeoDistanceFacet.Entry[] entries, SearchContext context,
-                                           String script, Map<String, Object> params) {
+                                           String scriptLang, String script, Map<String, Object> params) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
         this.params = params;
 
-        this.valueFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.valueFunction = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache());
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

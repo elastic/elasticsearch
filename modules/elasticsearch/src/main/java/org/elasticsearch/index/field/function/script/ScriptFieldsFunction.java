@@ -75,9 +75,9 @@ public class ScriptFieldsFunction implements FieldsFunction {
 
     final SourceMap sourceMap;
 
-    public ScriptFieldsFunction(String script, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
+    public ScriptFieldsFunction(String scriptLang, String script, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
         this.scriptService = scriptService;
-        this.script = scriptService.compile(script);
+        this.script = scriptService.compile(scriptLang, script);
         this.docMap = new DocMap(cachedFieldData.get().get(), mapperService, fieldDataCache);
         this.sourceMap = new SourceMap();
     }

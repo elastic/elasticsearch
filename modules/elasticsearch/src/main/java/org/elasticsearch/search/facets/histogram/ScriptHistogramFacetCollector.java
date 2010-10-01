@@ -50,10 +50,10 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-    public ScriptHistogramFacetCollector(String facetName, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ScriptHistogramFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.keyFunction = new ScriptFieldsFunction(keyScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
-        this.valueFunction = new ScriptFieldsFunction(valueScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.keyFunction = new ScriptFieldsFunction(scriptLang, keyScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.valueFunction = new ScriptFieldsFunction(scriptLang, valueScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
         this.interval = interval > 0 ? interval : 0;
         this.params = params;
         this.comparatorType = comparatorType;

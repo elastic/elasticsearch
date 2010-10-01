@@ -52,6 +52,7 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
 
         String currentFieldName = null;
         String script = null;
+        String scriptLang = null;
         Map<String, Object> params = cachedParams.get().get();
         params.clear();
         XContentParser.Token token;
@@ -67,6 +68,8 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
                     field = parser.text();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                } else if ("lang".equals(currentFieldName)) {
+                    scriptLang = parser.text();
                 }
             }
         }
@@ -76,7 +79,7 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
         if (field != null) {
             return new StatisticalFacetCollector(facetName, field, context);
         } else {
-            return new ScriptStatisticalFacetCollector(facetName, script, params, context);
+            return new ScriptStatisticalFacetCollector(facetName, scriptLang, script, params, context);
         }
     }
 }

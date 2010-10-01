@@ -90,6 +90,10 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         }
     }
 
+    public XContentTypeParser.ParserContext parserContext() {
+        return new XContentTypeParser.ParserContext(analysisService, typeParsers);
+    }
+
     @Override public XContentDocumentMapper parse(String source) throws MapperParsingException {
         return parse(null, source);
     }
@@ -120,7 +124,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
             }
         }
 
-        XContentTypeParser.ParserContext parserContext = new XContentTypeParser.ParserContext(mapping, analysisService, typeParsers);
+        XContentTypeParser.ParserContext parserContext = new XContentTypeParser.ParserContext(analysisService, typeParsers);
 
         XContentDocumentMapper.Builder docBuilder = doc(index.name(), (XContentObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 
@@ -165,7 +169,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         }
         docBuilder.attributes(attributes);
 
-        XContentDocumentMapper documentMapper = docBuilder.build();
+        XContentDocumentMapper documentMapper = docBuilder.build(this);
         // update the source with the generated one
         documentMapper.refreshSource();
         return documentMapper;

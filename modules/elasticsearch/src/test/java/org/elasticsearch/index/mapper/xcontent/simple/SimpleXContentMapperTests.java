@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
+import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
@@ -38,10 +39,11 @@ import static org.hamcrest.Matchers.*;
 public class SimpleXContentMapperTests {
 
     @Test public void testSimpleMapper() throws Exception {
+        XContentDocumentMapperParser mapperParser = XContentMapperTests.newParser();
         XContentDocumentMapper docMapper = doc("test",
                 object("person")
                         .add(object("name").add(stringField("first").store(YES).index(Field.Index.NO)))
-        ).sourceField(source()).build();
+        ).sourceField(source()).build(mapperParser);
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test1.json");
         Document doc = docMapper.parse("person", "1", json).doc();

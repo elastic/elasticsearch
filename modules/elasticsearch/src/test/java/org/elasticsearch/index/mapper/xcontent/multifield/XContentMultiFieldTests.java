@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.xcontent.multifield;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
+import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
@@ -69,18 +70,19 @@ public class XContentMultiFieldTests {
     }
 
     @Test public void testBuildThenParse() throws Exception {
+        XContentDocumentMapperParser mapperParser = XContentMapperTests.newParser();
         XContentDocumentMapper builderDocMapper = doc("test", object("person").add(
                 multiField("name")
                         .add(stringField("name").store(Field.Store.YES))
                         .add(stringField("indexed").index(Field.Index.ANALYZED))
                         .add(stringField("not_indexed").index(Field.Index.NO).store(Field.Store.YES))
-        )).build();
+        )).build(mapperParser);
         builderDocMapper.refreshSource();
 
         String builtMapping = builderDocMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
-        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(builtMapping);
+        XContentDocumentMapper docMapper = mapperParser.parse(builtMapping);
 
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/test-data.json");

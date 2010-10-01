@@ -133,9 +133,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             return searchAnalyzer != null;
         }
 
-        public XContentDocumentMapper build() {
+        public XContentDocumentMapper build(XContentDocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new XContentDocumentMapper(index, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
+            return new XContentDocumentMapper(index, docMapperParser, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
                     sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
@@ -143,13 +143,15 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private ThreadLocal<ThreadLocals.CleanableValue<ParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<ParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<ParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<ParseContext>(new ParseContext(index, XContentDocumentMapper.this, new ContentPath(0)));
+            return new ThreadLocals.CleanableValue<ParseContext>(new ParseContext(index, docMapperParser, XContentDocumentMapper.this, new ContentPath(0)));
         }
     };
 
     private final String index;
 
     private final String type;
+
+    private final XContentDocumentMapperParser docMapperParser;
 
     private volatile ImmutableMap<String, Object> attributes;
 
@@ -183,7 +185,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final Object mutex = new Object();
 
-    public XContentDocumentMapper(String index, XContentObjectMapper rootObjectMapper,
+    public XContentDocumentMapper(String index, XContentDocumentMapperParser docMapperParser,
+                                  XContentObjectMapper rootObjectMapper,
                                   ImmutableMap<String, Object> attributes,
                                   XContentUidFieldMapper uidFieldMapper,
                                   XContentIdFieldMapper idFieldMapper,
@@ -195,6 +198,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   @Nullable XContentBoostFieldMapper boostFieldMapper) {
         this.index = index;
         this.type = rootObjectMapper.name();
+        this.docMapperParser = docMapperParser;
         this.attributes = attributes;
         this.rootObjectMapper = rootObjectMapper;
         this.uidFieldMapper = uidFieldMapper;

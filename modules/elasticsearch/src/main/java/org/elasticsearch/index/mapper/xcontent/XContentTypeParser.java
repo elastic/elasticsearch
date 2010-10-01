@@ -35,22 +35,15 @@ public interface XContentTypeParser {
 
         private final AnalysisService analysisService;
 
-        private final Map<String, Object> rootNode;
-
         private final ImmutableMap<String, XContentTypeParser> typeParsers;
 
-        public ParserContext(Map<String, Object> rootNode, AnalysisService analysisService, ImmutableMap<String, XContentTypeParser> typeParsers) {
+        public ParserContext(AnalysisService analysisService, ImmutableMap<String, XContentTypeParser> typeParsers) {
             this.analysisService = analysisService;
-            this.rootNode = rootNode;
             this.typeParsers = typeParsers;
         }
 
         public AnalysisService analysisService() {
             return analysisService;
-        }
-
-        public Map<String, Object> rootNode() {
-            return this.rootNode;
         }
 
         public XContentTypeParser typeParser(String type) {

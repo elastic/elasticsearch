@@ -33,6 +33,8 @@ public class ParseContext {
 
     private final XContentDocumentMapper docMapper;
 
+    private final XContentDocumentMapperParser docMapperParser;
+
     private final ContentPath path;
 
     private XContentParser parser;
@@ -63,9 +65,10 @@ public class ParseContext {
 
     private AllEntries allEntries = new AllEntries();
 
-    public ParseContext(String index, XContentDocumentMapper docMapper, ContentPath path) {
+    public ParseContext(String index, XContentDocumentMapperParser docMapperParser, XContentDocumentMapper docMapper, ContentPath path) {
         this.index = index;
         this.docMapper = docMapper;
+        this.docMapperParser = docMapperParser;
         this.path = path;
     }
 
@@ -79,6 +82,10 @@ public class ParseContext {
         this.mappersAdded = false;
         this.listener = listener;
         this.allEntries = new AllEntries();
+    }
+
+    public XContentDocumentMapperParser docMapperParser() {
+        return this.docMapperParser;
     }
 
     public boolean mappersAdded() {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.math.UnboxedMathUtils;
 import org.elasticsearch.common.mvel2.MVEL;
 import org.elasticsearch.common.mvel2.ParserContext;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 
 import java.lang.reflect.Method;
@@ -64,5 +65,30 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
 
     @Override public Object execute(Object compiledScript, Map vars) {
         return MVEL.executeExpression(compiledScript, vars);
+    }
+
+    @Override public ExecutableScript executable(Object compiledScript, Map vars) {
+        return new MvelExecutableScript(compiledScript, vars);
+    }
+
+    public static class MvelExecutableScript implements ExecutableScript {
+
+        private final Object compiledScript;
+
+        private final Map vars;
+
+        public MvelExecutableScript(Object compiledScript, Map vars) {
+            this.compiledScript = compiledScript;
+            this.vars = vars;
+        }
+
+        @Override public Object run() {
+            return MVEL.executeExpression(compiledScript, vars);
+        }
+
+        @Override public Object run(Map vars) {
+            vars.putAll(this.vars);
+            return MVEL.executeExpression(compiledScript, vars);
+        }
     }
 }

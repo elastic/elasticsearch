@@ -264,6 +264,20 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Adds a script based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name   The name that will represent this value in the return hit
+     * @param lang   The language of the script
+     * @param script The script to use
+     * @param params Parameters that the script can use (can be <tt>null</tt>).
+     */
+    public SearchRequestBuilder addScriptField(String name, String lang, String script, Map<String, Object> params) {
+        sourceBuilder().scriptField(name, lang, script, params);
+        return this;
+    }
+
+    /**
      * Adds a sort against the given field name and the sort ordering.
      *
      * @param field The name of the field

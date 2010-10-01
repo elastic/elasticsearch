@@ -36,6 +36,8 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
 
     private String script;
 
+    private String lang;
+
     private float boost = -1;
 
     private Map<String, Object> params = null;
@@ -54,6 +56,14 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
      */
     public CustomScoreQueryBuilder script(String script) {
         this.script = script;
+        return this;
+    }
+
+    /**
+     * Sets the language of the script.
+     */
+    public CustomScoreQueryBuilder lang(String lang) {
+        this.lang = lang;
         return this;
     }
 
@@ -94,6 +104,9 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("script", script);
+        if (lang != null) {
+            builder.field("lang", lang);
+        }
         if (this.params != null) {
             builder.field("params", this.params);
         }

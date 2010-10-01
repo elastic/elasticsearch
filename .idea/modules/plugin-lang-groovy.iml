@@ -7,6 +7,8 @@
     <content url="file://$MODULE_DIR$/../../plugins/lang/groovy">
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/src/main/groovy" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/src/test/groovy" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/src/test/java" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/work" />
       <excludeFolder url="file://$MODULE_DIR$/../../plugins/lang/groovy/build" />
     </content>

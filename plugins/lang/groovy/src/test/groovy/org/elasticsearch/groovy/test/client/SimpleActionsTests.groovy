@@ -64,7 +64,7 @@ class SimpleActionsTests {
 
         def indexR = node.client.index {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
             source {
                 test = "value"
@@ -80,7 +80,7 @@ class SimpleActionsTests {
 
         def delete = node.client.delete {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
         }
         assertThat delete.response.index, equalTo("test")
@@ -92,14 +92,14 @@ class SimpleActionsTests {
 
         def get = node.client.get {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
         }
         assertThat get.response.exists, equalTo(false)
 
         indexR = node.client.index {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
             source {
                 test = "value"
@@ -154,7 +154,7 @@ class SimpleActionsTests {
 
         get = node.client.get {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
         }
         assertThat get.response.exists, equalTo(false)

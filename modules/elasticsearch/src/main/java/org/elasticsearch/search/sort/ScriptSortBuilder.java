@@ -32,6 +32,8 @@ import java.util.Map;
  */
 public class ScriptSortBuilder extends SortBuilder {
 
+    private String lang;
+
     private final String script;
 
     private final String type;
@@ -70,6 +72,14 @@ public class ScriptSortBuilder extends SortBuilder {
      */
     public ScriptSortBuilder order(SortOrder order) {
         this.order = order;
+        return this;
+    }
+
+    /**
+     * The language of the script.
+     */
+    public ScriptSortBuilder lang(String lang) {
+        this.lang = lang;
         return this;
     }
 

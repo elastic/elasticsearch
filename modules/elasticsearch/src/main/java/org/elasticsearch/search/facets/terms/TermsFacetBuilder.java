@@ -40,6 +40,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private int regexFlags = 0;
     private TermsFacet.ComparatorType comparatorType;
     private String script;
+    private String lang;
     private Map<String, Object> params;
 
     public TermsFacetBuilder(String name) {
@@ -91,6 +92,14 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * The language of the script.
+     */
+    public TermsFacetBuilder lang(String lang) {
+        this.lang = lang;
+        return this;
+    }
+
     public TermsFacetBuilder param(String name, Object value) {
         if (params == null) {
             params = Maps.newHashMap();
@@ -127,6 +136,9 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
 
         if (script != null) {
             builder.field("script", script);
+            if (lang != null) {
+                builder.field("lang", lang);
+            }
             if (this.params != null) {
                 builder.field("params", this.params);
             }

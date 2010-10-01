@@ -23,7 +23,7 @@ println "Node started"
 
 future = node.client.index {
     index "twitter"
-    type "tweet"
+    lang "tweet"
     id "1"
     source {
         user = "kimchy"

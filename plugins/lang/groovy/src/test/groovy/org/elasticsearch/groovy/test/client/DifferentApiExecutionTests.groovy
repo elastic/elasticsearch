@@ -80,7 +80,7 @@ class DifferentApiExecutionTests {
 
         def getR = node.client.get {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
         }
         assertThat getR.response.exists, equalTo(true)
@@ -133,7 +133,7 @@ class DifferentApiExecutionTests {
 
         indexR = node.client.index {
             index "test"
-            type "type1"
+            lang "type1"
             id "1"
             source {
                 test = "value"

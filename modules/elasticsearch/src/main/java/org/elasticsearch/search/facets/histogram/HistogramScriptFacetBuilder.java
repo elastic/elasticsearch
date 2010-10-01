@@ -32,6 +32,7 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
+    private String lang;
     private String keyScript;
     private String valueScript;
     private Map<String, Object> params;
@@ -40,6 +41,14 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
 
     public HistogramScriptFacetBuilder(String name) {
         super(name);
+    }
+
+    /**
+     * The language of the script.
+     */
+    public HistogramScriptFacetBuilder lang(String lang) {
+        this.lang = lang;
+        return this;
     }
 
     public HistogramScriptFacetBuilder keyScript(String keyScript) {
@@ -92,6 +101,9 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         builder.startObject(HistogramFacetCollectorParser.NAME);
         builder.field("key_script", keyScript);
         builder.field("value_script", valueScript);
+        if (lang != null) {
+            builder.field("lang", lang);
+        }
         if (interval > 0) { // interval is optional in script facet, can be defined by the key script
             builder.field("interval", interval);
         }

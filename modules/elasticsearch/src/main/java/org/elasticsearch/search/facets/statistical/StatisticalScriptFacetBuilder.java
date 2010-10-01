@@ -32,6 +32,7 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
+    private String lang;
     private String script;
     private Map<String, Object> params;
 
@@ -46,6 +47,14 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
 
     public StatisticalScriptFacetBuilder facetFilter(XContentFilterBuilder filter) {
         this.facetFilter = filter;
+        return this;
+    }
+
+    /**
+     * The language of the script.
+     */
+    public StatisticalScriptFacetBuilder lang(String lang) {
+        this.lang = lang;
         return this;
     }
 
@@ -70,6 +79,9 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
 
         builder.startObject(StatisticalFacetCollectorParser.NAME);
         builder.field("script", script);
+        if (lang != null) {
+            builder.field("lang", lang);
+        }
         if (this.params != null) {
             builder.field("params", this.params);
         }

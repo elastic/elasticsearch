@@ -33,7 +33,7 @@ public class CompiledScript {
         this.compiled = compiled;
     }
 
-    public String type() {
+    public String lang() {
         return type;
     }
 

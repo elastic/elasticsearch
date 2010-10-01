@@ -19,18 +19,18 @@
 
 package org.elasticsearch.script;
 
-import java.util.Map;
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface ScriptEngineService {
+public class ScriptException extends ElasticSearchException {
 
-    String type();
+    public ScriptException(String msg) {
+        super(msg);
+    }
 
-    Object compile(String script);
-
-    ExecutableScript executable(Object compiledScript, Map vars);
-
-    Object execute(Object compiledScript, Map vars);
+    public ScriptException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
 }

@@ -67,7 +67,7 @@ class BuilderActionsTests {
         }).gexecute()
 
         assertThat indexR.response.index, equalTo("test")
-        assertThat indexR.response.type, equalTo("type1")
+        assertThat indexR.response.lang, equalTo("type1")
         assertThat indexR.response.id, equalTo("1")
 
         node.client.admin.indices.refresh {}.actionGet()
@@ -86,7 +86,7 @@ class BuilderActionsTests {
 
         def delete = node.client.prepareDelete("test", "type1", "1").gexecute()
         assertThat delete.response.index, equalTo("test")
-        assertThat delete.response.type, equalTo("type1")
+        assertThat delete.response.lang, equalTo("type1")
         assertThat delete.response.id, equalTo("1")
 
         def refresh = node.client.admin.indices.refresh {}

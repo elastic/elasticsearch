@@ -59,6 +59,8 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
 
     private String valueScript;
 
+    private String lang;
+
     private List<Entry> entries = Lists.newArrayList();
 
     /**
@@ -89,6 +91,14 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
      */
     public GeoDistanceFacetBuilder valueScript(String valueScript) {
         this.valueScript = valueScript;
+        return this;
+    }
+
+    /**
+     * The language of the {@link #valueScript(String)} script.
+     */
+    public GeoDistanceFacetBuilder lang(String lang) {
+        this.lang = lang;
         return this;
     }
 
@@ -220,6 +230,9 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
 
         if (valueScript != null) {
             builder.field("value_script", valueScript);
+            if (lang != null) {
+                builder.field("lang", lang);
+            }
             if (this.params != null) {
                 builder.field("params", this.params);
             }

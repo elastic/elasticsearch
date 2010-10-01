@@ -392,7 +392,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             String sSource = "_na_";
             try {
                 sSource = Unicode.fromBytes(source, offset, length);
-            } catch (Exception e1) {
+            } catch (Error e1) {
                 // ignore
             }
             throw new SearchParseException(context, "Failed to parse [" + sSource + "]", e);

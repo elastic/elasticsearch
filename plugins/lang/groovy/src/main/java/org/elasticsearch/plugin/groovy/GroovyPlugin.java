@@ -17,20 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.plugin.groovy;
 
-import java.util.Map;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface ScriptEngineService {
+public class GroovyPlugin extends AbstractPlugin {
 
-    String type();
+    @Override public String name() {
+        return "lang-groovy";
+    }
 
-    Object compile(String script);
+    @Override public String description() {
+        return "Groovy plugin allowing to add groovy scripting support";
+    }
 
-    ExecutableScript executable(Object compiledScript, Map vars);
-
-    Object execute(Object compiledScript, Map vars);
+    @Override public void processModule(Module module) {
+        if (module instanceof ScriptModule) {
+            ((ScriptModule) module).addScriptEngine(GroovyScriptEngineService.class);
+        }
+    }
 }

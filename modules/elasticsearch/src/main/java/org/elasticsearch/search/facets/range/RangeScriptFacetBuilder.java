@@ -35,6 +35,7 @@ import java.util.Map;
  */
 public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
 
+    private String lang;
     private String keyScript;
     private String valueScript;
     private Map<String, Object> params;
@@ -42,6 +43,14 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
 
     public RangeScriptFacetBuilder(String name) {
         super(name);
+    }
+
+    /**
+     * The language of the script.
+     */
+    public RangeScriptFacetBuilder lang(String lang) {
+        this.lang = lang;
+        return this;
     }
 
     public RangeScriptFacetBuilder keyScript(String keyScript) {
@@ -121,6 +130,9 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         builder.startObject(RangeFacetCollectorParser.NAME);
         builder.field("key_script", keyScript);
         builder.field("value_script", valueScript);
+        if (lang != null) {
+            builder.field("lang", lang);
+        }
 
         builder.startArray("ranges");
         for (Entry entry : entries) {

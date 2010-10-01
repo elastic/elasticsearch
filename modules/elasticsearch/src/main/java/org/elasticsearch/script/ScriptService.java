@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ScriptService extends AbstractComponent {
 
-    private final String defaultType;
+    private final String defaultLang;
 
     private final ImmutableMap<String, ScriptEngineService> scriptEngines;
 
@@ -53,7 +53,7 @@ public class ScriptService extends AbstractComponent {
     @Inject public ScriptService(Settings settings, Set<ScriptEngineService> scriptEngines) {
         super(settings);
 
-        this.defaultType = componentSettings.get("default_type", "mvel");
+        this.defaultLang = componentSettings.get("default_lang", "mvel");
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
         for (ScriptEngineService scriptEngine : scriptEngines) {
@@ -63,34 +63,42 @@ public class ScriptService extends AbstractComponent {
     }
 
     public CompiledScript compile(String script) {
-        return compile(defaultType, script);
+        return compile(defaultLang, script);
     }
 
-    public CompiledScript compile(String type, String script) {
+    public CompiledScript compile(String lang, String script) {
         CompiledScript compiled = cache.get(script);
         if (compiled != null) {
             return compiled;
         }
-        if (type == null) {
-            type = defaultType;
+        if (lang == null) {
+            lang = defaultLang;
         }
         synchronized (cache) {
             compiled = cache.get(script);
             if (compiled != null) {
                 return compiled;
             }
-            ScriptEngineService service = scriptEngines.get(type);
+            ScriptEngineService service = scriptEngines.get(lang);
             if (service == null) {
-                throw new ElasticSearchIllegalArgumentException("script_type not supported [" + type + "]");
+                throw new ElasticSearchIllegalArgumentException("script_lang not supported [" + lang + "]");
             }
-            compiled = new CompiledScript(type, service.compile(script));
+            compiled = new CompiledScript(lang, service.compile(script));
             cache.put(script, compiled);
         }
         return compiled;
     }
 
+    public ExecutableScript executable(String lang, String script, Map vars) {
+        return executable(compile(lang, script), vars);
+    }
+
+    public ExecutableScript executable(CompiledScript compiledScript, Map vars) {
+        return scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);
+    }
+
     public Object execute(CompiledScript compiledScript, Map vars) {
-        return scriptEngines.get(compiledScript.type()).execute(compiledScript.compiled(), vars);
+        return scriptEngines.get(compiledScript.lang()).execute(compiledScript.compiled(), vars);
     }
 
     public void clear() {

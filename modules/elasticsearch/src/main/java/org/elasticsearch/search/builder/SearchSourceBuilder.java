@@ -245,15 +245,41 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Adds a script field under the given name with the provided script.
+     *
+     * @param name   The name of the field
+     * @param script The script
+     */
     public SearchSourceBuilder scriptField(String name, String script) {
-        return scriptField(name, script, null);
+        return scriptField(name, null, script, null);
     }
 
+    /**
+     * Adds a script field.
+     *
+     * @param name   The name of the field
+     * @param script The script to execute
+     * @param params The script parameters
+     */
     public SearchSourceBuilder scriptField(String name, String script, Map<String, Object> params) {
+        return scriptField(name, null, script, params);
+    }
+
+    /**
+     * Adds a script field.
+     *
+     * @param name   The name of the field
+     * @param lang   The language of the script
+     * @param script The script to execute
+     * @param params The script parameters (can be <tt>null</tt>)
+     * @return
+     */
+    public SearchSourceBuilder scriptField(String name, String lang, String script, Map<String, Object> params) {
         if (scriptFields == null) {
             scriptFields = Lists.newArrayList();
         }
-        scriptFields.add(new ScriptField(name, script, params));
+        scriptFields.add(new ScriptField(name, lang, script, params));
         return this;
     }
 
@@ -343,6 +369,9 @@ public class SearchSourceBuilder implements ToXContent {
             for (ScriptField scriptField : scriptFields) {
                 builder.startObject(scriptField.fieldName());
                 builder.field("script", scriptField.script());
+                if (scriptField.lang() != null) {
+                    builder.field("lang", scriptField.lang());
+                }
                 if (scriptField.params() != null) {
                     builder.field("params");
                     builder.map(scriptField.params());
@@ -390,10 +419,12 @@ public class SearchSourceBuilder implements ToXContent {
     private static class ScriptField {
         private final String fieldName;
         private final String script;
+        private final String lang;
         private final Map<String, Object> params;
 
-        private ScriptField(String fieldName, String script, Map<String, Object> params) {
+        private ScriptField(String fieldName, String lang, String script, Map<String, Object> params) {
             this.fieldName = fieldName;
+            this.lang = lang;
             this.script = script;
             this.params = params;
         }
@@ -404,6 +435,10 @@ public class SearchSourceBuilder implements ToXContent {
 
         public String script() {
             return script;
+        }
+
+        public String lang() {
+            return this.lang;
         }
 
         public Map<String, Object> params() {

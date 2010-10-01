@@ -35,6 +35,8 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
 
     private Map<String, Object> params;
 
+    private String lang;
+
     private String filterName;
 
     public ScriptFilterBuilder(String script) {
@@ -63,11 +65,22 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the script language.
+     */
+    public ScriptFilterBuilder lang(String lang) {
+        this.lang = lang;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ScriptFilterParser.NAME);
         builder.field("script", script);
         if (this.params != null) {
             builder.field("params", this.params);
+        }
+        if (this.lang != null) {
+            builder.field("lang", lang);
         }
         if (filterName != null) {
             builder.field("_name", filterName);

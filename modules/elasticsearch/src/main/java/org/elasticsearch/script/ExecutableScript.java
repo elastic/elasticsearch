@@ -19,18 +19,23 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.util.concurrent.NotThreadSafe;
+
 import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface ScriptEngineService {
+@NotThreadSafe
+public interface ExecutableScript {
 
-    String type();
+    /**
+     * Executes the script.
+     */
+    Object run();
 
-    Object compile(String script);
-
-    ExecutableScript executable(Object compiledScript, Map vars);
-
-    Object execute(Object compiledScript, Map vars);
+    /**
+     * Executes the script.
+     */
+    Object run(Map vars);
 }

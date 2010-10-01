@@ -45,6 +45,7 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String keyField = null;
         String valueField = null;
+        String scriptLang = null;
         String keyScript = null;
         String valueScript = null;
         Map<String, Object> params = null;
@@ -96,6 +97,8 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
                     keyScript = parser.text();
                 } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
                     valueScript = parser.text();
+                } else if ("lang".equals(fieldName)) {
+                    scriptLang = parser.text();
                 }
             }
         }
@@ -123,7 +126,7 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
         }
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptRangeFacetCollector(facetName, keyScript, valueScript, params, rangeEntries, context);
+            return new ScriptRangeFacetCollector(facetName, scriptLang, keyScript, valueScript, params, rangeEntries, context);
         }
 
         if (keyField == null) {

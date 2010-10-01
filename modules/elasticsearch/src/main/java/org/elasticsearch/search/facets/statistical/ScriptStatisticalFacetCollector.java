@@ -48,10 +48,10 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     private long count;
 
-    public ScriptStatisticalFacetCollector(String facetName, String script, Map<String, Object> params, SearchContext context) {
+    public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {
         super(facetName);
         this.params = params;
-        this.function = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.function = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache());
     }
 
     @Override protected void doCollect(int doc) throws IOException {

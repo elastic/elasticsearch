@@ -71,6 +71,9 @@ public class ScriptService extends AbstractComponent {
         if (compiled != null) {
             return compiled;
         }
+        if (type == null) {
+            type = defaultType;
+        }
         synchronized (cache) {
             compiled = cache.get(script);
             if (compiled != null) {

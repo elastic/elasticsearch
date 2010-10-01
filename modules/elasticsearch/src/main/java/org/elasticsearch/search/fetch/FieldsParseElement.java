@@ -39,7 +39,7 @@ public class FieldsParseElement implements SearchParseElement {
                 String name = parser.text();
                 if (name.contains("_source.") || name.contains("doc[")) {
                     // script field to load from source
-                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
+                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(null, name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
                 } else {
                     context.fieldNames().add(name);
                 }
@@ -51,7 +51,7 @@ public class FieldsParseElement implements SearchParseElement {
             String name = parser.text();
             if (name.contains("_source.") || name.contains("doc[")) {
                 // script field to load from source
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(null, name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
             } else {
                 context.fieldNames().add(name);
             }

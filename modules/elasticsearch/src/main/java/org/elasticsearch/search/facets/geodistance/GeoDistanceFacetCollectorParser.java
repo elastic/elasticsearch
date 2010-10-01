@@ -57,6 +57,7 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
         String fieldName = null;
         String valueFieldName = null;
         String valueScript = null;
+        String scriptLang = null;
         Map<String, Object> params = null;
         double lat = Double.NaN;
         double lon = Double.NaN;
@@ -133,6 +134,8 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
                     valueFieldName = parser.text();
                 } else if ("value_script".equals(currentName) || "valueScript".equals(currentName)) {
                     valueScript = parser.text();
+                } else if ("lang".equals(currentName)) {
+                    scriptLang = parser.text();
                 } else {
                     // assume the value is the actual value
                     String value = parser.text();
@@ -166,7 +169,7 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
 
         if (valueScript != null) {
             return new ScriptGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context, valueScript, params);
+                    context, scriptLang, valueScript, params);
         }
 
         return new GeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),

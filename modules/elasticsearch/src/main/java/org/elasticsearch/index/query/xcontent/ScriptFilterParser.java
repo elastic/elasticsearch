@@ -60,6 +60,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         XContentParser.Token token;
 
         String script = null;
+        String scriptLang = null;
         Map<String, Object> params = null;
 
         String filterName = null;
@@ -74,6 +75,8 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                } else if ("lang".equals(currentFieldName)) {
+                    scriptLang = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 }
@@ -87,7 +90,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
             params = Maps.newHashMap();
         }
 
-        Filter filter = new ScriptFilter(script, params, parseContext.mapperService(), parseContext.indexCache().fieldData(), parseContext.scriptService());
+        Filter filter = new ScriptFilter(scriptLang, script, params, parseContext.mapperService(), parseContext.indexCache().fieldData(), parseContext.scriptService());
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }
@@ -95,6 +98,8 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
     }
 
     public static class ScriptFilter extends Filter {
+
+        private final String scriptLang;
 
         private final String script;
 
@@ -106,8 +111,9 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
 
         private final ScriptService scriptService;
 
-        private ScriptFilter(String script, Map<String, Object> params,
+        private ScriptFilter(String scriptLang, String script, Map<String, Object> params,
                              MapperService mapperService, FieldDataCache fieldDataCache, ScriptService scriptService) {
+            this.scriptLang = scriptLang;
             this.script = script;
             this.params = params;
             this.mapperService = mapperService;
@@ -142,7 +148,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         }
 
         @Override public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
-            final ScriptFieldsFunction function = new ScriptFieldsFunction(script, scriptService, mapperService, fieldDataCache);
+            final ScriptFieldsFunction function = new ScriptFieldsFunction(scriptLang, script, scriptService, mapperService, fieldDataCache);
             function.setNextReader(reader);
             return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean isCacheable() {

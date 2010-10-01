@@ -51,6 +51,7 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         String regex = null;
         String regexFlags = null;
         TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
+        String scriptLang = null;
         String script = null;
         Map<String, Object> params = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -81,6 +82,8 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                     comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
                 } else if ("script".equals(fieldName)) {
                     script = parser.text();
+                } else if ("lang".equals(fieldName)) {
+                    scriptLang = parser.text();
                 }
             }
         }
@@ -93,6 +96,6 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);
         }
-        return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, script, params);
+        return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
     }
 }

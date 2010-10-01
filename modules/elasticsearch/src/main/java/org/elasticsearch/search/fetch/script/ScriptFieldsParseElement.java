@@ -51,6 +51,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String fieldName = currentFieldName;
                 String script = null;
+                String scriptLang = null;
                 Map<String, Object> params = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -58,10 +59,14 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         params = parser.map();
                     } else if (token.isValue()) {
-                        script = parser.text();
+                        if ("script".equals(currentFieldName)) {
+                            script = parser.text();
+                        } else if ("lang".equals(currentFieldName)) {
+                            scriptLang = parser.text();
+                        }
                     }
                 }
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache()), params));
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache()), params));
             }
         }
     }

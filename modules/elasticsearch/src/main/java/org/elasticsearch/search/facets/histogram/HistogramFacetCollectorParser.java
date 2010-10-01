@@ -45,6 +45,7 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
         String valueField = null;
         String keyScript = null;
         String valueScript = null;
+        String scriptLang = null;
         Map<String, Object> params = null;
         long interval = 0;
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
@@ -74,12 +75,14 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
                     valueScript = parser.text();
                 } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
                     comparatorType = HistogramFacet.ComparatorType.fromString(parser.text());
+                } else if ("lang".equals(fieldName)) {
+                    scriptLang = parser.text();
                 }
             }
         }
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptHistogramFacetCollector(facetName, keyScript, valueScript, params, interval, comparatorType, context);
+            return new ScriptHistogramFacetCollector(facetName, scriptLang, keyScript, valueScript, params, interval, comparatorType, context);
         }
 
         if (keyField == null) {

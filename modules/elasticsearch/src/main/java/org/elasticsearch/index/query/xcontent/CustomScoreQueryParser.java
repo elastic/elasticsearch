@@ -60,6 +60,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         Query query = null;
         float boost = 1.0f;
         String script = null;
+        String scriptLang = null;
         Map<String, Object> vars = null;
 
         String currentFieldName = null;
@@ -76,6 +77,8 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                } else if ("lang".equals(currentFieldName)) {
+                    scriptLang = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 }
@@ -88,7 +91,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
             throw new QueryParsingException(index, "[custom_score] requires 'script' field");
         }
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query,
-                new ScriptScoreFunction(new ScriptFieldsFunction(script, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData()), vars));
+                new ScriptScoreFunction(new ScriptFieldsFunction(scriptLang, script, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData()), vars));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }

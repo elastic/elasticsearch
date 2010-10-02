@@ -24,6 +24,8 @@ import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import java.util.Map;
 
 /**
+ * An executable script, can't be used concurrently.
+ *
  * @author kimchy (shay.banon)
  */
 @NotThreadSafe

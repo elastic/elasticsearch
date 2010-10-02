@@ -57,7 +57,9 @@ public class ScriptService extends AbstractComponent {
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
         for (ScriptEngineService scriptEngine : scriptEngines) {
-            builder.put(scriptEngine.type(), scriptEngine);
+            for (String type : scriptEngine.types()) {
+                builder.put(type, scriptEngine);
+            }
         }
         this.scriptEngines = builder.build();
     }

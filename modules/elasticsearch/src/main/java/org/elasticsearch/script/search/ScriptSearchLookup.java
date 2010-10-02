@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.function.script;
+package org.elasticsearch.script.search;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
@@ -25,96 +25,69 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldSelector;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptService;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ScriptFieldsFunction implements FieldsFunction {
-
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, FieldData>>> cachedFieldData = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, FieldData>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, FieldData>> initialValue() {
-            return new ThreadLocals.CleanableValue<Map<String, FieldData>>(new HashMap<String, FieldData>());
-        }
-    };
-
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedVars = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
-            return new ThreadLocals.CleanableValue<java.util.Map<java.lang.String, java.lang.Object>>(new HashMap<String, Object>());
-        }
-    };
-
-    final ScriptService scriptService;
-
-    final CompiledScript script;
+public class ScriptSearchLookup {
 
     final DocMap docMap;
 
     final SourceMap sourceMap;
 
-    public ScriptFieldsFunction(String scriptLang, String script, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
-        this.scriptService = scriptService;
-        this.script = scriptService.compile(scriptLang, script);
-        this.docMap = new DocMap(cachedFieldData.get().get(), mapperService, fieldDataCache);
-        this.sourceMap = new SourceMap();
+    final Map<String, Object> scriptVars;
+
+    public ScriptSearchLookup(MapperService mapperService, FieldDataCache fieldDataCache) {
+        docMap = new DocMap(mapperService, fieldDataCache);
+        sourceMap = new SourceMap();
+        scriptVars = ImmutableMap.<String, Object>of("doc", docMap, "_source", sourceMap);
     }
 
-    @Override public void setNextReader(IndexReader reader) {
+    public Map<String, Object> processScriptParams(@Nullable Map<String, Object> params) {
+        if (params == null) {
+            return scriptVars;
+        }
+        params.put("doc", docMap);
+        params.put("_source", sourceMap);
+        return params;
+    }
+
+    public void setNextReader(IndexReader reader) {
         docMap.setNextReader(reader);
         sourceMap.setNextReader(reader);
     }
 
-    @Override public Object execute(int docId, Map<String, Object> vars) {
-        return execute(docId, vars, null);
-    }
-
-    @Override public Object execute(int docId, Map<String, Object> vars, @Nullable Map<String, Object> sameDocCache) {
+    public void setNextDocId(int docId) {
         docMap.setNextDocId(docId);
         sourceMap.setNextDocId(docId);
-        if (sameDocCache != null) {
-            sourceMap.parsedSource((Map<String, Object>) sameDocCache.get("parsedSource"));
-        }
-        if (vars == null) {
-            vars = cachedVars.get().get();
-            vars.clear();
-        }
-        vars.put("doc", docMap);
-        vars.put("_source", sourceMap);
-        Object retVal = scriptService.execute(script, vars);
-        if (sameDocCache != null) {
-            sameDocCache.put("parsedSource", sourceMap.parsedSource());
-        }
-        return retVal;
     }
 
     static class SourceMap implements Map {
 
         private IndexReader reader;
 
-        private int docId;
+        private int docId = -1;
 
         private Map<String, Object> source;
 
@@ -157,11 +130,18 @@ public class ScriptFieldsFunction implements FieldsFunction {
         }
 
         public void setNextReader(IndexReader reader) {
+            if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+                return;
+            }
             this.reader = reader;
             this.source = null;
+            this.docId = -1;
         }
 
         public void setNextDocId(int docId) {
+            if (this.docId == docId) { // if we are called with the same docId, don't invalidate source
+                return;
+            }
             this.docId = docId;
             this.source = null;
         }
@@ -219,7 +199,7 @@ public class ScriptFieldsFunction implements FieldsFunction {
 
     static class DocMap implements Map {
 
-        private final Map<String, FieldData> localCacheFieldData;
+        private final Map<String, FieldData> localCacheFieldData = Maps.newHashMapWithExpectedSize(4);
 
         private final MapperService mapperService;
 
@@ -227,16 +207,19 @@ public class ScriptFieldsFunction implements FieldsFunction {
 
         private IndexReader reader;
 
-        private int docId;
+        private int docId = -1;
 
-        DocMap(Map<String, FieldData> localCacheFieldData, MapperService mapperService, FieldDataCache fieldDataCache) {
-            this.localCacheFieldData = localCacheFieldData;
+        DocMap(MapperService mapperService, FieldDataCache fieldDataCache) {
             this.mapperService = mapperService;
             this.fieldDataCache = fieldDataCache;
         }
 
         public void setNextReader(IndexReader reader) {
+            if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+                return;
+            }
             this.reader = reader;
+            this.docId = -1;
             localCacheFieldData.clear();
         }
 

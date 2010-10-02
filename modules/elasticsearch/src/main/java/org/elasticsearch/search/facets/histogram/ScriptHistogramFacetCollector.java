@@ -22,8 +22,7 @@ package org.elasticsearch.search.facets.histogram;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
-import org.elasticsearch.index.field.function.FieldsFunction;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
@@ -36,11 +35,9 @@ import java.util.Map;
  */
 public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final FieldsFunction keyFunction;
+    private final SearchScript keyScript;
 
-    private final FieldsFunction valueFunction;
-
-    private final Map<String, Object> params;
+    private final SearchScript valueScript;
 
     private final long interval;
 
@@ -52,29 +49,28 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     public ScriptHistogramFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.keyFunction = new ScriptFieldsFunction(scriptLang, keyScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
-        this.valueFunction = new ScriptFieldsFunction(scriptLang, valueScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.keyScript = new SearchScript(context.scriptSearchLookup(), scriptLang, keyScript, params, context.scriptService());
+        this.valueScript = new SearchScript(context.scriptSearchLookup(), scriptLang, valueScript, params, context.scriptService());
         this.interval = interval > 0 ? interval : 0;
-        this.params = params;
         this.comparatorType = comparatorType;
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        Number keyValue = (Number) keyFunction.execute(doc, params);
+        Number keyValue = (Number) keyScript.execute(doc);
         long bucket;
         if (interval == 0) {
             bucket = keyValue.longValue();
         } else {
             bucket = bucket(keyValue.doubleValue(), interval);
         }
-        double value = ((Number) valueFunction.execute(doc, params)).doubleValue();
+        double value = ((Number) valueScript.execute(doc)).doubleValue();
         counts.adjustOrPutValue(bucket, 1, 1);
         totals.adjustOrPutValue(bucket, value, value);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyFunction.setNextReader(reader);
-        valueFunction.setNextReader(reader);
+        keyScript.setNextReader(reader);
+        valueScript.setNextReader(reader);
     }
 
     @Override public Facet facet() {

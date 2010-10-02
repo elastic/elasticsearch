@@ -23,20 +23,19 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.script.search.SearchScript;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -90,41 +89,31 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         if (script == null) {
             throw new QueryParsingException(index, "[custom_score] requires 'script' field");
         }
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query,
-                new ScriptScoreFunction(new ScriptFieldsFunction(scriptLang, script, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData()), vars));
+
+        SearchScript searchScript = new SearchScript(scriptLang, script, vars, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData());
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedVars = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
-            return new ThreadLocals.CleanableValue<Map<String, Object>>(new HashMap<String, Object>());
-        }
-    };
-
     public static class ScriptScoreFunction implements ScoreFunction {
 
-        private final ScriptFieldsFunction scriptFieldsFunction;
+        private final SearchScript script;
 
-        private Map<String, Object> vars;
+        private Map<String, Object> vars = Maps.newHashMapWithExpectedSize(2);
 
-        private ScriptScoreFunction(ScriptFieldsFunction scriptFieldsFunction, Map<String, Object> vars) {
-            this.scriptFieldsFunction = scriptFieldsFunction;
-            this.vars = vars;
+        private ScriptScoreFunction(SearchScript script) {
+            this.script = script;
         }
 
         @Override public void setNextReader(IndexReader reader) {
-            scriptFieldsFunction.setNextReader(reader);
-            if (vars == null) {
-                vars = cachedVars.get().get();
-                vars.clear();
-            }
+            script.setNextReader(reader);
         }
 
         @Override public float score(int docId, float subQueryScore) {
             vars.put("score", subQueryScore);
             vars.put("_score", subQueryScore);
-            return ((Number) scriptFieldsFunction.execute(docId, vars)).floatValue();
+            return ((Number) script.execute(docId, vars)).floatValue();
         }
 
         @Override public Explanation explain(int docId, Explanation subQueryExpl) {

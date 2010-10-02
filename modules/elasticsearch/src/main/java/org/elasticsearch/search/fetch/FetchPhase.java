@@ -29,7 +29,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -53,12 +52,6 @@ import java.util.Map;
  */
 public class FetchPhase implements SearchPhase {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedSameDocScriptCache = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
-            return new ThreadLocals.CleanableValue<java.util.Map<java.lang.String, java.lang.Object>>(new HashMap<String, Object>());
-        }
-    };
-
     private final HighlightPhase highlightPhase;
 
     @Inject public FetchPhase(HighlightPhase highlightPhase) {
@@ -81,8 +74,6 @@ public class FetchPhase implements SearchPhase {
 
     public void execute(SearchContext context) {
         FieldSelector fieldSelector = buildFieldSelectors(context);
-
-        Map<String, Object> sameDocCache = cachedSameDocScriptCache.get().get();
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
@@ -141,14 +132,13 @@ public class FetchPhase implements SearchPhase {
             }
 
             if (context.hasScriptFields()) {
-                sameDocCache.clear();
                 int readerIndex = context.searcher().readerIndex(docId);
                 IndexReader subReader = context.searcher().subReaders()[readerIndex];
                 int subDoc = docId - context.searcher().docStarts()[readerIndex];
                 for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
-                    scriptField.scriptFieldsFunction().setNextReader(subReader);
+                    scriptField.script().setNextReader(subReader);
 
-                    Object value = scriptField.scriptFieldsFunction().execute(subDoc, scriptField.params(), sameDocCache);
+                    Object value = scriptField.script().execute(subDoc);
 
                     if (searchHit.fields() == null) {
                         searchHit.fields(new HashMap<String, SearchHitField>(2));
@@ -161,7 +151,6 @@ public class FetchPhase implements SearchPhase {
                     }
                     hitField.values().add(value);
                 }
-                sameDocCache.clear();
             }
 
             if (!context.parsedQuery().namedFilters().isEmpty()) {

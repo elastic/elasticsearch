@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -66,7 +66,8 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                         }
                     }
                 }
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache()), params));
+                SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript));
             }
         }
     }

@@ -22,10 +22,9 @@ package org.elasticsearch.index.field.function.sort;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
-import org.elasticsearch.index.field.function.FieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -33,41 +32,35 @@ import java.util.Map;
 // LUCENE MONITOR: Monitor against FieldComparator.Double
 public class DoubleFieldsFunctionDataComparator extends FieldComparator {
 
-    public static FieldComparatorSource comparatorSource(FieldsFunction fieldsFunction, Map<String, Object> params) {
-        return new InnerSource(fieldsFunction, params);
+    public static FieldComparatorSource comparatorSource(SearchScript script) {
+        return new InnerSource(script);
     }
 
     private static class InnerSource extends FieldComparatorSource {
 
-        private final FieldsFunction fieldsFunction;
+        private final SearchScript script;
 
-        private final Map<String, Object> params;
-
-        private InnerSource(FieldsFunction fieldsFunction, Map<String, Object> params) {
-            this.fieldsFunction = fieldsFunction;
-            this.params = params;
+        private InnerSource(SearchScript script) {
+            this.script = script;
         }
 
         @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-            return new DoubleFieldsFunctionDataComparator(numHits, fieldsFunction, params);
+            return new DoubleFieldsFunctionDataComparator(numHits, script);
         }
     }
 
-    private final FieldsFunction fieldsFunction;
-
-    private final Map<String, Object> params;
+    private final SearchScript script;
 
     private final double[] values;
     private double bottom;
 
-    public DoubleFieldsFunctionDataComparator(int numHits, FieldsFunction fieldsFunction, Map<String, Object> params) {
-        this.fieldsFunction = fieldsFunction;
-        this.params = params;
+    public DoubleFieldsFunctionDataComparator(int numHits, SearchScript script) {
+        this.script = script;
         values = new double[numHits];
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldsFunction.setNextReader(reader);
+        script.setNextReader(reader);
     }
 
     @Override public int compare(int slot1, int slot2) {
@@ -83,7 +76,7 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override public int compareBottom(int doc) {
-        final double v2 = ((Number) fieldsFunction.execute(doc, params)).doubleValue();
+        final double v2 = ((Number) script.execute(doc)).doubleValue();
         if (bottom > v2) {
             return 1;
         } else if (bottom < v2) {
@@ -94,7 +87,7 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override public void copy(int slot, int doc) {
-        values[slot] = ((Number) fieldsFunction.execute(doc, params)).doubleValue();
+        values[slot] = ((Number) script.execute(doc)).doubleValue();
     }
 
     @Override public void setBottom(final int bottom) {

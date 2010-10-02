@@ -26,7 +26,7 @@ import java.util.Map;
  */
 public interface ScriptEngineService {
 
-    String type();
+    String[] types();
 
     Object compile(String script);
 

@@ -55,8 +55,8 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         }
     }
 
-    @Override public String type() {
-        return "mvel";
+    @Override public String[] types() {
+        return new String[]{"mvel"};
     }
 
     @Override public Object compile(String script) {

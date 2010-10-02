@@ -46,8 +46,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         this.loader = new GroovyClassLoader(settings.getClassLoader());
     }
 
-    @Override public String type() {
-        return "groovy";
+    @Override public String[] types() {
+        return new String[]{"groovy"};
     }
 
     @Override public Object compile(String script) {

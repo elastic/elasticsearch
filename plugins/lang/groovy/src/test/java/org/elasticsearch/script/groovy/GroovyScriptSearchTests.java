@@ -31,6 +31,9 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
@@ -41,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class GroovyScriptFilterSearchTests {
+public class GroovyScriptSearchTests {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -112,5 +115,44 @@ public class GroovyScriptFilterSearchTests {
         assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.hits().getAt(2).id(), equalTo("3"));
         assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+    }
+
+    @Test public void testScriptFieldUsingSource() throws Exception {
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject()
+                        .startObject("obj1").field("test", "something").endObject()
+                        .startObject("obj2").startArray("arr2").value("arr_value1").value("arr_value2").endArray().endObject()
+                        .endObject())
+                .execute().actionGet();
+        client.admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse response = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addField("_source.obj1") // we also automatically detect _source in fields
+                .addScriptField("s_obj1", "groovy", "_source.obj1", null)
+                .addScriptField("s_obj1_test", "groovy", "_source.obj1.test", null)
+                .addScriptField("s_obj2", "groovy", "_source.obj2", null)
+                .addScriptField("s_obj2_arr2", "groovy", "_source.obj2.arr2", null)
+                .execute().actionGet();
+
+        Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("_source.obj1").value();
+        assertThat(sObj1.get("test").toString(), equalTo("something"));
+        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+
+        sObj1 = (Map<String, Object>) response.hits().getAt(0).field("s_obj1").value();
+        assertThat(sObj1.get("test").toString(), equalTo("something"));
+        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+
+        Map<String, Object> sObj2 = (Map<String, Object>) response.hits().getAt(0).field("s_obj2").value();
+        List sObj2Arr2 = (List) sObj2.get("arr2");
+        assertThat(sObj2Arr2.size(), equalTo(2));
+        assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
+        assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
+
+        sObj2Arr2 = (List) response.hits().getAt(0).field("s_obj2_arr2").value();
+        assertThat(sObj2Arr2.size(), equalTo(2));
+        assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
+        assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
     }
 }

@@ -29,9 +29,8 @@ import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.function.FieldsFunction;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
@@ -73,7 +72,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final StaticAggregatorValueProc aggregator;
 
-    private final FieldsFunction scriptFunction;
+    private final SearchScript script;
 
     public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
                                ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
@@ -100,26 +99,22 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            scriptFunction = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), fieldDataCache);
-            if (params == null) {
-                params = Maps.newHashMapWithExpectedSize(1);
-            }
+            this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
         } else {
-            params = null;
-            scriptFunction = null;
+            this.script = null;
         }
 
-        if (excluded.isEmpty() && pattern == null && scriptFunction == null) {
+        if (excluded.isEmpty() && pattern == null && this.script == null) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.scriptFunction, params);
+            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.script);
         }
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        if (scriptFunction != null) {
-            scriptFunction.setNextReader(reader);
+        if (script != null) {
+            script.setNextReader(reader);
         }
     }
 
@@ -168,17 +163,20 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
         private final Matcher matcher;
 
-        private final FieldsFunction scriptFunction;
+        private final SearchScript script;
 
-        private final Map<String, Object> params;
+        private final Map<String, Object> scriptParams;
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern,
-                                   FieldsFunction scriptFunction, Map<String, Object> params) {
+        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, SearchScript script) {
             super(facets);
             this.excluded = excluded;
             this.matcher = pattern != null ? pattern.matcher("") : null;
-            this.scriptFunction = scriptFunction;
-            this.params = params;
+            this.script = script;
+            if (script != null) {
+                scriptParams = Maps.newHashMapWithExpectedSize(4);
+            } else {
+                scriptParams = null;
+            }
         }
 
         @Override public void onValue(int docId, String value) {
@@ -188,9 +186,9 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             if (matcher != null && !matcher.reset(value).matches()) {
                 return;
             }
-            if (scriptFunction != null) {
-                params.put("term", value);
-                Object scriptValue = scriptFunction.execute(docId, params);
+            if (script != null) {
+                scriptParams.put("term", value);
+                Object scriptValue = script.execute(docId, scriptParams);
                 if (scriptValue == null) {
                     return;
                 }

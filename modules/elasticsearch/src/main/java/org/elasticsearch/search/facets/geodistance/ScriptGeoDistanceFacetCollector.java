@@ -22,8 +22,7 @@ package org.elasticsearch.search.facets.geodistance;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.field.function.FieldsFunction;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,22 +33,19 @@ import java.util.Map;
  */
 public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
-    private final FieldsFunction valueFunction;
-
-    private final Map<String, Object> params;
+    private final SearchScript script;
 
     public ScriptGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                            GeoDistanceFacet.Entry[] entries, SearchContext context,
                                            String scriptLang, String script, Map<String, Object> params) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
-        this.params = params;
 
-        this.valueFunction = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         super.doSetNextReader(reader, docBase);
-        valueFunction.setNextReader(reader);
+        script.setNextReader(reader);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
@@ -57,7 +53,7 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
             return;
         }
 
-        double value = ((Number) valueFunction.execute(doc, params)).doubleValue();
+        double value = ((Number) script.execute(doc)).doubleValue();
 
         if (latFieldData.multiValued()) {
             double[] lats = latFieldData.doubleValues(doc);

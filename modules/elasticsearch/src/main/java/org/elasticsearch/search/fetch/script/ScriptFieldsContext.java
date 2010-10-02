@@ -20,10 +20,9 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -32,25 +31,19 @@ public class ScriptFieldsContext {
 
     public static class ScriptField {
         private final String name;
-        private final ScriptFieldsFunction scriptFieldsFunction;
-        private final Map<String, Object> params;
+        private final SearchScript script;
 
-        public ScriptField(String name, ScriptFieldsFunction scriptFieldsFunction, Map<String, Object> params) {
+        public ScriptField(String name, SearchScript script) {
             this.name = name;
-            this.scriptFieldsFunction = scriptFieldsFunction;
-            this.params = params;
+            this.script = script;
         }
 
         public String name() {
             return name;
         }
 
-        public ScriptFieldsFunction scriptFieldsFunction() {
-            return scriptFieldsFunction;
-        }
-
-        public Map<String, Object> params() {
-            return params;
+        public SearchScript script() {
+            return this.script;
         }
     }
 

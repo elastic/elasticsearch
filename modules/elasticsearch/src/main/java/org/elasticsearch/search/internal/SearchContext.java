@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.search.ScriptSearchLookup;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -110,6 +111,8 @@ public class SearchContext implements Releasable {
     private SearchContextHighlight highlight;
 
     private ScriptFieldsContext scriptFields;
+
+    private ScriptSearchLookup scriptSearchLookup;
 
     private boolean queryRewritten;
 
@@ -389,6 +392,13 @@ public class SearchContext implements Releasable {
 
     public Timeout keepAliveTimeout() {
         return this.keepAliveTimeout;
+    }
+
+    public ScriptSearchLookup scriptSearchLookup() {
+        if (scriptSearchLookup == null) {
+            scriptSearchLookup = new ScriptSearchLookup(mapperService(), fieldDataCache());
+        }
+        return scriptSearchLookup;
     }
 
     public DfsSearchResult dfsResult() {

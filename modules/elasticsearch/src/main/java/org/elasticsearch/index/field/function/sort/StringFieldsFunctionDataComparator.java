@@ -22,52 +22,45 @@ package org.elasticsearch.index.field.function.sort;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
-import org.elasticsearch.index.field.function.FieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class StringFieldsFunctionDataComparator extends FieldComparator {
 
-    public static FieldComparatorSource comparatorSource(FieldsFunction fieldsFunction, Map<String, Object> params) {
-        return new InnerSource(fieldsFunction, params);
+    public static FieldComparatorSource comparatorSource(SearchScript script) {
+        return new InnerSource(script);
     }
 
     private static class InnerSource extends FieldComparatorSource {
 
-        private final FieldsFunction fieldsFunction;
+        private final SearchScript script;
 
-        private final Map<String, Object> params;
-
-        private InnerSource(FieldsFunction fieldsFunction, Map<String, Object> params) {
-            this.fieldsFunction = fieldsFunction;
-            this.params = params;
+        private InnerSource(SearchScript script) {
+            this.script = script;
         }
 
         @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-            return new StringFieldsFunctionDataComparator(numHits, fieldsFunction, params);
+            return new StringFieldsFunctionDataComparator(numHits, script);
         }
     }
 
-    private final FieldsFunction fieldsFunction;
-
-    private final Map<String, Object> params;
+    private final SearchScript script;
 
     private String[] values;
 
     private String bottom;
 
-    public StringFieldsFunctionDataComparator(int numHits, FieldsFunction fieldsFunction, Map<String, Object> params) {
-        this.fieldsFunction = fieldsFunction;
-        this.params = params;
+    public StringFieldsFunctionDataComparator(int numHits, SearchScript script) {
+        this.script = script;
         values = new String[numHits];
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldsFunction.setNextReader(reader);
+        script.setNextReader(reader);
     }
 
     @Override public int compare(int slot1, int slot2) {
@@ -86,7 +79,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override public int compareBottom(int doc) {
-        final String val2 = fieldsFunction.execute(doc, params).toString();
+        final String val2 = script.execute(doc).toString();
         if (bottom == null) {
             if (val2 == null) {
                 return 0;
@@ -99,7 +92,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override public void copy(int slot, int doc) {
-        values[slot] = fieldsFunction.execute(doc, params).toString();
+        values[slot] = script.execute(doc).toString();
     }
 
     @Override public void setBottom(final int bottom) {

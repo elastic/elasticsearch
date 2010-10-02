@@ -30,11 +30,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.search.SearchScript;
 
 import java.io.IOException;
 import java.util.Map;
@@ -148,15 +148,15 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         }
 
         @Override public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
-            final ScriptFieldsFunction function = new ScriptFieldsFunction(scriptLang, script, scriptService, mapperService, fieldDataCache);
-            function.setNextReader(reader);
+            final SearchScript searchScript = new SearchScript(scriptLang, script, params, scriptService, mapperService, fieldDataCache);
+            searchScript.setNextReader(reader);
             return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean isCacheable() {
                     return false; // though it is, we want to cache it into in memory rep so it will be faster
                 }
 
                 @Override public boolean get(int doc) throws IOException {
-                    Object val = function.execute(doc, params);
+                    Object val = searchScript.execute(doc, params);
                     if (val == null) {
                         return false;
                     }

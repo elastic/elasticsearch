@@ -22,10 +22,9 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.function.FieldsFunction;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.index.field.function.sort.DoubleFieldsFunctionDataComparator;
 import org.elasticsearch.index.field.function.sort.StringFieldsFunctionDataComparator;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -75,12 +74,12 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        FieldsFunction fieldsFunction = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
         FieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
-            fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
+            fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(searchScript);
         } else if ("number".equals(type)) {
-            fieldComparatorSource = DoubleFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
+            fieldComparatorSource = DoubleFieldsFunctionDataComparator.comparatorSource(searchScript);
         } else {
             throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
         }

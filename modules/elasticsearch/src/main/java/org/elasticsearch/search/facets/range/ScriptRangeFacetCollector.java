@@ -20,8 +20,7 @@
 package org.elasticsearch.search.facets.range;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.field.function.FieldsFunction;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,30 +33,27 @@ import java.util.Map;
  */
 public class ScriptRangeFacetCollector extends AbstractFacetCollector {
 
-    private final FieldsFunction keyFunction;
+    private final SearchScript keyScript;
 
-    private final FieldsFunction valueFunction;
-
-    private final Map<String, Object> params;
+    private final SearchScript valueScript;
 
     private final RangeFacet.Entry[] entries;
 
     public ScriptRangeFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.keyFunction = new ScriptFieldsFunction(scriptLang, keyScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
-        this.valueFunction = new ScriptFieldsFunction(scriptLang, valueScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
-        this.params = params;
+        this.keyScript = new SearchScript(context.scriptSearchLookup(), scriptLang, keyScript, params, context.scriptService());
+        this.valueScript = new SearchScript(context.scriptSearchLookup(), scriptLang, valueScript, params, context.scriptService());
         this.entries = entries;
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyFunction.setNextReader(reader);
-        valueFunction.setNextReader(reader);
+        keyScript.setNextReader(reader);
+        valueScript.setNextReader(reader);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        double key = ((Number) keyFunction.execute(doc, params)).doubleValue();
-        double value = ((Number) valueFunction.execute(doc, params)).doubleValue();
+        double key = ((Number) keyScript.execute(doc)).doubleValue();
+        double value = ((Number) valueScript.execute(doc)).doubleValue();
 
         for (RangeFacet.Entry entry : entries) {
             if (key >= entry.getFrom() && key < entry.getTo()) {

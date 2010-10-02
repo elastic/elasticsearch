@@ -20,8 +20,7 @@
 package org.elasticsearch.search.facets.statistical;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.field.function.FieldsFunction;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,9 +33,7 @@ import java.util.Map;
  */
 public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
-    private final FieldsFunction function;
-
-    private final Map<String, Object> params;
+    private final SearchScript script;
 
     private double min = Double.NaN;
 
@@ -50,12 +47,11 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {
         super(facetName);
-        this.params = params;
-        this.function = new ScriptFieldsFunction(scriptLang, script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        double value = ((Number) function.execute(doc, params)).doubleValue();
+        double value = ((Number) script.execute(doc)).doubleValue();
         if (value < min || Double.isNaN(min)) {
             min = value;
         }
@@ -68,7 +64,7 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        function.setNextReader(reader);
+        script.setNextReader(reader);
     }
 
     @Override public Facet facet() {

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,7 +39,8 @@ public class FieldsParseElement implements SearchParseElement {
                 String name = parser.text();
                 if (name.contains("_source.") || name.contains("doc[")) {
                     // script field to load from source
-                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(null, name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
+                    SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), null, name, null, context.scriptService());
+                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
                 } else {
                     context.fieldNames().add(name);
                 }
@@ -51,7 +52,8 @@ public class FieldsParseElement implements SearchParseElement {
             String name = parser.text();
             if (name.contains("_source.") || name.contains("doc[")) {
                 // script field to load from source
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(null, name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
+                SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), null, name, null, context.scriptService());
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
             } else {
                 context.fieldNames().add(name);
             }

@@ -33,4 +33,6 @@ public interface ScriptEngineService {
     ExecutableScript executable(Object compiledScript, Map<String, Object> vars);
 
     Object execute(Object compiledScript, Map<String, Object> vars);
+
+    void close();
 }

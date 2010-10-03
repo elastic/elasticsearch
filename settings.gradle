@@ -21,6 +21,7 @@ include 'plugins-transport-memcached'
 include 'plugins-transport-thrift'
 
 include 'plugins-river-twitter'
+include 'plugins-river-wikipedia'
 include 'plugins-river-rabbitmq'
 include 'plugins-river-couchdb'
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.javascript;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ExecutableScript;
@@ -48,17 +49,20 @@ public class JavaScriptScriptEngineTests {
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
-    @Test public void testMapPassedMapReturned() {
+    @Test public void testMapAccess() {
         Map<String, Object> vars = new HashMap<String, Object>();
 
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
-        Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).map();
+        Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).put("l", Lists.newArrayList("2", "1")).map();
         vars.put("obj1", obj1);
         Object o = se.execute(se.compile("obj1"), vars);
         assertThat(o, instanceOf(Map.class));
         obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
+
+        o = se.execute(se.compile("obj1.l[0]"), vars);
+        assertThat(((String) o), equalTo("2"));
     }
 
     @Test public void testJavaScriptObjectToMap() {
@@ -67,6 +71,27 @@ public class JavaScriptScriptEngineTests {
         Map obj1 = (Map) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
+    }
+
+    @Test public void testAccessListInScript() {
+        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
+        Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).map();
+        vars.put("l", Lists.newArrayList("1", "2", "3", obj1));
+
+        Object o = se.execute(se.compile("l.length"), vars);
+        assertThat(((Number) o).intValue(), equalTo(4));
+
+        o = se.execute(se.compile("l[0]"), vars);
+        assertThat(((String) o), equalTo("1"));
+
+        o = se.execute(se.compile("l[3]"), vars);
+        obj1 = (Map<String, Object>) o;
+        assertThat((String) obj1.get("prop1"), equalTo("value1"));
+        assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
+
+        o = se.execute(se.compile("l[3].prop1"), vars);
+        assertThat(((String) o), equalTo("value1"));
     }
 
     @Test public void testChangingVarsCrossExecution1() {

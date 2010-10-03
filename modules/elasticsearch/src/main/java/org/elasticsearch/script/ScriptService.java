@@ -64,6 +64,12 @@ public class ScriptService extends AbstractComponent {
         this.scriptEngines = builder.build();
     }
 
+    public void close() {
+        for (ScriptEngineService engineService : scriptEngines.values()) {
+            engineService.close();
+        }
+    }
+
     public CompiledScript compile(String script) {
         return compile(defaultLang, script);
     }

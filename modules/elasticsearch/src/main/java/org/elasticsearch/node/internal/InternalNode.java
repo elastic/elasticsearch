@@ -70,6 +70,7 @@ import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.river.RiversManager;
 import org.elasticsearch.river.RiversModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -265,7 +266,6 @@ public final class InternalNode implements Node {
         injector.getInstance(RestController.class).close();
         stopWatch.stop().start("transport");
         injector.getInstance(TransportService.class).close();
-        stopWatch.stop().start("http_client");
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");
@@ -274,6 +274,9 @@ public final class InternalNode implements Node {
 
         stopWatch.stop().start("node_cache");
         injector.getInstance(NodeCache.class).close();
+
+        stopWatch.stop().start("script");
+        injector.getInstance(ScriptService.class).close();
 
         stopWatch.stop().start("timer");
         injector.getInstance(TimerService.class).close();

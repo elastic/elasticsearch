@@ -60,6 +60,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
     }
 
+    @Override public void close() {
+
+    }
+
     @Override public String[] types() {
         return new String[]{"js", "javascript"};
     }

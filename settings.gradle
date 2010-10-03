@@ -15,6 +15,7 @@ include 'plugins-mapper-attachments'
 
 include 'plugins-lang-groovy'
 include 'plugins-lang-javascript'
+//include 'plugins-lang-ruby' #disabled for now ...
 
 include 'plugins-transport-memcached'
 include 'plugins-transport-thrift'

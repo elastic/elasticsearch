@@ -24,6 +24,7 @@
     <orderEntry type="module" module-name="plugin-river-twitter" />
     <orderEntry type="module" module-name="plugin-river-couchdb" />
     <orderEntry type="module" module-name="plugin-river-rabbitmq" />
+    <orderEntry type="module" module-name="plugin-river-wikipedia" />
     <orderEntry type="module" module-name="test-integration" />
   </component>
 </module>

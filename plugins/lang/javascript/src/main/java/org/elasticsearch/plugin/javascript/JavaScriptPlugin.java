@@ -17,20 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.plugin.javascript;
 
-import java.util.Map;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface ScriptEngineService {
+public class JavaScriptPlugin extends AbstractPlugin {
 
-    String[] types();
+    @Override public String name() {
+        return "lang-javascript";
+    }
 
-    Object compile(String script);
+    @Override public String description() {
+        return "JavaScript plugin allowing to add javascript scripting support";
+    }
 
-    ExecutableScript executable(Object compiledScript, Map<String, Object> vars);
-
-    Object execute(Object compiledScript, Map<String, Object> vars);
+    @Override public void processModule(Module module) {
+        if (module instanceof ScriptModule) {
+            ((ScriptModule) module).addScriptEngine(JavaScriptScriptEngineService.class);
+        }
+    }
 }

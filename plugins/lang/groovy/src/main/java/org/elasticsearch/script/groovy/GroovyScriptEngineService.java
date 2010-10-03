@@ -54,7 +54,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return loader.parseClass(script, generateScriptName());
     }
 
-    @Override public ExecutableScript executable(Object compiledScript, Map vars) {
+    @Override public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
         try {
             Class scriptClass = (Class) compiledScript;
             Script scriptObject = (Script) scriptClass.newInstance();
@@ -69,7 +69,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
-    @Override public Object execute(Object compiledScript, Map vars) {
+    @Override public Object execute(Object compiledScript, Map<String, Object> vars) {
         try {
             Class scriptClass = (Class) compiledScript;
             Script scriptObject = (Script) scriptClass.newInstance();
@@ -97,7 +97,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return script.run();
         }
 
-        @Override public Object run(Map vars) {
+        @Override public Object run(Map<String, Object> vars) {
             script.getBinding().getVariables().putAll(vars);
             return script.run();
         }

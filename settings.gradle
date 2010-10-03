@@ -12,7 +12,9 @@ include 'plugins-cloud-aws'
 include 'plugins-hadoop'
 include 'plugins-analysis-icu'
 include 'plugins-mapper-attachments'
+
 include 'plugins-lang-groovy'
+include 'plugins-lang-javascript'
 
 include 'plugins-transport-memcached'
 include 'plugins-transport-thrift'

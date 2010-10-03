@@ -17,20 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.script.javascript.support;
+
+import org.mozilla.javascript.Scriptable;
 
 import java.util.Map;
 
 /**
+ * Contract to be implemented by classes providing Map like collections to JavaScript.
+ *
  * @author kimchy (shay.banon)
  */
-public interface ScriptEngineService {
-
-    String[] types();
-
-    Object compile(String script);
-
-    ExecutableScript executable(Object compiledScript, Map<String, Object> vars);
-
-    Object execute(Object compiledScript, Map<String, Object> vars);
+public interface ScriptableMap<K, V> extends Scriptable, Map<K, V> {
 }

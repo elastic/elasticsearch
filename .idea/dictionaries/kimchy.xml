@@ -66,6 +66,7 @@
       <w>ints</w>
       <w>iter</w>
       <w>iterable</w>
+      <w>javascript</w>
       <w>javax</w>
       <w>jclouds</w>
       <w>jgroups</w>
@@ -114,6 +115,7 @@
       <w>routings</w>
       <w>rsts</w>
       <w>sbuf</w>
+      <w>scriptable</w>
       <w>searchable</w>
       <w>segs</w>
       <w>serializers</w>

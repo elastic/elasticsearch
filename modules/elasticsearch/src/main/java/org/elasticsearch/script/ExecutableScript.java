@@ -39,5 +39,5 @@ public interface ExecutableScript {
     /**
      * Executes the script.
      */
-    Object run(Map vars);
+    Object run(Map<String, Object> vars);
 }

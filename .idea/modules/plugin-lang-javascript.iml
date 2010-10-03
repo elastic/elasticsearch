@@ -7,6 +7,7 @@
     <content url="file://$MODULE_DIR$/../../plugins/lang/javascript">
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/javascript/src/main/java" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/lang/javascript/src/test/java" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/lang/javascript/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

@@ -24,10 +24,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.javascript.support.NativeList;
 import org.elasticsearch.script.javascript.support.NativeMap;
 import org.elasticsearch.script.javascript.support.ScriptValueConverter;
 import org.mozilla.javascript.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -161,6 +163,9 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class staticType) {
             if (javaObject instanceof Map) {
                 return new NativeMap(scope, (Map) javaObject);
+            }
+            if (javaObject instanceof List) {
+                return new NativeList(scope, (List) javaObject);
             }
             return super.wrapAsJavaObject(cx, scope, javaObject, staticType);
         }

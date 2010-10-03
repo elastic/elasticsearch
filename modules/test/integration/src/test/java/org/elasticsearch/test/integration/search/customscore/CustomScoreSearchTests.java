@@ -56,8 +56,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test
-    public void testCustomScriptBoost() throws Exception {
+    @Test public void testCustomScriptBoost() throws Exception {
         // execute a search before we create an index
         try {
             client.prepareSearch().setQuery(termQuery("test", "value")).execute().actionGet();

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.script.groovy;
+package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -32,7 +32,7 @@ import java.util.Map;
 public class SimpleBench {
 
     public static void main(String[] args) {
-        GroovyScriptEngineService se = new GroovyScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         Object compiled = se.compile("x + y");
 
         Map<String, Object> vars = new HashMap<String, Object>();
@@ -57,5 +57,12 @@ public class SimpleBench {
             executableScript.run();
         }
         System.out.println("Executable Took: " + stopWatch.stop().lastTaskTime());
+
+        stopWatch = new StopWatch().start();
+        executableScript = se.executable(compiled, vars);
+        for (long i = 0; i < ITER; i++) {
+            executableScript.run(vars);
+        }
+        System.out.println("Executable (vars) Took: " + stopWatch.stop().lastTaskTime());
     }
 }

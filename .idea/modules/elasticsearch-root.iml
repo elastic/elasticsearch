@@ -14,6 +14,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
     <orderEntry type="module" module-name="plugin-lang-groovy" />
+    <orderEntry type="module" module-name="plugin-lang-javascript" />
     <orderEntry type="module" module-name="plugin-mapper-attachments" />
     <orderEntry type="module" module-name="plugin-transport-memcached" />
     <orderEntry type="module" module-name="plugin-transport-thrift" />

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.script.groovy;
+package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class GroovyScriptSearchTests {
+public class JavaScriptScriptSearchTests {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -64,7 +64,7 @@ public class GroovyScriptSearchTests {
         node.close();
     }
 
-    @Test public void testGroovyScriptFilter() throws Exception {
+    @Test public void testJavaScriptFilter() throws Exception {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
@@ -81,9 +81,9 @@ public class GroovyScriptSearchTests {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("groovy")))
+                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("js")))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "groovy", "doc['num1'].value", null)
+                .addScriptField("sNum1", "js", "doc['num1'].value", null)
                 .execute().actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -94,9 +94,9 @@ public class GroovyScriptSearchTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("groovy").addParam("param1", 2)))
+                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("js").addParam("param1", 2)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "groovy", "doc['num1'].value", null)
+                .addScriptField("sNum1", "js", "doc['num1'].value", null)
                 .execute().actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(1l));
@@ -105,9 +105,9 @@ public class GroovyScriptSearchTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("groovy").addParam("param1", -1)))
+                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("js").addParam("param1", -1)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "groovy", "doc['num1'].value", null)
+                .addScriptField("sNum1", "js", "doc['num1'].value", null)
                 .execute().actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(3l));
@@ -132,10 +132,10 @@ public class GroovyScriptSearchTests {
         SearchResponse response = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addField("_source.obj1") // we also automatically detect _source in fields
-                .addScriptField("s_obj1", "groovy", "_source.obj1", null)
-                .addScriptField("s_obj1_test", "groovy", "_source.obj1.test", null)
-                .addScriptField("s_obj2", "groovy", "_source.obj2", null)
-                .addScriptField("s_obj2_arr2", "groovy", "_source.obj2.arr2", null)
+                .addScriptField("s_obj1", "js", "_source.obj1", null)
+                .addScriptField("s_obj1_test", "js", "_source.obj1.test", null)
+                .addScriptField("s_obj2", "js", "_source.obj2", null)
+                .addScriptField("s_obj2_arr2", "js", "_source.obj2.arr2", null)
                 .execute().actionGet();
 
         Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("_source.obj1").value();
@@ -186,7 +186,7 @@ public class GroovyScriptSearchTests {
         logger.info("running doc['num1'].value");
         SearchResponse response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value").lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value").lang("js")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -198,7 +198,7 @@ public class GroovyScriptSearchTests {
         logger.info("running -doc['num1'].value");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value").lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value").lang("js")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -211,7 +211,7 @@ public class GroovyScriptSearchTests {
         logger.info("running pow(doc['num1'].value, 2)");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.pow(doc['num1'].value, 2)").lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.pow(doc['num1'].value, 2)").lang("js")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -223,7 +223,7 @@ public class GroovyScriptSearchTests {
         logger.info("running max(doc['num1'].value, 1)");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.max(doc['num1'].value, 1d)").lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.max(doc['num1'].value, 1)").lang("js")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -235,7 +235,7 @@ public class GroovyScriptSearchTests {
         logger.info("running doc['num1'].value * score");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * score").lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * score").lang("js")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -247,7 +247,7 @@ public class GroovyScriptSearchTests {
         logger.info("running param1 * param2 * score");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * score").param("param1", 2).param("param2", 2).lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * score").param("param1", 2).param("param2", 2).lang("js")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));

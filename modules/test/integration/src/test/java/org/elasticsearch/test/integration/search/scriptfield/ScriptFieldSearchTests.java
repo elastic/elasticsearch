@@ -23,12 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -62,8 +64,15 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
         return client("client1");
     }
 
-    @Test public void testCustomScriptBoost() throws Exception {
+    @Test public void testDocAndFields() throws Exception {
         client.admin().indices().prepareCreate("test").execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("num1").field("type", "double").field("store", "yes").endObject()
+                .endObject().endObject().endObject().string();
+
+        client.admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject())
                 .execute().actionGet();
@@ -82,19 +91,25 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
+                .addScriptField("sNum1_field", "_fields['num1'].value")
                 .addScriptField("date1", "doc['date'].date.millis")
                 .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
 
         assertThat(response.hits().totalHits(), equalTo(3l));
         assertThat(response.hits().getAt(0).isSourceEmpty(), equalTo(true));
         assertThat(response.hits().getAt(0).id(), equalTo("1"));
         assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat((Double) response.hits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
         assertThat((Long) response.hits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
         assertThat(response.hits().getAt(1).id(), equalTo("2"));
         assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat((Double) response.hits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
         assertThat((Long) response.hits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
         assertThat(response.hits().getAt(2).id(), equalTo("3"));
         assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat((Double) response.hits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
         assertThat((Long) response.hits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
 
         logger.info("running doc['num1'].value * factor");

@@ -31,6 +31,7 @@ import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
+import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,9 +44,7 @@ import org.elasticsearch.index.mapper.SourceFieldSelector;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -56,12 +55,15 @@ public class ScriptSearchLookup {
 
     final SourceMap sourceMap;
 
+    final FieldsMap fieldsMap;
+
     final Map<String, Object> scriptVars;
 
     public ScriptSearchLookup(MapperService mapperService, FieldDataCache fieldDataCache) {
         docMap = new DocMap(mapperService, fieldDataCache);
         sourceMap = new SourceMap();
-        scriptVars = ImmutableMap.<String, Object>of("doc", docMap, "_source", sourceMap);
+        fieldsMap = new FieldsMap(mapperService);
+        scriptVars = ImmutableMap.<String, Object>of("doc", docMap, "_source", sourceMap, "_fields", fieldsMap);
     }
 
     public Map<String, Object> processScriptParams(@Nullable Map<String, Object> params) {
@@ -70,17 +72,20 @@ public class ScriptSearchLookup {
         }
         params.put("doc", docMap);
         params.put("_source", sourceMap);
+        params.put("_fields", fieldsMap);
         return params;
     }
 
     public void setNextReader(IndexReader reader) {
         docMap.setNextReader(reader);
         sourceMap.setNextReader(reader);
+        fieldsMap.setNextReader(reader);
     }
 
     public void setNextDocId(int docId) {
         docMap.setNextDocId(docId);
         sourceMap.setNextDocId(docId);
+        fieldsMap.setNextDocId(docId);
     }
 
     static class SourceMap implements Map {
@@ -120,7 +125,7 @@ public class ScriptSearchLookup {
                     this.source = parser.map();
                 }
             } catch (Exception e) {
-                throw new ElasticSearchParseException("failed to parse source", e);
+                throw new ElasticSearchParseException("failed to parse / load source", e);
             } finally {
                 if (parser != null) {
                     parser.close();
@@ -195,9 +200,202 @@ public class ScriptSearchLookup {
         }
     }
 
+    public static class FieldsMap implements Map {
+
+        private final MapperService mapperService;
+
+        private IndexReader reader;
+
+        private int docId = -1;
+
+        private final Map<String, FieldData> cachedFieldData = Maps.newHashMap();
+
+        private final SingleFieldSelector fieldSelector = new SingleFieldSelector();
+
+        FieldsMap(MapperService mapperService) {
+            this.mapperService = mapperService;
+        }
+
+        public void setNextReader(IndexReader reader) {
+            if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+                return;
+            }
+            this.reader = reader;
+            clearCache();
+            this.docId = -1;
+        }
+
+        public void setNextDocId(int docId) {
+            if (this.docId == docId) { // if we are called with the same docId, don't invalidate source
+                return;
+            }
+            this.docId = docId;
+            clearCache();
+        }
+
+
+        @Override public Object get(Object key) {
+            return loadFieldData(key.toString());
+        }
+
+        @Override public boolean containsKey(Object key) {
+            try {
+                loadFieldData(key.toString());
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        @Override public int size() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public boolean isEmpty() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public Set keySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public Collection values() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public Set entrySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public Object put(Object key, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public Object remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public void putAll(Map m) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public boolean containsValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        private FieldData loadFieldData(String name) {
+            FieldData data = cachedFieldData.get(name);
+            if (data == null) {
+                FieldMapper mapper = mapperService.smartNameFieldMapper(name);
+                if (mapper == null) {
+                    throw new ElasticSearchIllegalArgumentException("No field found for [" + name + "]");
+                }
+                data = new FieldData(mapper);
+                cachedFieldData.put(name, data);
+            }
+            if (data.doc() == null) {
+                fieldSelector.name(data.mapper().names().indexName());
+                try {
+                    data.doc(reader.document(docId, fieldSelector));
+                } catch (IOException e) {
+                    throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
+                }
+            }
+            return data;
+        }
+
+        private void clearCache() {
+            for (Entry<String, FieldData> entry : cachedFieldData.entrySet()) {
+                entry.getValue().clear();
+            }
+        }
+
+        public static class FieldData {
+
+            // we can cached mapper completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)
+            private final FieldMapper mapper;
+
+            private Document doc;
+
+            private Object value;
+
+            private boolean valueLoaded = false;
+
+            private List<Object> values = new ArrayList<Object>();
+
+            private boolean valuesLoaded = false;
+
+            FieldData(FieldMapper mapper) {
+                this.mapper = mapper;
+            }
+
+            public FieldMapper mapper() {
+                return mapper;
+            }
+
+            public Document doc() {
+                return doc;
+            }
+
+            public void doc(Document doc) {
+                this.doc = doc;
+            }
+
+            public void clear() {
+                value = null;
+                valueLoaded = false;
+                values.clear();
+                valuesLoaded = true;
+                doc = null;
+            }
+
+            public boolean isEmpty() {
+                if (valueLoaded) {
+                    return value == null;
+                }
+                if (valuesLoaded) {
+                    return values.isEmpty();
+                }
+                return getValue() == null;
+            }
+
+            public Object getValue() {
+                if (valueLoaded) {
+                    return value;
+                }
+                valueLoaded = true;
+                value = null;
+                Fieldable field = doc.getFieldable(mapper.names().indexName());
+                if (field == null) {
+                    return null;
+                }
+                value = mapper.value(field);
+                return value;
+            }
+
+            public List<Object> getValues() {
+                if (valuesLoaded) {
+                    return values;
+                }
+                valuesLoaded = true;
+                values.clear();
+                Fieldable[] fields = doc.getFieldables(mapper.names().indexName());
+                for (Fieldable field : fields) {
+                    values.add(mapper.value(field));
+                }
+                return values;
+            }
+        }
+    }
+
+
     // --- Map implementation for doc field data lookup
 
-    static class DocMap implements Map {
+    public static class DocMap implements Map {
 
         private final Map<String, FieldData> localCacheFieldData = Maps.newHashMapWithExpectedSize(4);
 

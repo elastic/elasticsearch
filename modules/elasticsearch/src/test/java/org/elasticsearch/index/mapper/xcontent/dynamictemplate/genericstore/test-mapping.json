@@ -1,0 +1,12 @@
+{
+    "person" : {
+        "dynamic_templates" : [
+            {
+                "match" : "*",
+                "mapping" : {
+                    "store" : "yes"
+                }
+            }
+        ]
+    }
+}

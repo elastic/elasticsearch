@@ -80,7 +80,7 @@ public class XContentDynamicTemplate {
         this.mapping = mapping;
     }
 
-    public boolean match(String name, String suggestedMappingType) {
+    public boolean match(String name, String dynamicType) {
         if (!patternMatch(match, name)) {
             return false;
         }
@@ -88,18 +88,22 @@ public class XContentDynamicTemplate {
             return false;
         }
         if (matchMappingType != null) {
-            if (suggestedMappingType == null) {
+            if (dynamicType == null) {
                 return false;
             }
-            if (!patternMatch(matchMappingType, suggestedMappingType)) {
+            if (!patternMatch(matchMappingType, dynamicType)) {
                 return false;
             }
         }
         return true;
     }
 
-    public String mappingType() {
-        return mapping.containsKey("type") ? mapping.get("type").toString() : "object";
+    public boolean hasType() {
+        return mapping.containsKey("type");
+    }
+
+    public String mappingType(String dynamicType) {
+        return mapping.containsKey("type") ? mapping.get("type").toString() : dynamicType;
     }
 
     private boolean patternMatch(String pattern, String str) {
@@ -109,36 +113,36 @@ public class XContentDynamicTemplate {
         return str.matches(pattern);
     }
 
-    public Map<String, Object> mappingForName(String name) {
-        return processMap(mapping, name);
+    public Map<String, Object> mappingForName(String name, String dynamicType) {
+        return processMap(mapping, name, dynamicType);
     }
 
-    private Map<String, Object> processMap(Map<String, Object> map, String name) {
+    private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
         Map<String, Object> processedMap = Maps.newHashMap();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String key = entry.getKey().replace("{name}", name);
+            String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
             Object value = entry.getValue();
             if (value instanceof Map) {
-                value = processMap((Map<String, Object>) value, name);
+                value = processMap((Map<String, Object>) value, name, dynamicType);
             } else if (value instanceof List) {
-                value = processList((List) value, name);
+                value = processList((List) value, name, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name);
+                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
             }
             processedMap.put(key, value);
         }
         return processedMap;
     }
 
-    private List processList(List list, String name) {
+    private List processList(List list, String name, String dynamicType) {
         List processedList = new ArrayList();
         for (Object value : list) {
             if (value instanceof Map) {
-                value = processMap((Map<String, Object>) value, name);
+                value = processMap((Map<String, Object>) value, name, dynamicType);
             } else if (value instanceof List) {
-                value = processList((List) value, name);
+                value = processList((List) value, name, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name);
+                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
             }
             processedList.add(value);
         }

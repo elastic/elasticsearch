@@ -57,6 +57,7 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
     }
 
     @Override public void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException {
+        logger.debug("performing state recovery");
         listener.onSuccess();
     }
 

@@ -553,18 +553,18 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
         }
     }
 
-    private XContentMapper.Builder findTemplateBuilder(ParseContext context, String name, String mappingType) {
-        XContentDynamicTemplate dynamicTemplate = findTemplate(name, mappingType);
+    private XContentMapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
+        XContentDynamicTemplate dynamicTemplate = findTemplate(name, dynamicType);
         if (dynamicTemplate == null) {
             return null;
         }
         XContentTypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-        return parserContext.typeParser(dynamicTemplate.mappingType()).parse(name, dynamicTemplate.mappingForName(name), parserContext);
+        return parserContext.typeParser(dynamicTemplate.mappingType(dynamicType)).parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    private XContentDynamicTemplate findTemplate(String name, String mappingType) {
+    private XContentDynamicTemplate findTemplate(String name, String dynamicType) {
         for (XContentDynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (dynamicTemplate.match(name, mappingType)) {
+            if (dynamicTemplate.match(name, dynamicType)) {
                 return dynamicTemplate;
             }
         }

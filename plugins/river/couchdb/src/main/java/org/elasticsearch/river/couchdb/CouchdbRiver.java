@@ -179,6 +179,13 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
         }
         String seq = map.get("seq").toString();
         String id = map.get("id").toString();
+
+        // Ignore design documents
+        if (id.startsWith("_design/")) {
+            logger.info("ignoring design document {}", id);
+            return seq;
+        }
+
         if (map.containsKey("delete") && map.get("deleted").equals("true")) {
             bulk.add(deleteRequest(indexName).type(typeName).id(id));
         } else if (map.containsKey("doc")) {

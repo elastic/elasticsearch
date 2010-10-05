@@ -224,15 +224,17 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
                     if (allocate) {
                         changed = true;
-                        // we found all nodes to allocate to, do the allocation
+                        // we found all nodes to allocate to, do the allocation (but only for the index we are working on)
                         for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
                             MutableShardRouting shardRouting = it.next();
-                            if (shardRouting.primary()) {
-                                DiscoveryNode node = shards.get(shardRouting.shardId()).v1();
-                                logger.debug("[{}][{}] initial allocation to [{}]", shardRouting.index(), shardRouting.id(), node);
-                                RoutingNode routingNode = routingNodes.node(node.id());
-                                routingNode.add(shardRouting);
-                                it.remove();
+                            if (shardRouting.index().equals(indexRoutingTable.index())) {
+                                if (shardRouting.primary()) {
+                                    DiscoveryNode node = shards.get(shardRouting.shardId()).v1();
+                                    logger.debug("[{}][{}] initial allocation to [{}]", shardRouting.index(), shardRouting.id(), node);
+                                    RoutingNode routingNode = routingNodes.node(node.id());
+                                    routingNode.add(shardRouting);
+                                    it.remove();
+                                }
                             }
                         }
                     } else {

@@ -182,7 +182,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
         // Ignore design documents
         if (id.startsWith("_design/")) {
-            logger.info("ignoring design document {}", id);
+            logger.trace("ignoring design document {}", id);
             return seq;
         }
 

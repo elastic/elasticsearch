@@ -47,6 +47,8 @@ public class XContentDynamicTemplate {
         }
     }
 
+    private final Map<String, Object> conf;
+
     private final String match;
 
     private final String unmatch;
@@ -69,15 +71,20 @@ public class XContentDynamicTemplate {
         }
         Map<String, Object> mapping = (Map<String, Object>) conf.get("mapping");
         String matchType = conf.containsKey("match_pattern") ? conf.get("match_pattern").toString() : "simple";
-        return new XContentDynamicTemplate(match, unmatch, matchMappingType, MatchType.fromString(matchType), mapping);
+        return new XContentDynamicTemplate(conf, match, unmatch, matchMappingType, MatchType.fromString(matchType), mapping);
     }
 
-    public XContentDynamicTemplate(String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+    public XContentDynamicTemplate(Map<String, Object> conf, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+        this.conf = conf;
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
         this.matchMappingType = matchMappingType;
         this.mapping = mapping;
+    }
+
+    public Map<String, Object> conf() {
+        return this.conf;
     }
 
     public boolean match(String name, String dynamicType) {
@@ -147,5 +154,32 @@ public class XContentDynamicTemplate {
             processedList.add(value);
         }
         return processedList;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        XContentDynamicTemplate that = (XContentDynamicTemplate) o;
+
+        // check if same matching, if so, replace the mapping
+        if (match != null ? !match.equals(that.match) : that.match != null) return false;
+        if (matchMappingType != null ? !matchMappingType.equals(that.matchMappingType) : that.matchMappingType != null)
+            return false;
+        if (matchType != that.matchType) return false;
+        if (unmatch != null ? !unmatch.equals(that.unmatch) : that.unmatch != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        // check if same matching, if so, replace the mapping
+        int result = match != null ? match.hashCode() : 0;
+        result = 31 * result + (unmatch != null ? unmatch.hashCode() : 0);
+        result = 31 * result + (matchType != null ? matchType.hashCode() : 0);
+        result = 31 * result + (matchMappingType != null ? matchMappingType.hashCode() : 0);
+        return result;
     }
 }

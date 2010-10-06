@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,6 +127,13 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
 
         public Builder add(XContentDynamicTemplate dynamicTemplate) {
             this.dynamicTemplates.add(dynamicTemplate);
+            return this;
+        }
+
+        public Builder add(XContentDynamicTemplate... dynamicTemplate) {
+            for (XContentDynamicTemplate template : dynamicTemplate) {
+                this.dynamicTemplates.add(template);
+            }
             return this;
         }
 
@@ -395,6 +404,7 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
                         XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
                             builder = XContentMapperBuilders.object(currentFieldName).enabled(true)
+                                    .add(dynamicTemplates)
                                     .dynamic(dynamic).pathType(pathType).dateTimeFormatter(dateTimeFormatters);
                         }
                         objectMapper = builder.build(builderContext);
@@ -577,6 +587,19 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
             return;
         }
         XContentObjectMapper mergeWithObject = (XContentObjectMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            // merge them
+            List<XContentDynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
+            for (XContentDynamicTemplate template : mergeWithObject.dynamicTemplates) {
+                int index = mergedTemplates.indexOf(template);
+                if (index == -1) {
+                    mergedTemplates.add(template);
+                } else {
+                    mergedTemplates.set(index, template);
+                }
+            }
+            this.dynamicTemplates = mergedTemplates.toArray(new XContentDynamicTemplate[mergedTemplates.size()]);
+        }
         synchronized (mutex) {
             for (XContentMapper mergeWithMapper : mergeWithObject.mappers.values()) {
                 XContentMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
@@ -621,6 +644,13 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
         builder.field("path", pathType.name().toLowerCase());
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+        if (dynamicTemplates != null && dynamicTemplates.length > 0) {
+            builder.startArray("dynamic_templates");
+            for (XContentDynamicTemplate dynamicTemplate : dynamicTemplates) {
+                builder.map(dynamicTemplate.conf());
+            }
+            builder.endArray();
         }
 
         if (dateTimeFormatters.length > 0) {

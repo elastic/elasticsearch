@@ -18,7 +18,9 @@
           <root url="jar://$GRADLE_REPOSITORY$/rhino/js/jars/js-1.7R2.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES />
+        <SOURCES>
+          <root url="file://$MODULE_DIR$/../../../../../opt/rhino1_7R2/src" />
+        </SOURCES>
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

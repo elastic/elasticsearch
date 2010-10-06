@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets.terms;
 
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.collector.FacetCollector;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -46,6 +48,7 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         int size = 10;
 
         String fieldName = null;
+        String[] fieldsNames = null;
         XContentParser.Token token;
         ImmutableSet<String> excluded = ImmutableSet.of();
         String regex = null;
@@ -68,6 +71,12 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                         builder.add(parser.text());
                     }
                     excluded = builder.build();
+                } else if ("fields".equals(fieldName)) {
+                    List<String> fields = Lists.newArrayListWithCapacity(4);
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        fields.add(parser.text());
+                    }
+                    fieldsNames = fields.toArray(new String[fields.size()]);
                 }
             } else if (token.isValue()) {
                 if ("field".equals(fieldName)) {
@@ -95,6 +104,9 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         Pattern pattern = null;
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);
+        }
+        if (fieldsNames != null) {
+            return new TermsFieldsFacetCollector(facetName, fieldsNames, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
         }
         return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
     }

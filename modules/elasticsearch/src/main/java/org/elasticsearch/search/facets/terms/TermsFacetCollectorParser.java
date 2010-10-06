@@ -81,6 +81,8 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
             } else if (token.isValue()) {
                 if ("field".equals(fieldName)) {
                     field = parser.text();
+                } else if ("script_field".equals(fieldName)) {
+                    script = parser.text();
                 } else if ("size".equals(fieldName)) {
                     size = parser.intValue();
                 } else if ("regex".equals(fieldName)) {
@@ -107,6 +109,9 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         }
         if (fieldsNames != null) {
             return new TermsFieldsFacetCollector(facetName, fieldsNames, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+        }
+        if (field == null && fieldsNames == null && script != null) {
+            return new TermsScriptFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
         }
         return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
     }

@@ -90,6 +90,15 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
+     * Define a script field that will control the terms that will be used (and not filtered, as is the
+     * case when the script is provided on top of field / fields).
+     */
+    public TermsFacetBuilder scriptField(String scriptField) {
+        this.script = scriptField;
+        return this;
+    }
+
+    /**
      * A set of terms that will be excluded.
      */
     public TermsFacetBuilder exclude(String... exclude) {
@@ -160,8 +169,8 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fieldName == null && fieldsNames == null) {
-            throw new SearchSourceBuilderException("field must be set on terms facet for facet [" + name + "]");
+        if (fieldName == null && fieldsNames == null && script == null) {
+            throw new SearchSourceBuilderException("field/fields/script must be set on terms facet for facet [" + name + "]");
         }
         builder.startObject(name);
 
@@ -172,7 +181,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
             } else {
                 builder.field("fields", fieldsNames);
             }
-        } else {
+        } else if (fieldName != null) {
             builder.field("field", fieldName);
         }
         builder.field("size", size);

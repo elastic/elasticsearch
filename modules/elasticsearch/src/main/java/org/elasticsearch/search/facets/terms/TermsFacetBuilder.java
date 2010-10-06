@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * Term facets allow to collect frequency of terms within one (or more) field.
+ *
  * @author kimchy (shay.banon)
  */
 public class TermsFacetBuilder extends AbstractFacetBuilder {
@@ -44,55 +46,92 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String lang;
     private Map<String, Object> params;
 
+    /**
+     * Construct a new term facet with the provided facet name.
+     *
+     * @param name The facet name.
+     */
     public TermsFacetBuilder(String name) {
         super(name);
     }
 
+    /**
+     * Should the fact run in global mode (not bounded by the search query) or not. Defaults
+     * to <tt>false</tt>.
+     */
     public TermsFacetBuilder global(boolean global) {
         this.global = global;
         return this;
     }
 
+    /**
+     * An additional facet filter that will further filter the documents the facet will be
+     * executed on.
+     */
     public TermsFacetBuilder facetFilter(XContentFilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }
 
+    /**
+     * The field the terms will be collected from.
+     */
     public TermsFacetBuilder field(String field) {
         this.fieldName = field;
         return this;
     }
 
+    /**
+     * The fields the terms will be collected from.
+     */
     public TermsFacetBuilder fields(String... fields) {
         this.fieldsNames = fields;
         return this;
     }
 
+    /**
+     * A set of terms that will be excluded.
+     */
     public TermsFacetBuilder exclude(String... exclude) {
         this.exclude = exclude;
         return this;
     }
 
+    /**
+     * The number of terms (and frequencies) to return. Defaults to 10.
+     */
     public TermsFacetBuilder size(int size) {
         this.size = size;
         return this;
     }
 
+    /**
+     * A regular expression to use in order to further filter terms.
+     */
     public TermsFacetBuilder regex(String regex) {
         return regex(regex, 0);
     }
 
+    /**
+     * A regular expression (with flags) to use in order to further filter terms.
+     */
     public TermsFacetBuilder regex(String regex, int flags) {
         this.regex = regex;
         this.regexFlags = flags;
         return this;
     }
 
+    /**
+     * The order by which to return the facets by. Defaults to {@link TermsFacet.ComparatorType#COUNT}.
+     */
     public TermsFacetBuilder order(TermsFacet.ComparatorType comparatorType) {
         this.comparatorType = comparatorType;
         return this;
     }
 
+    /**
+     * A script allowing to either modify or ignore a provided term (can be accessed using <tt>term</tt> var).
+     */
     public TermsFacetBuilder script(String script) {
         this.script = script;
         return this;
@@ -106,6 +145,12 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * A parameter that will be passed to the script.
+     *
+     * @param name  The name of the script parameter.
+     * @param value The value of the script parameter.
+     */
     public TermsFacetBuilder param(String name, Object value) {
         if (params == null) {
             params = Maps.newHashMap();

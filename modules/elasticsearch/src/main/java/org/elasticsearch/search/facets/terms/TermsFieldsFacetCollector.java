@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -36,29 +35,22 @@ import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.Strings.*;
+
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsFacetCollector extends AbstractFacetCollector {
-
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<java.lang.String>>>(new ArrayDeque<TObjectIntHashMap<String>>());
-        }
-    };
-
+public class TermsFieldsFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
-    private final String fieldName;
+    private final String[] fieldsNames;
 
-    private final String indexFieldName;
+    private final String[] indexFieldsNames;
 
     private final InternalTermsFacet.ComparatorType comparatorType;
 
@@ -66,36 +58,38 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final int numberOfShards;
 
-    private final FieldData.Type fieldDataType;
+    private final FieldData.Type[] fieldsDataType;
 
-    private FieldData fieldData;
+    private FieldData[] fieldsData;
 
     private final StaticAggregatorValueProc aggregator;
 
     private final SearchScript script;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
-                               ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+    public TermsFieldsFacetCollector(String facetName, String[] fieldsNames, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
+                                     ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
 
-        this.fieldName = fieldName;
+        this.fieldsNames = fieldsNames;
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            this.indexFieldName = fieldName;
-            this.fieldDataType = FieldData.Type.STRING;
-        } else {
-            // add type filter if there is exact doc mapper associated with it
-            if (smartMappers.hasDocMapper()) {
-                setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
+        fieldsDataType = new FieldData.Type[fieldsNames.length];
+        fieldsData = new FieldData[fieldsNames.length];
+        indexFieldsNames = new String[fieldsNames.length];
+
+        for (int i = 0; i < fieldsNames.length; i++) {
+            MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldsNames[i]);
+            if (smartMappers == null || !smartMappers.hasMapper()) {
+                this.indexFieldsNames[i] = fieldsNames[i];
+                this.fieldsDataType[i] = FieldData.Type.STRING;
+            } else {
+                this.indexFieldsNames[i] = smartMappers.mapper().names().indexName();
+                this.fieldsDataType[i] = smartMappers.mapper().fieldDataType();
             }
 
-            this.indexFieldName = smartMappers.mapper().names().indexName();
-            this.fieldDataType = smartMappers.mapper().fieldDataType();
         }
 
         if (script != null) {
@@ -105,28 +99,32 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         }
 
         if (excluded.isEmpty() && pattern == null && this.script == null) {
-            aggregator = new StaticAggregatorValueProc(popFacets());
+            aggregator = new StaticAggregatorValueProc(TermsFacetCollector.popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.script);
+            aggregator = new AggregatorValueProc(TermsFacetCollector.popFacets(), excluded, pattern, this.script);
         }
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        for (int i = 0; i < fieldsNames.length; i++) {
+            fieldsData[i] = fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
+        }
         if (script != null) {
             script.setNextReader(reader);
         }
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, aggregator);
+        for (FieldData fieldData : fieldsData) {
+            fieldData.forEachValueInDoc(doc, aggregator);
+        }
     }
 
     @Override public Facet facet() {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
-            pushFacets(facets);
-            return new InternalTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalTermsFacet.Entry>of());
+            TermsFacetCollector.pushFacets(facets);
+            return new InternalTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ImmutableList.<InternalTermsFacet.Entry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
@@ -134,26 +132,8 @@ public class TermsFacetCollector extends AbstractFacetCollector {
                 it.advance();
                 ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
             }
-            pushFacets(facets);
-            return new InternalTermsFacet(facetName, fieldName, comparatorType, size, ordered);
-        }
-    }
-
-    static TObjectIntHashMap<String> popFacets() {
-        Deque<TObjectIntHashMap<String>> deque = cache.get().get();
-        if (deque.isEmpty()) {
-            deque.add(new TObjectIntHashMap<String>());
-        }
-        TObjectIntHashMap<String> facets = deque.pollFirst();
-        facets.clear();
-        return facets;
-    }
-
-    static void pushFacets(TObjectIntHashMap<String> facets) {
-        facets.clear();
-        Deque<TObjectIntHashMap<String>> deque = cache.get().get();
-        if (deque != null) {
-            deque.add(facets);
+            TermsFacetCollector.pushFacets(facets);
+            return new InternalTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ordered);
         }
     }
 

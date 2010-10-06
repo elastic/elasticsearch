@@ -34,6 +34,7 @@ import java.util.Map;
  */
 public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String fieldName;
+    private String[] fieldsNames;
     private int size = 10;
     private String[] exclude;
     private String regex;
@@ -59,6 +60,11 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
 
     public TermsFacetBuilder field(String field) {
         this.fieldName = field;
+        return this;
+    }
+
+    public TermsFacetBuilder fields(String... fields) {
+        this.fieldsNames = fields;
         return this;
     }
 
@@ -109,13 +115,21 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fieldName == null) {
+        if (fieldName == null && fieldsNames == null) {
             throw new SearchSourceBuilderException("field must be set on terms facet for facet [" + name + "]");
         }
         builder.startObject(name);
 
         builder.startObject(TermsFacetCollectorParser.NAME);
-        builder.field("field", fieldName);
+        if (fieldsNames != null) {
+            if (fieldsNames.length == 1) {
+                builder.field("field", fieldsNames[0]);
+            } else {
+                builder.field("fields", fieldsNames);
+            }
+        } else {
+            builder.field("field", fieldName);
+        }
         builder.field("size", size);
         if (exclude != null) {
             builder.startArray("exclude");

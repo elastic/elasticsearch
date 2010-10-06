@@ -368,6 +368,25 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(0).count(), equalTo(2));
         assertThat(facet.entries().get(1).term(), equalTo("zzz"));
         assertThat(facet.entries().get(1).count(), equalTo(1));
+
+        // Fields
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").fields("stag", "tag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(4));
+        assertThat(facet.entries().get(0).term(), anyOf(equalTo("111"), equalTo("yyy")));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("111"), equalTo("yyy")));
+        assertThat(facet.entries().get(1).count(), equalTo(2));
+        assertThat(facet.entries().get(2).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
+        assertThat(facet.entries().get(2).count(), equalTo(1));
+        assertThat(facet.entries().get(3).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
+        assertThat(facet.entries().get(3).count(), equalTo(1));
     }
 
     @Test public void testTermFacetWithEqualTermDistribution() throws Exception {

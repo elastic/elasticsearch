@@ -45,6 +45,9 @@ public class ThriftRestImpl extends AbstractComponent implements Rest.Iface {
     }
 
     @Override public org.elasticsearch.thrift.RestResponse execute(RestRequest request) throws TException {
+        if (logger.isTraceEnabled()) {
+            logger.trace("thrift message {}", request);
+        }
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<RestResponse> ref = new AtomicReference<RestResponse>();
         restController.dispatchRequest(new ThriftRestRequest(request), new RestChannel() {

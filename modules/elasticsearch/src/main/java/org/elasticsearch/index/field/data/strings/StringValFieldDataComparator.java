@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 
 import java.io.IOException;
 
@@ -81,7 +82,7 @@ public class StringValFieldDataComparator extends FieldComparator {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        currentFieldData = fieldDataCache.cache(FieldData.Type.STRING, reader, fieldName);
+        currentFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, reader, fieldName);
     }
 
     @Override public void setBottom(final int bottom) {

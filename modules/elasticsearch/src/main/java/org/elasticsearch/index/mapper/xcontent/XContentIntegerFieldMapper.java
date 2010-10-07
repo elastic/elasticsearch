@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
@@ -183,8 +183,8 @@ public class XContentIntegerFieldMapper extends XContentNumberFieldMapper<Intege
         return field;
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.INT;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.INT;
     }
 
     @Override protected String contentType() {

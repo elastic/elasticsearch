@@ -52,7 +52,7 @@ public abstract class DocFieldData<T extends FieldData> {
         return stringValue();
     }
 
-    public FieldData.Type getType() {
+    public FieldDataType getType() {
         return fieldData.type();
     }
 

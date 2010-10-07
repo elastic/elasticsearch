@@ -20,7 +20,7 @@
 package org.elasticsearch.index.field.data.ints;
 
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
@@ -38,8 +38,8 @@ public class IntFieldDataComparator extends NumericFieldDataComparator {
         values = new int[numHits];
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.INT;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.INT;
     }
 
     @Override public int compare(int slot1, int slot2) {

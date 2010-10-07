@@ -17,35 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.support;
+package org.elasticsearch.index.field.data.floats;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class NumericFieldDataComparator extends FieldComparator {
+public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
 
-    private final String fieldName;
-
-    protected final FieldDataCache fieldDataCache;
-
-    protected NumericFieldData currentFieldData;
-
-    public NumericFieldDataComparator(String fieldName, FieldDataCache fieldDataCache) {
-        this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+    @Override public Class<FloatFieldData> fieldDataClass() {
+        return FloatFieldData.class;
     }
 
-    public abstract FieldDataType fieldDataType();
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+        return new FieldComparatorSource() {
+            @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                return new FloatFieldDataComparator(numHits, fieldname, cache);
+            }
+        };
+    }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        currentFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType(), reader, fieldName);
+    @Override public FloatFieldData load(IndexReader reader, String fieldName) throws IOException {
+        return FloatFieldData.load(reader, fieldName);
     }
 }

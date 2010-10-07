@@ -22,7 +22,7 @@ package org.elasticsearch.search.facets.geodistance;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facets.Facet;
@@ -40,7 +40,7 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
     private final String indexValueFieldName;
 
-    private final FieldData.Type valueFieldDataType;
+    private final FieldDataType valueFieldDataType;
 
     private NumericFieldData valueFieldData;
 

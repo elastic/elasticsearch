@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -53,10 +53,10 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
-    private final FieldData.Type keyFieldDataType;
+    private final FieldDataType keyFieldDataType;
     private NumericFieldData keyFieldData;
 
-    private final FieldData.Type valueFieldDataType;
+    private final FieldDataType valueFieldDataType;
     private NumericFieldData valueFieldData;
 
     private final TLongLongHashMap counts = new TLongLongHashMap();

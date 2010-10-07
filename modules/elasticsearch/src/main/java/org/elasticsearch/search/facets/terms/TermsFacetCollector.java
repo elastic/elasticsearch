@@ -29,6 +29,7 @@ import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facets.Facet;
@@ -66,7 +67,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final int numberOfShards;
 
-    private final FieldData.Type fieldDataType;
+    private final FieldDataType fieldDataType;
 
     private FieldData fieldData;
 
@@ -87,7 +88,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             this.indexFieldName = fieldName;
-            this.fieldDataType = FieldData.Type.STRING;
+            this.fieldDataType = FieldDataType.DefaultTypes.STRING;
         } else {
             // add type filter if there is exact doc mapper associated with it
             if (smartMappers.hasDocMapper()) {

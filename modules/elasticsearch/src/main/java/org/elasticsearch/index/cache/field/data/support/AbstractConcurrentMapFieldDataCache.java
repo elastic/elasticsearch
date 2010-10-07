@@ -28,6 +28,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -69,15 +70,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         // nothing to do here...
     }
 
-    @Override public FieldData cache(FieldData.Type type, IndexReader reader, String fieldName) throws IOException {
-        return cache(type.fieldDataClass(), reader, fieldName);
-    }
-
-    protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
-        return ConcurrentCollections.newConcurrentMap();
-    }
-
-    @Override public <T extends FieldData> T cache(Class<T> type, IndexReader reader, String fieldName) throws IOException {
+    @Override public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
         ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getFieldCacheKey());
         if (fieldDataCache == null) {
             synchronized (creationMutex) {
@@ -88,10 +81,10 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 }
             }
         }
-        T fieldData = (T) fieldDataCache.get(fieldName);
+        FieldData fieldData = (FieldData) fieldDataCache.get(fieldName);
         if (fieldData == null) {
             synchronized (fieldDataCache) {
-                fieldData = (T) fieldDataCache.get(fieldName);
+                fieldData = fieldDataCache.get(fieldName);
                 if (fieldData == null) {
                     fieldData = FieldData.load(type, reader, fieldName);
                     fieldDataCache.put(fieldName, fieldData);
@@ -99,5 +92,9 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
             }
         }
         return fieldData;
+    }
+
+    protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
+        return ConcurrentCollections.newConcurrentMap();
     }
 }

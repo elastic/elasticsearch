@@ -20,7 +20,7 @@
 package org.elasticsearch.index.field.data.doubles;
 
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
@@ -37,8 +37,8 @@ public class DoubleFieldDataComparator extends NumericFieldDataComparator {
         values = new double[numHits];
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.DOUBLE;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.DOUBLE;
     }
 
     @Override public int compare(int slot1, int slot2) {

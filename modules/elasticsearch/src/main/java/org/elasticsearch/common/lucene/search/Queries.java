@@ -29,12 +29,13 @@ import java.util.List;
  */
 public class Queries {
 
-    public final static MatchAllDocsQuery MATCH_ALL_QUERY = new MatchAllDocsQuery();
+    // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
+    public final static Query MATCH_ALL_QUERY = new DeletionAwareConstantScoreQuery(new MatchAllDocsFilter(), true);
 
     /**
      * A match all docs filter. Note, requires no caching!.
      */
-    public final static MatchAllDocsFilter MATCH_ALL_FILTER = new MatchAllDocsFilter();
+    public final static Filter MATCH_ALL_FILTER = new MatchAllDocsFilter();
 
     private final static Field disjuncts;
 

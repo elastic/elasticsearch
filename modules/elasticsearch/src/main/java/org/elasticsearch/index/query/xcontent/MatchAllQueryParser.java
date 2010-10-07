@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -70,7 +69,7 @@ public class MatchAllQueryParser extends AbstractIndexComponent implements XCont
         }
 
         if (boost == 1.0f && normsField == null) {
-            return new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER, true);  // no need to cache a MATCH ALL FILTER
+            return Queries.MATCH_ALL_QUERY;
         }
 
         MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);

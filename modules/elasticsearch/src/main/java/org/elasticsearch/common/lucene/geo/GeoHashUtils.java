@@ -112,13 +112,17 @@ public class GeoHashUtils {
         return geohash.toString();
     }
 
+    public static double[] decode(String geohash) {
+        return decode(geohash, new double[2]);
+    }
+
     /**
      * Decodes the given geohash into a latitude and longitude
      *
      * @param geohash Geohash to deocde
      * @return Array with the latitude at index 0, and longitude at index 1
      */
-    public static double[] decode(String geohash) {
+    public static double[] decode(String geohash, double[] ret) {
 //        double[] latInterval = {-90.0, 90.0};
 //        double[] lngInterval = {-180.0, 180.0};
         double latInterval0 = -90.0;
@@ -128,8 +132,6 @@ public class GeoHashUtils {
 
         boolean isEven = true;
 
-        double latitude;
-        double longitude;
         for (int i = 0; i < geohash.length(); i++) {
             final int cd = DECODE_MAP.get(geohash.charAt(i));
 
@@ -156,10 +158,10 @@ public class GeoHashUtils {
 
         }
 //        latitude = (latInterval[0] + latInterval[1]) / 2D;
-        latitude = (latInterval0 + latInterval1) / 2D;
+        ret[0] = (latInterval0 + latInterval1) / 2D;
 //        longitude = (lngInterval[0] + lngInterval[1]) / 2D;
-        longitude = (lngInterval0 + lngInterval1) / 2D;
+        ret[1] = (lngInterval0 + lngInterval1) / 2D;
 
-        return new double[]{latitude, longitude};
+        return ret;
     }
 }

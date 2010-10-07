@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -90,7 +92,11 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
             throw new QueryParsingException(index, "[custom_score] requires 'script' field");
         }
 
-        SearchScript searchScript = new SearchScript(scriptLang, script, vars, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData());
+        SearchContext context = SearchContext.current();
+        if (context == null) {
+            throw new ElasticSearchIllegalStateException("No search context on going...");
+        }
+        SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, vars, parseContext.scriptService());
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;

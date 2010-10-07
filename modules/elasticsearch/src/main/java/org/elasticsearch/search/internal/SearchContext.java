@@ -55,6 +55,20 @@ import java.util.List;
  */
 public class SearchContext implements Releasable {
 
+    private static ThreadLocal<SearchContext> current = new ThreadLocal<SearchContext>();
+
+    public static void setCurrent(SearchContext value) {
+        current.set(value);
+    }
+
+    public static void removeCurrent() {
+        current.remove();
+    }
+
+    public static SearchContext current() {
+        return current.get();
+    }
+
     private final long id;
 
     private final SearchShardTarget shardTarget;

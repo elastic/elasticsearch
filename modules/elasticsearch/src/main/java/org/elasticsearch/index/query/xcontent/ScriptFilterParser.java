@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -148,7 +150,11 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         }
 
         @Override public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
-            final SearchScript searchScript = new SearchScript(scriptLang, script, params, scriptService, mapperService, fieldDataCache);
+            SearchContext context = SearchContext.current();
+            if (context == null) {
+                throw new ElasticSearchIllegalStateException("No search context on going...");
+            }
+            final SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, scriptService);
             searchScript.setNextReader(reader);
             return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean isCacheable() {

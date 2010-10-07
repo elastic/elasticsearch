@@ -150,11 +150,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             contextProcessing(context);
             dfsPhase.execute(context);
-            contextProcessingDone(context);
+            contextProcessedSuccessfully(context);
             return context.dfsResult();
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -164,11 +166,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             contextProcessing(context);
             queryPhase.execute(context);
-            contextProcessingDone(context);
+            contextProcessedSuccessfully(context);
             return context.queryResult();
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -177,12 +181,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             contextProcessing(context);
             processScroll(request, context);
-            contextProcessingDone(context);
+            contextProcessedSuccessfully(context);
             queryPhase.execute(context);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -193,15 +199,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.searcher().dfSource(new CachedDfSource(request.dfs(), context.similarityService().defaultSearchSimilarity()));
         } catch (IOException e) {
             freeContext(context);
+            cleanContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
         try {
             queryPhase.execute(context);
-            contextProcessingDone(context);
+            contextProcessedSuccessfully(context);
             return context.queryResult();
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -216,12 +225,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.scroll() == null) {
                 freeContext(context.id());
             } else {
-                contextProcessingDone(context);
+                contextProcessedSuccessfully(context);
             }
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -232,6 +243,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.searcher().dfSource(new CachedDfSource(request.dfs(), context.similarityService().defaultSearchSimilarity()));
         } catch (IOException e) {
             freeContext(context);
+            cleanContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
         try {
@@ -241,12 +253,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.scroll() == null) {
                 freeContext(request.id());
             } else {
-                contextProcessingDone(context);
+                contextProcessedSuccessfully(context);
             }
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -261,12 +275,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.scroll() == null) {
                 freeContext(request.id());
             } else {
-                contextProcessingDone(context);
+                contextProcessedSuccessfully(context);
             }
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -279,12 +295,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.scroll() == null) {
                 freeContext(request.id());
             } else {
-                contextProcessingDone(context);
+                contextProcessedSuccessfully(context);
             }
             return context.fetchResult();
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -293,6 +311,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (context == null) {
             throw new SearchContextMissingException(id);
         }
+        SearchContext.setCurrent(context);
         return context;
     }
 
@@ -304,7 +323,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         Engine.Searcher engineSearcher = indexShard.searcher();
         SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.numberOfShards(), request.timeout(), request.types(), engineSearcher, indexService, scriptService);
-
+        SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());
 
@@ -357,13 +376,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    private void contextProcessingDone(SearchContext context) {
+    private void contextProcessedSuccessfully(SearchContext context) {
         if (context.keepAliveTimeout() != null) {
             ((KeepAliveTimerTask) context.keepAliveTimeout().getTask()).doneProcessing();
         } else {
             context.accessed(timerService.estimatedTimeInMillis());
             context.keepAliveTimeout(timerService.newTimeout(new KeepAliveTimerTask(context), context.keepAlive(), TimerService.ExecutionType.DEFAULT));
         }
+    }
+
+    private void cleanContext(SearchContext context) {
+        SearchContext.removeCurrent();
     }
 
     private void parseSource(SearchContext context, byte[] source, int offset, int length) throws SearchParseException {

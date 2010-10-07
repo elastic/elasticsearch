@@ -27,6 +27,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -41,11 +42,7 @@ public class NoneFieldDataCache extends AbstractIndexComponent implements FieldD
         logger.debug("Using no field cache");
     }
 
-    @Override public <T extends FieldData> T cache(Class<T> type, IndexReader reader, String fieldName) throws IOException {
-        return FieldData.load(type, reader, fieldName);
-    }
-
-    @Override public FieldData cache(FieldData.Type type, IndexReader reader, String fieldName) throws IOException {
+    @Override public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
         return FieldData.load(type, reader, fieldName);
     }
 

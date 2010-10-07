@@ -28,6 +28,7 @@ import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facets.Facet;
@@ -58,7 +59,7 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
 
     private final int numberOfShards;
 
-    private final FieldData.Type[] fieldsDataType;
+    private final FieldDataType[] fieldsDataType;
 
     private FieldData[] fieldsData;
 
@@ -76,7 +77,7 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
 
         this.fieldsNames = fieldsNames;
 
-        fieldsDataType = new FieldData.Type[fieldsNames.length];
+        fieldsDataType = new FieldDataType[fieldsNames.length];
         fieldsData = new FieldData[fieldsNames.length];
         indexFieldsNames = new String[fieldsNames.length];
 
@@ -84,7 +85,7 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
             MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldsNames[i]);
             if (smartMappers == null || !smartMappers.hasMapper()) {
                 this.indexFieldsNames[i] = fieldsNames[i];
-                this.fieldsDataType[i] = FieldData.Type.STRING;
+                this.fieldsDataType[i] = FieldDataType.DefaultTypes.STRING;
             } else {
                 this.indexFieldsNames[i] = smartMappers.mapper().names().indexName();
                 this.fieldsDataType[i] = smartMappers.mapper().fieldDataType();

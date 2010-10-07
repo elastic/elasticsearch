@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -56,7 +56,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
     protected final FieldDataCache fieldDataCache;
 
-    protected final FieldData.Type fieldDataType;
+    protected final FieldDataType fieldDataType;
 
     protected NumericFieldData latFieldData;
 

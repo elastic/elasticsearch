@@ -65,11 +65,9 @@ public class StringFieldDataTests {
         StringFieldData mFieldData = StringFieldData.load(reader, "mvalue");
 
         assertThat(sFieldData.fieldName(), equalTo("svalue"));
-        assertThat(sFieldData.type(), equalTo(FieldData.Type.STRING));
         assertThat(sFieldData.multiValued(), equalTo(false));
 
         assertThat(mFieldData.fieldName(), equalTo("mvalue"));
-        assertThat(mFieldData.type(), equalTo(FieldData.Type.STRING));
         assertThat(mFieldData.multiValued(), equalTo(true));
 
         // svalue

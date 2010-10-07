@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
@@ -168,8 +168,8 @@ public class XContentBoostFieldMapper extends XContentNumberFieldMapper<Float> i
         return value;
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.FLOAT;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.FLOAT;
     }
 
     @Override protected String contentType() {

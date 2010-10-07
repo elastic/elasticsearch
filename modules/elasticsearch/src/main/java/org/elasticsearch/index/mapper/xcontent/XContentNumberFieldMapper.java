@@ -30,7 +30,7 @@ import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
@@ -171,7 +171,7 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
         builder.field("precision_step", precisionStep);
     }
 
-    @Override public abstract FieldData.Type fieldDataType();
+    @Override public abstract FieldDataType fieldDataType();
 
     /**
      * Removes a cached numeric token stream. The stream will be returned to the cahed once it is used

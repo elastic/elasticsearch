@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.field.data.FieldData;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -72,11 +71,9 @@ public class FloatFieldDataTests {
         FloatFieldData mFieldData = FloatFieldData.load(reader, "mvalue");
 
         assertThat(sFieldData.fieldName(), equalTo("svalue"));
-        assertThat(sFieldData.type(), equalTo(FieldData.Type.FLOAT));
         assertThat(sFieldData.multiValued(), equalTo(false));
 
         assertThat(mFieldData.fieldName(), equalTo("mvalue"));
-        assertThat(mFieldData.type(), equalTo(FieldData.Type.FLOAT));
         assertThat(mFieldData.multiValued(), equalTo(true));
 
         // svalue

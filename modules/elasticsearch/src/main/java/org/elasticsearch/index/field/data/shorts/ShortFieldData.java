@@ -24,6 +24,7 @@ import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.common.trove.TShortArrayList;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
@@ -93,8 +94,8 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         return (double) value(docId);
     }
 
-    @Override public Type type() {
-        return Type.SHORT;
+    @Override public FieldDataType type() {
+        return FieldDataType.DefaultTypes.SHORT;
     }
 
     public void forEachValue(ValueProc proc) {

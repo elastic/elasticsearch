@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 
 import java.io.IOException;
 
@@ -140,7 +141,7 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        FieldData cleanFieldData = fieldDataCache.cache(FieldData.Type.STRING, reader, field);
+        FieldData cleanFieldData = fieldDataCache.cache(FieldDataType.DefaultTypes.STRING, reader, field);
         if (cleanFieldData instanceof MultiValueStringFieldData) {
             throw new IOException("Can't sort on string types with more than one value per doc, or more than one token per field");
         }

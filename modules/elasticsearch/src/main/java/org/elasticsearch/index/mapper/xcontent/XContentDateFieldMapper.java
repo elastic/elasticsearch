@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
@@ -202,8 +202,8 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
         return field;
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.LONG;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.LONG;
     }
 
     @Override protected String contentType() {

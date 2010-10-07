@@ -28,7 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -384,8 +384,8 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         }
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.STRING;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.STRING;
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {

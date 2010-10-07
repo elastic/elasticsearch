@@ -20,7 +20,7 @@
 package org.elasticsearch.index.field.data.shorts;
 
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 
 /**
@@ -37,8 +37,8 @@ public class ShortFieldDataComparator extends NumericFieldDataComparator {
         values = new short[numHits];
     }
 
-    @Override public FieldData.Type fieldDataType() {
-        return FieldData.Type.SHORT;
+    @Override public FieldDataType fieldDataType() {
+        return FieldDataType.DefaultTypes.SHORT;
     }
 
     @Override public int compare(int slot1, int slot2) {

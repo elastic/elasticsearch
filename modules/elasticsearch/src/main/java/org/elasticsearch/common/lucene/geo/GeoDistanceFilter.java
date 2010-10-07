@@ -25,7 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 
 import java.io.IOException;
@@ -47,12 +47,12 @@ public class GeoDistanceFilter extends Filter {
 
     private final String lonFieldName;
 
-    private final FieldData.Type fieldDataType;
+    private final FieldDataType fieldDataType;
 
     private final FieldDataCache fieldDataCache;
 
     public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String latFieldName, String lonFieldName,
-                             FieldData.Type fieldDataType, FieldDataCache fieldDataCache) {
+                             FieldDataType fieldDataType, FieldDataCache fieldDataCache) {
         this.lat = lat;
         this.lon = lon;
         this.distance = distance;

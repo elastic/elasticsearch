@@ -26,6 +26,7 @@ import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TLongArrayList;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
@@ -110,8 +111,8 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         return (double) value(docId);
     }
 
-    @Override public Type type() {
-        return Type.LONG;
+    @Override public FieldDataType type() {
+        return FieldDataType.DefaultTypes.LONG;
     }
 
     public void forEachValue(ValueProc proc) {

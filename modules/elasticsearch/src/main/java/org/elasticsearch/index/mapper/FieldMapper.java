@@ -27,7 +27,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
-import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 
 /**
  * @author kimchy (Shay Banon)
@@ -163,5 +163,5 @@ public interface FieldMapper<T> {
      */
     Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
-    FieldData.Type fieldDataType();
+    FieldDataType fieldDataType();
 }

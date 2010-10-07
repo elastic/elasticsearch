@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
 import java.io.IOException;
@@ -54,8 +55,8 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         return new StringDocFieldData(this);
     }
 
-    @Override public Type type() {
-        return Type.STRING;
+    @Override public FieldDataType type() {
+        return FieldDataType.DefaultTypes.STRING;
     }
 
     @Override public void forEachValue(StringValueProc proc) {

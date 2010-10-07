@@ -56,6 +56,7 @@ public class FsMetaDataGatewayTests extends AbstractNodesTests {
         closeNode("server1");
 
         startNode("server1");
+        Thread.sleep(500);
         try {
             client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
             assert false : "index should exists";

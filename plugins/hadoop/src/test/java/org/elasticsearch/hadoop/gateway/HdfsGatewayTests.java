@@ -77,12 +77,13 @@ public class HdfsGatewayTests {
         node.close();
     }
 
-    @Test public void testHdfsGateway() {
+    @Test public void testHdfsGateway() throws Exception {
         // first, test meta data
         CreateIndexResponse createIndexResponse = node.client().admin().indices().create(createIndexRequest("test")).actionGet();
         assertThat(createIndexResponse.acknowledged(), equalTo(true));
         node.close();
         node = buildNode().start();
+        Thread.sleep(500);
         try {
             node.client().admin().indices().create(createIndexRequest("test")).actionGet();
             assert false : "index should exists";

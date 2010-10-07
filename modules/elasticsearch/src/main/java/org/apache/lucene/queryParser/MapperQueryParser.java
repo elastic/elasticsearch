@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -81,6 +82,10 @@ public class MapperQueryParser extends QueryParser {
             }
         }
         return super.newTermQuery(term);
+    }
+
+    @Override protected Query newMatchAllDocsQuery() {
+        return Queries.MATCH_ALL_QUERY;
     }
 
     @Override public Query getFieldQuery(String field, String queryText) throws ParseException {

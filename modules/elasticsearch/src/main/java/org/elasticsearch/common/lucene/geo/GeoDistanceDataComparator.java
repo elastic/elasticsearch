@@ -25,11 +25,11 @@ import org.apache.lucene.search.FieldComparatorSource;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
 import java.io.IOException;
 
@@ -78,9 +78,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
 
     protected final String fieldName;
 
-    protected final String indexLatFieldName;
-
-    protected final String indexLonFieldName;
+    protected final String indexFieldName;
 
     protected final double lat;
 
@@ -92,11 +90,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
 
     protected final FieldDataCache fieldDataCache;
 
-    protected final FieldDataType fieldDataType;
-
-    protected NumericFieldData latFieldData;
-
-    protected NumericFieldData lonFieldData;
+    protected GeoPointFieldData fieldData;
 
 
     private final double[] values;
@@ -113,23 +107,18 @@ public class GeoDistanceDataComparator extends FieldComparator {
         this.geoDistance = geoDistance;
         this.fieldDataCache = fieldDataCache;
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName + GeoPointFieldMapper.Names.LAT_SUFFIX);
+        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         if (mapper == null) {
             throw new ElasticSearchIllegalArgumentException("No mapping found for field [" + fieldName + "] for geo distance sort");
         }
-        this.indexLatFieldName = mapper.names().indexName();
-
-        mapper = mapperService.smartNameFieldMapper(fieldName + GeoPointFieldMapper.Names.LON_SUFFIX);
-        if (mapper == null) {
-            throw new ElasticSearchIllegalArgumentException("No mapping found for field [" + fieldName + "] for geo distance sort");
+        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+            throw new ElasticSearchIllegalArgumentException("field [" + fieldName + "] is not a geo_point field");
         }
-        this.indexLonFieldName = mapper.names().indexName();
-        this.fieldDataType = mapper.fieldDataType();
+        this.indexFieldName = mapper.names().indexName();
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        latFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexLatFieldName);
-        lonFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexLonFieldName);
+        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, indexFieldName);
     }
 
     @Override public int compare(int slot1, int slot2) {
@@ -146,11 +135,12 @@ public class GeoDistanceDataComparator extends FieldComparator {
 
     @Override public int compareBottom(int doc) {
         double distance;
-        if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+        if (!fieldData.hasValue(doc)) {
             // is this true? push this to the "end"
             distance = Double.MAX_VALUE;
         } else {
-            distance = geoDistance.calculate(lat, lon, latFieldData.doubleValue(doc), lonFieldData.doubleValue(doc), unit);
+            GeoPoint point = fieldData.value(doc);
+            distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
         }
         final double v2 = distance;
         if (bottom > v2) {
@@ -164,11 +154,12 @@ public class GeoDistanceDataComparator extends FieldComparator {
 
     @Override public void copy(int slot, int doc) {
         double distance;
-        if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+        if (!fieldData.hasValue(doc)) {
             // is this true? push this to the "end"
             distance = Double.MAX_VALUE;
         } else {
-            distance = geoDistance.calculate(lat, lon, latFieldData.doubleValue(doc), lonFieldData.doubleValue(doc), unit);
+            GeoPoint point = fieldData.value(doc);
+            distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
         }
         values[slot] = distance;
     }

@@ -21,9 +21,7 @@ package org.elasticsearch.index.field.data.ints;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.common.trove.TIntArrayList;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -42,10 +40,6 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
     protected IntFieldData(String fieldName, int[] values) {
         super(fieldName);
         this.values = values;
-    }
-
-    @Override public FieldComparator newComparator(FieldDataCache fieldDataCache, int numHits, String field, int sortPos, boolean reversed) {
-        return new IntFieldDataComparator(numHits, field, fieldDataCache);
     }
 
     abstract public int value(int docId);

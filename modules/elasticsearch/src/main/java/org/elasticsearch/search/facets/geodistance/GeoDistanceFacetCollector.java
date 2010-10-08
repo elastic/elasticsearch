@@ -23,11 +23,10 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
@@ -42,9 +41,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
     protected final String fieldName;
 
-    protected final String indexLatFieldName;
-
-    protected final String indexLonFieldName;
+    protected final String indexFieldName;
 
     protected final double lat;
 
@@ -56,11 +53,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
     protected final FieldDataCache fieldDataCache;
 
-    protected final FieldDataType fieldDataType;
-
-    protected NumericFieldData latFieldData;
-
-    protected NumericFieldData lonFieldData;
+    protected GeoPointFieldData fieldData;
 
     protected final GeoDistanceFacet.Entry[] entries;
 
@@ -75,9 +68,12 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         this.geoDistance = geoDistance;
         this.fieldDataCache = context.fieldDataCache();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName + GeoPointFieldMapper.Names.LAT_SUFFIX);
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
+        }
+        if (smartMappers.mapper().fieldDataType() != GeoPointFieldDataType.TYPE) {
+            throw new FacetPhaseExecutionException(facetName, "field [" + fieldName + "] is not a geo_point field");
         }
 
         // add type filter if there is exact doc mapper associated with it
@@ -85,31 +81,22 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
-        this.indexLatFieldName = smartMappers.mapper().names().indexName();
-
-        FieldMapper mapper = context.mapperService().smartNameFieldMapper(fieldName + GeoPointFieldMapper.Names.LON_SUFFIX);
-        if (mapper == null) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-        this.indexLonFieldName = mapper.names().indexName();
-        this.fieldDataType = mapper.fieldDataType();
+        this.indexFieldName = smartMappers.mapper().names().indexName();
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        latFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexLatFieldName);
-        lonFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexLonFieldName);
+        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, indexFieldName);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+        if (!fieldData.hasValue(doc)) {
             return;
         }
 
-        if (latFieldData.multiValued()) {
-            double[] lats = latFieldData.doubleValues(doc);
-            double[] lons = latFieldData.doubleValues(doc);
-            for (int i = 0; i < lats.length; i++) {
-                double distance = geoDistance.calculate(lat, lon, lats[i], lons[i], unit);
+        if (fieldData.multiValued()) {
+            GeoPoint[] points = fieldData.values(doc);
+            for (GeoPoint point : points) {
+                double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
                 for (GeoDistanceFacet.Entry entry : entries) {
                     if (distance >= entry.getFrom() && distance < entry.getTo()) {
                         entry.count++;
@@ -118,7 +105,8 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
                 }
             }
         } else {
-            double distance = geoDistance.calculate(lat, lon, latFieldData.doubleValue(doc), lonFieldData.doubleValue(doc), unit);
+            GeoPoint point = fieldData.value(doc);
+            double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
             for (GeoDistanceFacet.Entry entry : entries) {
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
                     entry.count++;

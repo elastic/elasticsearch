@@ -22,6 +22,7 @@ package org.elasticsearch.search.facets.geodistance;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -49,17 +50,16 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+        if (!fieldData.hasValue(doc)) {
             return;
         }
 
         double value = ((Number) script.execute(doc)).doubleValue();
 
-        if (latFieldData.multiValued()) {
-            double[] lats = latFieldData.doubleValues(doc);
-            double[] lons = latFieldData.doubleValues(doc);
-            for (int i = 0; i < lats.length; i++) {
-                double distance = geoDistance.calculate(lat, lon, lats[i], lons[i], unit);
+        if (fieldData.multiValued()) {
+            GeoPoint[] points = fieldData.values(doc);
+            for (GeoPoint point : points) {
+                double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
                 for (GeoDistanceFacet.Entry entry : entries) {
                     if (distance >= entry.getFrom() && distance < entry.getTo()) {
                         entry.count++;
@@ -68,7 +68,8 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                 }
             }
         } else {
-            double distance = geoDistance.calculate(lat, lon, latFieldData.doubleValue(doc), lonFieldData.doubleValue(doc), unit);
+            GeoPoint point = fieldData.value(doc);
+            double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
             for (GeoDistanceFacet.Entry entry : entries) {
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
                     entry.count++;

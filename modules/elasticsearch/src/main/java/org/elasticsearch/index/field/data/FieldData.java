@@ -20,9 +20,7 @@
 package org.elasticsearch.index.field.data;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 
 import java.io.IOException;
 
@@ -88,8 +86,6 @@ public abstract class FieldData<Doc extends DocFieldData> {
      * The type of this field data.
      */
     public abstract FieldDataType type();
-
-    public abstract FieldComparator newComparator(FieldDataCache fieldDataCache, int numHits, String field, int sortPos, boolean reversed);
 
     public static FieldData load(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
         return type.load(reader, fieldName);

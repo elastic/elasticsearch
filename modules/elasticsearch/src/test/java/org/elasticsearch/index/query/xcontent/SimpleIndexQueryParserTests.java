@@ -90,6 +90,8 @@ public class SimpleIndexQueryParserTests {
                 new IndexNameModule(index)
         ).createInjector();
 
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/mapping.json");
+        injector.getInstance(MapperService.class).add("person", mapping);
         injector.getInstance(MapperService.class).type("person").parse(copyToBytesFromClasspath("/org/elasticsearch/index/query/xcontent/data.json"));
         this.queryParser = injector.getInstance(IndexQueryParserService.class);
     }
@@ -1130,8 +1132,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
         assertThat(filter.distance(), closeTo(12, 0.00001));
@@ -1144,8 +1145,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
         assertThat(filter.distance(), closeTo(12, 0.00001));
@@ -1158,8 +1158,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
         assertThat(filter.distance(), closeTo(12, 0.00001));
@@ -1172,8 +1171,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
         assertThat(filter.distance(), closeTo(12, 0.00001));
@@ -1186,8 +1184,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
         assertThat(filter.distance(), closeTo(12, 0.00001));
@@ -1201,8 +1198,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
         assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
@@ -1217,8 +1213,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
         assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
@@ -1232,8 +1227,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
         assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
@@ -1247,8 +1241,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
         assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
@@ -1262,8 +1255,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
         assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
@@ -1278,8 +1270,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
         assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
@@ -1296,8 +1287,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
         assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
@@ -1314,8 +1304,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
         assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
@@ -1332,8 +1321,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
         assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
@@ -1350,8 +1338,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
-        assertThat(filter.latFieldName(), equalTo("location.lat"));
-        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
         assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));

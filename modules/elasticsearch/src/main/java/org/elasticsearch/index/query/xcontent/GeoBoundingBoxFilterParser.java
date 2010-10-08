@@ -29,7 +29,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -55,8 +56,7 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String latFieldName = null;
-        String lonFieldName = null;
+        String fieldName = null;
         GeoBoundingBoxFilter.Point topLeft = new GeoBoundingBoxFilter.Point();
         GeoBoundingBoxFilter.Point bottomRight = new GeoBoundingBoxFilter.Point();
 
@@ -67,8 +67,7 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                latFieldName = currentFieldName + GeoPointFieldMapper.Names.LAT_SUFFIX;
-                lonFieldName = currentFieldName + GeoPointFieldMapper.Names.LON_SUFFIX;
+                fieldName = currentFieldName;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -117,8 +116,7 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
                         }
                     } else if (token.isValue()) {
                         if ("field".equals(currentFieldName)) {
-                            latFieldName = parser.text() + GeoPointFieldMapper.Names.LAT_SUFFIX;
-                            lonFieldName = parser.text() + GeoPointFieldMapper.Names.LON_SUFFIX;
+                            fieldName = parser.text();
                         } else {
                             GeoBoundingBoxFilter.Point point = null;
                             if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
@@ -151,21 +149,18 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
 
         MapperService mapperService = parseContext.mapperService();
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(latFieldName);
+        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            throw new QueryParsingException(index, "failed to find lat field [" + latFieldName + "]");
+            throw new QueryParsingException(index, "failed to find geo_point field [" + fieldName + "]");
         }
-        latFieldName = mapper.names().indexName();
-
-        mapper = mapperService.smartNameFieldMapper(lonFieldName);
-        if (mapper == null) {
-            throw new QueryParsingException(index, "failed to find lon field [" + lonFieldName + "]");
+        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+            throw new QueryParsingException(index, "field [" + fieldName + "] is not a geo_point field");
         }
-        lonFieldName = mapper.names().indexName();
+        fieldName = mapper.names().indexName();
 
 
-        Filter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
-        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(latFieldName), parseContext);
+        Filter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
+        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

@@ -25,8 +25,9 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
 import java.io.IOException;
 
@@ -43,23 +44,16 @@ public class GeoDistanceFilter extends Filter {
 
     private final GeoDistance geoDistance;
 
-    private final String latFieldName;
-
-    private final String lonFieldName;
-
-    private final FieldDataType fieldDataType;
+    private final String fieldName;
 
     private final FieldDataCache fieldDataCache;
 
-    public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String latFieldName, String lonFieldName,
-                             FieldDataType fieldDataType, FieldDataCache fieldDataCache) {
+    public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String fieldName, FieldDataCache fieldDataCache) {
         this.lat = lat;
         this.lon = lon;
         this.distance = distance;
         this.geoDistance = geoDistance;
-        this.latFieldName = latFieldName;
-        this.lonFieldName = lonFieldName;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
     }
 
@@ -79,39 +73,34 @@ public class GeoDistanceFilter extends Filter {
         return geoDistance;
     }
 
-    public String latFieldName() {
-        return latFieldName;
-    }
-
-    public String lonFieldName() {
-        return lonFieldName;
+    public String fieldName() {
+        return fieldName;
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        final NumericFieldData latFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, latFieldName);
-        final NumericFieldData lonFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, lonFieldName);
+        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
         return new GetDocSet(reader.maxDoc()) {
             @Override public boolean isCacheable() {
                 return false;
             }
 
             @Override public boolean get(int doc) throws IOException {
-                if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+                if (!fieldData.hasValue(doc)) {
                     return false;
                 }
 
-                if (latFieldData.multiValued()) {
-                    double[] lats = latFieldData.doubleValues(doc);
-                    double[] lons = latFieldData.doubleValues(doc);
-                    for (int i = 0; i < lats.length; i++) {
-                        double d = geoDistance.calculate(lat, lon, lats[i], lons[i], DistanceUnit.MILES);
+                if (fieldData.multiValued()) {
+                    GeoPoint[] points = fieldData.values(doc);
+                    for (GeoPoint point : points) {
+                        double d = geoDistance.calculate(lat, lon, point.lat(), point.lon(), DistanceUnit.MILES);
                         if (d < distance) {
                             return true;
                         }
                     }
                     return false;
                 } else {
-                    double d = geoDistance.calculate(lat, lon, latFieldData.doubleValue(doc), lonFieldData.doubleValue(doc), DistanceUnit.MILES);
+                    GeoPoint point = fieldData.value(doc);
+                    double d = geoDistance.calculate(lat, lon, point.lat(), point.lon(), DistanceUnit.MILES);
                     return d < distance;
                 }
             }
@@ -123,16 +112,13 @@ public class GeoDistanceFilter extends Filter {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        GeoDistanceFilter that = (GeoDistanceFilter) o;
+        GeoDistanceFilter filter = (GeoDistanceFilter) o;
 
-        if (Double.compare(that.distance, distance) != 0) return false;
-        if (Double.compare(that.lat, lat) != 0) return false;
-        if (Double.compare(that.lon, lon) != 0) return false;
-        if (geoDistance != that.geoDistance) return false;
-        if (latFieldName != null ? !latFieldName.equals(that.latFieldName) : that.latFieldName != null)
-            return false;
-        if (lonFieldName != null ? !lonFieldName.equals(that.lonFieldName) : that.lonFieldName != null)
-            return false;
+        if (Double.compare(filter.distance, distance) != 0) return false;
+        if (Double.compare(filter.lat, lat) != 0) return false;
+        if (Double.compare(filter.lon, lon) != 0) return false;
+        if (fieldName != null ? !fieldName.equals(filter.fieldName) : filter.fieldName != null) return false;
+        if (geoDistance != filter.geoDistance) return false;
 
         return true;
     }
@@ -148,8 +134,7 @@ public class GeoDistanceFilter extends Filter {
         temp = distance != +0.0d ? Double.doubleToLongBits(distance) : 0L;
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         result = 31 * result + (geoDistance != null ? geoDistance.hashCode() : 0);
-        result = 31 * result + (latFieldName != null ? latFieldName.hashCode() : 0);
-        result = 31 * result + (lonFieldName != null ? lonFieldName.hashCode() : 0);
+        result = 31 * result + (fieldName != null ? fieldName.hashCode() : 0);
         return result;
     }
 }

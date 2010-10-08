@@ -23,7 +23,7 @@ struct RestRequest {
 }
 
 enum Status {
-    CONTINUE = 100,
+    CONT = 100,
     SWITCHING_PROTOCOLS = 101,
     OK = 200,
     CREATED = 201,

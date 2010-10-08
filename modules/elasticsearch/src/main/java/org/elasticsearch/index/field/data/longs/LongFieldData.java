@@ -21,11 +21,9 @@ package org.elasticsearch.index.field.data.longs;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TLongArrayList;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -51,10 +49,6 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     protected LongFieldData(String fieldName, long[] values) {
         super(fieldName);
         this.values = values;
-    }
-
-    @Override public FieldComparator newComparator(FieldDataCache fieldDataCache, int numHits, String field, int sortPos, boolean reversed) {
-        return new LongFieldDataComparator(numHits, field, fieldDataCache);
     }
 
     abstract public long value(int docId);

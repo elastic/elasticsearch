@@ -24,8 +24,9 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
 import java.io.IOException;
 
@@ -36,19 +37,13 @@ public class GeoPolygonFilter extends Filter {
 
     private final Point[] points;
 
-    private final String latFieldName;
-
-    private final String lonFieldName;
-
-    private final FieldDataType fieldDataType;
+    private final String fieldName;
 
     private final FieldDataCache fieldDataCache;
 
-    public GeoPolygonFilter(Point[] points, String latFieldName, String lonFieldName, FieldDataType fieldDataType, FieldDataCache fieldDataCache) {
+    public GeoPolygonFilter(Point[] points, String fieldName, FieldDataCache fieldDataCache) {
         this.points = points;
-        this.latFieldName = latFieldName;
-        this.lonFieldName = lonFieldName;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
     }
 
@@ -56,36 +51,29 @@ public class GeoPolygonFilter extends Filter {
         return points;
     }
 
-    public String latFieldName() {
-        return latFieldName;
-    }
-
-    public String lonFieldName() {
-        return lonFieldName;
+    public String fieldName() {
+        return this.fieldName;
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        final NumericFieldData latFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, latFieldName);
-        final NumericFieldData lonFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, lonFieldName);
+        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
 
         return new GetDocSet(reader.maxDoc()) {
             @Override public boolean get(int doc) throws IOException {
-                if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+                if (!fieldData.hasValue(doc)) {
                     return false;
                 }
 
-                if (latFieldData.multiValued()) {
-                    double[] lats = latFieldData.doubleValues(doc);
-                    double[] lons = latFieldData.doubleValues(doc);
-                    for (int i = 0; i < lats.length; i++) {
-                        if (pointInPolygon(points, lats[i], lons[i])) {
+                if (fieldData.multiValued()) {
+                    GeoPoint[] docPoints = fieldData.values(doc);
+                    for (GeoPoint docPoint : docPoints) {
+                        if (pointInPolygon(points, docPoint.lat(), docPoint.lon())) {
                             return true;
                         }
                     }
                 } else {
-                    double lat = latFieldData.doubleValue(doc);
-                    double lon = lonFieldData.doubleValue(doc);
-                    return pointInPolygon(points, lat, lon);
+                    GeoPoint point = fieldData.value(doc);
+                    return pointInPolygon(points, point.lat(), point.lon());
                 }
                 return false;
             }

@@ -17,32 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.strings;
+package org.elasticsearch.index.mapper.xcontent.geo;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MultiValueStringFieldData extends StringFieldData {
+public class MultiValueGeoPointFieldData extends GeoPointFieldData {
 
     private static final int VALUE_CACHE_SIZE = 100;
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<String[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[][]>>() {
-        @Override protected ThreadLocals.CleanableValue<String[][]> initialValue() {
-            String[][] value = new String[VALUE_CACHE_SIZE][];
+    private static ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[][]>>() {
+        @Override protected ThreadLocals.CleanableValue<GeoPoint[][]> initialValue() {
+            GeoPoint[][] value = new GeoPoint[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
-                value[i] = new String[i];
+                value[i] = new GeoPoint[i];
             }
-            return new ThreadLocals.CleanableValue<java.lang.String[][]>(value);
+            return new ThreadLocals.CleanableValue<GeoPoint[][]>(value);
         }
     };
 
     // order with value 0 indicates no value
     private final int[][] order;
 
-    public MultiValueStringFieldData(String fieldName, int[][] order, String[] values) {
+    public MultiValueGeoPointFieldData(String fieldName, int[][] order, GeoPoint[] values) {
         super(fieldName, values);
         this.order = order;
     }
@@ -61,11 +60,11 @@ public class MultiValueStringFieldData extends StringFieldData {
             return;
         }
         for (int docOrder : docOrders) {
-            proc.onValue(docId, values[docOrder]);
+            proc.onValue(docId, values[docOrder].geohash());
         }
     }
 
-    @Override public String value(int docId) {
+    @Override public GeoPoint value(int docId) {
         int[] docOrders = order[docId];
         if (docOrders == null) {
             return null;
@@ -73,20 +72,20 @@ public class MultiValueStringFieldData extends StringFieldData {
         return values[docOrders[0]];
     }
 
-    @Override public String[] values(int docId) {
+    @Override public GeoPoint[] values(int docId) {
         int[] docOrders = order[docId];
         if (docOrders == null) {
-            return Strings.EMPTY_ARRAY;
+            return EMPTY_ARRAY;
         }
-        String[] strings;
+        GeoPoint[] points;
         if (docOrders.length < VALUE_CACHE_SIZE) {
-            strings = valuesCache.get().get()[docOrders.length];
+            points = valuesCache.get().get()[docOrders.length];
         } else {
-            strings = new String[docOrders.length];
+            points = new GeoPoint[docOrders.length];
         }
         for (int i = 0; i < docOrders.length; i++) {
-            strings[i] = values[docOrders[i]];
+            points[i] = values[docOrders[i]];
         }
-        return strings;
+        return points;
     }
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.common.lucene.geo.GeoDistanceDataComparator;
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**

@@ -17,26 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.strings;
+package org.elasticsearch.index.mapper.xcontent.geo;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleValueStringFieldData extends StringFieldData {
+public class SingleValueGeoPointFieldData extends GeoPointFieldData {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<String[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[]>>() {
-        @Override protected ThreadLocals.CleanableValue<String[]> initialValue() {
-            return new ThreadLocals.CleanableValue<String[]>(new String[1]);
+    private static ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>>() {
+        @Override protected ThreadLocals.CleanableValue<GeoPoint[]> initialValue() {
+            return new ThreadLocals.CleanableValue<GeoPoint[]>(new GeoPoint[1]);
         }
     };
 
     // order with value 0 indicates no value
     private final int[] order;
 
-    public SingleValueStringFieldData(String fieldName, int[] order, String[] values) {
+    public SingleValueGeoPointFieldData(String fieldName, int[] order, GeoPoint[] values) {
         super(fieldName, values);
         this.order = order;
     }
@@ -45,7 +44,7 @@ public class SingleValueStringFieldData extends StringFieldData {
         return order;
     }
 
-    String[] values() {
+    GeoPoint[] values() {
         return this.values;
     }
 
@@ -62,19 +61,19 @@ public class SingleValueStringFieldData extends StringFieldData {
         if (loc == 0) {
             return;
         }
-        proc.onValue(docId, values[loc]);
+        proc.onValue(docId, values[loc].geohash());
     }
 
-    @Override public String value(int docId) {
+    @Override public GeoPoint value(int docId) {
         return values[order[docId]];
     }
 
-    @Override public String[] values(int docId) {
+    @Override public GeoPoint[] values(int docId) {
         int loc = order[docId];
         if (loc == 0) {
-            return Strings.EMPTY_ARRAY;
+            return EMPTY_ARRAY;
         }
-        String[] ret = valuesCache.get().get();
+        GeoPoint[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

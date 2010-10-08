@@ -31,7 +31,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -70,8 +71,7 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
         String currentFieldName = null;
         double lat = 0;
         double lon = 0;
-        String latFieldName = null;
-        String lonFieldName = null;
+        String fieldName = null;
         double distance = 0;
         DistanceUnit unit = null;
         GeoDistance geoDistance = GeoDistance.ARC;
@@ -86,13 +86,11 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                 }
-                latFieldName = currentFieldName + "." + GeoPointFieldMapper.Names.LAT;
-                lonFieldName = currentFieldName + "." + GeoPointFieldMapper.Names.LON;
+                fieldName = currentFieldName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 String currentName = parser.currentName();
-                latFieldName = currentFieldName + GeoPointFieldMapper.Names.LAT_SUFFIX;
-                lonFieldName = currentFieldName + GeoPointFieldMapper.Names.LON_SUFFIX;
+                fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentName = parser.currentName();
@@ -121,16 +119,15 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
                     lat = parser.doubleValue();
-                    latFieldName = currentFieldName;
+                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
                     lon = parser.doubleValue();
-                    lonFieldName = currentFieldName;
+                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
                     double[] values = GeoHashUtils.decode(parser.text());
                     lat = values[0];
                     lon = values[1];
-                    latFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length()) + GeoPointFieldMapper.Names.LAT_SUFFIX;
-                    lonFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length()) + GeoPointFieldMapper.Names.LON_SUFFIX;
+                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
@@ -145,9 +142,7 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
                         lat = values[0];
                         lon = values[1];
                     }
-
-                    latFieldName = currentFieldName + GeoPointFieldMapper.Names.LAT_SUFFIX;
-                    lonFieldName = currentFieldName + GeoPointFieldMapper.Names.LON_SUFFIX;
+                    fieldName = currentFieldName;
                 }
             }
         }
@@ -157,20 +152,17 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
         }
 
         MapperService mapperService = parseContext.mapperService();
-        FieldMapper mapper = mapperService.smartNameFieldMapper(latFieldName);
+        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            throw new QueryParsingException(index, "failed to find lat field [" + latFieldName + "]");
+            throw new QueryParsingException(index, "failed to find geo_point field [" + fieldName + "]");
         }
-        latFieldName = mapper.names().indexName();
-
-        mapper = mapperService.smartNameFieldMapper(lonFieldName);
-        if (mapper == null) {
-            throw new QueryParsingException(index, "failed to find lon field [" + lonFieldName + "]");
+        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+            throw new QueryParsingException(index, "field [" + fieldName + "] is not a geo_point field");
         }
-        lonFieldName = mapper.names().indexName();
+        fieldName = mapper.names().indexName();
 
-        Filter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
-        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(latFieldName), parseContext);
+        Filter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, fieldName, parseContext.indexCache().fieldData());
+        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

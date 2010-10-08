@@ -37,7 +37,7 @@ public class LatLonMappingGeoPointTests {
 
     @Test public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -52,12 +52,12 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), nullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonValuesStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -72,12 +72,12 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testArrayLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -95,15 +95,15 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.doc().getFields("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getFields("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo(GeoHashUtils.encode(1.2, 1.3)));
         assertThat(doc.doc().getFields("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
         assertThat(doc.doc().getFields("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo(GeoHashUtils.encode(1.4, 1.5)));
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -116,12 +116,12 @@ public class LatLonMappingGeoPointTests {
 
         assertThat(doc.doc().getField("point.lat"), notNullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonInOneValueStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -136,12 +136,12 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonInOneValueArray() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -159,15 +159,15 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.doc().getFields("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getFields("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo(GeoHashUtils.encode(1.2, 1.3)));
         assertThat(doc.doc().getFields("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
         assertThat(doc.doc().getFields("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo(GeoHashUtils.encode(1.4, 1.5)));
     }
 
     @Test public void testGeoHashValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -180,12 +180,12 @@ public class LatLonMappingGeoPointTests {
 
         assertThat(doc.doc().getField("point.lat"), notNullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonArray() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -200,12 +200,12 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), nullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -220,12 +220,12 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonArrayArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
         XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
@@ -243,9 +243,9 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.doc().getFields("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getFields("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo(GeoHashUtils.encode(1.2, 1.3)));
         assertThat(doc.doc().getFields("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
         assertThat(doc.doc().getFields("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-
-        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo(GeoHashUtils.encode(1.4, 1.5)));
     }
 }

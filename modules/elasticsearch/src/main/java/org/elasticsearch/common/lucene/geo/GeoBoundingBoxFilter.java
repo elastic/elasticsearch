@@ -24,8 +24,9 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
 import java.io.IOException;
 
@@ -38,20 +39,14 @@ public class GeoBoundingBoxFilter extends Filter {
 
     private final Point bottomRight;
 
-    private final String latFieldName;
-
-    private final String lonFieldName;
-
-    private final FieldDataType fieldDataType;
+    private final String fieldName;
 
     private final FieldDataCache fieldDataCache;
 
-    public GeoBoundingBoxFilter(Point topLeft, Point bottomRight, String latFieldName, String lonFieldName, FieldDataType fieldDataType, FieldDataCache fieldDataCache) {
+    public GeoBoundingBoxFilter(Point topLeft, Point bottomRight, String fieldName, FieldDataCache fieldDataCache) {
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
-        this.latFieldName = latFieldName;
-        this.lonFieldName = lonFieldName;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
     }
 
@@ -63,55 +58,46 @@ public class GeoBoundingBoxFilter extends Filter {
         return bottomRight;
     }
 
-    public String latFieldName() {
-        return latFieldName;
-    }
-
-    public String lonFieldName() {
-        return lonFieldName;
+    public String fieldName() {
+        return fieldName;
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        final NumericFieldData latFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, latFieldName);
-        final NumericFieldData lonFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, lonFieldName);
+        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
 
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
             return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean get(int doc) throws IOException {
-                    if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+                    if (!fieldData.hasValue(doc)) {
                         return false;
                     }
 
-                    if (latFieldData.multiValued()) {
-                        double[] lats = latFieldData.doubleValues(doc);
-                        double[] lons = latFieldData.doubleValues(doc);
-                        for (int i = 0; i < lats.length; i++) {
-                            double lat = lats[i];
-                            double lon = lons[i];
-                            if (lon < 0) {
-                                if (-180.0 <= lon && bottomRight.lon >= lon
-                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                    if (fieldData.multiValued()) {
+                        GeoPoint[] points = fieldData.values(doc);
+                        for (GeoPoint point : points) {
+                            if (point.lon() < 0) {
+                                if (-180.0 <= point.lon() && bottomRight.lon >= point.lon()
+                                        && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                                     return true;
                                 }
                             } else {
-                                if (topLeft.lon <= lon && 180 >= lon
-                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                                if (topLeft.lon <= point.lon() && 180 >= point.lon()
+                                        && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                                     return true;
                                 }
                             }
                         }
                     } else {
-                        double lat = latFieldData.doubleValue(doc);
-                        double lon = lonFieldData.doubleValue(doc);
-                        if (lon < 0) {
-                            if (-180.0 <= lon && bottomRight.lon >= lon
-                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                        GeoPoint point = fieldData.value(doc);
+                        if (point.lon() < 0) {
+                            if (-180.0 <= point.lon() && bottomRight.lon >= point.lon()
+                                    && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                                 return true;
                             }
                         } else {
-                            if (topLeft.lon <= lon && 180 >= lon
-                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                            if (topLeft.lon <= point.lon() && 180 >= point.lon()
+                                    && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                                 return true;
                             }
                         }
@@ -122,25 +108,23 @@ public class GeoBoundingBoxFilter extends Filter {
         } else {
             return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean get(int doc) throws IOException {
-                    if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+                    if (!fieldData.hasValue(doc)) {
                         return false;
                     }
 
-                    if (latFieldData.multiValued()) {
-                        double[] lats = latFieldData.doubleValues(doc);
-                        double[] lons = latFieldData.doubleValues(doc);
-                        for (int i = 0; i < lats.length; i++) {
-                            if (topLeft.lon <= lons[i] && bottomRight.lon >= lons[i]
-                                    && topLeft.lat >= lats[i] && bottomRight.lat <= lats[i]) {
+                    if (fieldData.multiValued()) {
+                        GeoPoint[] points = fieldData.values(doc);
+                        for (GeoPoint point : points) {
+                            if (topLeft.lon <= point.lon() && bottomRight.lon >= point.lon()
+                                    && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                                 return true;
                             }
                         }
                     } else {
-                        double lat = latFieldData.doubleValue(doc);
-                        double lon = lonFieldData.doubleValue(doc);
+                        GeoPoint point = fieldData.value(doc);
 
-                        if (topLeft.lon <= lon && bottomRight.lon >= lon
-                                && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                        if (topLeft.lon <= point.lon() && bottomRight.lon >= point.lon()
+                                && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                             return true;
                         }
                     }

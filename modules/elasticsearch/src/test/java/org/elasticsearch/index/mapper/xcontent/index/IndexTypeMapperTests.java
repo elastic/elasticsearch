@@ -23,8 +23,8 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -39,7 +39,7 @@ public class IndexTypeMapperTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.indexMapper().enabled(), equalTo(true));
         assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.YES));
         assertThat(docMapper.mappers().indexName("_index").mapper(), instanceOf(IndexFieldMapper.class));
@@ -58,7 +58,7 @@ public class IndexTypeMapperTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.indexMapper().enabled(), equalTo(false));
         assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.YES));
 
@@ -75,7 +75,7 @@ public class IndexTypeMapperTests {
     @Test public void defaultDisabledIndexMapperTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.indexMapper().enabled(), equalTo(false));
         assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.NO));
 

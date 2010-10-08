@@ -28,79 +28,79 @@ public final class XContentMapperBuilders {
 
     }
 
-    public static XContentDocumentMapper.Builder doc(String index, XContentObjectMapper.Builder objectBuilder) {
+    public static XContentDocumentMapper.Builder doc(String index, ObjectMapper.Builder objectBuilder) {
         return new XContentDocumentMapper.Builder(index, objectBuilder);
     }
 
-    public static XContentSourceFieldMapper.Builder source() {
-        return new XContentSourceFieldMapper.Builder();
+    public static SourceFieldMapper.Builder source() {
+        return new SourceFieldMapper.Builder();
     }
 
-    public static XContentIdFieldMapper.Builder id() {
-        return new XContentIdFieldMapper.Builder();
+    public static IdFieldMapper.Builder id() {
+        return new IdFieldMapper.Builder();
     }
 
-    public static XContentUidFieldMapper.Builder uid() {
-        return new XContentUidFieldMapper.Builder();
+    public static UidFieldMapper.Builder uid() {
+        return new UidFieldMapper.Builder();
     }
 
-    public static XContentTypeFieldMapper.Builder type() {
-        return new XContentTypeFieldMapper.Builder();
+    public static TypeFieldMapper.Builder type() {
+        return new TypeFieldMapper.Builder();
     }
 
-    public static XContentIndexFieldMapper.Builder index() {
-        return new XContentIndexFieldMapper.Builder();
+    public static IndexFieldMapper.Builder index() {
+        return new IndexFieldMapper.Builder();
     }
 
-    public static XContentBoostFieldMapper.Builder boost(String name) {
-        return new XContentBoostFieldMapper.Builder(name);
+    public static BoostFieldMapper.Builder boost(String name) {
+        return new BoostFieldMapper.Builder(name);
     }
 
-    public static XContentAllFieldMapper.Builder all() {
-        return new XContentAllFieldMapper.Builder();
+    public static AllFieldMapper.Builder all() {
+        return new AllFieldMapper.Builder();
     }
 
-    public static XContentMultiFieldMapper.Builder multiField(String name) {
-        return new XContentMultiFieldMapper.Builder(name);
+    public static MultiFieldMapper.Builder multiField(String name) {
+        return new MultiFieldMapper.Builder(name);
     }
 
-    public static XContentObjectMapper.Builder object(String name) {
-        return new XContentObjectMapper.Builder(name);
+    public static ObjectMapper.Builder object(String name) {
+        return new ObjectMapper.Builder(name);
     }
 
-    public static XContentBooleanFieldMapper.Builder booleanField(String name) {
-        return new XContentBooleanFieldMapper.Builder(name);
+    public static BooleanFieldMapper.Builder booleanField(String name) {
+        return new BooleanFieldMapper.Builder(name);
     }
 
-    public static XContentStringFieldMapper.Builder stringField(String name) {
-        return new XContentStringFieldMapper.Builder(name);
+    public static StringFieldMapper.Builder stringField(String name) {
+        return new StringFieldMapper.Builder(name);
     }
 
-    public static XContentBinaryFieldMapper.Builder binaryField(String name) {
-        return new XContentBinaryFieldMapper.Builder(name);
+    public static BinaryFieldMapper.Builder binaryField(String name) {
+        return new BinaryFieldMapper.Builder(name);
     }
 
-    public static XContentDateFieldMapper.Builder dateField(String name) {
-        return new XContentDateFieldMapper.Builder(name);
+    public static DateFieldMapper.Builder dateField(String name) {
+        return new DateFieldMapper.Builder(name);
     }
 
-    public static XContentShortFieldMapper.Builder shortField(String name) {
-        return new XContentShortFieldMapper.Builder(name);
+    public static ShortFieldMapper.Builder shortField(String name) {
+        return new ShortFieldMapper.Builder(name);
     }
 
-    public static XContentIntegerFieldMapper.Builder integerField(String name) {
-        return new XContentIntegerFieldMapper.Builder(name);
+    public static IntegerFieldMapper.Builder integerField(String name) {
+        return new IntegerFieldMapper.Builder(name);
     }
 
-    public static XContentLongFieldMapper.Builder longField(String name) {
-        return new XContentLongFieldMapper.Builder(name);
+    public static LongFieldMapper.Builder longField(String name) {
+        return new LongFieldMapper.Builder(name);
     }
 
-    public static XContentFloatFieldMapper.Builder floatField(String name) {
-        return new XContentFloatFieldMapper.Builder(name);
+    public static FloatFieldMapper.Builder floatField(String name) {
+        return new FloatFieldMapper.Builder(name);
     }
 
-    public static XContentDoubleFieldMapper.Builder doubleField(String name) {
-        return new XContentDoubleFieldMapper.Builder(name);
+    public static DoubleFieldMapper.Builder doubleField(String name) {
+        return new DoubleFieldMapper.Builder(name);
     }
 }

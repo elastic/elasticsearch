@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper.xcontent.geopoint;
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
@@ -39,7 +39,7 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        XContentDocumentMapper defaultMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -57,7 +57,7 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        XContentDocumentMapper defaultMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -75,7 +75,7 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        XContentDocumentMapper defaultMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

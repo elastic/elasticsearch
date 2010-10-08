@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
  */
 public class XContentTypeParsers {
 
-    public static void parseNumberField(XContentNumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, XContentTypeParser.ParserContext parserContext) {
+    public static void parseNumberField(NumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, XContentMapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, numberNode, parserContext);
         for (Map.Entry<String, Object> entry : numberNode.entrySet()) {
             String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -46,7 +46,7 @@ public class XContentTypeParsers {
         }
     }
 
-    public static void parseField(XContentFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, XContentTypeParser.ParserContext parserContext) {
+    public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, XContentMapper.TypeParser.ParserContext parserContext) {
         for (Map.Entry<String, Object> entry : fieldNode.entrySet()) {
             String propName = Strings.toUnderscoreCase(entry.getKey());
             Object propNode = entry.getValue();

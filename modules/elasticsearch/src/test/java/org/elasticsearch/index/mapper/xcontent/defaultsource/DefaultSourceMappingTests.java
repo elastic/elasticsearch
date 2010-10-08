@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper.xcontent.defaultsource;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -39,12 +39,12 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        XContentDocumentMapper mapper = XContentMapperTests.newParser().parse("my_type", null, defaultMapping);
+        XContentDocumentMapper mapper = MapperTests.newParser().parse("my_type", null, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
 
         try {
-            mapper = XContentMapperTests.newParser().parse(null, null, defaultMapping);
+            mapper = MapperTests.newParser().parse(null, null, defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             assert false;
@@ -62,7 +62,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        XContentDocumentMapper mapper = XContentMapperTests.newParser().parse("my_type", mapping, defaultMapping);
+        XContentDocumentMapper mapper = MapperTests.newParser().parse("my_type", mapping, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
@@ -72,7 +72,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = XContentMapperTests.newMapperService();
+        MapperService mapperService = MapperTests.newMapperService();
         mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping);
 
         XContentDocumentMapper mapper = (XContentDocumentMapper) mapperService.type("my_type");
@@ -85,7 +85,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = XContentMapperTests.newMapperService();
+        MapperService mapperService = MapperTests.newMapperService();
         mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

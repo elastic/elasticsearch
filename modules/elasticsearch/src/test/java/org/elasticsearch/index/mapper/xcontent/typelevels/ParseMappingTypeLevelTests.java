@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper.xcontent.typelevels;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -37,11 +37,11 @@ public class ParseMappingTypeLevelTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        XContentDocumentMapper mapper = XContentMapperTests.newParser().parse("type", mapping);
+        XContentDocumentMapper mapper = MapperTests.newParser().parse("type", mapping);
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
 
-        mapper = XContentMapperTests.newParser().parse(mapping);
+        mapper = MapperTests.newParser().parse(mapping);
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }

@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper.xcontent.dynamictemplate.simple;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.*;
@@ -37,7 +37,7 @@ public class SimpleDynamicTemplatesTests {
 
     @Test public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/dynamictemplate/simple/test-mapping.json");
-        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/dynamictemplate/simple/test-data.json");
         Document doc = docMapper.parse(json).doc();
 

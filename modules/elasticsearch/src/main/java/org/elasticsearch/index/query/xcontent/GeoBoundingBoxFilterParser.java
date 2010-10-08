@@ -29,7 +29,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -67,8 +67,8 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                latFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
-                lonFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
+                latFieldName = currentFieldName + GeoPointFieldMapper.Names.LAT_SUFFIX;
+                lonFieldName = currentFieldName + GeoPointFieldMapper.Names.LON_SUFFIX;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -103,11 +103,11 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
-                                    if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
+                                    if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
                                         point.lat = parser.doubleValue();
-                                    } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LON)) {
+                                    } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
                                         point.lon = parser.doubleValue();
-                                    } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
+                                    } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                                         double[] values = GeoHashUtils.decode(parser.text());
                                         point.lat = values[0];
                                         point.lon = values[1];
@@ -117,8 +117,8 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
                         }
                     } else if (token.isValue()) {
                         if ("field".equals(currentFieldName)) {
-                            latFieldName = parser.text() + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
-                            lonFieldName = parser.text() + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
+                            latFieldName = parser.text() + GeoPointFieldMapper.Names.LAT_SUFFIX;
+                            lonFieldName = parser.text() + GeoPointFieldMapper.Names.LON_SUFFIX;
                         } else {
                             GeoBoundingBoxFilter.Point point = null;
                             if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {

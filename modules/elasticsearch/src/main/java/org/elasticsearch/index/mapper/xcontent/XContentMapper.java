@@ -19,13 +19,18 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -60,6 +65,31 @@ public interface XContentMapper extends ToXContent {
         }
 
         public abstract Y build(BuilderContext context);
+    }
+
+    public interface TypeParser {
+
+        public static class ParserContext {
+
+            private final AnalysisService analysisService;
+
+            private final ImmutableMap<String, TypeParser> typeParsers;
+
+            public ParserContext(AnalysisService analysisService, ImmutableMap<String, TypeParser> typeParsers) {
+                this.analysisService = analysisService;
+                this.typeParsers = typeParsers;
+            }
+
+            public AnalysisService analysisService() {
+                return analysisService;
+            }
+
+            public TypeParser typeParser(String type) {
+                return typeParsers.get(Strings.toUnderscoreCase(type));
+            }
+        }
+
+        XContentMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
     String name();

@@ -30,7 +30,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -81,8 +81,8 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                latFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
-                lonFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
+                latFieldName = currentFieldName + GeoPointFieldMapper.Names.LAT_SUFFIX;
+                lonFieldName = currentFieldName + GeoPointFieldMapper.Names.LON_SUFFIX;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -108,11 +108,11 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
                                         if (token == XContentParser.Token.FIELD_NAME) {
                                             currentFieldName = parser.currentName();
                                         } else if (token.isValue()) {
-                                            if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
+                                            if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
                                                 point.lat = parser.doubleValue();
-                                            } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LON)) {
+                                            } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
                                                 point.lon = parser.doubleValue();
-                                            } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
+                                            } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                                                 double[] values = GeoHashUtils.decode(parser.text());
                                                 point.lat = values[0];
                                                 point.lon = values[1];

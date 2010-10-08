@@ -40,7 +40,7 @@ public class SimpleAttachmentMapperTests {
 
     @BeforeTest public void setupMapperParser() {
         mapperParser = new XContentDocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")));
-        mapperParser.putTypeParser(XContentAttachmentMapper.CONTENT_TYPE, new XContentAttachmentMapper.TypeParser());
+        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 
     @Test public void testSimpleMappings() throws Exception {

@@ -25,7 +25,7 @@ import org.elasticsearch.common.lucene.geo.GeoDistanceDataComparator;
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -67,11 +67,11 @@ public class GeoDistanceSortParser implements SortParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (currentName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
+                        if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
                             lat = parser.doubleValue();
-                        } else if (currentName.equals(XContentGeoPointFieldMapper.Names.LON)) {
+                        } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
                             lon = parser.doubleValue();
-                        } else if (currentName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
+                        } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             double[] values = GeoHashUtils.decode(parser.text());
                             lat = values[0];
                             lon = values[1];

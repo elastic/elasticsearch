@@ -22,9 +22,9 @@ package org.elasticsearch.index.mapper.xcontent.multifield.merge;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ public class JavaMultiFieldMergeTests {
 
     @Test public void testMergeMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping1.json");
-        XContentDocumentMapperParser parser = XContentMapperTests.newParser();
+        XContentDocumentMapperParser parser = MapperTests.newParser();
 
         XContentDocumentMapper docMapper = parser.parse(mapping);
 

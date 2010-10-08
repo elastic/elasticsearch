@@ -27,7 +27,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
@@ -75,7 +75,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         this.geoDistance = geoDistance;
         this.fieldDataCache = context.fieldDataCache();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX);
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName + GeoPointFieldMapper.Names.LAT_SUFFIX);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
@@ -87,7 +87,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
         this.indexLatFieldName = smartMappers.mapper().names().indexName();
 
-        FieldMapper mapper = context.mapperService().smartNameFieldMapper(fieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX);
+        FieldMapper mapper = context.mapperService().smartNameFieldMapper(fieldName + GeoPointFieldMapper.Names.LON_SUFFIX);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }

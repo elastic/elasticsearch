@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper.xcontent.merge.test1;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.*;
@@ -37,9 +37,9 @@ public class Test1MergeMapperTests {
 
     @Test public void test1Merge() throws Exception {
         String stage1Mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/merge/test1/stage1.json");
-        XContentDocumentMapper stage1 = XContentMapperTests.newParser().parse(stage1Mapping);
+        XContentDocumentMapper stage1 = MapperTests.newParser().parse(stage1Mapping);
         String stage2Mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/merge/test1/stage2.json");
-        XContentDocumentMapper stage2 = XContentMapperTests.newParser().parse(stage2Mapping);
+        XContentDocumentMapper stage2 = MapperTests.newParser().parse(stage2Mapping);
 
         DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
         assertThat(mergeResult.hasConflicts(), equalTo(false));

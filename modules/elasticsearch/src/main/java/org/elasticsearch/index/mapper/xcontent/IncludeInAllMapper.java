@@ -17,31 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments;
-
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
-
-import java.util.Collection;
-
-import static org.elasticsearch.common.collect.Lists.*;
+package org.elasticsearch.index.mapper.xcontent;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MapperAttachmentsPlugin extends AbstractPlugin {
+public interface IncludeInAllMapper extends XContentMapper {
 
-    @Override public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
-    @Override public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(AttachmentsIndexModule.class);
-        return modules;
-    }
+    void includeInAll(Boolean includeInAll);
 }

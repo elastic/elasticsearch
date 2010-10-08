@@ -29,7 +29,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.GeoPointFieldMapper;
 
 import java.io.IOException;
 
@@ -113,13 +113,13 @@ public class GeoDistanceDataComparator extends FieldComparator {
         this.geoDistance = geoDistance;
         this.fieldDataCache = fieldDataCache;
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX);
+        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName + GeoPointFieldMapper.Names.LAT_SUFFIX);
         if (mapper == null) {
             throw new ElasticSearchIllegalArgumentException("No mapping found for field [" + fieldName + "] for geo distance sort");
         }
         this.indexLatFieldName = mapper.names().indexName();
 
-        mapper = mapperService.smartNameFieldMapper(fieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX);
+        mapper = mapperService.smartNameFieldMapper(fieldName + GeoPointFieldMapper.Names.LON_SUFFIX);
         if (mapper == null) {
             throw new ElasticSearchIllegalArgumentException("No mapping found for field [" + fieldName + "] for geo distance sort");
         }

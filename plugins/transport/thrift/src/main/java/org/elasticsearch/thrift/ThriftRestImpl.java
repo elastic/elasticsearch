@@ -75,7 +75,7 @@ public class ThriftRestImpl extends AbstractComponent implements Rest.Iface {
     private Status getStatus(RestResponse.Status status) {
         switch (status) {
             case CONTINUE:
-                return Status.CONTINUE;
+                return Status.CONT;
             case SWITCHING_PROTOCOLS:
                 return Status.SWITCHING_PROTOCOLS;
             case OK:

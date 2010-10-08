@@ -9,7 +9,7 @@ package org.elasticsearch.thrift;
 import org.apache.thrift.TEnum;
 
 public enum Status implements TEnum {
-    CONTINUE(100),
+    CONT(100),
     SWITCHING_PROTOCOLS(101),
     OK(200),
     CREATED(201),
@@ -75,7 +75,7 @@ public enum Status implements TEnum {
     public static Status findByValue(int value) {
         switch (value) {
             case 100:
-                return CONTINUE;
+                return CONT;
             case 101:
                 return SWITCHING_PROTOCOLS;
             case 200:

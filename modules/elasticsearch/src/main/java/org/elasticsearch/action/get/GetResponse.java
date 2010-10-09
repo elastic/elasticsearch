@@ -27,10 +27,7 @@ import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -219,24 +216,31 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         return fields.values().iterator();
     }
 
+    static final class Fields {
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!exists()) {
             builder.startObject();
-            builder.field("_index", index);
-            builder.field("_type", type);
-            builder.field("_id", id);
+            builder.field(Fields._INDEX, index);
+            builder.field(Fields._TYPE, type);
+            builder.field(Fields._ID, id);
             builder.endObject();
         } else {
             builder.startObject();
-            builder.field("_index", index);
-            builder.field("_type", type);
-            builder.field("_id", id);
+            builder.field(Fields._INDEX, index);
+            builder.field(Fields._TYPE, type);
+            builder.field(Fields._ID, id);
             if (source != null) {
                 RestXContentBuilder.restDocumentSource(source, builder, params);
             }
 
             if (fields != null && !fields.isEmpty()) {
-                builder.startObject("fields");
+                builder.startObject(Fields.FIELDS);
                 for (GetField field : fields.values()) {
                     if (field.values().isEmpty()) {
                         continue;

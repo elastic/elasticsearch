@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -37,7 +38,7 @@ import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestDeleteIndexAction extends BaseRestHandler {
 
@@ -54,8 +55,8 @@ public class RestDeleteIndexAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field("ok", true)
-                            .field("acknowledged", response.acknowledged())
+                            .field(Fields.OK, true)
+                            .field(Fields.ACKNOWLEDGED, response.acknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {
@@ -77,5 +78,10 @@ public class RestDeleteIndexAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    static final class Fields {
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
+        static final XContentBuilderString ACKNOWLEDGED = new XContentBuilderString("acknowledged");
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.search.facets.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 
@@ -88,10 +89,15 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         return new InternalFilterFacet(name, count);
     }
 
+    static final class Fields {
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", FilterFacetCollectorParser.NAME);
-        builder.field("count", count);
+        builder.field(Fields._TYPE, FilterFacetCollectorParser.NAME);
+        builder.field(Fields.COUNT, count);
         builder.endObject();
     }
 

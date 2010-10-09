@@ -27,6 +27,7 @@ import org.elasticsearch.common.trove.TLongDoubleIterator;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.common.trove.TLongLongIterator;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 
@@ -174,20 +175,33 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
         return new InternalHistogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, counts, totals);
     }
 
+    static final class Fields {
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _KEY_FIELD = new XContentBuilderString("_key_field");
+        static final XContentBuilderString _VALUE_FIELD = new XContentBuilderString("_value_field");
+        static final XContentBuilderString _COMPARATOR = new XContentBuilderString("_comparator");
+        static final XContentBuilderString _INTERVAL = new XContentBuilderString("_interval");
+        static final XContentBuilderString ENTRIES = new XContentBuilderString("entries");
+        static final XContentBuilderString KEY = new XContentBuilderString("key");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", HistogramFacetCollectorParser.NAME);
-        builder.field("_key_field", keyFieldName);
-        builder.field("_value_field", valueFieldName);
-        builder.field("_comparator", comparatorType.description());
-        builder.field("_interval", interval);
-        builder.startArray("entries");
+        builder.field(Fields._TYPE, HistogramFacetCollectorParser.NAME);
+        builder.field(Fields._KEY_FIELD, keyFieldName);
+        builder.field(Fields._VALUE_FIELD, valueFieldName);
+        builder.field(Fields._COMPARATOR, comparatorType.description());
+        builder.field(Fields._INTERVAL, interval);
+        builder.startArray(Fields.ENTRIES);
         for (Entry entry : computeEntries()) {
             builder.startObject();
-            builder.field("key", entry.key());
-            builder.field("count", entry.count());
-            builder.field("total", entry.total());
-            builder.field("mean", entry.mean());
+            builder.field(Fields.KEY, entry.key());
+            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TOTAL, entry.total());
+            builder.field(Fields.MEAN, entry.mean());
             builder.endObject();
         }
         builder.endArray();

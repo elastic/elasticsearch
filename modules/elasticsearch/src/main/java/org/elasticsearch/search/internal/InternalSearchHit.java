@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -266,23 +267,38 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedFilters;
     }
 
+    public static class Fields {
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
+        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
+        static final XContentBuilderString SORT = new XContentBuilderString("sort");
+        static final XContentBuilderString MATCH_FILTERS = new XContentBuilderString("matched_filters");
+        static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
+        static final XContentBuilderString VALUE = new XContentBuilderString("value");
+        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
+        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("_index", shard.index());
+        builder.field(Fields._INDEX, shard.index());
 //        builder.field("_shard", shard.shardId());
 //        builder.field("_node", shard.nodeId());
-        builder.field("_type", type());
-        builder.field("_id", id());
+        builder.field(Fields._TYPE, type());
+        builder.field(Fields._ID, id());
         if (Float.isNaN(score)) {
-            builder.nullField("_score");
+            builder.nullField(Fields._SCORE);
         } else {
-            builder.field("_score", score);
+            builder.field(Fields._SCORE, score);
         }
         if (source != null) {
             RestXContentBuilder.restDocumentSource(source, builder, params);
         }
         if (fields != null && !fields.isEmpty()) {
-            builder.startObject("fields");
+            builder.startObject(Fields.FIELDS);
             for (SearchHitField field : fields.values()) {
                 if (field.values().isEmpty()) {
                     continue;
@@ -301,7 +317,7 @@ public class InternalSearchHit implements SearchHit {
             builder.endObject();
         }
         if (highlightFields != null && !highlightFields.isEmpty()) {
-            builder.startObject("highlight");
+            builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
                 builder.field(field.name());
                 if (field.fragments() == null) {
@@ -317,21 +333,21 @@ public class InternalSearchHit implements SearchHit {
             builder.endObject();
         }
         if (sortValues != null && sortValues.length > 0) {
-            builder.startArray("sort");
+            builder.startArray(Fields.SORT);
             for (Object sortValue : sortValues) {
                 builder.value(sortValue);
             }
             builder.endArray();
         }
         if (matchedFilters.length > 0) {
-            builder.startArray("matched_filters");
+            builder.startArray(Fields.MATCH_FILTERS);
             for (String matchedFilter : matchedFilters) {
                 builder.value(matchedFilter);
             }
             builder.endArray();
         }
         if (explanation() != null) {
-            builder.field("_explanation");
+            builder.field(Fields._EXPLANATION);
             buildExplanation(builder, explanation());
         }
         builder.endObject();
@@ -339,11 +355,11 @@ public class InternalSearchHit implements SearchHit {
 
     private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
         builder.startObject();
-        builder.field("value", explanation.getValue());
-        builder.field("description", explanation.getDescription());
+        builder.field(Fields.VALUE, explanation.getValue());
+        builder.field(Fields.DESCRIPTION, explanation.getDescription());
         Explanation[] innerExps = explanation.getDetails();
         if (innerExps != null) {
-            builder.startArray("details");
+            builder.startArray(Fields.DETAILS);
             for (Explanation exp : innerExps) {
                 buildExplanation(builder, exp);
             }

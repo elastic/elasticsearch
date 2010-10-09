@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 
@@ -159,24 +160,38 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         }
     }
 
+
+    static final class Fields {
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString _VALUE_FIELD = new XContentBuilderString("_value_field");
+        static final XContentBuilderString _UNIT = new XContentBuilderString("_unit");
+        static final XContentBuilderString RANGES = new XContentBuilderString("ranges");
+        static final XContentBuilderString FROM = new XContentBuilderString("from");
+        static final XContentBuilderString TO = new XContentBuilderString("to");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", "geo_distance");
-        builder.field("_field", fieldName);
-        builder.field("_value_field", valueFieldName);
-        builder.field("_unit", unit);
-        builder.startArray("ranges");
+        builder.field(Fields._TYPE, "geo_distance");
+        builder.field(Fields._FIELD, fieldName);
+        builder.field(Fields._VALUE_FIELD, valueFieldName);
+        builder.field(Fields._UNIT, unit);
+        builder.startArray(Fields.RANGES);
         for (Entry entry : entries) {
             builder.startObject();
             if (!Double.isInfinite(entry.from)) {
-                builder.field("from", entry.from);
+                builder.field(Fields.FROM, entry.from);
             }
             if (!Double.isInfinite(entry.to)) {
-                builder.field("to", entry.to);
+                builder.field(Fields.TO, entry.to);
             }
-            builder.field("count", entry.count());
-            builder.field("total", entry.total());
-            builder.field("mean", entry.mean());
+            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TOTAL, entry.total());
+            builder.field(Fields.MEAN, entry.mean());
             builder.endObject();
         }
         builder.endArray();

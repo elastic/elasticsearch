@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.Facets;
 import org.elasticsearch.search.facets.filter.InternalFilterFacet;
@@ -114,8 +115,12 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         return (T) facetsAsMap().get(name);
     }
 
+    static final class Fields {
+        static final XContentBuilderString FACETS = new XContentBuilderString("facets");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("facets");
+        builder.startObject(Fields.FACETS);
         for (Facet facet : facets) {
             ((InternalFacet) facet).toXContent(builder, params);
         }

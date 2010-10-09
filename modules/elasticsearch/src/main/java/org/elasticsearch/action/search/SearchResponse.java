@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facets.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -161,24 +162,36 @@ public class SearchResponse implements ActionResponse, ToXContent {
         return scrollId;
     }
 
+    static final class Fields {
+        static final XContentBuilderString _SCROLL_ID = new XContentBuilderString("_scroll_id");
+        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
+        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString INDEX = new XContentBuilderString("index");
+        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+        static final XContentBuilderString REASON = new XContentBuilderString("reason");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
-            builder.field("_scrollId", scrollId);
+            builder.field(Fields._SCROLL_ID, scrollId);
         }
-        builder.startObject("_shards");
-        builder.field("total", totalShards());
-        builder.field("successful", successfulShards());
-        builder.field("failed", failedShards());
+        builder.startObject(Fields._SHARDS);
+        builder.field(Fields.TOTAL, totalShards());
+        builder.field(Fields.SUCCESSFUL, successfulShards());
+        builder.field(Fields.FAILED, failedShards());
 
         if (shardFailures.length > 0) {
-            builder.startArray("failures");
+            builder.startArray(Fields.FAILURES);
             for (ShardSearchFailure shardFailure : shardFailures) {
                 builder.startObject();
                 if (shardFailure.shard() != null) {
-                    builder.field("index", shardFailure.shard().index());
-                    builder.field("shard", shardFailure.shard().shardId());
+                    builder.field(Fields.INDEX, shardFailure.shard().index());
+                    builder.field(Fields.SHARD, shardFailure.shard().shardId());
                 }
-                builder.field("reason", shardFailure.reason());
+                builder.field(Fields.REASON, shardFailure.reason());
                 builder.endObject();
             }
             builder.endArray();

@@ -1,0 +1,110 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.script.python;
+
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptEngineService;
+import org.python.core.Py;
+import org.python.core.PyCode;
+import org.python.core.PyObject;
+import org.python.core.PyStringMap;
+import org.python.util.PythonInterpreter;
+
+import java.util.Map;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+//TODO we can optimize the case for Map<String, Object> similar to PyStringMap
+public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
+
+    private final PythonInterpreter interp;
+
+    @Inject public PythonScriptEngineService(Settings settings) {
+        super(settings);
+
+        this.interp = PythonInterpreter.threadLocalStateInterpreter(null);
+    }
+
+    @Override public String[] types() {
+        return new String[]{"python"};
+    }
+
+    @Override public Object compile(String script) {
+        return interp.compile(script);
+    }
+
+    @Override public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
+        return new PythonExecutableScript((PyCode) compiledScript, vars);
+    }
+
+    @Override public Object execute(Object compiledScript, Map<String, Object> vars) {
+        PyObject pyVars = Py.java2py(vars);
+        interp.setLocals(pyVars);
+        PyObject ret = interp.eval((PyCode) compiledScript);
+        if (ret == null) {
+            return null;
+        }
+        return ret.__tojava__(Object.class);
+    }
+
+    @Override public void close() {
+        interp.cleanup();
+    }
+
+    public class PythonExecutableScript implements ExecutableScript {
+
+        private final PyCode code;
+
+        private final PyStringMap pyVars;
+
+        public PythonExecutableScript(PyCode code, Map<String, Object> vars) {
+            this.code = code;
+            this.pyVars = new PyStringMap();
+            for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
+            }
+        }
+
+        @Override public Object run() {
+            interp.setLocals(pyVars);
+            PyObject ret = interp.eval(code);
+            if (ret == null) {
+                return null;
+            }
+            return ret.__tojava__(Object.class);
+        }
+
+        @Override public Object run(Map<String, Object> vars) {
+            for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
+            }
+            interp.setLocals(pyVars);
+            PyObject ret = interp.eval(code);
+            if (ret == null) {
+                return null;
+            }
+            return ret.__tojava__(Object.class);
+        }
+    }
+}

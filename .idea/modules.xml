@@ -9,6 +9,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-cloud-aws.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-cloud-aws.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin-lang-groovy.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin-lang-groovy.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-lang-javascript.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-lang-javascript.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-lang-python.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-lang-python.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-lang-ruby.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-lang-ruby.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-couchdb.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-couchdb.iml" />

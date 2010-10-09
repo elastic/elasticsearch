@@ -103,6 +103,12 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder startObject(XContentString name) throws IOException {
+        field(name);
+        startObject();
+        return this;
+    }
+
     public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
         return this;
@@ -122,7 +128,25 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder array(XContentString name, String... values) throws IOException {
+        startArray(name);
+        for (String value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder array(String name, Object... values) throws IOException {
+        startArray(name);
+        for (Object value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder array(XContentString name, Object... values) throws IOException {
         startArray(name);
         for (Object value : values) {
             value(value);
@@ -137,6 +161,12 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder startArray(XContentString name) throws IOException {
+        field(name);
+        startArray();
+        return this;
+    }
+
     public XContentBuilder startArray() throws IOException {
         generator.writeStartArray();
         return this;
@@ -144,6 +174,23 @@ public final class XContentBuilder {
 
     public XContentBuilder endArray() throws IOException {
         generator.writeEndArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name) throws IOException {
+        if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
+            if (cachedStringBuilder == null) {
+                cachedStringBuilder = new StringBuilder();
+            }
+            generator.writeFieldName(Strings.toUnderscoreCase(name.getValue(), cachedStringBuilder));
+        } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
+            if (cachedStringBuilder == null) {
+                cachedStringBuilder = new StringBuilder();
+            }
+            generator.writeFieldName(Strings.toCamelCase(name.getValue(), cachedStringBuilder));
+        } else {
+            generator.writeFieldName(name);
+        }
         return this;
     }
 
@@ -173,7 +220,27 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, char[] value, int offset, int length) throws IOException {
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeString(value, offset, length);
+        }
+        return this;
+    }
+
     public XContentBuilder field(String name, String value) throws IOException {
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeString(value);
+        }
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, String value) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
@@ -187,7 +254,17 @@ public final class XContentBuilder {
         return field(name, value.intValue());
     }
 
+    public XContentBuilder field(XContentString name, Integer value) throws IOException {
+        return field(name, value.intValue());
+    }
+
     public XContentBuilder field(String name, int value) throws IOException {
+        field(name);
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, int value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -197,7 +274,17 @@ public final class XContentBuilder {
         return field(name, value.longValue());
     }
 
+    public XContentBuilder field(XContentString name, Long value) throws IOException {
+        return field(name, value.longValue());
+    }
+
     public XContentBuilder field(String name, long value) throws IOException {
+        field(name);
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, long value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -207,18 +294,37 @@ public final class XContentBuilder {
         return field(name, value.floatValue());
     }
 
+    public XContentBuilder field(XContentString name, Float value) throws IOException {
+        return field(name, value.floatValue());
+    }
+
     public XContentBuilder field(String name, float value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
     }
 
+    public XContentBuilder field(XContentString name, float value) throws IOException {
+        field(name);
+        generator.writeNumber(value);
+        return this;
+    }
 
     public XContentBuilder field(String name, Double value) throws IOException {
         return field(name, value.doubleValue());
     }
 
+    public XContentBuilder field(XContentString name, Double value) throws IOException {
+        return field(name, value.doubleValue());
+    }
+
     public XContentBuilder field(String name, double value) throws IOException {
+        field(name);
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, double value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -230,7 +336,22 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, Map<String, Object> value) throws IOException {
+        field(name);
+        value(value);
+        return this;
+    }
+
     public XContentBuilder field(String name, List<Object> value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, List<Object> value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -248,7 +369,25 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, String... value) throws IOException {
+        startArray(name);
+        for (String o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, Object... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, Object... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -266,7 +405,25 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, int... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, long... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, long... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -284,7 +441,25 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, float... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, double... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, double... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -337,7 +512,88 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, Object value) throws IOException {
+        if (value == null) {
+            nullField(name);
+            return this;
+        }
+        Class type = value.getClass();
+        if (type == String.class) {
+            field(name, (String) value);
+        } else if (type == Float.class) {
+            field(name, ((Float) value).floatValue());
+        } else if (type == Double.class) {
+            field(name, ((Double) value).doubleValue());
+        } else if (type == Integer.class) {
+            field(name, ((Integer) value).intValue());
+        } else if (type == Long.class) {
+            field(name, ((Long) value).longValue());
+        } else if (type == Boolean.class) {
+            field(name, ((Boolean) value).booleanValue());
+        } else if (type == Date.class) {
+            field(name, (Date) value);
+        } else if (type == byte[].class) {
+            field(name, (byte[]) value);
+        } else if (value instanceof ReadableInstant) {
+            field(name, (ReadableInstant) value);
+        } else if (value instanceof Map) {
+            field(name, (Map<String, Object>) value);
+        } else if (value instanceof List) {
+            field(name, (List) value);
+        } else if (value instanceof Object[]) {
+            field(name, (Object[]) value);
+        } else if (value instanceof int[]) {
+            field(name, (int[]) value);
+        } else if (value instanceof long[]) {
+            field(name, (long[]) value);
+        } else if (value instanceof float[]) {
+            field(name, (float[]) value);
+        } else if (value instanceof double[]) {
+            field(name, (double[]) value);
+        } else {
+            field(name, value.toString());
+        }
+        return this;
+    }
+
+    public XContentBuilder value(Object value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        Class type = value.getClass();
+        if (type == String.class) {
+            value((String) value);
+        } else if (type == Float.class) {
+            value(((Float) value).floatValue());
+        } else if (type == Double.class) {
+            value(((Double) value).doubleValue());
+        } else if (type == Integer.class) {
+            value(((Integer) value).intValue());
+        } else if (type == Long.class) {
+            value(((Long) value).longValue());
+        } else if (type == Boolean.class) {
+            value((Boolean) value);
+        } else if (type == byte[].class) {
+            value((byte[]) value);
+        } else if (type == Date.class) {
+            value((Date) value);
+        } else if (value instanceof ReadableInstant) {
+            value((ReadableInstant) value);
+        } else if (value instanceof Map) {
+            value((Map<String, Object>) value);
+        } else {
+            throw new IOException("Type not allowed [" + type + "]");
+        }
+        return this;
+    }
+
     public XContentBuilder field(String name, boolean value) throws IOException {
+        field(name);
+        generator.writeBoolean(value);
+        return this;
+    }
+
+    public XContentBuilder field(XContentString name, boolean value) throws IOException {
         field(name);
         generator.writeBoolean(value);
         return this;
@@ -349,7 +605,18 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentString name, byte[] value) throws IOException {
+        field(name);
+        generator.writeBinary(value);
+        return this;
+    }
+
     public XContentBuilder field(String name, ReadableInstant date) throws IOException {
+        field(name);
+        return value(date);
+    }
+
+    public XContentBuilder field(XContentString name, ReadableInstant date) throws IOException {
         field(name);
         return value(date);
     }
@@ -359,7 +626,17 @@ public final class XContentBuilder {
         return value(date, formatter);
     }
 
+    public XContentBuilder field(XContentString name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
+        field(name);
+        return value(date, formatter);
+    }
+
     public XContentBuilder field(String name, Date date) throws IOException {
+        field(name);
+        return value(date);
+    }
+
+    public XContentBuilder field(XContentString name, Date date) throws IOException {
         field(name);
         return value(date);
     }
@@ -369,7 +646,17 @@ public final class XContentBuilder {
         return value(date, formatter);
     }
 
+    public XContentBuilder field(XContentString name, Date date, DateTimeFormatter formatter) throws IOException {
+        field(name);
+        return value(date, formatter);
+    }
+
     public XContentBuilder nullField(String name) throws IOException {
+        generator.writeNullField(name);
+        return this;
+    }
+
+    public XContentBuilder nullField(XContentString name) throws IOException {
         generator.writeNullField(name);
         return this;
     }
@@ -467,37 +754,6 @@ public final class XContentBuilder {
 
     public XContentBuilder value(Map<String, Object> map) throws IOException {
         XContentMapConverter.writeMap(generator, map);
-        return this;
-    }
-
-    public XContentBuilder value(Object value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        Class type = value.getClass();
-        if (type == String.class) {
-            value((String) value);
-        } else if (type == Float.class) {
-            value(((Float) value).floatValue());
-        } else if (type == Double.class) {
-            value(((Double) value).doubleValue());
-        } else if (type == Integer.class) {
-            value(((Integer) value).intValue());
-        } else if (type == Long.class) {
-            value(((Long) value).longValue());
-        } else if (type == Boolean.class) {
-            value((Boolean) value);
-        } else if (type == byte[].class) {
-            value((byte[]) value);
-        } else if (type == Date.class) {
-            value((Date) value);
-        } else if (value instanceof ReadableInstant) {
-            value((ReadableInstant) value);
-        } else if (value instanceof Map) {
-            value((Map<String, Object>) value);
-        } else {
-            throw new IOException("Type not allowed [" + type + "]");
-        }
         return this;
     }
 

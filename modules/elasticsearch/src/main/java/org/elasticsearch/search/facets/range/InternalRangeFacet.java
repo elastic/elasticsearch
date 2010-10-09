@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 
@@ -168,29 +169,43 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         }
     }
 
+    static final class Fields {
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _KEY_FIELD = new XContentBuilderString("_key_field");
+        static final XContentBuilderString _VALUE_FIELD = new XContentBuilderString("_value_field");
+        static final XContentBuilderString RANGES = new XContentBuilderString("ranges");
+        static final XContentBuilderString FROM = new XContentBuilderString("from");
+        static final XContentBuilderString FROM_STR = new XContentBuilderString("from_str");
+        static final XContentBuilderString TO = new XContentBuilderString("to");
+        static final XContentBuilderString TO_STR = new XContentBuilderString("to_str");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", "range");
-        builder.field("_key_field", keyFieldName);
-        builder.field("_value_field", valueFieldName);
-        builder.startArray("ranges");
+        builder.field(Fields._TYPE, "range");
+        builder.field(Fields._KEY_FIELD, keyFieldName);
+        builder.field(Fields._VALUE_FIELD, valueFieldName);
+        builder.startArray(Fields.RANGES);
         for (Entry entry : entries) {
             builder.startObject();
             if (!Double.isInfinite(entry.from)) {
-                builder.field("from", entry.from);
+                builder.field(Fields.FROM, entry.from);
             }
             if (entry.fromAsString != null) {
-                builder.field("from_str", entry.fromAsString);
+                builder.field(Fields.FROM_STR, entry.fromAsString);
             }
             if (!Double.isInfinite(entry.to)) {
-                builder.field("to", entry.to);
+                builder.field(Fields.TO, entry.to);
             }
             if (entry.toAsString != null) {
-                builder.field("to_str", entry.toAsString);
+                builder.field(Fields.TO_STR, entry.toAsString);
             }
-            builder.field("count", entry.count());
-            builder.field("total", entry.total());
-            builder.field("mean", entry.mean());
+            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TOTAL, entry.total());
+            builder.field(Fields.MEAN, entry.mean());
             builder.endObject();
         }
         builder.endArray();

@@ -103,7 +103,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder startObject(XContentString name) throws IOException {
+    public XContentBuilder startObject(XContentBuilderString name) throws IOException {
         field(name);
         startObject();
         return this;
@@ -128,7 +128,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder array(XContentString name, String... values) throws IOException {
+    public XContentBuilder array(XContentBuilderString name, String... values) throws IOException {
         startArray(name);
         for (String value : values) {
             value(value);
@@ -146,7 +146,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder array(XContentString name, Object... values) throws IOException {
+    public XContentBuilder array(XContentBuilderString name, Object... values) throws IOException {
         startArray(name);
         for (Object value : values) {
             value(value);
@@ -161,7 +161,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder startArray(XContentString name) throws IOException {
+    public XContentBuilder startArray(XContentBuilderString name) throws IOException {
         field(name);
         startArray();
         return this;
@@ -177,19 +177,13 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name) throws IOException {
+    public XContentBuilder field(XContentBuilderString name) throws IOException {
         if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
-            if (cachedStringBuilder == null) {
-                cachedStringBuilder = new StringBuilder();
-            }
-            generator.writeFieldName(Strings.toUnderscoreCase(name.getValue(), cachedStringBuilder));
+            generator.writeFieldName(name.underscore());
         } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
-            if (cachedStringBuilder == null) {
-                cachedStringBuilder = new StringBuilder();
-            }
-            generator.writeFieldName(Strings.toCamelCase(name.getValue(), cachedStringBuilder));
+            generator.writeFieldName(name.camelCase());
         } else {
-            generator.writeFieldName(name);
+            generator.writeFieldName(name.underscore());
         }
         return this;
     }
@@ -220,7 +214,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, char[] value, int offset, int length) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, char[] value, int offset, int length) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
@@ -240,7 +234,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, String value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, String value) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
@@ -254,7 +248,7 @@ public final class XContentBuilder {
         return field(name, value.intValue());
     }
 
-    public XContentBuilder field(XContentString name, Integer value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Integer value) throws IOException {
         return field(name, value.intValue());
     }
 
@@ -264,7 +258,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, int value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, int value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -274,7 +268,7 @@ public final class XContentBuilder {
         return field(name, value.longValue());
     }
 
-    public XContentBuilder field(XContentString name, Long value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Long value) throws IOException {
         return field(name, value.longValue());
     }
 
@@ -284,7 +278,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, long value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, long value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -294,7 +288,7 @@ public final class XContentBuilder {
         return field(name, value.floatValue());
     }
 
-    public XContentBuilder field(XContentString name, Float value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Float value) throws IOException {
         return field(name, value.floatValue());
     }
 
@@ -304,7 +298,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, float value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, float value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -314,7 +308,7 @@ public final class XContentBuilder {
         return field(name, value.doubleValue());
     }
 
-    public XContentBuilder field(XContentString name, Double value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Double value) throws IOException {
         return field(name, value.doubleValue());
     }
 
@@ -324,7 +318,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, double value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, double value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -336,7 +330,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, Map<String, Object> value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Map<String, Object> value) throws IOException {
         field(name);
         value(value);
         return this;
@@ -351,7 +345,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, List<Object> value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, List<Object> value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -369,7 +363,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, String... value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, String... value) throws IOException {
         startArray(name);
         for (String o : value) {
             value(o);
@@ -387,7 +381,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, Object... value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Object... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -405,7 +399,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, int... value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, int... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -423,7 +417,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, long... value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, long... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -441,7 +435,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, float... value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, float... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -459,7 +453,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, double... value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, double... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -512,7 +506,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, Object value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Object value) throws IOException {
         if (value == null) {
             nullField(name);
             return this;
@@ -593,7 +587,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, boolean value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, boolean value) throws IOException {
         field(name);
         generator.writeBoolean(value);
         return this;
@@ -605,7 +599,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentString name, byte[] value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, byte[] value) throws IOException {
         field(name);
         generator.writeBinary(value);
         return this;
@@ -616,7 +610,7 @@ public final class XContentBuilder {
         return value(date);
     }
 
-    public XContentBuilder field(XContentString name, ReadableInstant date) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, ReadableInstant date) throws IOException {
         field(name);
         return value(date);
     }
@@ -626,7 +620,7 @@ public final class XContentBuilder {
         return value(date, formatter);
     }
 
-    public XContentBuilder field(XContentString name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
         field(name);
         return value(date, formatter);
     }
@@ -636,7 +630,7 @@ public final class XContentBuilder {
         return value(date);
     }
 
-    public XContentBuilder field(XContentString name, Date date) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Date date) throws IOException {
         field(name);
         return value(date);
     }
@@ -646,7 +640,7 @@ public final class XContentBuilder {
         return value(date, formatter);
     }
 
-    public XContentBuilder field(XContentString name, Date date, DateTimeFormatter formatter) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, Date date, DateTimeFormatter formatter) throws IOException {
         field(name);
         return value(date, formatter);
     }
@@ -656,8 +650,9 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder nullField(XContentString name) throws IOException {
-        generator.writeNullField(name);
+    public XContentBuilder nullField(XContentBuilderString name) throws IOException {
+        field(name);
+        generator.writeNull();
         return this;
     }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.search.facets.statistical;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 
@@ -173,18 +174,31 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         return new InternalStatisticalFacet(name, fieldName, min, max, total, sumOfSquares, count);
     }
 
+    static final class Fields {
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString MIN = new XContentBuilderString("min");
+        static final XContentBuilderString MAX = new XContentBuilderString("max");
+        static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+        static final XContentBuilderString SUM_OF_SQUARES = new XContentBuilderString("sum_of_squares");
+        static final XContentBuilderString VARIANCE = new XContentBuilderString("variance");
+        static final XContentBuilderString STD_DEVIATION = new XContentBuilderString("std_deviation");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", StatisticalFacetCollectorParser.NAME);
-        builder.field("_field", fieldName);
-        builder.field("count", count());
-        builder.field("total", total());
-        builder.field("min", min());
-        builder.field("max", max());
-        builder.field("mean", mean());
-        builder.field("sum_of_squares", sumOfSquares());
-        builder.field("variance", variance());
-        builder.field("std_deviation", stdDeviation());
+        builder.field(Fields._TYPE, StatisticalFacetCollectorParser.NAME);
+        builder.field(Fields._FIELD, fieldName);
+        builder.field(Fields.COUNT, count());
+        builder.field(Fields.TOTAL, total());
+        builder.field(Fields.MIN, min());
+        builder.field(Fields.MAX, max());
+        builder.field(Fields.MEAN, mean());
+        builder.field(Fields.SUM_OF_SQUARES, sumOfSquares());
+        builder.field(Fields.VARIANCE, variance());
+        builder.field(Fields.STD_DEVIATION, stdDeviation());
         builder.endObject();
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 
@@ -138,15 +139,23 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
         return new InternalTermsFacet(name, fieldName, comparatorType, requiredSize, ordered);
     }
 
+    static final class Fields {
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString TERMS = new XContentBuilderString("terms");
+        static final XContentBuilderString TERM = new XContentBuilderString("term");
+        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", TermsFacetCollectorParser.NAME);
-        builder.field("_field", fieldName);
-        builder.startArray("terms");
+        builder.field(Fields._TYPE, TermsFacetCollectorParser.NAME);
+        builder.field(Fields._FIELD, fieldName);
+        builder.startArray(Fields.TERMS);
         for (Entry entry : entries) {
             builder.startObject();
-            builder.field("term", entry.term());
-            builder.field("count", entry.count());
+            builder.field(Fields.TERM, entry.term());
+            builder.field(Fields.COUNT, entry.count());
             builder.endObject();
         }
         builder.endArray();

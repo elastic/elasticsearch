@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -90,10 +91,10 @@ public class RestIndexAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field("ok", true)
-                            .field("_index", result.index())
-                            .field("_type", result.type())
-                            .field("_id", result.id())
+                            .field(Fields.OK, true)
+                            .field(Fields._INDEX, result.index())
+                            .field(Fields._TYPE, result.type())
+                            .field(Fields._ID, result.id())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
@@ -110,4 +111,12 @@ public class RestIndexAction extends BaseRestHandler {
             }
         });
     }
+
+    static final class Fields {
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+    }
+
 }

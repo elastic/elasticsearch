@@ -132,8 +132,12 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                             break;
                     }
                     for (int port : new PortsRange(ports).ports()) {
-                        logger.trace("adding {}, address {}", instance.getInstanceId(), address);
-                        discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + port, new InetSocketTransportAddress(address, port)));
+                        if (address != null) {
+                            logger.trace("adding {}, address {}", instance.getInstanceId(), address);
+                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + port, new InetSocketTransportAddress(address, port)));
+                        } else {
+                            logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
+                        }
                     }
                 }
             }

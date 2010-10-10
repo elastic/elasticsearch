@@ -65,6 +65,22 @@ public class PythonScriptEngineTests {
         assertThat(((String) o), equalTo("2"));
     }
 
+    @Test public void testObjectMapInter() {
+        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> ctx = new HashMap<String, Object>();
+        Map<String, Object> obj1 = new HashMap<String, Object>();
+        obj1.put("prop1", "value1");
+        ctx.put("obj1", obj1);
+        vars.put("ctx", ctx);
+
+        se.execute(se.compile("ctx['obj2'] = { 'prop2' : 'value2' }; ctx['obj1']['prop1'] = 'uvalue1'"), vars);
+        ctx = (Map<String, Object>) se.unwrap(vars.get("ctx"));
+        assertThat(ctx.containsKey("obj1"), equalTo(true));
+        assertThat((String) ((Map<String, Object>) ctx.get("obj1")).get("prop1"), equalTo("uvalue1"));
+        assertThat(ctx.containsKey("obj2"), equalTo(true));
+        assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
+    }
+
     @Test public void testAccessListInScript() {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();

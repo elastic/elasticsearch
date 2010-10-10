@@ -68,6 +68,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return ret.__tojava__(Object.class);
     }
 
+    @Override public Object unwrap(Object value) {
+        return unwrapValue(value);
+    }
+
     @Override public void close() {
         interp.cleanup();
     }
@@ -106,5 +110,20 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
             }
             return ret.__tojava__(Object.class);
         }
+
+        @Override public Object unwrap(Object value) {
+            return unwrapValue(value);
+        }
+    }
+
+
+    public static Object unwrapValue(Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof PyObject) {
+            // seems like this is enough, inner PyDictionary will do the conversion for us for example, so expose it directly 
+            return ((PyObject) value).__tojava__(Object.class);
+        }
+        return value;
     }
 }

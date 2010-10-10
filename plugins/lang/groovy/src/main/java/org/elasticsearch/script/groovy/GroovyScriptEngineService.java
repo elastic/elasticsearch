@@ -85,6 +85,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
+    @Override public Object unwrap(Object value) {
+        return value;
+    }
+
     private String generateScriptName() {
         return "Script" + counter.incrementAndGet() + ".groovy";
     }
@@ -104,6 +108,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         @Override public Object run(Map<String, Object> vars) {
             script.getBinding().getVariables().putAll(vars);
             return script.run();
+        }
+
+        @Override public Object unwrap(Object value) {
+            return value;
         }
     }
 }

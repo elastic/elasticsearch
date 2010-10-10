@@ -61,6 +61,10 @@ public class RubyScriptEngineService extends AbstractComponent implements Script
         return null;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
+    @Override public Object unwrap(Object value) {
+        return null;
+    }
+
     @Override public void close() {
         container.clear();
     }

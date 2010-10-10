@@ -65,7 +65,7 @@ public class PythonScriptSearchTests {
         node.close();
     }
 
-    @Test public void testJavaScriptFilter() throws Exception {
+    @Test public void testPythonFilter() throws Exception {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())

@@ -34,5 +34,7 @@ public interface ScriptEngineService {
 
     Object execute(Object compiledScript, Map<String, Object> vars);
 
+    Object unwrap(Object value);
+
     void close();
 }

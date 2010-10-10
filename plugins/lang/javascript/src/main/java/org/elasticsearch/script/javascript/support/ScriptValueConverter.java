@@ -130,10 +130,8 @@ public final class ScriptValueConverter {
      * Convert an object from any repository serialized value to a valid script object.
      * This includes converting Collection multi-value properties into JavaScript Array objects.
      *
-     * @param services Repository Services Registry
-     * @param scope    Scripting scope
-     * @param qname    QName of the property value for conversion
-     * @param value    Property value
+     * @param scope Scripting scope
+     * @param value Property value
      * @return Value safe for scripting usage
      */
     public static Object wrapValue(Scriptable scope, Object value) {

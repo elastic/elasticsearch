@@ -75,6 +75,10 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         return new MvelExecutableScript(compiledScript, vars);
     }
 
+    @Override public Object unwrap(Object value) {
+        return value;
+    }
+
     public static class MvelExecutableScript implements ExecutableScript {
 
         private final Object compiledScript;
@@ -93,6 +97,10 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         @Override public Object run(Map vars) {
             vars.putAll(this.vars);
             return MVEL.executeExpression(compiledScript, vars);
+        }
+
+        @Override public Object unwrap(Object value) {
+            return value;
         }
     }
 }

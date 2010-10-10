@@ -116,6 +116,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
     }
 
+    @Override public Object unwrap(Object value) {
+        return ScriptValueConverter.unwrapValue(value);
+    }
+
     private String generateScriptName() {
         return "Script" + counter.incrementAndGet() + ".js";
     }
@@ -152,6 +156,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
             } finally {
                 Context.exit();
             }
+        }
+
+        @Override public Object unwrap(Object value) {
+            return ScriptValueConverter.unwrapValue(value);
         }
     }
 

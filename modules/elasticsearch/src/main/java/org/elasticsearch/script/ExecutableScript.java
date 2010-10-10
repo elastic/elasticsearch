@@ -40,4 +40,10 @@ public interface ExecutableScript {
      * Executes the script.
      */
     Object run(Map<String, Object> vars);
+
+    /**
+     * Unwraps a possible script value. For example, when passing vars and expecting the returned value to
+     * be part of the vars.
+     */
+    Object unwrap(Object value);
 }

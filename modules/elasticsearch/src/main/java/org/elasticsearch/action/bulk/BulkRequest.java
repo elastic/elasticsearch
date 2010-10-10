@@ -110,11 +110,11 @@ public class BulkRequest implements ActionRequest {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if ("index".equals(currentFieldName)) {
+                    if ("_index".equals(currentFieldName)) {
                         index = parser.text();
-                    } else if ("type".equals(currentFieldName)) {
+                    } else if ("_type".equals(currentFieldName)) {
                         type = parser.text();
-                    } else if ("id".equals(currentFieldName)) {
+                    } else if ("_id".equals(currentFieldName)) {
                         id = parser.text();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();

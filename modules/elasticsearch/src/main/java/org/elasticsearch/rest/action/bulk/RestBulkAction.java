@@ -28,6 +28,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -38,10 +39,10 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 
 /**
  * <pre>
- * { "index" : { "index" : "test", "type" : "type1", "id" : "1" }
+ * { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
- * { "delete" : { "index" : "test", "type" : "type1", "id" : "2" } }
- * { "create" : { "index" : "test", "type" : "type1", "id" : "1" }
+ * { "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
+ * { "create" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  *
@@ -77,15 +78,17 @@ public class RestBulkAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
 
-                    builder.startArray("items");
+                    builder.startArray(Fields.ITEMS);
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject();
                         builder.startObject(itemResponse.opType());
-                        builder.field("index", itemResponse.index());
-                        builder.field("type", itemResponse.type());
-                        builder.field("id", itemResponse.id());
+                        builder.field(Fields._INDEX, itemResponse.index());
+                        builder.field(Fields._TYPE, itemResponse.type());
+                        builder.field(Fields._ID, itemResponse.id());
                         if (itemResponse.failed()) {
-                            builder.field("error", itemResponse.failure().message());
+                            builder.field(Fields.ERROR, itemResponse.failure().message());
+                        } else {
+                            builder.field(Fields.OK, true);
                         }
                         builder.endObject();
                         builder.endObject();
@@ -109,12 +112,13 @@ public class RestBulkAction extends BaseRestHandler {
         });
     }
 
-    private int findNextMarker(byte marker, int from, byte[] data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data[i] == marker) {
-                return i;
-            }
-        }
-        return -1;
+    static final class Fields {
+        static final XContentBuilderString ITEMS = new XContentBuilderString("items");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
     }
+
 }

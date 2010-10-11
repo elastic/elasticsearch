@@ -1,23 +1,6 @@
-/*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.common;
+
+import java.nio.charset.Charset;
 
 /**
  * <p>Encodes and decodes to and from Base64 notation.</p>
@@ -246,7 +229,7 @@ public class Base64 {
     /**
      * Preferred encoding.
      */
-    private final static String PREFERRED_ENCODING = "US-ASCII";
+    public final static Charset PREFERRED_ENCODING = Charset.forName("US-ASCII");
 
 
     private final static byte WHITE_SPACE_ENC = -5; // Indicates white space in encoding
@@ -537,7 +520,7 @@ public class Base64 {
 
         byte[] ALPHABET = getAlphabet(options);
 
-        //           1         2         3  
+        //           1         2         3
         // 01234567890123456789012345678901 Bit position
         // --------000000001111111122222222 Array position from threeBytes
         // --------|    ||    ||    ||    | Six bit groups to index ALPHABET
@@ -736,13 +719,7 @@ public class Base64 {
         }   // end finally
 
         // Return value according to relevant encoding.
-        try {
-            return new String(baos.toByteArray(), PREFERRED_ENCODING);
-        }   // end try
-        catch (java.io.UnsupportedEncodingException uue) {
-            // Fall back to some Java default
-            return new String(baos.toByteArray());
-        }   // end catch
+        return new String(baos.toByteArray(), PREFERRED_ENCODING);
 
     }   // end encode
 
@@ -871,12 +848,7 @@ public class Base64 {
         byte[] encoded = encodeBytesToBytes(source, off, len, options);
 
         // Return value according to relevant encoding.
-        try {
-            return new String(encoded, PREFERRED_ENCODING);
-        }   // end try
-        catch (java.io.UnsupportedEncodingException uue) {
-            return new String(encoded);
-        }   // end catch
+        return new String(encoded, PREFERRED_ENCODING);
 
     }   // end encodeBytes
 
@@ -1235,7 +1207,7 @@ public class Base64 {
                 // There's a bad input character in the Base64 stream.
                 throw new java.io.IOException(String.format(
                         "Bad Base64 input character decimal %d in array position %d", ((int) source[i]) & 0xFF, i));
-            }   // end else: 
+            }   // end else:
         }   // each input character
 
         byte[] out = new byte[outBuffPosn];
@@ -1275,13 +1247,7 @@ public class Base64 {
             throw new NullPointerException("Input string was null.");
         }   // end if
 
-        byte[] bytes;
-        try {
-            bytes = s.getBytes(PREFERRED_ENCODING);
-        }   // end try
-        catch (java.io.UnsupportedEncodingException uee) {
-            bytes = s.getBytes();
-        }   // end catch
+        byte[] bytes = s.getBytes(PREFERRED_ENCODING);
         //</change>
 
         // Decode
@@ -1648,7 +1614,7 @@ public class Base64 {
             }
             catch (Exception ex) {
             }
-        }   // end finally    
+        }   // end finally
     }   // end encodeFileToFile
 
 
@@ -1679,7 +1645,7 @@ public class Base64 {
             }
             catch (Exception ex) {
             }
-        }   // end finally    
+        }   // end finally
     }   // end decodeFileToFile
 
 
@@ -1817,7 +1783,7 @@ public class Base64 {
                     else {
                         // Must have broken out from above.
                         throw new java.io.IOException("Improperly padded Base64 input.");
-                    }   // end 
+                    }   // end
 
                 }   // end else: decode
             }   // end else: get data

@@ -143,7 +143,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
                 if (allowIdGeneration) {
                     if (indexRequest.id() == null) {
-                        indexRequest.id(UUID.randomUUID().toString());
+                        indexRequest.id(UUID.randomBase64UUID());
                         // since we generate the id, change it to CREATE
                         indexRequest.opType(IndexRequest.OpType.CREATE);
                     }

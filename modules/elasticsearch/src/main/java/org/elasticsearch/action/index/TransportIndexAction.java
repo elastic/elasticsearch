@@ -82,7 +82,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Override protected void doExecute(final IndexRequest indexRequest, final ActionListener<IndexResponse> listener) {
         if (allowIdGeneration) {
             if (indexRequest.id() == null) {
-                indexRequest.id(UUID.randomUUID().toString());
+                indexRequest.id(UUID.randomBase64UUID());
                 // since we generate the id, change it to CREATE
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             }

@@ -136,7 +136,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override protected void doStart() throws ElasticSearchException {
         Map<String, String> nodeAttributes = buildCommonNodesAttributes(settings);
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
-        String nodeId = UUID.randomUUID().toString();
+        String nodeId = UUID.randomBase64UUID();
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         nodesFD.updateNodes(latestDiscoNodes);

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
+
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -103,6 +106,32 @@ public class UUID implements Comparable<UUID> {
         randomBytes[8] &= 0x3f;  /* clear variant        */
         randomBytes[8] |= 0x80;  /* set to IETF variant  */
         return new UUID(randomBytes);
+    }
+
+    public static String randomBase64UUID() {
+        SecureRandom ng = numberGenerator;
+        if (ng == null) {
+            numberGenerator = ng = new SecureRandom();
+        }
+
+        byte[] randomBytes = new byte[16];
+        ng.nextBytes(randomBytes);
+        randomBytes[6] &= 0x0f;  /* clear version        */
+        randomBytes[6] |= 0x40;  /* set to version 4     */
+        randomBytes[8] &= 0x3f;  /* clear variant        */
+        randomBytes[8] |= 0x80;  /* set to IETF variant  */
+
+
+        try {
+            byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
+            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
+            assert encoded[encoded.length - 1] == '=';
+            assert encoded[encoded.length - 2] == '=';
+            // we always have padding of two at the end, encode it differently
+            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalStateException("should not be thrown");
+        }
     }
 
     /**

@@ -76,7 +76,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
 
         private Integer precisionStep;
 
-        private int precision = GeoHashUtils.PRECISION;
+        private int precision = 16; // to get high precision
 
         private Field.Store store = Defaults.STORE;
 
@@ -114,7 +114,8 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
-            GeoHashFieldMapper geohashMapper = new GeoHashFieldMapper.Builder(name).includeInAll(false).build(context);
+            GeoHashFieldMapper geohashMapper = new GeoHashFieldMapper.Builder(name)
+                    .index(Field.Index.NOT_ANALYZED).omitNorms(true).omitTermFreqAndPositions(true).includeInAll(false).store(store).build(context);
 
 
             NumberFieldMapper latMapper = null;

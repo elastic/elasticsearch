@@ -76,7 +76,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
 
         private Integer precisionStep;
 
-        private int precision = 16; // to get high precision
+        private int precision = GeoHashUtils.PRECISION;
 
         private Field.Store store = Defaults.STORE;
 

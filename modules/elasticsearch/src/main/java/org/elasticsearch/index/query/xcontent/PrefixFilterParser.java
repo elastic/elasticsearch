@@ -53,6 +53,7 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        boolean cache = true; // default to true, make sense to cache prefix
         String fieldName = null;
         String value = null;
 
@@ -65,6 +66,8 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 } else {
                     fieldName = currentFieldName;
                     value = parser.text();
@@ -85,6 +88,9 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
         }
 
         Filter filter = new PrefixFilter(new Term(fieldName, value));
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

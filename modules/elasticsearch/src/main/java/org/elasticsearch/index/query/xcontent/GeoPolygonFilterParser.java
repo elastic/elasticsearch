@@ -69,6 +69,7 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        boolean cache = false;
         String fieldName = null;
         List<GeoPolygonFilter.Point> points = Lists.newArrayList();
 
@@ -140,6 +141,8 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
@@ -159,6 +162,9 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
         fieldName = mapper.names().indexName();
 
         Filter filter = new GeoPolygonFilter(points.toArray(new GeoPolygonFilter.Point[points.size()]), fieldName, parseContext.indexCache().fieldData());
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

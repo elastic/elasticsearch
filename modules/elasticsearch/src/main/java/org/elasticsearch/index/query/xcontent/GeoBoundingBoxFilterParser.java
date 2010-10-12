@@ -56,6 +56,7 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        boolean cache = false;
         String fieldName = null;
         GeoBoundingBoxFilter.Point topLeft = new GeoBoundingBoxFilter.Point();
         GeoBoundingBoxFilter.Point bottomRight = new GeoBoundingBoxFilter.Point();
@@ -143,6 +144,8 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
@@ -160,6 +163,9 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
 
 
         Filter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

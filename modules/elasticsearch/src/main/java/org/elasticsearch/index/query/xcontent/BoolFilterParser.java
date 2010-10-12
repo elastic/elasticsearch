@@ -56,7 +56,7 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
 
         List<OpenFilterClause> clauses = newArrayList();
 
-        boolean cache = true;
+        boolean cache = false;
 
         String filterName = null;
         String currentFieldName = null;
@@ -95,16 +95,14 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
             }
         }
 
-        XBooleanFilter filter = new XBooleanFilter();
+        XBooleanFilter boolFilter = new XBooleanFilter();
         for (OpenFilterClause filterClause : clauses) {
-
-            if (cache) {
-                filterClause.setFilter(parseContext.cacheFilterIfPossible(filterClause.getFilter()));
-            }
-
-            filter.add(filterClause);
+            boolFilter.add(filterClause);
         }
-        // no need to cache this one, inner queries will be cached and that's is  good enough (I think...)
+        Filter filter = boolFilter;
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

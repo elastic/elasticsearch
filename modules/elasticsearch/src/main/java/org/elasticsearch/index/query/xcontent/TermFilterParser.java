@@ -53,6 +53,7 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        boolean cache = true; // we want to cache term by default
         String fieldName = null;
         String value = null;
 
@@ -65,6 +66,8 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 } else {
                     fieldName = currentFieldName;
                     value = parser.text();
@@ -85,6 +88,9 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
         }
         if (filter == null) {
             filter = new TermFilter(new Term(fieldName, value));
+        }
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
         }
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {

@@ -83,7 +83,7 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
 
         // cache if required
         if (cache) {
-            filter = parseContext.cacheFilterIfPossible(filter);
+            filter = parseContext.cacheFilter(filter);
         }
 
         // we don't cache the filter, we assume it is already cached in the filter parsers...

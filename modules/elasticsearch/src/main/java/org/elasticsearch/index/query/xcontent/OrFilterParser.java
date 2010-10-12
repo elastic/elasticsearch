@@ -54,7 +54,7 @@ public class OrFilterParser extends AbstractIndexComponent implements XContentFi
 
         ArrayList<Filter> filters = newArrayList();
 
-        boolean cache = true;
+        boolean cache = false;
 
         String filterName = null;
         String currentFieldName = null;
@@ -91,13 +91,11 @@ public class OrFilterParser extends AbstractIndexComponent implements XContentFi
             throw new QueryParsingException(index, "[or] filter requires 'filters' to be set on it'");
         }
 
-        if (cache) {
-            for (int i = 0; i < filters.size(); i++) {
-                filters.set(i, parseContext.cacheFilterIfPossible(filters.get(i)));
-            }
-        }
         // no need to cache this one
-        OrFilter filter = new OrFilter(filters);
+        Filter filter = new OrFilter(filters);
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

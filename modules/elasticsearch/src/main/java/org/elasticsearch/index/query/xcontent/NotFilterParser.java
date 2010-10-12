@@ -50,7 +50,7 @@ public class NotFilterParser extends AbstractIndexComponent implements XContentF
         XContentParser parser = parseContext.parser();
 
         Filter filter = null;
-        boolean cache = true;
+        boolean cache = false;
 
         String filterName = null;
         String currentFieldName = null;
@@ -75,11 +75,10 @@ public class NotFilterParser extends AbstractIndexComponent implements XContentF
             throw new QueryParsingException(index, "filter is required when using `not` filter");
         }
 
+        Filter notFilter = new NotFilter(filter);
         if (cache) {
-            filter = parseContext.cacheFilterIfPossible(filter);
+            notFilter = parseContext.cacheFilter(notFilter);
         }
-        // no need to cache this one
-        NotFilter notFilter = new NotFilter(filter);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, notFilter);
         }

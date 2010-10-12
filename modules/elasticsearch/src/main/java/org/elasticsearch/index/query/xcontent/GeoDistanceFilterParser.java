@@ -67,6 +67,7 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
 
         XContentParser.Token token;
 
+        boolean cache = false;
         String filterName = null;
         String currentFieldName = null;
         double lat = 0;
@@ -130,6 +131,8 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 } else {
                     // assume the value is the actual value
                     String value = parser.text();
@@ -162,6 +165,9 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
         fieldName = mapper.names().indexName();
 
         Filter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, fieldName, parseContext.indexCache().fieldData());
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

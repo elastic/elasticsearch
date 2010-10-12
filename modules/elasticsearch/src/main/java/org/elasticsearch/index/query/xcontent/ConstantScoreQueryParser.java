@@ -81,7 +81,7 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
         Query query;
         if (cache) {
             Filter nonCachedFilter = filter;
-            filter = parseContext.cacheFilterIfPossible(filter);
+            filter = parseContext.cacheFilter(filter);
             if (parseContext.indexEngine().readerClonedOnDeletion() && (filter != nonCachedFilter)) {
                 query = new DeletionAwareConstantScoreQuery(filter, true);
             } else {

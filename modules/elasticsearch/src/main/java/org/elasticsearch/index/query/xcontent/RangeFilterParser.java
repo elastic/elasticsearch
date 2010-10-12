@@ -52,6 +52,7 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        boolean cache = true; // default to true, usually same range are used, I think....
         String fieldName = null;
         String from = null;
         String to = null;
@@ -96,6 +97,8 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
@@ -109,6 +112,9 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
         }
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
+        }
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
         }
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {

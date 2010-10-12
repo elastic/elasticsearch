@@ -68,6 +68,14 @@ public class GeoBoundingBoxFilter extends Filter {
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
             return new GetDocSet(reader.maxDoc()) {
+
+                @Override public boolean isCacheable() {
+                    // not cacheable for several reasons:
+                    // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
+                    // 2. Its already fast without in mem bitset, since it works with field data
+                    return false;
+                }
+
                 @Override public boolean get(int doc) throws IOException {
                     if (!fieldData.hasValue(doc)) {
                         return false;
@@ -107,6 +115,14 @@ public class GeoBoundingBoxFilter extends Filter {
             };
         } else {
             return new GetDocSet(reader.maxDoc()) {
+
+                @Override public boolean isCacheable() {
+                    // not cacheable for several reasons:
+                    // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
+                    // 2. Its already fast without in mem bitset, since it works with field data
+                    return false;
+                }
+
                 @Override public boolean get(int doc) throws IOException {
                     if (!fieldData.hasValue(doc)) {
                         return false;

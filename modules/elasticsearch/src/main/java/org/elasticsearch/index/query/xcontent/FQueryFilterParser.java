@@ -54,6 +54,7 @@ public class FQueryFilterParser extends AbstractIndexComponent implements XConte
         XContentParser parser = parseContext.parser();
 
         Query query = null;
+        boolean cache = false;
 
         String filterName = null;
         String currentFieldName = null;
@@ -68,10 +69,15 @@ public class FQueryFilterParser extends AbstractIndexComponent implements XConte
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
         Filter filter = new QueryWrapperFilter(query);
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

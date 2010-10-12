@@ -80,7 +80,11 @@ public class GeoDistanceFilter extends Filter {
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
         return new GetDocSet(reader.maxDoc()) {
+
             @Override public boolean isCacheable() {
+                // not cacheable for several reasons:
+                // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
+                // 2. Its already fast without in mem bitset, since it works with field data
                 return false;
             }
 

@@ -54,7 +54,7 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
 
         ArrayList<Filter> filters = newArrayList();
 
-        boolean cache = true;
+        boolean cache = false;
 
         String filterName = null;
         String currentFieldName = null;
@@ -91,13 +91,11 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
             throw new QueryParsingException(index, "[or] filter requires 'filters' to be set on it'");
         }
 
-        if (cache) {
-            for (int i = 0; i < filters.size(); i++) {
-                filters.set(i, parseContext.cacheFilterIfPossible(filters.get(i)));
-            }
-        }
         // no need to cache this one
-        AndFilter filter = new AndFilter(filters);
+        Filter filter = new AndFilter(filters);
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

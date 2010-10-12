@@ -56,6 +56,7 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
         XContentParser parser = parseContext.parser();
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = null;
+        boolean cache = false;
         TermsFilter termsFilter = new PublicTermsFilter();
         String filterName = null;
         String currentFieldName = null;
@@ -87,11 +88,18 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
 
-        Filter filter = wrapSmartNameFilter(termsFilter, smartNameFieldMappers, parseContext);
+        Filter filter = termsFilter;
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
+
+        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

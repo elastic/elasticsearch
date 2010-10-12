@@ -108,7 +108,7 @@ public class QueryParseContext {
         return multiFieldQueryParser;
     }
 
-    public Filter cacheFilterIfPossible(Filter filter) {
+    public Filter cacheFilter(Filter filter) {
         return indexQueryParser.indexCache.filter().cache(filter);
     }
 

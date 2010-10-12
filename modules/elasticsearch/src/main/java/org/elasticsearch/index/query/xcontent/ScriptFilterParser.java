@@ -30,8 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.script.ScriptService;
@@ -61,6 +59,8 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
 
         XContentParser.Token token;
 
+        boolean cache = false; // no need to cache it by default, changes a lot?
+        // also, when caching, since its isCacheable is false, will result in loading all bit set...
         String script = null;
         String scriptLang = null;
         Map<String, Object> params = null;
@@ -81,6 +81,8 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
                     scriptLang = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
@@ -92,7 +94,10 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
             params = Maps.newHashMap();
         }
 
-        Filter filter = new ScriptFilter(scriptLang, script, params, parseContext.mapperService(), parseContext.indexCache().fieldData(), parseContext.scriptService());
+        Filter filter = new ScriptFilter(scriptLang, script, params, parseContext.scriptService());
+        if (cache) {
+            filter = parseContext.cacheFilter(filter);
+        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }
@@ -101,26 +106,22 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
 
     public static class ScriptFilter extends Filter {
 
-        private final String scriptLang;
-
         private final String script;
 
         private final Map<String, Object> params;
 
-        private final MapperService mapperService;
+        private final SearchScript searchScript;
 
-        private final FieldDataCache fieldDataCache;
-
-        private final ScriptService scriptService;
-
-        private ScriptFilter(String scriptLang, String script, Map<String, Object> params,
-                             MapperService mapperService, FieldDataCache fieldDataCache, ScriptService scriptService) {
-            this.scriptLang = scriptLang;
+        private ScriptFilter(String scriptLang, String script, Map<String, Object> params, ScriptService scriptService) {
             this.script = script;
             this.params = params;
-            this.mapperService = mapperService;
-            this.fieldDataCache = fieldDataCache;
-            this.scriptService = scriptService;
+
+            SearchContext context = SearchContext.current();
+            if (context == null) {
+                throw new ElasticSearchIllegalStateException("No search context on going...");
+            }
+
+            this.searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, scriptService);
         }
 
         @Override public String toString() {
@@ -150,31 +151,40 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         }
 
         @Override public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
-            SearchContext context = SearchContext.current();
-            if (context == null) {
-                throw new ElasticSearchIllegalStateException("No search context on going...");
-            }
-            final SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, scriptService);
             searchScript.setNextReader(reader);
-            return new GetDocSet(reader.maxDoc()) {
-                @Override public boolean isCacheable() {
-                    return false; // though it is, we want to cache it into in memory rep so it will be faster
-                }
+            return new ScriptDocSet(reader, searchScript);
+        }
 
-                @Override public boolean get(int doc) throws IOException {
-                    Object val = searchScript.execute(doc, params);
-                    if (val == null) {
-                        return false;
-                    }
-                    if (val instanceof Boolean) {
-                        return (Boolean) val;
-                    }
-                    if (val instanceof Number) {
-                        return ((Number) val).longValue() != 0;
-                    }
-                    throw new IOException("Can't handle type [" + val + "] in script filter");
+        static class ScriptDocSet extends GetDocSet {
+
+            private final SearchScript searchScript;
+
+            public ScriptDocSet(IndexReader reader, SearchScript searchScript) {
+                super(reader.maxDoc());
+                this.searchScript = searchScript;
+            }
+
+            @Override public boolean isCacheable() {
+                // not cacheable for several reasons:
+                // 1. The script service is shared and holds the current reader executing against, and it
+                //    gets changed on each getDocIdSet (which is fine for sequential reader search)
+                // 2. If its really going to be cached (the _cache setting), its better to just load it into in memory bitset
+                return false;
+            }
+
+            @Override public boolean get(int doc) throws IOException {
+                Object val = searchScript.execute(doc);
+                if (val == null) {
+                    return false;
                 }
-            };
+                if (val instanceof Boolean) {
+                    return (Boolean) val;
+                }
+                if (val instanceof Number) {
+                    return ((Number) val).longValue() != 0;
+                }
+                throw new IOException("Can't handle type [" + val + "] in script filter");
+            }
         }
     }
 }

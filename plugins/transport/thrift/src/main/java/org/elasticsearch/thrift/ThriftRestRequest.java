@@ -19,6 +19,7 @@
 
 package org.elasticsearch.thrift;
 
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.rest.support.AbstractRestRequest;
@@ -87,18 +88,30 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
     }
 
     @Override public byte[] contentByteArray() {
+        if (!request.isSetBody()) {
+            return Bytes.EMPTY_ARRAY;
+        }
         return request.getBody().array();
     }
 
     @Override public int contentByteArrayOffset() {
+        if (!request.isSetBody()) {
+            return 0;
+        }
         return request.getBody().arrayOffset();
     }
 
     @Override public int contentLength() {
+        if (!request.isSetBody()) {
+            return 0;
+        }
         return request.getBody().remaining();
     }
 
     @Override public String contentAsString() {
+        if (!request.isSetBody()) {
+            return "";
+        }
         return Unicode.fromBytes(contentByteArray(), contentByteArrayOffset(), contentLength());
     }
 

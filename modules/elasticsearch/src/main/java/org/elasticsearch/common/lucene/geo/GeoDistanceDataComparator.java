@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
@@ -139,8 +138,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
             // is this true? push this to the "end"
             distance = Double.MAX_VALUE;
         } else {
-            GeoPoint point = fieldData.value(doc);
-            distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
+            distance = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), unit);
         }
         final double v2 = distance;
         if (bottom > v2) {
@@ -158,8 +156,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
             // is this true? push this to the "end"
             distance = Double.MAX_VALUE;
         } else {
-            GeoPoint point = fieldData.value(doc);
-            distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
+            distance = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), unit);
         }
         values[slot] = distance;
     }

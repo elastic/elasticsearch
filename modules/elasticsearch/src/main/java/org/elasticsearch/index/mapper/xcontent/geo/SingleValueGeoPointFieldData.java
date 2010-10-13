@@ -19,33 +19,42 @@
 
 package org.elasticsearch.index.mapper.xcontent.geo;
 
+import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SingleValueGeoPointFieldData extends GeoPointFieldData {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>>() {
+    private static ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>> valuesArrayCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPoint[]>>() {
         @Override protected ThreadLocals.CleanableValue<GeoPoint[]> initialValue() {
-            return new ThreadLocals.CleanableValue<GeoPoint[]>(new GeoPoint[1]);
+            GeoPoint[] value = new GeoPoint[1];
+            value[0] = new GeoPoint();
+            return new ThreadLocals.CleanableValue<GeoPoint[]>(value);
         }
     };
+
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> valuesLatCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
+        }
+    };
+
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> valuesLonCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
+        }
+    };
+
 
     // order with value 0 indicates no value
     private final int[] order;
 
-    public SingleValueGeoPointFieldData(String fieldName, int[] order, GeoPoint[] values) {
-        super(fieldName, values);
+    public SingleValueGeoPointFieldData(String fieldName, int[] order, double[] lat, double[] lon) {
+        super(fieldName, lat, lon);
         this.order = order;
-    }
-
-    int[] order() {
-        return order;
-    }
-
-    GeoPoint[] values() {
-        return this.values;
     }
 
     @Override public boolean multiValued() {
@@ -61,11 +70,17 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         if (loc == 0) {
             return;
         }
-        proc.onValue(docId, values[loc].geohash());
+        proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
     }
 
     @Override public GeoPoint value(int docId) {
-        return values[order[docId]];
+        int loc = order[docId];
+        if (loc == 0) {
+            return null;
+        }
+        GeoPoint point = valuesCache.get().get();
+        point.latlon(lat[loc], lon[loc]);
+        return point;
     }
 
     @Override public GeoPoint[] values(int docId) {
@@ -73,8 +88,36 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         if (loc == 0) {
             return EMPTY_ARRAY;
         }
-        GeoPoint[] ret = valuesCache.get().get();
-        ret[0] = values[loc];
+        GeoPoint[] ret = valuesArrayCache.get().get();
+        ret[0].latlon(lat[loc], lon[loc]);
+        return ret;
+    }
+
+    @Override public double latValue(int docId) {
+        return lat[order[docId]];
+    }
+
+    @Override public double lonValue(int docId) {
+        return lon[order[docId]];
+    }
+
+    @Override public double[] latValues(int docId) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+        }
+        double[] ret = valuesLatCache.get().get();
+        ret[0] = lat[loc];
+        return ret;
+    }
+
+    @Override public double[] lonValues(int docId) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+        }
+        double[] ret = valuesLonCache.get().get();
+        ret[0] = lon[loc];
         return ret;
     }
 }

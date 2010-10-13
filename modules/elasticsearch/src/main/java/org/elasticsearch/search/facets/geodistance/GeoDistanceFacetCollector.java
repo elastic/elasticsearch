@@ -24,7 +24,6 @@ import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 import org.elasticsearch.search.facets.Facet;
@@ -94,9 +93,10 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         }
 
         if (fieldData.multiValued()) {
-            GeoPoint[] points = fieldData.values(doc);
-            for (GeoPoint point : points) {
-                double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
+            double[] lats = fieldData.latValues(doc);
+            double[] lons = fieldData.lonValues(doc);
+            for (int i = 0; i < lats.length; i++) {
+                double distance = geoDistance.calculate(lat, lon, lats[i], lons[i], unit);
                 for (GeoDistanceFacet.Entry entry : entries) {
                     if (distance >= entry.getFrom() && distance < entry.getTo()) {
                         entry.count++;
@@ -105,8 +105,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
                 }
             }
         } else {
-            GeoPoint point = fieldData.value(doc);
-            double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
+            double distance = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), unit);
             for (GeoDistanceFacet.Entry entry : entries) {
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
                     entry.count++;

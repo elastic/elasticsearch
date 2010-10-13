@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
@@ -73,15 +72,17 @@ public class GeoPolygonFilter extends Filter {
                 }
 
                 if (fieldData.multiValued()) {
-                    GeoPoint[] docPoints = fieldData.values(doc);
-                    for (GeoPoint docPoint : docPoints) {
-                        if (pointInPolygon(points, docPoint.lat(), docPoint.lon())) {
+                    double[] lats = fieldData.latValues(doc);
+                    double[] lons = fieldData.lonValues(doc);
+                    for (int i = 0; i < lats.length; i++) {
+                        if (pointInPolygon(points, lats[i], lons[i])) {
                             return true;
                         }
                     }
                 } else {
-                    GeoPoint point = fieldData.value(doc);
-                    return pointInPolygon(points, point.lat(), point.lon());
+                    double lat = fieldData.latValue(doc);
+                    double lon = fieldData.lonValue(doc);
+                    return pointInPolygon(points, lat, lon);
                 }
                 return false;
             }

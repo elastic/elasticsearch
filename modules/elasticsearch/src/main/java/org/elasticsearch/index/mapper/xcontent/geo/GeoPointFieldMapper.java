@@ -72,6 +72,8 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
+        private boolean enableGeoHash = false;
+
         private boolean enableLatLon = false;
 
         private Integer precisionStep;
@@ -87,6 +89,11 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
 
         public Builder pathType(ContentPath.Type pathType) {
             this.pathType = pathType;
+            return this;
+        }
+
+        public Builder enableGeoHash(boolean enableGeoHash) {
+            this.enableGeoHash = enableGeoHash;
             return this;
         }
 
@@ -114,7 +121,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
-            GeoHashFieldMapper geohashMapper = new GeoHashFieldMapper.Builder(name)
+            GeoStringFieldMapper geoStringMapper = new GeoStringFieldMapper.Builder(name)
                     .index(Field.Index.NOT_ANALYZED).omitNorms(true).omitTermFreqAndPositions(true).includeInAll(false).store(store).build(context);
 
 
@@ -132,11 +139,15 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
                 latMapper = (NumberFieldMapper) latMapperBuilder.includeInAll(false).store(store).build(context);
                 lonMapper = (NumberFieldMapper) lonMapperBuilder.includeInAll(false).store(store).build(context);
             }
+            StringFieldMapper geohashMapper = null;
+            if (enableGeoHash) {
+                geohashMapper = stringField(Names.GEOHASH).index(Field.Index.NOT_ANALYZED).includeInAll(false).omitNorms(true).omitTermFreqAndPositions(true).build(context);
+            }
             context.path().remove();
 
             context.path().pathType(origPathType);
 
-            return new GeoPointFieldMapper(name, pathType, enableLatLon, precisionStep, precision, latMapper, lonMapper, geohashMapper);
+            return new GeoPointFieldMapper(name, pathType, enableLatLon, enableGeoHash, precisionStep, precision, latMapper, lonMapper, geohashMapper, geoStringMapper);
         }
     }
 
@@ -153,9 +164,11 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
                     builder.store(parseStore(name, fieldNode.toString()));
                 } else if (fieldName.equals("lat_lon")) {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("geohash")) {
+                    builder.enableGeoHash(XContentMapValues.nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(fieldNode));
-                } else if (fieldName.equals("precision")) {
+                } else if (fieldName.equals("geohash_precision")) {
                     builder.precision(XContentMapValues.nodeIntegerValue(fieldNode));
                 }
             }
@@ -169,6 +182,8 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
 
     private final boolean enableLatLon;
 
+    private final boolean enableGeoHash;
+
     private final Integer precisionStep;
 
     private final int precision;
@@ -179,16 +194,20 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
 
     private final StringFieldMapper geohashMapper;
 
-    public GeoPointFieldMapper(String name, ContentPath.Type pathType, boolean enableLatLon, Integer precisionStep, int precision,
-                               NumberFieldMapper latMapper, NumberFieldMapper lonMapper, StringFieldMapper geohashMapper) {
+    private final StringFieldMapper geoStringMapper;
+
+    public GeoPointFieldMapper(String name, ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, Integer precisionStep, int precision,
+                               NumberFieldMapper latMapper, NumberFieldMapper lonMapper, StringFieldMapper geohashMapper, StringFieldMapper geoStringMapper) {
         this.name = name;
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
+        this.enableGeoHash = enableGeoHash;
         this.precisionStep = precisionStep;
         this.precision = precision;
 
         this.latMapper = latMapper;
         this.lonMapper = lonMapper;
+        this.geoStringMapper = geoStringMapper;
         this.geohashMapper = geohashMapper;
     }
 
@@ -287,8 +306,12 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
     }
 
     private void parseLatLon(ParseContext context, Double lat, Double lon) throws IOException {
-        context.externalValue(GeoHashUtils.encode(lat, lon, precision));
-        geohashMapper.parse(context);
+        context.externalValue(lat.toString() + ',' + lon.toString());
+        geoStringMapper.parse(context);
+        if (enableGeoHash) {
+            context.externalValue(GeoHashUtils.encode(lat, lon, precision));
+            geohashMapper.parse(context);
+        }
         if (enableLatLon) {
             context.externalValue(lat);
             latMapper.parse(context);
@@ -298,10 +321,14 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
     }
 
     private void parseGeohash(ParseContext context, String geohash) throws IOException {
-        context.externalValue(geohash);
-        geohashMapper.parse(context);
+        double[] values = GeoHashUtils.decode(geohash);
+        context.externalValue(Double.toString(values[0]) + ',' + Double.toString(values[1]));
+        geoStringMapper.parse(context);
+        if (enableGeoHash) {
+            context.externalValue(geohash);
+            geohashMapper.parse(context);
+        }
         if (enableLatLon) {
-            double[] values = GeoHashUtils.decode(geohash);
             context.externalValue(values[0]);
             latMapper.parse(context);
             context.externalValue(values[1]);
@@ -314,7 +341,10 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
     }
 
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
-        geohashMapper.traverse(fieldMapperListener);
+        geoStringMapper.traverse(fieldMapperListener);
+        if (enableGeoHash) {
+            geohashMapper.traverse(fieldMapperListener);
+        }
         if (enableLatLon) {
             latMapper.traverse(fieldMapperListener);
             lonMapper.traverse(fieldMapperListener);
@@ -326,12 +356,9 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
         builder.field("type", CONTENT_TYPE);
         builder.field("path", pathType.name().toLowerCase());
         builder.field("lat_lon", enableLatLon);
-        if (latMapper != null) {
-            builder.field("store", latMapper.store().name().toLowerCase());
-        } else if (geohashMapper != null) {
-            builder.field("store", geohashMapper.store().name().toLowerCase());
-        }
-        builder.field("precision", precision);
+        builder.field("geohash", enableGeoHash);
+        builder.field("store", geoStringMapper.store().name().toLowerCase());
+        builder.field("geohash_precision", precision);
         if (precisionStep != null) {
             builder.field("precision_step", precisionStep);
         }
@@ -339,7 +366,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
         builder.endObject();
     }
 
-    public static class GeoHashFieldMapper extends StringFieldMapper {
+    public static class GeoStringFieldMapper extends StringFieldMapper {
 
         public static class Builder extends AbstractFieldMapper.OpenBuilder<Builder, StringFieldMapper> {
 
@@ -360,8 +387,8 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
                 return this;
             }
 
-            @Override public GeoHashFieldMapper build(BuilderContext context) {
-                GeoHashFieldMapper fieldMapper = new GeoHashFieldMapper(buildNames(context),
+            @Override public GeoStringFieldMapper build(BuilderContext context) {
+                GeoStringFieldMapper fieldMapper = new GeoStringFieldMapper(buildNames(context),
                         index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
                         indexAnalyzer, searchAnalyzer);
                 fieldMapper.includeInAll(includeInAll);
@@ -369,7 +396,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
             }
         }
 
-        public GeoHashFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, boolean omitTermFreqAndPositions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+        public GeoStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, boolean omitTermFreqAndPositions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
             super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer, searchAnalyzer);
         }
 

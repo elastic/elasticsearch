@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.xcontent.geo;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -86,8 +85,6 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
 
         private final ArrayList<GeoPoint> terms = new ArrayList<GeoPoint>();
 
-        private final double[] latlon = new double[2];
-
         StringTypeLoader() {
             super();
             // the first one indicates null value
@@ -95,8 +92,10 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
         }
 
         @Override public void collectTerm(String term) {
-            GeoHashUtils.decode(term, latlon);
-            terms.add(new GeoPoint(latlon[0], latlon[1]));
+            int comma = term.indexOf(',');
+            double lat = Double.parseDouble(term.substring(0, comma));
+            double lon = Double.parseDouble(term.substring(comma + 1));
+            terms.add(new GeoPoint(lat, lon));
         }
 
         @Override public GeoPointFieldData buildSingleValue(String field, int[] order) {

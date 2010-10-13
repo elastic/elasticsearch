@@ -52,7 +52,8 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), nullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonValuesStored() throws Exception {
@@ -72,7 +73,8 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().getField("point.geohash"), nullValue());
+        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testArrayLatLonValues() throws Exception {
@@ -95,10 +97,10 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.doc().getFields("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getFields("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
         assertThat(doc.doc().getFields("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
         assertThat(doc.doc().getFields("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo(GeoHashUtils.encode(1.4, 1.5)));
+        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
@@ -116,7 +118,7 @@ public class LatLonMappingGeoPointTests {
 
         assertThat(doc.doc().getField("point.lat"), notNullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonInOneValueStored() throws Exception {
@@ -136,7 +138,7 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonInOneValueArray() throws Exception {
@@ -159,10 +161,10 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.doc().getFields("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getFields("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
         assertThat(doc.doc().getFields("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
         assertThat(doc.doc().getFields("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo(GeoHashUtils.encode(1.4, 1.5)));
+        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
     @Test public void testGeoHashValue() throws Exception {
@@ -180,7 +182,7 @@ public class LatLonMappingGeoPointTests {
 
         assertThat(doc.doc().getField("point.lat"), notNullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().get("point"), notNullValue());
     }
 
     @Test public void testLatLonArray() throws Exception {
@@ -200,7 +202,7 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), nullValue());
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonArrayStored() throws Exception {
@@ -220,7 +222,7 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getField("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getField("point.lon"), notNullValue());
         assertThat(doc.doc().getField("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().get("point"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonArrayArrayStored() throws Exception {
@@ -243,9 +245,9 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.doc().getFields("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
         assertThat(doc.doc().getFields("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.doc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
         assertThat(doc.doc().getFields("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
         assertThat(doc.doc().getFields("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo(GeoHashUtils.encode(1.4, 1.5)));
+        assertThat(doc.doc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 }

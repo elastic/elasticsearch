@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
@@ -82,30 +81,34 @@ public class GeoBoundingBoxFilter extends Filter {
                     }
 
                     if (fieldData.multiValued()) {
-                        GeoPoint[] points = fieldData.values(doc);
-                        for (GeoPoint point : points) {
-                            if (point.lon() < 0) {
-                                if (-180.0 <= point.lon() && bottomRight.lon >= point.lon()
-                                        && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
+                        double[] lats = fieldData.latValues(doc);
+                        double[] lons = fieldData.lonValues(doc);
+                        for (int i = 0; i < lats.length; i++) {
+                            double lat = lats[i];
+                            double lon = lons[i];
+                            if (lon < 0) {
+                                if (-180.0 <= lon && bottomRight.lon >= lon
+                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
                                     return true;
                                 }
                             } else {
-                                if (topLeft.lon <= point.lon() && 180 >= point.lon()
-                                        && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
+                                if (topLeft.lon <= lon && 180 >= lon
+                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
                                     return true;
                                 }
                             }
                         }
                     } else {
-                        GeoPoint point = fieldData.value(doc);
-                        if (point.lon() < 0) {
-                            if (-180.0 <= point.lon() && bottomRight.lon >= point.lon()
-                                    && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
+                        double lat = fieldData.latValue(doc);
+                        double lon = fieldData.lonValue(doc);
+                        if (lon < 0) {
+                            if (-180.0 <= lon && bottomRight.lon >= lon
+                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
                                 return true;
                             }
                         } else {
-                            if (topLeft.lon <= point.lon() && 180 >= point.lon()
-                                    && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
+                            if (topLeft.lon <= lon && 180 >= lon
+                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
                                 return true;
                             }
                         }
@@ -129,18 +132,20 @@ public class GeoBoundingBoxFilter extends Filter {
                     }
 
                     if (fieldData.multiValued()) {
-                        GeoPoint[] points = fieldData.values(doc);
-                        for (GeoPoint point : points) {
-                            if (topLeft.lon <= point.lon() && bottomRight.lon >= point.lon()
-                                    && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
+                        double[] lats = fieldData.latValues(doc);
+                        double[] lons = fieldData.lonValues(doc);
+                        for (int i = 0; i < lats.length; i++) {
+                            if (topLeft.lon <= lons[i] && bottomRight.lon >= lons[i]
+                                    && topLeft.lat >= lats[i] && bottomRight.lat <= lats[i]) {
                                 return true;
                             }
                         }
                     } else {
-                        GeoPoint point = fieldData.value(doc);
+                        double lat = fieldData.latValue(doc);
+                        double lon = fieldData.lonValue(doc);
 
-                        if (topLeft.lon <= point.lon() && bottomRight.lon >= point.lon()
-                                && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
+                        if (topLeft.lon <= lon && bottomRight.lon >= lon
+                                && topLeft.lat >= lat && bottomRight.lat <= lat) {
                             return true;
                         }
                     }

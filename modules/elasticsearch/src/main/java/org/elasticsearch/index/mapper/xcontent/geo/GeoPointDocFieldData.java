@@ -37,4 +37,20 @@ public class GeoPointDocFieldData extends DocFieldData<GeoPointFieldData> {
     public GeoPoint[] getValues() {
         return fieldData.values(docId);
     }
+
+    public double getLat() {
+        return fieldData.latValue(docId);
+    }
+
+    public double getLon() {
+        return fieldData.lonValue(docId);
+    }
+
+    public double[] getLats() {
+        return fieldData.latValues(docId);
+    }
+
+    public double[] getLons() {
+        return fieldData.lonValues(docId);
+    }
 }

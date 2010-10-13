@@ -26,11 +26,19 @@ import org.elasticsearch.common.lucene.geo.GeoHashUtils;
  */
 public class GeoPoint {
 
-    private final double lat;
+    private double lat;
 
-    private final double lon;
+    private double lon;
+
+    GeoPoint() {
+    }
 
     public GeoPoint(double lat, double lon) {
+        this.lat = lat;
+        this.lon = lon;
+    }
+
+    void latlon(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
     }

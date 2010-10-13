@@ -25,7 +25,6 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 
@@ -94,17 +93,17 @@ public class GeoDistanceFilter extends Filter {
                 }
 
                 if (fieldData.multiValued()) {
-                    GeoPoint[] points = fieldData.values(doc);
-                    for (GeoPoint point : points) {
-                        double d = geoDistance.calculate(lat, lon, point.lat(), point.lon(), DistanceUnit.MILES);
+                    double[] lats = fieldData.latValues(doc);
+                    double[] lons = fieldData.lonValues(doc);
+                    for (int i = 0; i < lats.length; i++) {
+                        double d = geoDistance.calculate(lat, lon, lats[i], lons[i], DistanceUnit.MILES);
                         if (d < distance) {
                             return true;
                         }
                     }
                     return false;
                 } else {
-                    GeoPoint point = fieldData.value(doc);
-                    double d = geoDistance.calculate(lat, lon, point.lat(), point.lon(), DistanceUnit.MILES);
+                    double d = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), DistanceUnit.MILES);
                     return d < distance;
                 }
             }

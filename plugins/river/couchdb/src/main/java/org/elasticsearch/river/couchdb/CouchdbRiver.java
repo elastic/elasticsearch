@@ -186,7 +186,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             return seq;
         }
 
-        if (map.containsKey("delete") && map.get("deleted").equals("true")) {
+        if (map.containsKey("deleted") && map.get("deleted").equals(Boolean.TRUE)) {
             bulk.add(deleteRequest(indexName).type(typeName).id(id));
         } else if (map.containsKey("doc")) {
             Map<String, Object> doc = (Map<String, Object>) map.get("doc");

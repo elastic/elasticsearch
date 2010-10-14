@@ -2,21 +2,25 @@
     "person" : {
         "dynamic_templates" : [
             {
-                "match" : "multi*",
-                "mapping" : {
-                    "type" : "multi_field",
-                    "fields" : {
-                        "{name}" : {"type": "{dynamic_type}", "index" : "analyzed", "store" : "yes"},
-                        "org" : {"type": "{dynamic_type}", "index" : "not_analyzed", "store" : "yes"}
+                "tempalte_1" : {
+                    "match" : "multi*",
+                    "mapping" : {
+                        "type" : "multi_field",
+                        "fields" : {
+                            "{name}" : {"type": "{dynamic_type}", "index" : "analyzed", "store" : "yes"},
+                            "org" : {"type": "{dynamic_type}", "index" : "not_analyzed", "store" : "yes"}
+                        }
                     }
                 }
             },
             {
-                "match" : "*",
-                "match_mapping_type" : "string",
-                "mapping" : {
-                    "type" : "string",
-                    "index" : "not_analyzed"
+                "template_2" : {
+                    "match" : "*",
+                    "match_mapping_type" : "string",
+                    "mapping" : {
+                        "type" : "string",
+                        "index" : "not_analyzed"
+                    }
                 }
             }
         ]

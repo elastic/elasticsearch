@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperParsingException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,15 +73,21 @@ public class RootObjectMapper extends ObjectMapper {
             if (fieldName.equals("dynamic_templates")) {
                 //  "dynamic_templates" : [
                 //      {
-                //          "match" : "*_test",
-                //          "match_mapping_type" : "string",
-                //          "mapping" : { "type" : "string", "store" : "yes" }
+                //          "template_1" : {
+                //              "match" : "*_test",
+                //              "match_mapping_type" : "string",
+                //              "mapping" : { "type" : "string", "store" : "yes" }
+                //          }
                 //      }
                 //  ]
                 List tmplNodes = (List) fieldNode;
                 for (Object tmplNode : tmplNodes) {
                     Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
-                    ((Builder) builder).add(DynamicTemplate.parse(tmpl));
+                    if (tmpl.size() != 1) {
+                        throw new MapperParsingException("A dynamic template must be defined with a name");
+                    }
+                    Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
+                    ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
                 }
             }
         }
@@ -118,11 +125,15 @@ public class RootObjectMapper extends ObjectMapper {
             // merge them
             List<DynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
             for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
-                int index = mergedTemplates.indexOf(template);
-                if (index == -1) {
+                boolean replaced = false;
+                for (int i = 0; i < mergedTemplates.size(); i++) {
+                    if (mergedTemplates.get(i).name().equals(template.name())) {
+                        mergedTemplates.set(i, template);
+                        replaced = true;
+                    }
+                }
+                if (!replaced) {
                     mergedTemplates.add(template);
-                } else {
-                    mergedTemplates.set(index, template);
                 }
             }
             this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
@@ -133,7 +144,10 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicTemplates != null && dynamicTemplates.length > 0) {
             builder.startArray("dynamic_templates");
             for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
+                builder.startObject();
+                builder.field(dynamicTemplate.name());
                 builder.map(dynamicTemplate.conf());
+                builder.endObject();
             }
             builder.endArray();
         }

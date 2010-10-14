@@ -28,6 +28,8 @@ public interface ScriptEngineService {
 
     String[] types();
 
+    String[] extensions();
+
     Object compile(String script);
 
     ExecutableScript executable(Object compiledScript, Map<String, Object> vars);

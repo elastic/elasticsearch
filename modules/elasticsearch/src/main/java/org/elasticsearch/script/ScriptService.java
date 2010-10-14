@@ -25,9 +25,15 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.mvel.MvelScriptEngineService;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -41,16 +47,18 @@ public class ScriptService extends AbstractComponent {
 
     private final ImmutableMap<String, ScriptEngineService> scriptEngines;
 
+    private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
+
     private final ConcurrentMap<String, CompiledScript> cache = new MapMaker().softValues().makeMap();
 
     public ScriptService(Settings settings) {
-        this(settings, ImmutableSet.<ScriptEngineService>builder()
+        this(settings, new Environment(), ImmutableSet.<ScriptEngineService>builder()
                 .add(new MvelScriptEngineService(settings))
                 .build()
         );
     }
 
-    @Inject public ScriptService(Settings settings, Set<ScriptEngineService> scriptEngines) {
+    @Inject public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines) {
         super(settings);
 
         this.defaultLang = componentSettings.get("default_lang", "mvel");
@@ -62,6 +70,47 @@ public class ScriptService extends AbstractComponent {
             }
         }
         this.scriptEngines = builder.build();
+
+        // compile static scripts
+        File scriptsFile = new File(env.configFile(), "scripts");
+        if (scriptsFile.exists()) {
+            processScriptsDirectory("", scriptsFile);
+        }
+    }
+
+    private void processScriptsDirectory(String prefix, File dir) {
+        for (File file : dir.listFiles()) {
+            if (file.isDirectory()) {
+                processScriptsDirectory(prefix + file.getName() + "_", file);
+            } else {
+                int extIndex = file.getName().lastIndexOf('.');
+                if (extIndex != -1) {
+                    String ext = file.getName().substring(extIndex + 1);
+                    String scriptName = prefix + file.getName().substring(0, extIndex);
+                    boolean found = false;
+                    for (ScriptEngineService engineService : scriptEngines.values()) {
+                        for (String s : engineService.extensions()) {
+                            if (s.equals(ext)) {
+                                found = true;
+                                try {
+                                    String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+                                    staticCache.put(scriptName, new CompiledScript(engineService.types()[0], engineService.compile(script)));
+                                } catch (Exception e) {
+                                    logger.warn("failed to load/compile script [{}]", e, scriptName);
+                                }
+                                break;
+                            }
+                        }
+                        if (found) {
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        logger.warn("no script engine found for [{}]", ext);
+                    }
+                }
+            }
+        }
     }
 
     public void close() {
@@ -75,7 +124,11 @@ public class ScriptService extends AbstractComponent {
     }
 
     public CompiledScript compile(String lang, String script) {
-        CompiledScript compiled = cache.get(script);
+        CompiledScript compiled = staticCache.get(script);
+        if (compiled != null) {
+            return compiled;
+        }
+        compiled = cache.get(script);
         if (compiled != null) {
             return compiled;
         }

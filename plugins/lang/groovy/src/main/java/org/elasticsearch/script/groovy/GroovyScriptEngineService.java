@@ -54,6 +54,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return new String[]{"groovy"};
     }
 
+    @Override public String[] extensions() {
+        return new String[]{"groovy"};
+    }
+
     @Override public Object compile(String script) {
         return loader.parseClass(script, generateScriptName());
     }

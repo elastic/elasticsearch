@@ -50,6 +50,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return new String[]{"python"};
     }
 
+    @Override public String[] extensions() {
+        return new String[]{"py"};
+    }
+
     @Override public Object compile(String script) {
         return interp.compile(script);
     }

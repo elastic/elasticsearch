@@ -68,6 +68,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         return new String[]{"js", "javascript"};
     }
 
+    @Override public String[] extensions() {
+        return new String[]{"js"};
+    }
+
     @Override public Object compile(String script) {
         Context ctx = Context.enter();
         try {

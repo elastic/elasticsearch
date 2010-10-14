@@ -41,7 +41,7 @@ public class SimpleMapperTests {
     @Test public void testSimpleMapper() throws Exception {
         XContentDocumentMapperParser mapperParser = MapperTests.newParser();
         XContentDocumentMapper docMapper = doc("test",
-                object("person")
+                rootObject("person")
                         .add(object("name").add(stringField("first").store(YES).index(Field.Index.NO)))
         ).sourceField(source()).build(mapperParser);
 

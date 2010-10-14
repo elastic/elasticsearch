@@ -28,7 +28,7 @@ public final class XContentMapperBuilders {
 
     }
 
-    public static XContentDocumentMapper.Builder doc(String index, ObjectMapper.Builder objectBuilder) {
+    public static XContentDocumentMapper.Builder doc(String index, RootObjectMapper.Builder objectBuilder) {
         return new XContentDocumentMapper.Builder(index, objectBuilder);
     }
 
@@ -62,6 +62,10 @@ public final class XContentMapperBuilders {
 
     public static MultiFieldMapper.Builder multiField(String name) {
         return new MultiFieldMapper.Builder(name);
+    }
+
+    public static RootObjectMapper.Builder rootObject(String name) {
+        return new RootObjectMapper.Builder(name);
     }
 
     public static ObjectMapper.Builder object(String name) {

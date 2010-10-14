@@ -71,7 +71,8 @@ public class MultiFieldTests {
 
     @Test public void testBuildThenParse() throws Exception {
         XContentDocumentMapperParser mapperParser = MapperTests.newParser();
-        XContentDocumentMapper builderDocMapper = doc("test", object("person").add(
+
+        XContentDocumentMapper builderDocMapper = doc("test", rootObject("person").add(
                 multiField("name")
                         .add(stringField("name").store(Field.Store.YES))
                         .add(stringField("indexed").index(Field.Index.ANALYZED))

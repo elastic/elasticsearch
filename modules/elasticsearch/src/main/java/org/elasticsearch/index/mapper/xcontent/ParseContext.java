@@ -124,6 +124,10 @@ public class ParseContext {
         return this.document;
     }
 
+    public RootObjectMapper root() {
+        return docMapper.root();
+    }
+
     public XContentDocumentMapper docMapper() {
         return this.docMapper;
     }

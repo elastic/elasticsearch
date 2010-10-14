@@ -53,7 +53,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
 
     private final AnalysisService analysisService;
 
-    private final ObjectMapper.TypeParser rootObjectTypeParser = new ObjectMapper.TypeParser();
+    private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
     private final Object typeParsersMutex = new Object();
 
@@ -127,7 +127,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
 
         XContentMapper.TypeParser.ParserContext parserContext = new XContentMapper.TypeParser.ParserContext(analysisService, typeParsers);
 
-        XContentDocumentMapper.Builder docBuilder = doc(index.name(), (ObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
+        XContentDocumentMapper.Builder docBuilder = doc(index.name(), (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 
         for (Map.Entry<String, Object> entry : mapping.entrySet()) {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());

@@ -64,13 +64,13 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private final String index;
 
-        private final ObjectMapper rootObjectMapper;
+        private final RootObjectMapper rootObjectMapper;
 
         private ImmutableMap<String, Object> attributes = ImmutableMap.of();
 
         private XContentMapper.BuilderContext builderContext = new XContentMapper.BuilderContext(new ContentPath(1));
 
-        public Builder(String index, ObjectMapper.Builder builder) {
+        public Builder(String index, RootObjectMapper.Builder builder) {
             this.index = index;
             this.rootObjectMapper = builder.build(builderContext);
         }
@@ -171,7 +171,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final AllFieldMapper allFieldMapper;
 
-    private final ObjectMapper rootObjectMapper;
+    private final RootObjectMapper rootObjectMapper;
 
     private final Analyzer indexAnalyzer;
 
@@ -186,7 +186,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     private final Object mutex = new Object();
 
     public XContentDocumentMapper(String index, XContentDocumentMapperParser docMapperParser,
-                                  ObjectMapper rootObjectMapper,
+                                  RootObjectMapper rootObjectMapper,
                                   ImmutableMap<String, Object> attributes,
                                   UidFieldMapper uidFieldMapper,
                                   IdFieldMapper idFieldMapper,
@@ -258,6 +258,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     @Override public CompressedString mappingSource() {
         return this.mappingSource;
+    }
+
+    public RootObjectMapper root() {
+        return this.rootObjectMapper;
     }
 
     @Override public org.elasticsearch.index.mapper.UidFieldMapper uidMapper() {

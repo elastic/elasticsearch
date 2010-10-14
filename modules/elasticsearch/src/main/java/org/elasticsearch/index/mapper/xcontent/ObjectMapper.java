@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,87 +60,73 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 };
     }
 
-    public static class Builder extends XContentMapper.Builder<Builder, ObjectMapper> {
+    public static class Builder<T extends Builder, Y extends ObjectMapper> extends XContentMapper.Builder<T, Y> {
 
-        private boolean enabled = Defaults.ENABLED;
+        protected boolean enabled = Defaults.ENABLED;
 
-        private boolean dynamic = Defaults.DYNAMIC;
+        protected boolean dynamic = Defaults.DYNAMIC;
 
-        private ContentPath.Type pathType = Defaults.PATH_TYPE;
+        protected ContentPath.Type pathType = Defaults.PATH_TYPE;
 
-        private List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
+        protected List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
 
-        private Boolean includeInAll;
+        protected Boolean includeInAll;
 
-        private final List<XContentMapper.Builder> mappersBuilders = newArrayList();
-
-        private final List<DynamicTemplate> dynamicTemplates = newArrayList();
+        protected final List<XContentMapper.Builder> mappersBuilders = newArrayList();
 
         public Builder(String name) {
             super(name);
-            this.builder = this;
+            this.builder = (T) this;
         }
 
-        public Builder enabled(boolean enabled) {
+        public T enabled(boolean enabled) {
             this.enabled = enabled;
-            return this;
+            return builder;
         }
 
-        public Builder dynamic(boolean dynamic) {
+        public T dynamic(boolean dynamic) {
             this.dynamic = dynamic;
-            return this;
+            return builder;
         }
 
-        public Builder pathType(ContentPath.Type pathType) {
+        public T pathType(ContentPath.Type pathType) {
             this.pathType = pathType;
-            return this;
+            return builder;
         }
 
-        public Builder noDateTimeFormatter() {
+        public T noDateTimeFormatter() {
             this.dateTimeFormatters = null;
-            return this;
+            return builder;
         }
 
-        public Builder includeInAll(boolean includeInAll) {
+        public T includeInAll(boolean includeInAll) {
             this.includeInAll = includeInAll;
-            return this;
+            return builder;
         }
 
-        public Builder dateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
+        public T dateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
             for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                 this.dateTimeFormatters.add(dateTimeFormatter);
             }
-            return this;
+            return builder;
         }
 
-        public Builder dateTimeFormatter(FormatDateTimeFormatter[] dateTimeFormatters) {
+        public T dateTimeFormatter(FormatDateTimeFormatter[] dateTimeFormatters) {
             this.dateTimeFormatters.addAll(newArrayList(dateTimeFormatters));
-            return this;
+            return builder;
         }
 
-        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+        public T dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             this.dateTimeFormatters.add(dateTimeFormatter);
-            return this;
+            return builder;
         }
 
-        public Builder add(DynamicTemplate dynamicTemplate) {
-            this.dynamicTemplates.add(dynamicTemplate);
-            return this;
-        }
-
-        public Builder add(DynamicTemplate... dynamicTemplate) {
-            for (DynamicTemplate template : dynamicTemplate) {
-                this.dynamicTemplates.add(template);
-            }
-            return this;
-        }
-
-        public Builder add(XContentMapper.Builder builder) {
+        public T add(XContentMapper.Builder builder) {
             mappersBuilders.add(builder);
-            return this;
+            return this.builder;
         }
 
-        @Override public ObjectMapper build(BuilderContext context) {
+        @Override public Y build(BuilderContext context) {
             if (dateTimeFormatters == null) {
                 dateTimeFormatters = newArrayList();
             } else if (dateTimeFormatters.isEmpty()) {
@@ -158,23 +142,27 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 XContentMapper mapper = builder.build(context);
                 mappers.put(mapper.name(), mapper);
             }
-            ObjectMapper objectMapper = new ObjectMapper(name, enabled, dynamic, pathType,
-                    dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]),
-                    mappers, dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]));
+            ObjectMapper objectMapper = createMapper(name, enabled, dynamic, pathType,
+                    dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]), mappers);
 
             context.path().pathType(origPathType);
             context.path().remove();
 
             objectMapper.includeInAll(includeInAll);
 
-            return objectMapper;
+            return (Y) objectMapper;
+        }
+
+        protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
+                                            FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
+            return new ObjectMapper(name, enabled, dynamic, pathType, dateTimeFormatters, mappers);
         }
     }
 
     public static class TypeParser implements XContentMapper.TypeParser {
         @Override public XContentMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Map<String, Object> objectNode = node;
-            ObjectMapper.Builder builder = object(name);
+            ObjectMapper.Builder builder = createBuilder(name);
 
             for (Map.Entry<String, Object> entry : objectNode.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -186,19 +174,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     String type = fieldNode.toString();
                     if (!type.equals("object")) {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
-                    }
-                } else if (fieldName.equals("dynamic_templates")) {
-                    //  "dynamic_templates" : [
-                    //      {
-                    //          "match" : "*_test",
-                    //          "match_mapping_type" : "string",
-                    //          "mapping" : { "type" : "string", "store" : "yes" }
-                    //      }
-                    //  ]
-                    List tmplNodes = (List) fieldNode;
-                    for (Object tmplNode : tmplNodes) {
-                        Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
-                        builder.add(DynamicTemplate.parse(tmpl));
                     }
                 } else if (fieldName.equals("date_formats")) {
                     List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
@@ -224,6 +199,8 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 } else if (fieldName.equals("include_in_all")) {
                     builder.includeInAll(nodeBooleanValue(fieldNode));
+                } else {
+                    processField(builder, fieldName, fieldNode);
                 }
             }
             return builder;
@@ -256,6 +233,14 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 objBuilder.add(typeParser.parse(propName, propNode, parserContext));
             }
         }
+
+        protected Builder createBuilder(String name) {
+            return object(name);
+        }
+
+        protected void processField(Builder builder, String fieldName, Object fieldNode) {
+
+        }
     }
 
     private final String name;
@@ -272,8 +257,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
     private volatile ImmutableMap<String, XContentMapper> mappers = ImmutableMap.of();
 
-    private volatile DynamicTemplate dynamicTemplates[];
-
     private final Object mutex = new Object();
 
     protected ObjectMapper(String name) {
@@ -286,17 +269,16 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
     protected ObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
                            FormatDateTimeFormatter[] dateTimeFormatters) {
-        this(name, enabled, dynamic, pathType, dateTimeFormatters, null, null);
+        this(name, enabled, dynamic, pathType, dateTimeFormatters, null);
     }
 
     ObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                 FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers, DynamicTemplate dynamicTemplates[]) {
+                 FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
         this.name = name;
         this.enabled = enabled;
         this.dynamic = dynamic;
         this.pathType = pathType;
         this.dateTimeFormatters = dateTimeFormatters;
-        this.dynamicTemplates = dynamicTemplates == null ? new DynamicTemplate[0] : dynamicTemplates;
         if (mappers != null) {
             this.mappers = copyOf(mappers);
         }
@@ -401,10 +383,9 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                         objectMapper.parse(context);
                     } else {
                         BuilderContext builderContext = new BuilderContext(context.path());
-                        XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "object");
+                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
                             builder = XContentMapperBuilders.object(currentFieldName).enabled(true)
-                                    .add(dynamicTemplates)
                                     .dynamic(dynamic).pathType(pathType).dateTimeFormatter(dateTimeFormatters);
                         }
                         objectMapper = builder.build(builderContext);
@@ -474,7 +455,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                         try {
                             dateTimeFormatter.parser().parseMillis(text);
-                            XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "date");
+                            XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
                             if (builder == null) {
                                 builder = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter);
                             }
@@ -487,7 +468,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     }
                 }
                 if (!isDate) {
-                    XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "string");
+                    XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
                     if (builder == null) {
                         builder = stringField(currentFieldName);
                     }
@@ -497,53 +478,53 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 XContentParser.NumberType numberType = context.parser().numberType();
                 if (numberType == XContentParser.NumberType.INT) {
                     if (context.parser().estimatedNumberType()) {
-                        XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "long");
+                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                         if (builder == null) {
                             builder = longField(currentFieldName);
                         }
                         mapper = builder.build(builderContext);
                     } else {
-                        XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "integer");
+                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
                         if (builder == null) {
                             builder = integerField(currentFieldName);
                         }
                         mapper = builder.build(builderContext);
                     }
                 } else if (numberType == XContentParser.NumberType.LONG) {
-                    XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "long");
+                    XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                     if (builder == null) {
                         builder = longField(currentFieldName);
                     }
                     mapper = builder.build(builderContext);
                 } else if (numberType == XContentParser.NumberType.FLOAT) {
                     if (context.parser().estimatedNumberType()) {
-                        XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "double");
+                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                         if (builder == null) {
                             builder = doubleField(currentFieldName);
                         }
                         mapper = builder.build(builderContext);
                     } else {
-                        XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "float");
+                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
                         if (builder == null) {
                             builder = floatField(currentFieldName);
                         }
                         mapper = builder.build(builderContext);
                     }
                 } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                    XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "double");
+                    XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                     if (builder == null) {
                         builder = doubleField(currentFieldName);
                     }
                     mapper = builder.build(builderContext);
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, "boolean");
+                XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
                 if (builder == null) {
                     builder = booleanField(currentFieldName);
                 }
                 mapper = builder.build(builderContext);
             } else {
-                XContentMapper.Builder builder = findTemplateBuilder(context, currentFieldName, null);
+                XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, null);
                 if (builder != null) {
                     mapper = builder.build(builderContext);
                 } else {
@@ -563,43 +544,15 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
-    private XContentMapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
-        DynamicTemplate dynamicTemplate = findTemplate(name, dynamicType);
-        if (dynamicTemplate == null) {
-            return null;
-        }
-        XContentMapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-        return parserContext.typeParser(dynamicTemplate.mappingType(dynamicType)).parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
-    }
-
-    private DynamicTemplate findTemplate(String name, String dynamicType) {
-        for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (dynamicTemplate.match(name, dynamicType)) {
-                return dynamicTemplate;
-            }
-        }
-        return null;
-    }
-
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         if (!(mergeWith instanceof ObjectMapper)) {
             mergeContext.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
-            // merge them
-            List<DynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
-            for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
-                int index = mergedTemplates.indexOf(template);
-                if (index == -1) {
-                    mergedTemplates.add(template);
-                } else {
-                    mergedTemplates.set(index, template);
-                }
-            }
-            this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
-        }
+
+        doMerge(mergeWithObject, mergeContext);
+
         synchronized (mutex) {
             for (XContentMapper mergeWithMapper : mergeWithObject.mappers.values()) {
                 XContentMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
@@ -632,6 +585,10 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
+    protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
+
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         toXContent(builder, params, XContentMapper.EMPTY_ARRAY);
     }
@@ -645,13 +602,8 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         }
-        if (dynamicTemplates != null && dynamicTemplates.length > 0) {
-            builder.startArray("dynamic_templates");
-            for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-                builder.map(dynamicTemplate.conf());
-            }
-            builder.endArray();
-        }
+
+        doXContent(builder, params);
 
         if (dateTimeFormatters.length > 0) {
             builder.startArray("date_formats");
@@ -683,5 +635,9 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
     }
 }

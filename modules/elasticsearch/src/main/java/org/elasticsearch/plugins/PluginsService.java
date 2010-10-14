@@ -164,6 +164,23 @@ public class PluginsService extends AbstractComponent {
         File[] pluginsFiles = pluginsFile.listFiles();
         for (File pluginFile : pluginsFiles) {
             if (!pluginFile.getName().endsWith(".zip")) {
+                if (pluginFile.isDirectory()) {
+                    logger.trace("--- adding expanded plugin [" + pluginFile.getAbsolutePath() + "]");
+                    try {
+                        // add the root
+                        addURL.invoke(classLoader, pluginFile.toURI().toURL());
+                        // if there are jars in it, add it as well
+                        for (File jarToAdd : pluginFile.listFiles()) {
+                            if (!(jarToAdd.getName().endsWith(".jar") || jarToAdd.getName().endsWith(".zip"))) {
+                                continue;
+                            }
+                            addURL.invoke(classLoader, jarToAdd.toURI().toURL());
+                        }
+                    } catch (Exception e) {
+                        logger.warn("failed to add plugin [" + pluginFile + "]", e);
+                    }
+                }
+
                 continue;
             }
             if (logger.isTraceEnabled()) {

@@ -47,6 +47,23 @@ public class DynamicTemplate {
         }
     }
 
+    public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
+        if (!conf.containsKey("match")) {
+            throw new MapperParsingException("template must have match set");
+        }
+        String match = conf.get("match").toString();
+        String unmatch = conf.containsKey("unmatch") ? conf.get("unmatch").toString() : null;
+        String matchMappingType = conf.containsKey("match_mapping_type") ? conf.get("match_mapping_type").toString() : null;
+        if (!conf.containsKey("mapping")) {
+            throw new MapperParsingException("template must have mapping set");
+        }
+        Map<String, Object> mapping = (Map<String, Object>) conf.get("mapping");
+        String matchType = conf.containsKey("match_pattern") ? conf.get("match_pattern").toString() : "simple";
+        return new DynamicTemplate(name, conf, match, unmatch, matchMappingType, MatchType.fromString(matchType), mapping);
+    }
+
+    private final String name;
+
     private final Map<String, Object> conf;
 
     private final String match;
@@ -59,28 +76,18 @@ public class DynamicTemplate {
 
     private final Map<String, Object> mapping;
 
-    public static DynamicTemplate parse(Map<String, Object> conf) throws MapperParsingException {
-        if (!conf.containsKey("match")) {
-            throw new MapperParsingException("template must have match set");
-        }
-        String match = conf.get("match").toString();
-        String unmatch = conf.containsKey("unmatch") ? conf.get("unmatch").toString() : null;
-        String matchMappingType = conf.containsKey("match_mapping_type") ? conf.get("match_mapping_type").toString() : null;
-        if (!conf.containsKey("mapping")) {
-            throw new MapperParsingException("template must have mapping set");
-        }
-        Map<String, Object> mapping = (Map<String, Object>) conf.get("mapping");
-        String matchType = conf.containsKey("match_pattern") ? conf.get("match_pattern").toString() : "simple";
-        return new DynamicTemplate(conf, match, unmatch, matchMappingType, MatchType.fromString(matchType), mapping);
-    }
-
-    public DynamicTemplate(Map<String, Object> conf, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+    public DynamicTemplate(String name, Map<String, Object> conf, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+        this.name = name;
         this.conf = conf;
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
         this.matchMappingType = matchMappingType;
         this.mapping = mapping;
+    }
+
+    public String name() {
+        return this.name;
     }
 
     public Map<String, Object> conf() {

@@ -2,9 +2,11 @@
     "person" : {
         "dynamic_templates" : [
             {
-                "match" : "*",
-                "mapping" : {
-                    "store" : "yes"
+                "template_1" : {
+                    "match" : "*",
+                    "mapping" : {
+                        "store" : "yes"
+                    }
                 }
             }
         ]

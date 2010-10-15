@@ -580,6 +580,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             out.flush();
             CheckIndex.Status status = checkIndex.checkIndex();
             if (!status.clean) {
+                if (state == IndexShardState.CLOSED) {
+                    // ignore if closed....
+                    return;
+                }
                 logger.warn("check index [failure]\n{}", new String(os.unsafeByteArray(), 0, os.size()));
                 if (throwException) {
                     throw new IndexShardException(shardId, "index check failure");

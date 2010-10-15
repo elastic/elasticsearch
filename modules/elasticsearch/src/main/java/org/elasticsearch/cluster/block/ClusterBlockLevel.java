@@ -30,6 +30,7 @@ public enum ClusterBlockLevel {
     METADATA(2);
 
     public static ClusterBlockLevel[] ALL = new ClusterBlockLevel[]{READ, WRITE, METADATA};
+    public static ClusterBlockLevel[] READ_WRITE = new ClusterBlockLevel[]{READ, WRITE};
 
     private final int id;
 

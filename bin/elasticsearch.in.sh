@@ -21,5 +21,8 @@ JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
 JAVA_OPTS="$JAVA_OPTS -XX:+CMSParallelRemarkEnabled"
 JAVA_OPTS="$JAVA_OPTS -XX:SurvivorRatio=8"
 JAVA_OPTS="$JAVA_OPTS -XX:MaxTenuringThreshold=1"
+JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
+JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+
 JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$ES_HOME/work/heap"

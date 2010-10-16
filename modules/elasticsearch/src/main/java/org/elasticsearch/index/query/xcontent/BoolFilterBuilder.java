@@ -34,6 +34,8 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
 
     private ArrayList<Clause> clauses = new ArrayList<Clause>();
 
+    private Boolean cache;
+
     private String filterName;
 
     /**
@@ -70,6 +72,14 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
+     */
+    public BoolFilterBuilder cache(boolean cache) {
+        this.cache = cache;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
         for (Clause clause : clauses) {
@@ -86,6 +96,9 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
         }
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
         builder.endObject();
     }

@@ -42,6 +42,8 @@ public class NumericRangeFilterBuilder extends BaseFilterBuilder {
 
     private boolean includeUpper = true;
 
+    private Boolean cache;
+
     private String filterName;
 
     /**
@@ -329,8 +331,19 @@ public class NumericRangeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
     public NumericRangeFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
+        return this;
+    }
+
+    /**
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
+     */
+    public NumericRangeFilterBuilder cache(boolean cache) {
+        this.cache = cache;
         return this;
     }
 
@@ -346,6 +359,9 @@ public class NumericRangeFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
 
         builder.endObject();

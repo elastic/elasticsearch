@@ -53,7 +53,7 @@ public class AndFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Should the inner filters be cached or not. Defaults to <tt>true</tt>.
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
      */
     public AndFilterBuilder cache(boolean cache) {
         this.cache = cache;

@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
@@ -549,6 +550,35 @@ public class SimpleIndexQueryParserTests {
         assertThat(rangeFilter.getMax().intValue(), equalTo(54));
         assertThat(rangeFilter.includesMin(), equalTo(true));
         assertThat(rangeFilter.includesMax(), equalTo(false));
+    }
+
+    @Test public void testNumericRangeFilteredQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), numericRangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
+        assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
+        NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
+        assertThat(rangeFilter.getField(), equalTo("age"));
+        assertThat(rangeFilter.getLowerVal().intValue(), equalTo(23));
+        assertThat(rangeFilter.getUpperVal().intValue(), equalTo(54));
+        assertThat(rangeFilter.isIncludeLower(), equalTo(true));
+        assertThat(rangeFilter.isIncludeUpper(), equalTo(false));
+    }
+
+    @Test public void testNumericRangeFilteredQuery() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/numeric_range-filter.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
+        assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
+        NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
+        assertThat(rangeFilter.getField(), equalTo("age"));
+        assertThat(rangeFilter.getLowerVal().intValue(), equalTo(23));
+        assertThat(rangeFilter.getUpperVal().intValue(), equalTo(54));
+        assertThat(rangeFilter.isIncludeLower(), equalTo(true));
+        assertThat(rangeFilter.isIncludeUpper(), equalTo(false));
     }
 
     @Test public void testBoolFilteredQuery() throws IOException {

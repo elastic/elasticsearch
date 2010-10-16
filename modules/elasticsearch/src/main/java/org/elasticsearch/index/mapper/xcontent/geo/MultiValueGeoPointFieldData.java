@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper.xcontent.geo;
 
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
 
 /**
  * @author kimchy (shay.banon)

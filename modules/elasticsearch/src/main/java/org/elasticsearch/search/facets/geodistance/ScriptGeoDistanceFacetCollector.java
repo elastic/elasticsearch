@@ -20,9 +20,9 @@
 package org.elasticsearch.search.facets.geodistance;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 

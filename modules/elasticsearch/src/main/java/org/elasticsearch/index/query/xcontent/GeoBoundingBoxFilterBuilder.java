@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.common.lucene.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilderException;
+import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 
 import java.io.IOException;
 

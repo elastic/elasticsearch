@@ -22,8 +22,6 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
-import org.elasticsearch.common.lucene.geo.GeoPolygonFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -33,6 +31,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;

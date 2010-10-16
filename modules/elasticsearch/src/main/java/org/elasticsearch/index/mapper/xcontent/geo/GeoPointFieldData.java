@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper.xcontent.geo;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TDoubleArrayList;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
 
 import java.io.IOException;
 

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.common.lucene.geo;
+package org.elasticsearch.index.search.geo;
 
 import org.elasticsearch.common.trove.TIntIntHashMap;
 

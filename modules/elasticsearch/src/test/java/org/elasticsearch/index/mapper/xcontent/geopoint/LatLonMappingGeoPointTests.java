@@ -20,11 +20,11 @@
 package org.elasticsearch.index.mapper.xcontent.geopoint;
 
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.xcontent.geo;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.xcontent.*;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
 
 import java.io.IOException;
 import java.util.Map;

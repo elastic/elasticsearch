@@ -21,10 +21,10 @@ package org.elasticsearch.search.facets.geodistance;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 

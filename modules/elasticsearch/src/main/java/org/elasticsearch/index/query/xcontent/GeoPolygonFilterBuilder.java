@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
-import org.elasticsearch.common.lucene.geo.GeoPolygonFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 
 import java.io.IOException;
 import java.util.List;

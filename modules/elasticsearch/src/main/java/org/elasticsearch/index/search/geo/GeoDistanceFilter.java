@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.geo;
+package org.elasticsearch.index.search.geo;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;

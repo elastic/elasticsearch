@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent.geo;
 
-import org.elasticsearch.common.lucene.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
 
 /**
  * @author kimchy (shay.banon)

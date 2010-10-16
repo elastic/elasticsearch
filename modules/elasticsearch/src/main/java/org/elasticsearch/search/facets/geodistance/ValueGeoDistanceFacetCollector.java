@@ -20,12 +20,12 @@
 package org.elasticsearch.search.facets.geodistance;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;

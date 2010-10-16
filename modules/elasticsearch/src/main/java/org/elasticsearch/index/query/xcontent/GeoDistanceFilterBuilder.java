@@ -42,6 +42,8 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
 
     private GeoDistance geoDistance;
 
+    private Boolean cache;
+
     private String filterName;
 
     public GeoDistanceFilterBuilder(String name) {
@@ -84,8 +86,19 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
     public GeoDistanceFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
+        return this;
+    }
+
+    /**
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
+     */
+    public GeoDistanceFilterBuilder cache(boolean cache) {
+        this.cache = cache;
         return this;
     }
 
@@ -102,6 +115,9 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         }
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
         builder.endObject();
     }

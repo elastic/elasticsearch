@@ -36,6 +36,8 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
     private final List<GeoPolygonFilter.Point> points = Lists.newArrayList();
 
+    private Boolean cache;
+
     private String filterName;
 
     public GeoPolygonFilterBuilder(String name) {
@@ -52,8 +54,19 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         return addPoint(values[0], values[1]);
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
     public GeoPolygonFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
+        return this;
+    }
+
+    /**
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
+     */
+    public GeoPolygonFilterBuilder cache(boolean cache) {
+        this.cache = cache;
         return this;
     }
 
@@ -70,6 +83,9 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
 
         builder.endObject();

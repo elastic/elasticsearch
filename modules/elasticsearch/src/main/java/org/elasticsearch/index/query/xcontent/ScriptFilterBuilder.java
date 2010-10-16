@@ -37,6 +37,8 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
 
     private String lang;
 
+    private Boolean cache;
+
     private String filterName;
 
     public ScriptFilterBuilder(String script) {
@@ -60,16 +62,27 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the script language.
+     */
+    public ScriptFilterBuilder lang(String lang) {
+        this.lang = lang;
+        return this;
+    }
+
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
     public ScriptFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
         return this;
     }
 
     /**
-     * Sets the script language.
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
      */
-    public ScriptFilterBuilder lang(String lang) {
-        this.lang = lang;
+    public ScriptFilterBuilder cache(boolean cache) {
+        this.cache = cache;
         return this;
     }
 
@@ -84,6 +97,9 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         }
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
         builder.endObject();
     }

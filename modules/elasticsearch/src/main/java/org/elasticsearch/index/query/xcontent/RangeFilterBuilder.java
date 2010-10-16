@@ -40,6 +40,8 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
 
     private boolean includeUpper = true;
 
+    private Boolean cache;
+
     private String filterName;
 
     /**
@@ -327,8 +329,19 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
     public RangeFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
+        return this;
+    }
+
+    /**
+     * Should the filter be cached or not. Defaults to <tt>true</tt>.
+     */
+    public RangeFilterBuilder cache(boolean cache) {
+        this.cache = cache;
         return this;
     }
 
@@ -344,6 +357,9 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
 
         builder.endObject();

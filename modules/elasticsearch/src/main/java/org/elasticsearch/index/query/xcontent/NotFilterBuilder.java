@@ -41,7 +41,7 @@ public class NotFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Should the inner filter be cached or not. Defaults to <tt>true</tt>.
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
      */
     public NotFilterBuilder cache(boolean cache) {
         this.cache = cache;

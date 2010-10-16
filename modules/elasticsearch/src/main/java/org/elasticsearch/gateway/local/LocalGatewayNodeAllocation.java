@@ -154,11 +154,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         RoutingNodes routingNodes = allocation.routingNodes();
 
         for (IndexRoutingTable indexRoutingTable : routingNodes.routingTable()) {
-            // only do the allocation if there is a local "INDEX NOT RECOVERED" block
-            if (!routingNodes.blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
-                continue;
-            }
-
+            // TODO we need to also handle a case where all shards per replication group are unassigned, in that case, we ignore until we
+            // manage to find a place to allocate them...
             if (indexRoutingTable.allPrimaryShardsUnassigned()) {
                 // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
                 Set<String> nodesIds = Sets.newHashSet();
@@ -248,6 +245,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             return changed;
         }
 
+        // go ahead and see if we can optimize replica allocation to an existing node...
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();

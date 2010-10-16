@@ -20,14 +20,16 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -37,22 +39,22 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class RangeFilterParser extends AbstractIndexComponent implements XContentFilterParser {
+public class NumericRangeFilterParser extends AbstractIndexComponent implements XContentFilterParser {
 
-    public static final String NAME = "range";
+    public static final String NAME = "numeric_range";
 
-    @Inject public RangeFilterParser(Index index, @IndexSettings Settings settings) {
+    @Inject public NumericRangeFilterParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
     }
 
     @Override public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NAME, "numericRange"};
     }
 
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true; // default to true, since anyhow NumericRangeFilter and TermFilter construct an OpenBitSet
+        boolean cache = false; // default to false, since its using fielddata cache
         String fieldName = null;
         String from = null;
         String to = null;
@@ -103,16 +105,38 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
             }
         }
 
-        Filter filter = null;
+        Filter filter;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper);
-            }
+
+        if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
+            throw new QueryParsingException(index, "failed to find mapping for field [" + fieldName + "]");
         }
-        if (filter == null) {
-            filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
+
+        FieldMapper mapper = smartNameFieldMappers.mapper();
+        if (mapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
+            filter = NumericRangeFieldDataFilter.newIntRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
+                    from == null ? null : Integer.parseInt(from),
+                    to == null ? null : Integer.parseInt(to),
+                    includeLower, includeUpper);
+        } else if (mapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
+            filter = NumericRangeFieldDataFilter.newLongRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
+                    from == null ? null : Long.parseLong(from),
+                    to == null ? null : Long.parseLong(to),
+                    includeLower, includeUpper);
+        } else if (mapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
+            filter = NumericRangeFieldDataFilter.newFloatRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
+                    from == null ? null : Float.parseFloat(from),
+                    to == null ? null : Float.parseFloat(to),
+                    includeLower, includeUpper);
+        } else if (mapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
+            filter = NumericRangeFieldDataFilter.newDoubleRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
+                    from == null ? null : Double.parseDouble(from),
+                    to == null ? null : Double.parseDouble(to),
+                    includeLower, includeUpper);
+        } else {
+            throw new QueryParsingException(index, "field [" + fieldName + "] is not numeric");
         }
+
         if (cache) {
             filter = parseContext.cacheFilter(filter);
         }

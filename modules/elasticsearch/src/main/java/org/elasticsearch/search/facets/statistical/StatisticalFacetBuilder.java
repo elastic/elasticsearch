@@ -30,6 +30,7 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public class StatisticalFacetBuilder extends AbstractFacetBuilder {
+    private String[] fieldsNames;
     private String fieldName;
 
     public StatisticalFacetBuilder(String name) {
@@ -38,6 +39,14 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
 
     public StatisticalFacetBuilder field(String field) {
         this.fieldName = field;
+        return this;
+    }
+
+    /**
+     * The fields the terms will be collected from.
+     */
+    public StatisticalFacetBuilder fields(String... fields) {
+        this.fieldsNames = fields;
         return this;
     }
 
@@ -52,13 +61,21 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fieldName == null) {
+        if (fieldName == null && fieldsNames == null) {
             throw new SearchSourceBuilderException("field must be set on statistical facet for facet [" + name + "]");
         }
         builder.startObject(name);
 
         builder.startObject(StatisticalFacetCollectorParser.NAME);
-        builder.field("field", fieldName);
+        if (fieldsNames != null) {
+            if (fieldsNames.length == 1) {
+                builder.field("field", fieldsNames[0]);
+            } else {
+                builder.field("fields", fieldsNames);
+            }
+        } else {
+            builder.field("field", fieldName);
+        }
         builder.endObject();
 
         addFilterFacetAndGlobal(builder, params);

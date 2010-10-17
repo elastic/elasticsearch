@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
@@ -30,19 +31,52 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class RootObjectMapper extends ObjectMapper {
 
+    public static class Defaults {
+        public static final FormatDateTimeFormatter[] DATE_TIME_FORMATTERS =
+                new FormatDateTimeFormatter[]{
+                        DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
+                        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd")
+                };
+    }
+
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
 
         protected final List<DynamicTemplate> dynamicTemplates = newArrayList();
 
+        protected List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
+
         public Builder(String name) {
             super(name);
             this.builder = this;
+        }
+
+        public Builder noDateTimeFormatter() {
+            this.dateTimeFormatters = null;
+            return builder;
+        }
+
+        public Builder dateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
+            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                this.dateTimeFormatters.add(dateTimeFormatter);
+            }
+            return builder;
+        }
+
+        public Builder dateTimeFormatter(FormatDateTimeFormatter[] dateTimeFormatters) {
+            this.dateTimeFormatters.addAll(newArrayList(dateTimeFormatters));
+            return builder;
+        }
+
+        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
+            this.dateTimeFormatters.add(dateTimeFormatter);
+            return builder;
         }
 
         public Builder add(DynamicTemplate dynamicTemplate) {
@@ -58,8 +92,16 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
 
-        @Override protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
-            return new RootObjectMapper(name, enabled, dynamic, pathType, dateTimeFormatters, mappers, dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]));
+        @Override protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers) {
+            if (dateTimeFormatters == null) {
+                dateTimeFormatters = newArrayList();
+            } else if (dateTimeFormatters.isEmpty()) {
+                // add the default one
+                dateTimeFormatters.addAll(newArrayList(Defaults.DATE_TIME_FORMATTERS));
+            }
+            return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
+                    dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]),
+                    dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]));
         }
     }
 
@@ -70,7 +112,23 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override protected void processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
-            if (fieldName.equals("dynamic_templates")) {
+            if (fieldName.equals("date_formats")) {
+                List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
+                if (fieldNode instanceof List) {
+                    for (Object node1 : (List) fieldNode) {
+                        dateTimeFormatters.add(parseDateTimeFormatter(fieldName, node1));
+                    }
+                } else if ("none".equals(fieldNode.toString())) {
+                    dateTimeFormatters = null;
+                } else {
+                    dateTimeFormatters.add(parseDateTimeFormatter(fieldName, fieldNode));
+                }
+                if (dateTimeFormatters == null) {
+                    ((Builder) builder).noDateTimeFormatter();
+                } else {
+                    ((Builder) builder).dateTimeFormatter(dateTimeFormatters);
+                }
+            } else if (fieldName.equals("dynamic_templates")) {
                 //  "dynamic_templates" : [
                 //      {
                 //          "template_1" : {
@@ -93,12 +151,19 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
+    private final FormatDateTimeFormatter[] dateTimeFormatters;
+
     private volatile DynamicTemplate dynamicTemplates[];
 
-    RootObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                     FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers, DynamicTemplate dynamicTemplates[]) {
-        super(name, enabled, dynamic, pathType, dateTimeFormatters, mappers);
+    RootObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers,
+                     FormatDateTimeFormatter[] dateTimeFormatters, DynamicTemplate dynamicTemplates[]) {
+        super(name, enabled, dynamic, pathType, mappers);
         this.dynamicTemplates = dynamicTemplates;
+        this.dateTimeFormatters = dateTimeFormatters;
+    }
+
+    public FormatDateTimeFormatter[] dateTimeFormatters() {
+        return dateTimeFormatters;
     }
 
     public XContentMapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
@@ -141,6 +206,14 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        if (dateTimeFormatters.length > 0) {
+            builder.startArray("date_formats");
+            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                builder.value(dateTimeFormatter.format());
+            }
+            builder.endArray();
+        }
+
         if (dynamicTemplates != null && dynamicTemplates.length > 0) {
             builder.startArray("dynamic_templates");
             for (DynamicTemplate dynamicTemplate : dynamicTemplates) {

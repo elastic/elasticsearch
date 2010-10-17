@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facets.statistical;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,12 +51,14 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String field = null;
+        String[] fieldsNames = null;
 
-        String currentFieldName = null;
         String script = null;
         String scriptLang = null;
         Map<String, Object> params = cachedParams.get().get();
         params.clear();
+
+        String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -62,6 +66,14 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("fields".equals(currentFieldName)) {
+                    List<String> fields = Lists.newArrayListWithCapacity(4);
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        fields.add(parser.text());
+                    }
+                    fieldsNames = fields.toArray(new String[fields.size()]);
                 }
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
@@ -72,6 +84,9 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
                     scriptLang = parser.text();
                 }
             }
+        }
+        if (fieldsNames != null) {
+            return new StatisticalFieldsFacetCollector(facetName, fieldsNames, context);
         }
         if (script == null && field == null) {
             throw new FacetPhaseExecutionException(facetName, "statistical facet requires either [script] or [field] to be set");

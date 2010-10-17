@@ -47,9 +47,7 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         String field = null;
         int size = 10;
 
-        String fieldName = null;
         String[] fieldsNames = null;
-        XContentParser.Token token;
         ImmutableSet<String> excluded = ImmutableSet.of();
         String regex = null;
         String regexFlags = null;
@@ -57,21 +55,24 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         String scriptLang = null;
         String script = null;
         Map<String, Object> params = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
+                currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(fieldName)) {
+                if ("params".equals(currentFieldName)) {
                     params = parser.map();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("exclude".equals(fieldName)) {
+                if ("exclude".equals(currentFieldName)) {
                     ImmutableSet.Builder<String> builder = ImmutableSet.builder();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         builder.add(parser.text());
                     }
                     excluded = builder.build();
-                } else if ("fields".equals(fieldName)) {
+                } else if ("fields".equals(currentFieldName)) {
                     List<String> fields = Lists.newArrayListWithCapacity(4);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
@@ -79,21 +80,21 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                     fieldsNames = fields.toArray(new String[fields.size()]);
                 }
             } else if (token.isValue()) {
-                if ("field".equals(fieldName)) {
+                if ("field".equals(currentFieldName)) {
                     field = parser.text();
-                } else if ("script_field".equals(fieldName)) {
+                } else if ("script_field".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("size".equals(fieldName)) {
+                } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
-                } else if ("regex".equals(fieldName)) {
+                } else if ("regex".equals(currentFieldName)) {
                     regex = parser.text();
-                } else if ("regex_flags".equals(fieldName) || "regexFlags".equals(fieldName)) {
+                } else if ("regex_flags".equals(currentFieldName) || "regexFlags".equals(currentFieldName)) {
                     regexFlags = parser.text();
-                } else if ("order".equals(fieldName) || "comparator".equals(field)) {
+                } else if ("order".equals(currentFieldName) || "comparator".equals(field)) {
                     comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
-                } else if ("script".equals(fieldName)) {
+                } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("lang".equals(fieldName)) {
+                } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 }
             }

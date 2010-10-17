@@ -560,6 +560,22 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.mean(), equalTo(3d));
         assertThat(facet.sumOfSquares(), equalTo(20d));
 
+        // test multi field facet
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(statisticalFacet("stats").fields("num", "multi_num"))
+                .execute().actionGet();
+
+
+        facet = searchResponse.facets().facet("stats");
+        assertThat(facet.name(), equalTo(facet.name()));
+        assertThat(facet.count(), equalTo(6l));
+        assertThat(facet.total(), equalTo(13d));
+        assertThat(facet.min(), equalTo(1d));
+        assertThat(facet.max(), equalTo(4d));
+        assertThat(facet.mean(), equalTo(13d / 6d));
+        assertThat(facet.sumOfSquares(), equalTo(35d));
+
         // test cross field facet using the same facet name...
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())

@@ -84,6 +84,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
+                    builder.field("cluster_name", response.clusterName());
                     builder.field("status", response.status().name().toLowerCase());
                     builder.field("timed_out", response.timedOut());
                     builder.field("number_of_nodes", response.numberOfNodes());

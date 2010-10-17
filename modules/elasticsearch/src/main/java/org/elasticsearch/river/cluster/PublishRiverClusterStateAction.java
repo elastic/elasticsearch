@@ -72,10 +72,6 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
             // master nodes because they will handle the state and the allocation of rivers
             // and river nodes since they will end up creating indexes
 
-            if (node.clientNode()) {
-                continue;
-            }
-
             if (!node.masterNode() && !RiverNodeHelper.isRiverNode(node)) {
                 continue;
             }

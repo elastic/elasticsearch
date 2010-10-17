@@ -28,6 +28,7 @@ import org.elasticsearch.river.RiverName;
 public class RiverNodeHelper {
 
     public static boolean isRiverNode(DiscoveryNode node) {
+        // we don't allocate rivers on client nodes
         if (node.clientNode()) {
             return false;
         }

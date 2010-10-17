@@ -76,7 +76,6 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
         // update to concrete indices
         request.indices(clusterState.metaData().concreteIndices(request.indices()));
-        final String[] indices = request.indices();
 
         final AtomicReference<PutMappingResponse> responseRef = new AtomicReference<PutMappingResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();

@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -53,11 +52,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         public static final boolean ENABLED = true;
         public static final boolean DYNAMIC = true;
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
-        public static final FormatDateTimeFormatter[] DATE_TIME_FORMATTERS =
-                new FormatDateTimeFormatter[]{
-                        DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd")
-                };
     }
 
     public static class Builder<T extends Builder, Y extends ObjectMapper> extends XContentMapper.Builder<T, Y> {
@@ -67,8 +61,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         protected boolean dynamic = Defaults.DYNAMIC;
 
         protected ContentPath.Type pathType = Defaults.PATH_TYPE;
-
-        protected List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
 
         protected Boolean includeInAll;
 
@@ -94,30 +86,8 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
             return builder;
         }
 
-        public T noDateTimeFormatter() {
-            this.dateTimeFormatters = null;
-            return builder;
-        }
-
         public T includeInAll(boolean includeInAll) {
             this.includeInAll = includeInAll;
-            return builder;
-        }
-
-        public T dateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
-            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                this.dateTimeFormatters.add(dateTimeFormatter);
-            }
-            return builder;
-        }
-
-        public T dateTimeFormatter(FormatDateTimeFormatter[] dateTimeFormatters) {
-            this.dateTimeFormatters.addAll(newArrayList(dateTimeFormatters));
-            return builder;
-        }
-
-        public T dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
-            this.dateTimeFormatters.add(dateTimeFormatter);
             return builder;
         }
 
@@ -127,12 +97,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
 
         @Override public Y build(BuilderContext context) {
-            if (dateTimeFormatters == null) {
-                dateTimeFormatters = newArrayList();
-            } else if (dateTimeFormatters.isEmpty()) {
-                // add the default one
-                dateTimeFormatters.addAll(newArrayList(Defaults.DATE_TIME_FORMATTERS));
-            }
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
             context.path().add(name);
@@ -142,8 +106,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 XContentMapper mapper = builder.build(context);
                 mappers.put(mapper.name(), mapper);
             }
-            ObjectMapper objectMapper = createMapper(name, enabled, dynamic, pathType,
-                    dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]), mappers);
+            ObjectMapper objectMapper = createMapper(name, enabled, dynamic, pathType, mappers);
 
             context.path().pathType(origPathType);
             context.path().remove();
@@ -153,9 +116,8 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
             return (Y) objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                                            FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
-            return new ObjectMapper(name, enabled, dynamic, pathType, dateTimeFormatters, mappers);
+        protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers) {
+            return new ObjectMapper(name, enabled, dynamic, pathType, mappers);
         }
     }
 
@@ -174,22 +136,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     String type = fieldNode.toString();
                     if (!type.equals("object")) {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
-                    }
-                } else if (fieldName.equals("date_formats")) {
-                    List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
-                    if (fieldNode instanceof List) {
-                        for (Object node1 : (List) fieldNode) {
-                            dateTimeFormatters.add(parseDateTimeFormatter(fieldName, node1));
-                        }
-                    } else if ("none".equals(fieldNode.toString())) {
-                        dateTimeFormatters = null;
-                    } else {
-                        dateTimeFormatters.add(parseDateTimeFormatter(fieldName, fieldNode));
-                    }
-                    if (dateTimeFormatters == null) {
-                        builder.noDateTimeFormatter();
-                    } else {
-                        builder.dateTimeFormatter(dateTimeFormatters);
                     }
                 } else if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
@@ -251,8 +197,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
     private final ContentPath.Type pathType;
 
-    private final FormatDateTimeFormatter[] dateTimeFormatters;
-
     private Boolean includeInAll;
 
     private volatile ImmutableMap<String, XContentMapper> mappers = ImmutableMap.of();
@@ -263,22 +207,16 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         this(name, Defaults.ENABLED, Defaults.DYNAMIC, Defaults.PATH_TYPE);
     }
 
+
     protected ObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType) {
-        this(name, enabled, dynamic, pathType, Defaults.DATE_TIME_FORMATTERS);
+        this(name, enabled, dynamic, pathType, null);
     }
 
-    protected ObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                           FormatDateTimeFormatter[] dateTimeFormatters) {
-        this(name, enabled, dynamic, pathType, dateTimeFormatters, null);
-    }
-
-    ObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                 FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
+    ObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers) {
         this.name = name;
         this.enabled = enabled;
         this.dynamic = dynamic;
         this.pathType = pathType;
-        this.dateTimeFormatters = dateTimeFormatters;
         if (mappers != null) {
             this.mappers = copyOf(mappers);
         }
@@ -385,8 +323,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                         BuilderContext builderContext = new BuilderContext(context.path());
                         XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
-                            builder = XContentMapperBuilders.object(currentFieldName).enabled(true)
-                                    .dynamic(dynamic).pathType(pathType).dateTimeFormatter(dateTimeFormatters);
+                            builder = XContentMapperBuilders.object(currentFieldName).enabled(true).dynamic(dynamic).pathType(pathType);
                         }
                         objectMapper = builder.build(builderContext);
                         putMapper(objectMapper);
@@ -452,7 +389,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 boolean isDate = false;
                 // a safe check since "1" gets parsed as well
                 if (text.contains(":") || text.contains("-") || text.contains("/")) {
-                    for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                    for (FormatDateTimeFormatter dateTimeFormatter : context.root().dateTimeFormatters()) {
                         try {
                             dateTimeFormatter.parser().parseMillis(text);
                             XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
@@ -604,14 +541,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
 
         doXContent(builder, params);
-
-        if (dateTimeFormatters.length > 0) {
-            builder.startArray("date_formats");
-            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                builder.value(dateTimeFormatter.format());
-            }
-            builder.endArray();
-        }
 
         // check internal mappers first (this is only relevant for root object)
         for (XContentMapper mapper : mappers.values()) {

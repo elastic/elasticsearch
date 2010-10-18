@@ -27,20 +27,18 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.CloseableIndexComponent;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -163,115 +161,21 @@ public class PluginsService extends AbstractComponent {
 
         File[] pluginsFiles = pluginsFile.listFiles();
         for (File pluginFile : pluginsFiles) {
-            if (!pluginFile.getName().endsWith(".zip")) {
-                if (pluginFile.isDirectory()) {
-                    logger.trace("--- adding expanded plugin [" + pluginFile.getAbsolutePath() + "]");
-                    try {
-                        // add the root
-                        addURL.invoke(classLoader, pluginFile.toURI().toURL());
-                        // if there are jars in it, add it as well
-                        for (File jarToAdd : pluginFile.listFiles()) {
-                            if (!(jarToAdd.getName().endsWith(".jar") || jarToAdd.getName().endsWith(".zip"))) {
-                                continue;
-                            }
-                            addURL.invoke(classLoader, jarToAdd.toURI().toURL());
-                        }
-                    } catch (Exception e) {
-                        logger.warn("failed to add plugin [" + pluginFile + "]", e);
-                    }
-                }
-
-                continue;
-            }
-            if (logger.isTraceEnabled()) {
-                logger.trace("processing [{}]", pluginFile);
-            }
-
-            String pluginNameNoExtension = pluginFile.getName().substring(0, pluginFile.getName().lastIndexOf('.'));
-            File extractedPluginDir = new File(new File(environment.workFile(), "plugins"), pluginNameNoExtension);
-            extractedPluginDir.mkdirs();
-
-            File stampsDir = new File(new File(environment.workFile(), "plugins"), "_stamps");
-            stampsDir.mkdirs();
-
-            boolean extractPlugin = true;
-            File stampFile = new File(stampsDir, pluginNameNoExtension + ".stamp");
-            if (stampFile.exists()) {
-                // read it, and check if its the same size as the pluginFile
-                RandomAccessFile raf = null;
+            if (pluginFile.isDirectory()) {
+                logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
                 try {
-                    raf = new RandomAccessFile(stampFile, "r");
-                    long size = raf.readLong();
-                    if (size == pluginFile.length()) {
-                        extractPlugin = false;
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("--- no need to extract plugin, same size [" + size + "]");
-                        }
-                    }
-                } catch (Exception e) {
-                    // ignore and extract the plugin
-                } finally {
-                    if (raf != null) {
-                        try {
-                            raf.close();
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    }
-                }
-            }
-
-            if (extractPlugin) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("--- extracting plugin to [" + extractedPluginDir + "]");
-                }
-                deleteRecursively(extractedPluginDir, false);
-
-                ZipFile zipFile = null;
-                try {
-                    zipFile = new ZipFile(pluginFile);
-                    Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
-                    while (zipEntries.hasMoreElements()) {
-                        ZipEntry zipEntry = zipEntries.nextElement();
-                        if (!(zipEntry.getName().endsWith(".jar") || zipEntry.getName().endsWith(".zip"))) {
+                    // add the root
+                    addURL.invoke(classLoader, pluginFile.toURI().toURL());
+                    // if there are jars in it, add it as well
+                    for (File jarToAdd : pluginFile.listFiles()) {
+                        if (!(jarToAdd.getName().endsWith(".jar") || jarToAdd.getName().endsWith(".zip"))) {
                             continue;
                         }
-                        String name = zipEntry.getName().replace('\\', '/');
-                        File target = new File(extractedPluginDir, name);
-                        Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
+                        addURL.invoke(classLoader, jarToAdd.toURI().toURL());
                     }
                 } catch (Exception e) {
-                    logger.warn("failed to extract plugin [" + pluginFile + "], ignoring...", e);
-                    continue;
-                } finally {
-                    if (zipFile != null) {
-                        try {
-                            zipFile.close();
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    }
+                    logger.warn("failed to add plugin [" + pluginFile + "]", e);
                 }
-
-                try {
-                    RandomAccessFile raf = new RandomAccessFile(stampFile, "rw");
-                    raf.writeLong(pluginFile.length());
-                    raf.close();
-                } catch (Exception e) {
-                    // ignore 
-                }
-
-            }
-
-            try {
-                for (File jarToAdd : extractedPluginDir.listFiles()) {
-                    if (!(jarToAdd.getName().endsWith(".jar") || jarToAdd.getName().endsWith(".zip"))) {
-                        continue;
-                    }
-                    addURL.invoke(classLoader, jarToAdd.toURI().toURL());
-                }
-            } catch (Exception e) {
-                logger.warn("failed to add plugin [" + pluginFile + "]", e);
             }
         }
     }

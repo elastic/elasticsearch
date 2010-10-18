@@ -103,6 +103,12 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder startObject(String name, FieldCaseConversion conversion) throws IOException {
+        field(name, conversion);
+        startObject();
+        return this;
+    }
+
     public XContentBuilder startObject(XContentBuilderString name) throws IOException {
         field(name);
         startObject();
@@ -195,6 +201,22 @@ public final class XContentBuilder {
             }
             name = Strings.toUnderscoreCase(name, cachedStringBuilder);
         } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
+            if (cachedStringBuilder == null) {
+                cachedStringBuilder = new StringBuilder();
+            }
+            name = Strings.toCamelCase(name, cachedStringBuilder);
+        }
+        generator.writeFieldName(name);
+        return this;
+    }
+
+    public XContentBuilder field(String name, FieldCaseConversion conversion) throws IOException {
+        if (conversion == FieldCaseConversion.UNDERSCORE) {
+            if (cachedStringBuilder == null) {
+                cachedStringBuilder = new StringBuilder();
+            }
+            name = Strings.toUnderscoreCase(name, cachedStringBuilder);
+        } else if (conversion == FieldCaseConversion.CAMELCASE) {
             if (cachedStringBuilder == null) {
                 cachedStringBuilder = new StringBuilder();
             }

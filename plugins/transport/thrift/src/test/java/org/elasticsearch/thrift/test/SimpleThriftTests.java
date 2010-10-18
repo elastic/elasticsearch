@@ -76,6 +76,10 @@ public class SimpleThriftTests {
         assertThat(map.get("ok").toString(), equalTo("true"));
         assertThat(map.get("_index").toString(), equalTo("test"));
         assertThat(map.get("_type").toString(), equalTo("type1"));
+
+        request = new RestRequest(Method.GET, "/_cluster/health");
+        response = client.execute(request);
+        assertThat(response.getStatus(), equalTo(Status.OK));
     }
 
     private Map<String, Object> parseBody(RestResponse response) throws IOException {

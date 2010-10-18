@@ -19,10 +19,13 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.os.OsUtils;
 
+import java.lang.reflect.Method;
 import java.net.*;
 import java.util.*;
 
@@ -95,8 +98,31 @@ public abstract class NetworkUtils {
         InetAddress address = null;
 
         Enumeration intfs = NetworkInterface.getNetworkInterfaces();
+
+        List<NetworkInterface> intfsList = Lists.newArrayList();
         while (intfs.hasMoreElements()) {
-            NetworkInterface intf = (NetworkInterface) intfs.nextElement();
+            intfsList.add((NetworkInterface) intfs.nextElement());
+        }
+
+        // order by index, assuming first ones are more interesting
+        try {
+            final Method getIndexMethod = NetworkInterface.class.getDeclaredMethod("getIndex");
+            getIndexMethod.setAccessible(true);
+
+            Collections.sort(intfsList, new Comparator<NetworkInterface>() {
+                @Override public int compare(NetworkInterface o1, NetworkInterface o2) {
+                    try {
+                        return ((Integer) getIndexMethod.invoke(o1)).intValue() - ((Integer) getIndexMethod.invoke(o2)).intValue();
+                    } catch (Exception e) {
+                        throw new ElasticSearchIllegalStateException("failed to fetch index of network interface");
+                    }
+                }
+            });
+        } catch (Exception e) {
+            // ignore
+        }
+
+        for (NetworkInterface intf : intfsList) {
             if (!intf.isUp() || intf.isLoopback())
                 continue;
             address = getFirstNonLoopbackAddress(intf, ip_version);
@@ -104,6 +130,7 @@ public abstract class NetworkUtils {
                 return address;
             }
         }
+
         return null;
     }
 

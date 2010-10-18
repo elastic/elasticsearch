@@ -74,7 +74,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
 
                     builder.startObject("indices");
                     for (IndexStatus indexStatus : response.indices().values()) {
-                        builder.startObject(indexStatus.index());
+                        builder.startObject(indexStatus.index(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.array("aliases", indexStatus.settings().getAsArray("index.aliases"));
 

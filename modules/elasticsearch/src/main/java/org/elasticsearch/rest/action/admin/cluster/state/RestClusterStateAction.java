@@ -117,7 +117,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                     if (!clusterStateRequest.filterNodes()) {
                         builder.startObject("nodes");
                         for (DiscoveryNode node : state.nodes()) {
-                            builder.startObject(node.id());
+                            builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
                             builder.field("name", node.name());
                             builder.field("transport_address", node.address().toString());
 
@@ -138,7 +138,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                         builder.startObject("indices");
                         for (IndexMetaData indexMetaData : state.metaData()) {
-                            builder.startObject(indexMetaData.index());
+                            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
                             builder.startObject("settings");
                             Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
@@ -179,7 +179,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                         builder.startObject("routing_table");
                         builder.startObject("indices");
                         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
-                            builder.startObject(indexRoutingTable.index());
+                            builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
                             builder.startObject("shards");
                             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                                 builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
@@ -206,7 +206,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                         builder.startObject("nodes");
                         for (RoutingNode routingNode : state.readOnlyRoutingNodes()) {
-                            builder.startArray(routingNode.nodeId());
+                            builder.startArray(routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
                             for (ShardRouting shardRouting : routingNode) {
                                 jsonShardRouting(builder, shardRouting);
                             }

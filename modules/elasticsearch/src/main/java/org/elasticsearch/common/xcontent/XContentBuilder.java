@@ -161,6 +161,12 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder startArray(String name, FieldCaseConversion conversion) throws IOException {
+        field(name, conversion);
+        startArray();
+        return this;
+    }
+
     public XContentBuilder startArray(String name) throws IOException {
         field(name);
         startArray();

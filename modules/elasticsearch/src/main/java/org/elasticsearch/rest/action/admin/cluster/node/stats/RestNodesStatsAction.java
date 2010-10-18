@@ -57,7 +57,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
                     builder.startObject("nodes");
                     for (NodeStats nodeStats : result) {
-                        builder.startObject(nodeStats.node().id());
+                        builder.startObject(nodeStats.node().id(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.field("name", nodeStats.node().name());
 

@@ -4,14 +4,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
@@ -33,16 +37,48 @@ public class PluginManager {
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
 
         URL pluginUrl = new URL(url + "/" + name + "/elasticsearch-" + name + "-" + Version.number() + ".zip");
-        downloadHelper.download(pluginUrl, new File(environment.pluginsFile(), name + ".zip"), new HttpDownloadHelper.VerboseProgress(System.out));
+        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
+        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+
+        // extract the plugin
+        File extractLocation = new File(environment.pluginsFile(), name);
+        ZipFile zipFile = null;
+        try {
+            zipFile = new ZipFile(pluginFile);
+            Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+            while (zipEntries.hasMoreElements()) {
+                ZipEntry zipEntry = zipEntries.nextElement();
+                if (!(zipEntry.getName().endsWith(".jar") || zipEntry.getName().endsWith(".zip"))) {
+                    continue;
+                }
+                String zipName = zipEntry.getName().replace('\\', '/');
+                File target = new File(extractLocation, zipName);
+                target.getParentFile().mkdirs();
+                Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
+            }
+        } catch (Exception e) {
+            System.err.println("failed to extract plugin [" + pluginFile + "]");
+        } finally {
+            if (zipFile != null) {
+                try {
+                    zipFile.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+            pluginFile.delete();
+        }
     }
 
     public void removePlugin(String name) throws IOException {
-        File pluginToDelete = new File(environment.pluginsFile(), name + ".zip");
-        if (!pluginToDelete.exists()) {
-            throw new FileNotFoundException("Plugin [" + name + "] does not exists");
+        File pluginToDelete = new File(environment.pluginsFile(), name);
+        if (pluginToDelete.exists()) {
+            FileSystemUtils.deleteRecursively(pluginToDelete, true);
         }
-        pluginToDelete.delete();
-        FileSystemUtils.deleteRecursively(new File(new File(environment.workFile(), "plugins"), name), true);
+        pluginToDelete = new File(environment.pluginsFile(), name + ".zip");
+        if (pluginToDelete.exists()) {
+            pluginToDelete.delete();
+        }
     }
 
     public static void main(String[] args) {

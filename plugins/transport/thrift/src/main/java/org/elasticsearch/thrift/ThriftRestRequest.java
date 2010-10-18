@@ -148,8 +148,8 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
     @Override public String param(String key, String defaultValue) {
         String value = params.get(key);
         if (value == null) {
-            return value;
+            return defaultValue;
         }
-        return defaultValue;
+        return value;
     }
 }

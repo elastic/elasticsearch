@@ -164,8 +164,8 @@ public class MemcachedRestRequest extends AbstractRestRequest {
     @Override public String param(String key, String defaultValue) {
         String value = params.get(key);
         if (value == null) {
-            return value;
+            return defaultValue;
         }
-        return defaultValue;
+        return value;
     }
 }

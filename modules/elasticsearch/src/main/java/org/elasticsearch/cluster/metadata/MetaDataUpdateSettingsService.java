@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -55,7 +55,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
             }
         }
         final Settings settings = updatedSettingsBuilder.build();
-        clusterService.submitStateUpdateTask("update-settings", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
                     boolean changed = false;
@@ -77,13 +77,15 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
 
                     logger.info("Updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
 
-                    listener.onSuccess();
-
                     return ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).build();
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;
                 }
+            }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                listener.onSuccess();
             }
         });
     }

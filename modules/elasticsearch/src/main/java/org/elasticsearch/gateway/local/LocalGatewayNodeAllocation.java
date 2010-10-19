@@ -37,10 +37,8 @@ import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
@@ -56,8 +54,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
  */
 public class LocalGatewayNodeAllocation extends NodeAllocation {
 
-    private final IndicesService indicesService;
-
     private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
 
     private final TransportNodesListShardStoreMetaData listShardStoreMetaData;
@@ -68,10 +64,9 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
     private final String initialShards;
 
-    @Inject public LocalGatewayNodeAllocation(Settings settings, IndicesService indicesService,
+    @Inject public LocalGatewayNodeAllocation(Settings settings,
                                               TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
         super(settings);
-        this.indicesService = indicesService;
         this.listGatewayStartedShards = listGatewayStartedShards;
         this.listShardStoreMetaData = listShardStoreMetaData;
 
@@ -250,14 +245,6 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
-            InternalIndexService indexService = (InternalIndexService) indicesService.indexService(shard.index());
-            if (indexService == null) {
-                continue;
-            }
-            // if the store is not persistent, it makes no sense to test for special allocation
-            if (!indexService.store().persistent()) {
-                continue;
-            }
 
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
             boolean canBeAllocatedToAtLeastOneNode = false;

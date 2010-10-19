@@ -21,8 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -31,15 +30,9 @@ import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.timer.Timeout;
-import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.timer.TimerService;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
@@ -49,27 +42,19 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
 
-    private final TimerService timerService;
-
     private final ClusterService clusterService;
 
     private final ShardsAllocation shardsAllocation;
 
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
-
-    @Inject public MetaDataDeleteIndexService(Settings settings, TimerService timerService, ClusterService clusterService, ShardsAllocation shardsAllocation,
-                                              NodeIndexDeletedAction nodeIndexDeletedAction) {
+    @Inject public MetaDataDeleteIndexService(Settings settings, ClusterService clusterService, ShardsAllocation shardsAllocation) {
         super(settings);
-        this.timerService = timerService;
         this.clusterService = clusterService;
         this.shardsAllocation = shardsAllocation;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
     }
 
-    public void deleteIndex(final Request request, final Listener userListener) {
-        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", new ClusterStateUpdateTask() {
+    public void deleteIndex(final Request request, final Listener listener) {
+        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                final DeleteIndexListener listener = new DeleteIndexListener(request, userListener);
                 try {
                     RoutingTable routingTable = currentState.routingTable();
                     if (!routingTable.hasIndex(request.index)) {
@@ -95,72 +80,18 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                     ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
 
-                    final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
-
-                    final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
-                        @Override public void onNodeIndexDeleted(String index, String nodeId) {
-                            if (index.equals(request.index)) {
-                                if (counter.decrementAndGet() == 0) {
-                                    listener.onResponse(new Response(true));
-                                    nodeIndexDeletedAction.remove(this);
-                                }
-                            }
-                        }
-                    };
-                    nodeIndexDeletedAction.add(nodeIndexDeleteListener);
-
-                    Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
-                        @Override public void run(Timeout timeout) throws Exception {
-                            listener.onResponse(new Response(false));
-                            nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
-                        }
-                    }, request.timeout, TimerService.ExecutionType.THREADED);
-                    listener.timeout = timeoutTask;
-
-
                     return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;
                 }
             }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                listener.onResponse(new Response(true));
+            }
         });
     }
-
-    class DeleteIndexListener implements Listener {
-
-        private AtomicBoolean notified = new AtomicBoolean();
-
-        private final Request request;
-
-        private final Listener listener;
-
-        volatile Timeout timeout;
-
-        private DeleteIndexListener(Request request, Listener listener) {
-            this.request = request;
-            this.listener = listener;
-        }
-
-        @Override public void onResponse(final Response response) {
-            if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
-                }
-                listener.onResponse(response);
-            }
-        }
-
-        @Override public void onFailure(Throwable t) {
-            if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
-                }
-                listener.onFailure(t);
-            }
-        }
-    }
-
 
     public static interface Listener {
 

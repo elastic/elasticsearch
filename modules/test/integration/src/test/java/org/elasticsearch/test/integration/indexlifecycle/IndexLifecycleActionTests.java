@@ -172,7 +172,8 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().prepareDelete("test").execute().actionGet();
         assertThat(deleteIndexResponse.acknowledged(), equalTo(true));
 
-        Thread.sleep(200);
+        Thread.sleep(500); // wait till the cluster state gets published
+
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2, nullValue());
@@ -302,6 +303,8 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // last, lets delete the index
         DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().delete(deleteIndexRequest("test")).actionGet();
         assertThat(deleteIndexResponse.acknowledged(), equalTo(true));
+
+        Thread.sleep(500); // wait till the cluster state gets published
 
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());

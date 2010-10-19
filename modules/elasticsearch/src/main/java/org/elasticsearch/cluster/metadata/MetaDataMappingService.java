@@ -22,14 +22,12 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.timer.Timeout;
-import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -39,19 +37,14 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.timer.TimerService;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.*;
 
 /**
@@ -63,17 +56,10 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
-    private final TimerService timerService;
-
-    private final NodeMappingCreatedAction nodeMappingCreatedAction;
-
-    @Inject public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService,
-                                          TimerService timerService, NodeMappingCreatedAction nodeMappingCreatedAction) {
+    @Inject public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.timerService = timerService;
-        this.nodeMappingCreatedAction = nodeMappingCreatedAction;
     }
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource) throws IOException {
@@ -114,7 +100,7 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void removeMapping(final RemoveRequest request) {
-        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
                     throw new IndexMissingException(new Index("_all"));
@@ -130,13 +116,16 @@ public class MetaDataMappingService extends AbstractComponent {
 
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                // TODO add a listener here!
+            }
         });
     }
 
-    public void putMapping(final PutRequest request, final Listener userListener) {
-        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ClusterStateUpdateTask() {
+    public void putMapping(final PutRequest request, final Listener listener) {
+        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                final PutMappingListener listener = new PutMappingListener(request, userListener);
                 try {
                     if (request.indices.length == 0) {
                         throw new IndexMissingException(new Index("_all"));
@@ -181,7 +170,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     final Map<String, Tuple<String, CompressedString>> mappings = newHashMap();
-                    int expectedReplies = 0;
                     for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
                         String index = entry.getKey();
                         // do the actual merge here on the master, and update the mapping source
@@ -197,7 +185,6 @@ public class MetaDataMappingService extends AbstractComponent {
                             if (existingSource.equals(updatedSource)) {
                                 // same source, no changes, ignore it
                             } else {
-                                expectedReplies += (currentState.nodes().size() - 1); // for this index, on update, don't include the master, since we update it already
                                 // use the merged mapping source
                                 mappings.put(index, new Tuple<String, CompressedString>(existingMapper.type(), updatedSource));
                                 if (logger.isDebugEnabled()) {
@@ -207,7 +194,6 @@ public class MetaDataMappingService extends AbstractComponent {
                                 }
                             }
                         } else {
-                            expectedReplies += currentState.nodes().size();
                             CompressedString newSource = newMapper.mappingSource();
                             mappings.put(index, new Tuple<String, CompressedString>(newMapper.type(), newSource));
                             if (logger.isDebugEnabled()) {
@@ -236,74 +222,17 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    if (expectedReplies == 0) {
-                        listener.onResponse(new Response(true));
-                    } else {
-                        final AtomicInteger counter = new AtomicInteger(expectedReplies);
-                        final Set<String> indicesSet = newHashSet(request.indices);
-                        final NodeMappingCreatedAction.Listener nodeMappingListener = new NodeMappingCreatedAction.Listener() {
-                            @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
-                                if (indicesSet.contains(response.index()) && response.type().equals(request.mappingType)) {
-                                    if (counter.decrementAndGet() == 0) {
-                                        listener.onResponse(new Response(true));
-                                        nodeMappingCreatedAction.remove(this);
-                                    }
-                                }
-                            }
-                        };
-                        nodeMappingCreatedAction.add(nodeMappingListener);
-
-                        Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
-                            @Override public void run(Timeout timeout) throws Exception {
-                                listener.onResponse(new Response(false));
-                                nodeMappingCreatedAction.remove(nodeMappingListener);
-                            }
-                        }, request.timeout, TimerService.ExecutionType.THREADED);
-                        listener.timeout = timeoutTask;
-                    }
-
-
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;
                 }
             }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                listener.onResponse(new Response(true));
+            }
         });
-    }
-
-    class PutMappingListener implements Listener {
-
-        private AtomicBoolean notified = new AtomicBoolean();
-
-        private final PutRequest request;
-
-        private final Listener listener;
-
-        volatile Timeout timeout;
-
-        private PutMappingListener(PutRequest request, Listener listener) {
-            this.request = request;
-            this.listener = listener;
-        }
-
-        @Override public void onResponse(final Response response) {
-            if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
-                }
-                listener.onResponse(response);
-            }
-        }
-
-        @Override public void onFailure(Throwable t) {
-            if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
-                }
-                listener.onFailure(t);
-            }
-        }
     }
 
     public static interface Listener {

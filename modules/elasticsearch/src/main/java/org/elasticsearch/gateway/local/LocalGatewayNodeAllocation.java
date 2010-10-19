@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -63,7 +62,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
     private final TransportNodesListShardStoreMetaData listShardStoreMetaData;
 
-    private final ConcurrentMap<ShardId, ConcurrentMap<DiscoveryNode, IndexStore.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
     private final TimeValue listTimeout;
 
@@ -278,15 +277,15 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 continue;
             }
 
-            ConcurrentMap<DiscoveryNode, IndexStore.StoreFilesMetaData> shardStores = buildShardStores(nodes, shard);
+            ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = buildShardStores(nodes, shard);
 
             long lastSizeMatched = 0;
             DiscoveryNode lastDiscoNodeMatched = null;
             RoutingNode lastNodeMatched = null;
 
-            for (Map.Entry<DiscoveryNode, IndexStore.StoreFilesMetaData> nodeStoreEntry : shardStores.entrySet()) {
+            for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> nodeStoreEntry : shardStores.entrySet()) {
                 DiscoveryNode discoNode = nodeStoreEntry.getKey();
-                IndexStore.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue();
+                TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue();
                 logger.trace("{}: checking node [{}]", shard, discoNode);
 
                 if (storeFilesMetaData == null) {
@@ -316,7 +315,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                     if (primaryShard != null && primaryShard.active()) {
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());
                         if (primaryNode != null) {
-                            IndexStore.StoreFilesMetaData primaryNodeStore = shardStores.get(primaryNode);
+                            TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryNodeStore = shardStores.get(primaryNode);
                             if (primaryNodeStore != null && primaryNodeStore.allocated()) {
                                 long sizeMatched = 0;
 
@@ -369,8 +368,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         }
     }
 
-    private ConcurrentMap<DiscoveryNode, IndexStore.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
-        ConcurrentMap<DiscoveryNode, IndexStore.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
+    private ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
+        ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
         if (shardStores == null) {
             shardStores = ConcurrentCollections.newConcurrentMap();
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet(), listTimeout).actionGet();
@@ -389,7 +388,9 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             }
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
-                shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
+                    shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                }
             }
             cachedStores.put(shard.shardId(), shardStores);
         } else {
@@ -425,7 +426,9 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 }
 
                 for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
-                    shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                    if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
+                        shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                    }
                 }
             }
         }

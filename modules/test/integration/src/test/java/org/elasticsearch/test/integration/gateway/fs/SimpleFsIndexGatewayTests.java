@@ -24,4 +24,7 @@ package org.elasticsearch.test.integration.gateway.fs;
  */
 public class SimpleFsIndexGatewayTests extends AbstractSimpleIndexGatewayTests {
 
+    @Override public void testSnapshotOperations() throws Exception {
+        super.testSnapshotOperations();    //To change body of overridden methods use File | Settings | File Templates.
+    }
 }

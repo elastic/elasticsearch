@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.store.support;
 
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
 
@@ -46,18 +43,5 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
 
     @Override public void deleteUnallocated(ShardId shardId) throws IOException {
         // do nothing here...
-    }
-
-    @Override public StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
-        if (indexShard == null) {
-            return listUnallocatedStoreMetaData(shardId);
-        } else {
-            return new StoreFilesMetaData(true, shardId, indexShard.store().list());
-        }
-    }
-
-    protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {
-        return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
     }
 }

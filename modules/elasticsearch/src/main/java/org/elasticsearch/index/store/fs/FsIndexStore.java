@@ -20,8 +20,6 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,12 +28,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -87,21 +83,6 @@ public abstract class FsIndexStore extends AbstractIndexStore {
             throw new ElasticSearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
         FileSystemUtils.deleteRecursively(shardLocation(shardId));
-    }
-
-    @Override protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {
-        if (location == null) {
-            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
-        }
-        File shardIndexLocation = shardIndexLocation(shardId);
-        if (!shardIndexLocation.exists()) {
-            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
-        }
-        Map<String, StoreFileMetaData> files = Maps.newHashMap();
-        for (File file : shardIndexLocation.listFiles()) {
-            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified()));
-        }
-        return new StoreFilesMetaData(false, shardId, files);
     }
 
     public File shardLocation(ShardId shardId) {

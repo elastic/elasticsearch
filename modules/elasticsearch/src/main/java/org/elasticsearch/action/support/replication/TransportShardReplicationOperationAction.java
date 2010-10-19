@@ -250,7 +250,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
             ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
-            if (!indicesService.hasIndex(request.index()) || !clusterState.routingTable().hasIndex(request.index())) {
+            if (!clusterState.routingTable().hasIndex(request.index())) {
                 retryPrimary(fromClusterEvent, null);
                 return false;
             }
@@ -264,7 +264,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             boolean foundPrimary = false;
             for (final ShardRouting shard : shards) {
                 if (shard.primary()) {
-                    if (!shard.active() || !nodes.nodeExists(shard.currentNodeId()) || !indicesService.hasIndex(request.index())) {
+                    if (!shard.active() || !nodes.nodeExists(shard.currentNodeId())) {
                         retryPrimary(fromClusterEvent, shard.shardId());
                         return false;
                     }

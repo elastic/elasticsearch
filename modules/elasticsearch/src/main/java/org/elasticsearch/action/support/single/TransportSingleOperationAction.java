@@ -105,8 +105,8 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
             checkBlock(request, clusterState);
 
-            this.shardsIt = indicesService.indexServiceSafe(request.index()).operationRouting()
-                    .getShards(clusterState, request.type(), request.id());
+            this.shardsIt = clusterService.operationRouting()
+                    .getShards(clusterState, request.index(), request.type(), request.id());
         }
 
         public void start() {

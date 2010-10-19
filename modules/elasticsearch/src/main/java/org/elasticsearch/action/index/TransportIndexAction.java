@@ -124,8 +124,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override protected ShardsIterator shards(ClusterState clusterState, IndexRequest request) {
-        return indicesService.indexServiceSafe(request.index()).operationRouting()
-                .indexShards(clusterService.state(), request.type(), request.id());
+        return clusterService.operationRouting()
+                .indexShards(clusterService.state(), request.index(), request.type(), request.id());
     }
 
     @Override protected IndexResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {

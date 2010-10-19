@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -58,6 +59,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final DiscoveryService discoveryService;
 
+    private final OperationRouting operationRouting;
+
     private final TransportService transportService;
 
     private volatile ExecutorService updateTasksExecutor;
@@ -68,9 +71,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 
-    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, TransportService transportService, ThreadPool threadPool,
+    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService, ThreadPool threadPool,
                                           TimerService timerService) {
         super(settings);
+        this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
@@ -100,6 +104,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override public DiscoveryNode localNode() {
         return discoveryService.localNode();
+    }
+
+    @Override public OperationRouting operationRouting() {
+        return operationRouting;
     }
 
     public ClusterState state() {

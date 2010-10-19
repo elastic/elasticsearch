@@ -17,26 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.routing.hash.djb;
+package org.elasticsearch.cluster.routing.operation.plain;
 
-import org.elasticsearch.index.routing.hash.HashFunction;
+import org.elasticsearch.cluster.routing.operation.OperationRouting;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class DjbHashFunction implements HashFunction {
+public class PlainOperationRoutingModule extends AbstractModule {
 
-    @Override public int hash(String type, String id) {
-        long hash = 5381;
-
-        for (int i = 0; i < type.length(); i++) {
-            hash = ((hash << 5) + hash) + type.charAt(i);
-        }
-
-        for (int i = 0; i < id.length(); i++) {
-            hash = ((hash << 5) + hash) + id.charAt(i);
-        }
-
-        return (int) hash;
+    @Override protected void configure() {
+        bind(OperationRouting.class).to(PlainOperationRouting.class).asEagerSingleton();
     }
 }

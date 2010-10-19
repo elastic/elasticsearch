@@ -78,7 +78,7 @@ public class HighlightSearchTests extends AbstractNodesTests {
     @Test public void testSimpleHighlighting() throws Exception {
         SearchResponse searchResponse = client.prepareSearch()
                 .setIndices("test")
-                .setSearchType(QUERY_THEN_FETCH)
+                .setSearchType(DFS_QUERY_THEN_FETCH)
                 .setQuery(termQuery("_all", "test"))
                 .setFrom(0).setSize(60)
                 .addHighlightedField("_all").setHighlighterOrder("score").setHighlighterPreTags("<xxx>").setHighlighterPostTags("</xxx>")

@@ -137,6 +137,7 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
     @Test public void testQueryThenFetch() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
+                .sort("nid", SortOrder.DESC) // we have to sort here to have some ordering with dist scoring
                 .from(0).size(60).explain(true);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
@@ -191,6 +192,11 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 100; i++) {
+            expectedIds.add(Integer.toString(i));
+        }
+
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
@@ -199,17 +205,15 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
             SearchHit hit = searchResponse.hits().hits()[i];
 //            System.out.println(hit.shard() + ": " +  hit.explanation());
             assertThat(hit.explanation(), notNullValue());
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+            // we can't really check here, since its query and fetch, and not controlling distribution
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
         searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));
-        Set<String> expectedIds = Sets.newHashSet();
-        for (int i = 0; i < 40; i++) {
-            expectedIds.add(Integer.toString(i));
-        }
         for (int i = 0; i < 40; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
 //            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
@@ -224,6 +228,12 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 100; i++) {
+            expectedIds.add(Integer.toString(i));
+        }
+
+
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
@@ -232,17 +242,14 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
             SearchHit hit = searchResponse.hits().hits()[i];
 //            System.out.println(hit.shard() + ": " +  hit.explanation());
             assertThat(hit.explanation(), notNullValue());
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
         searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));
-        Set<String> expectedIds = Sets.newHashSet();
-        for (int i = 0; i < 40; i++) {
-            expectedIds.add(Integer.toString(i));
-        }
         for (int i = 0; i < 40; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
 //            System.out.println(hit.shard() + ": " +  hit.explanation());
@@ -325,6 +332,7 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
         }
         return jsonBuilder().startObject()
                 .field("id", id)
+                .field("nid", Integer.parseInt(id))
                 .field("name", nameValue + id)
                 .field("age", age)
                 .field("multi", multi.toString())

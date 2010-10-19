@@ -23,8 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.search.IndexReaderPurgedListener;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -48,7 +46,6 @@ import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
-import org.elasticsearch.index.routing.OperationRoutingModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -197,18 +194,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indexService;
     }
 
-    @Override public GroupShardsIterator searchShards(ClusterState clusterState, String[] indexNames, String queryHint) throws ElasticSearchException {
-        if (indexNames == null || indexNames.length == 0) {
-            ImmutableMap<String, IndexService> indices = this.indices;
-            indexNames = indices.keySet().toArray(new String[indices.keySet().size()]);
-        }
-        GroupShardsIterator its = new GroupShardsIterator();
-        for (String index : indexNames) {
-            its.add(indexServiceSafe(index).operationRouting().searchShards(clusterState, queryHint));
-        }
-        return its;
-    }
-
     public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticSearchException {
         Index index = new Index(sIndexName);
         if (indicesInjectors.containsKey(index.name())) {
@@ -240,7 +225,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexQueryParserModule(indexSettings));
         modules.add(new MapperServiceModule());
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
-        modules.add(new OperationRoutingModule(indexSettings));
         modules.add(new IndexModule());
 
         Injector indexInjector = modules.createChildInjector(injector);

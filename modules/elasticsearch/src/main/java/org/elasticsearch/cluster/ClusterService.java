@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -40,6 +41,9 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      * The current state.
      */
     ClusterState state();
+
+    OperationRouting operationRouting();
+
 
     /**
      * Adds a listener for updated cluster states.

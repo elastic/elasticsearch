@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardManagement;
 import org.elasticsearch.index.shard.IndexShardModule;
@@ -100,8 +99,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexStore indexStore;
 
-    private final OperationRouting operationRouting;
-
     private volatile ImmutableMap<Integer, Injector> shardsInjectors = ImmutableMap.of();
 
     private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
@@ -110,7 +107,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool,
                                         MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
-                                        IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, OperationRouting operationRouting) {
+                                        IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
         super(index, indexSettings);
         this.injector = injector;
         this.threadPool = threadPool;
@@ -122,7 +119,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.indexEngine = indexEngine;
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
-        this.operationRouting = operationRouting;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
@@ -172,10 +168,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override public IndexCache cache() {
         return indexCache;
-    }
-
-    @Override public OperationRouting operationRouting() {
-        return operationRouting;
     }
 
     @Override public MapperService mapperService() {

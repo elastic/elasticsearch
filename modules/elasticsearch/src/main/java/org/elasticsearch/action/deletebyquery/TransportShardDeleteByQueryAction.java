@@ -72,7 +72,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     }
 
     @Override protected ShardsIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {
-        GroupShardsIterator group = indicesService.indexServiceSafe(request.index()).operationRouting().deleteByQueryShards(clusterService.state());
+        GroupShardsIterator group = clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index());
         for (ShardsIterator shards : group) {
             if (shards.shardId().id() == request.shardId()) {
                 return shards;

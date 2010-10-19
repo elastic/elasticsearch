@@ -20,8 +20,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -51,13 +49,6 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
     IndexService indexService(String index);
 
     IndexService indexServiceSafe(String index) throws IndexMissingException;
-
-    /**
-     * Gets all the "searchable" shards on all the given indices.
-     *
-     * @see org.elasticsearch.index.routing.OperationRouting#searchShards(org.elasticsearch.cluster.ClusterState, String)
-     */
-    GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String queryHint) throws ElasticSearchException;
 
     IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticSearchException;
 

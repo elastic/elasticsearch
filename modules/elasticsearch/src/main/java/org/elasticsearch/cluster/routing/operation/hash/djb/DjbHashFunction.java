@@ -17,16 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.routing.hash.simple;
+package org.elasticsearch.cluster.routing.operation.hash.djb;
 
-import org.elasticsearch.index.routing.hash.HashFunction;
+import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class SimpleHashFunction implements HashFunction {
+public class DjbHashFunction implements HashFunction {
 
     @Override public int hash(String type, String id) {
-        return type.hashCode() + 31 * id.hashCode();
+        long hash = 5381;
+
+        for (int i = 0; i < type.length(); i++) {
+            hash = ((hash << 5) + hash) + type.charAt(i);
+        }
+
+        for (int i = 0; i < id.length(); i++) {
+            hash = ((hash << 5) + hash) + id.charAt(i);
+        }
+
+        return (int) hash;
     }
 }

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.routing;
+package org.elasticsearch.cluster.routing.operation;
 
+import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
+import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRoutingModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.routing.hash.HashFunction;
-import org.elasticsearch.index.routing.hash.djb.DjbHashFunction;
-import org.elasticsearch.index.routing.plain.PlainOperationRoutingModule;
 
 import static org.elasticsearch.common.inject.Modules.*;
 
@@ -35,17 +35,17 @@ import static org.elasticsearch.common.inject.Modules.*;
  */
 public class OperationRoutingModule extends AbstractModule implements SpawnModules {
 
-    private final Settings indexSettings;
+    private final Settings settings;
 
-    public OperationRoutingModule(Settings indexSettings) {
-        this.indexSettings = indexSettings;
+    public OperationRoutingModule(Settings settings) {
+        this.settings = settings;
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(createModule(indexSettings.getAsClass("index.routing.type", PlainOperationRoutingModule.class, "org.elasticsearch.index.routing.", "OperationRoutingModule"), indexSettings));
+        return ImmutableList.of(createModule(settings.getAsClass("cluster.routing.operation.type", PlainOperationRoutingModule.class, "org.elasticsearch.cluster.routing.operation.", "OperationRoutingModule"), settings));
     }
 
     @Override protected void configure() {
-        bind(HashFunction.class).to(indexSettings.getAsClass("index.routing.hash.type", DjbHashFunction.class, "org.elasticsearch.index.routing.hash.", "HashFunction")).asEagerSingleton();
+        bind(HashFunction.class).to(settings.getAsClass("cluster.routing.operation.hash.type", DjbHashFunction.class, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction")).asEagerSingleton();
     }
 }

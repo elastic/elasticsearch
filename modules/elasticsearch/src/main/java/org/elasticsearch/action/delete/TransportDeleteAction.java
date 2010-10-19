@@ -111,7 +111,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     }
 
     @Override protected ShardsIterator shards(ClusterState clusterState, DeleteRequest request) {
-        return indicesService.indexServiceSafe(request.index()).operationRouting()
-                .deleteShards(clusterService.state(), request.type(), request.id());
+        return clusterService.operationRouting()
+                .deleteShards(clusterService.state(), request.index(), request.type(), request.id());
     }
 }

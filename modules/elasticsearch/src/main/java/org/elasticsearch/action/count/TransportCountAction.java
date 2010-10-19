@@ -76,7 +76,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override protected GroupShardsIterator shards(CountRequest request, ClusterState clusterState) {
-        return indicesService.searchShards(clusterState, request.indices(), request.queryHint());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint());
     }
 
     @Override protected void checkBlock(CountRequest request, ClusterState state) {

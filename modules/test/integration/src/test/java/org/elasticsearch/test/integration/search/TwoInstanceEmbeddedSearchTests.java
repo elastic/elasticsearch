@@ -114,7 +114,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true).indexBoost("test", 1.0f).indexBoost("test2", 2.0f);
 
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -182,7 +182,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -270,8 +270,13 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 100; i++) {
+            expectedIds.add(Integer.toString(i));
+        }
+
         Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = newHashMap();
-        for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -289,7 +294,8 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         for (int i = 0; i < 60; i++) {
             SearchHit hit = hits.hits()[i];
 //            System.out.println(hit.id() + " " + hit.explanation());
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
         // scrolling with query+fetch is not perfect when it comes to dist sorting
@@ -304,10 +310,6 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         hits = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults).hits();
         assertThat(hits.totalHits(), equalTo(100l));
         assertThat(hits.hits().length, equalTo(40));
-        Set<String> expectedIds = Sets.newHashSet();
-        for (int i = 0; i < 40; i++) {
-            expectedIds.add(Integer.toString(i));
-        }
         for (int i = 0; i < 40; i++) {
             SearchHit hit = hits.hits()[i];
 //            System.out.println(hit.id() + " " + hit.explanation());
@@ -326,7 +328,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
                 .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
-        for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -370,6 +372,6 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         for (int i = 0; i < age; i++) {
             multi.append(" ").append(nameValue);
         }
-        return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + (nameValue + id) + "\", age : " + age + ", multi : \"" + multi.toString() + "\", _boost : " + (age * 10) + " } }";
+        return "{ type1 : { \"id\" : \"" + id + "\", \"nid\" : " + id + ", \"name\" : \"" + (nameValue + id) + "\", age : " + age + ", multi : \"" + multi.toString() + "\", _boost : " + (age * 10) + " } }";
     }
 }

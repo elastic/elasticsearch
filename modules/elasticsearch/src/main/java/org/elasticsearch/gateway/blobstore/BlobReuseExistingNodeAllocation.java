@@ -33,13 +33,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.gateway.CommitPoint;
-import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
-import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
@@ -52,7 +52,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
-    private final IndicesService indicesService;
+    private final Node node;
 
     private final TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData;
 
@@ -62,10 +62,10 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
     private final ConcurrentMap<ShardId, ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
-    @Inject public BlobReuseExistingNodeAllocation(Settings settings, IndicesService indicesService,
+    @Inject public BlobReuseExistingNodeAllocation(Settings settings, Node node,
                                                    TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
-        this.indicesService = indicesService;
+        this.node = node; // YACK!, we need the Gateway, but it creates crazy circular dependency
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
 
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
@@ -102,14 +102,6 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
-            InternalIndexService indexService = (InternalIndexService) indicesService.indexService(shard.index());
-            if (indexService == null) {
-                continue;
-            }
-            // if the store is not persistent, it makes no sense to test for special allocation
-            if (!indexService.store().persistent()) {
-                continue;
-            }
 
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
             boolean canBeAllocatedToAtLeastOneNode = false;
@@ -165,11 +157,10 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
                 // if its a primary, it will be recovered from the gateway, find one that is closet to it
                 if (shard.primary()) {
-                    BlobStoreIndexGateway indexGateway = (BlobStoreIndexGateway) indexService.gateway();
                     try {
                         CommitPoint commitPoint = cachedCommitPoints.get(shard.shardId());
                         if (commitPoint == null) {
-                            commitPoint = indexGateway.findCommitPoint(shard.id());
+                            commitPoint = ((BlobStoreGateway) ((InternalNode) this.node).injector().getInstance(Gateway.class)).findCommitPoint(shard.index(), shard.id());
                             if (commitPoint != null) {
                                 cachedCommitPoints.put(shard.shardId(), commitPoint);
                             } else {

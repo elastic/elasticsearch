@@ -25,15 +25,20 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.gateway.shared.SharedStorageGateway;
+import org.elasticsearch.index.gateway.CommitPoint;
+import org.elasticsearch.index.gateway.CommitPoints;
+import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
@@ -101,6 +106,27 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
             throw new GatewayException("Failed to read metadata [" + metaData + "] from gateway", e);
         }
     }
+
+    public CommitPoint findCommitPoint(String index, int shardId) throws IOException {
+        ImmutableBlobContainer container = blobStore.immutableBlobContainer(BlobStoreIndexGateway.shardPath(basePath, index, shardId));
+        ImmutableMap<String, BlobMetaData> blobs = container.listBlobs();
+        List<CommitPoint> commitPointsList = Lists.newArrayList();
+        for (String name : blobs.keySet()) {
+            if (name.startsWith("commit-")) {
+                try {
+                    commitPointsList.add(CommitPoints.fromXContent(container.readBlobFully(name)));
+                } catch (Exception e) {
+                    logger.warn("failed to read commit point [{}]", e, name);
+                }
+            }
+        }
+        CommitPoints commitPoints = new CommitPoints(commitPointsList);
+        if (commitPoints.commits().isEmpty()) {
+            return null;
+        }
+        return commitPoints.commits().get(0);
+    }
+
 
     @Override public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);

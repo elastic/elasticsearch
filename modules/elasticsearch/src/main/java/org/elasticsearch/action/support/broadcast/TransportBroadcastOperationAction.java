@@ -37,7 +37,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -58,16 +57,13 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected final TransportService transportService;
 
-    protected final IndicesService indicesService;
-
     protected final ThreadPool threadPool;
 
-    protected TransportBroadcastOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    protected TransportBroadcastOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.indicesService = indicesService;
 
         transportService.registerHandler(transportAction(), new TransportHandler());
         transportService.registerHandler(transportShardAction(), new ShardTransportHandler());

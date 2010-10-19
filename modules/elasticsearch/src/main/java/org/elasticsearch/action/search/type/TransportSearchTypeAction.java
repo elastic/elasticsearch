@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
@@ -59,21 +58,18 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
     protected final ClusterService clusterService;
 
-    protected final IndicesService indicesService;
-
     protected final SearchServiceTransportAction searchService;
 
     protected final SearchPhaseController searchPhaseController;
 
     protected final TransportSearchCache searchCache;
 
-    public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
+    public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                      TransportSearchCache searchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.searchCache = searchCache;
-        this.indicesService = indicesService;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
     }

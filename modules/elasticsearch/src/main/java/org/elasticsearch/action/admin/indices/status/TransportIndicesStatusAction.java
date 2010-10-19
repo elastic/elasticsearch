@@ -56,12 +56,15 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class TransportIndicesStatusAction extends TransportBroadcastOperationAction<IndicesStatusRequest, IndicesStatusResponse, TransportIndicesStatusAction.IndexShardStatusRequest, ShardStatus> {
 
+    private final IndicesService indicesService;
+
     private final RecoveryTarget peerRecoveryTarget;
 
     @Inject public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
-        super(settings, threadPool, clusterService, transportService, indicesService);
+        super(settings, threadPool, clusterService, transportService);
         this.peerRecoveryTarget = peerRecoveryTarget;
+        this.indicesService = indicesService;
     }
 
     @Override protected String transportAction() {

@@ -45,9 +45,12 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportGatewaySnapshotAction extends TransportBroadcastOperationAction<GatewaySnapshotRequest, GatewaySnapshotResponse, ShardGatewaySnapshotRequest, ShardGatewaySnapshotResponse> {
 
+    private final IndicesService indicesService;
+
     @Inject public TransportGatewaySnapshotAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                   TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService, indicesService);
+        super(settings, threadPool, clusterService, transportService);
+        this.indicesService = indicesService;
     }
 
     @Override protected String transportAction() {

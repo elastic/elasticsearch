@@ -47,8 +47,11 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class TransportCountAction extends TransportBroadcastOperationAction<CountRequest, CountResponse, ShardCountRequest, ShardCountResponse> {
 
+    private final IndicesService indicesService;
+
     @Inject public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService, indicesService);
+        super(settings, threadPool, clusterService, transportService);
+        this.indicesService = indicesService;
     }
 
     @Override protected String transportAction() {

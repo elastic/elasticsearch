@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -52,9 +51,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeAction {
 
-    @Inject public TransportSearchDfsQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
+    @Inject public TransportSearchDfsQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                           TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, indicesService, transportSearchCache, searchService, searchPhaseController);
+        super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
     }
 
     @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {

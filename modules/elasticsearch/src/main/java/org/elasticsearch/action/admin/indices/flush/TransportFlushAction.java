@@ -49,8 +49,11 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class TransportFlushAction extends TransportBroadcastOperationAction<FlushRequest, FlushResponse, ShardFlushRequest, ShardFlushResponse> {
 
+    private final IndicesService indicesService;
+
     @Inject public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService, indicesService);
+        super(settings, threadPool, clusterService, transportService);
+        this.indicesService = indicesService;
     }
 
     @Override protected String transportAction() {

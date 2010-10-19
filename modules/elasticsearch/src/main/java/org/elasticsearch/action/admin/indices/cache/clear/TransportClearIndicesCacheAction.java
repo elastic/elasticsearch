@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -49,12 +49,15 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
 
+    private final IndicesService indicesService;
+
     private final QueryParserCache queryParserCache;
 
     @Inject public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                     TransportService transportService, IndicesService indicesService, QueryParserCache queryParserCache) {
-        super(settings, threadPool, clusterService, transportService, indicesService);
+        super(settings, threadPool, clusterService, transportService);
         this.queryParserCache = queryParserCache;
+        this.indicesService = indicesService;
     }
 
     @Override protected String transportAction() {
@@ -109,11 +112,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
         // TODO we can optimize to go to a single node where the index exists
-        IndexCache cache = indicesService.indexServiceSafe(request.index()).cache();
-        queryParserCache.clear();
-        if (request.filterCache()) {
-            cache.filter().clear();
+        IndexService service = indicesService.indexService(request.index());
+        if (service != null) {
+            service.cache().clear();
         }
+        queryParserCache.clear();
         return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
     }
 

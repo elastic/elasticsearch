@@ -26,7 +26,6 @@ import org.elasticsearch.index.shard.recovery.RecoveryTarget;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
-import org.elasticsearch.indices.memory.IndicesMemoryCleaner;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 /**
@@ -49,7 +48,6 @@ public class IndicesModule extends AbstractModule {
         bind(RecoverySource.class).asEagerSingleton();
 
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(IndicesMemoryCleaner.class).asEagerSingleton();
         bind(IndexingMemoryBufferController.class).asEagerSingleton();
         bind(IndicesAnalysisService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();

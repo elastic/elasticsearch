@@ -21,9 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -39,8 +37,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.timer.Timeout;
-import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -52,15 +48,12 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.river.RiverIndexName;
-import org.elasticsearch.timer.TimerService;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
@@ -74,31 +67,25 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final Environment environment;
 
-    private final TimerService timerService;
-
     private final ClusterService clusterService;
 
     private final IndicesService indicesService;
 
     private final ShardsAllocation shardsAllocation;
 
-    private final NodeIndexCreatedAction nodeIndexCreatedAction;
-
     private final String riverIndexName;
 
-    @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, TimerService timerService, ClusterService clusterService, IndicesService indicesService,
-                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction, @RiverIndexName String riverIndexName) {
+    @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, ClusterService clusterService, IndicesService indicesService,
+                                              ShardsAllocation shardsAllocation, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
-        this.timerService = timerService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardsAllocation = shardsAllocation;
-        this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.riverIndexName = riverIndexName;
     }
 
-    public void createIndex(final Request request, final Listener userListener) {
+    public void createIndex(final Request request, final Listener listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
         for (Map.Entry<String, String> entry : request.settings.getAsMap().entrySet()) {
             if (!entry.getKey().startsWith("index.")) {
@@ -109,9 +96,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         request.settings(updatedSettingsBuilder.build());
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                final CreateIndexListener listener = new CreateIndexListener(request, userListener);
                 try {
                     if (currentState.routingTable().hasIndex(request.index)) {
                         listener.onFailure(new IndexAlreadyExistsException(new Index(request.index)));
@@ -218,33 +204,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", request.index, request.cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
-                    final AtomicInteger counter = new AtomicInteger(currentState.nodes().size() - 1); // -1 since we added it on the master already
-                    if (counter.get() == 0) {
-                        // no nodes to add to
-                        listener.onResponse(new Response(true, indexMetaData));
-                    } else {
-
-                        final NodeIndexCreatedAction.Listener nodeIndexCreateListener = new NodeIndexCreatedAction.Listener() {
-                            @Override public void onNodeIndexCreated(String index, String nodeId) {
-                                if (index.equals(request.index)) {
-                                    if (counter.decrementAndGet() == 0) {
-                                        listener.onResponse(new Response(true, indexMetaData));
-                                        nodeIndexCreatedAction.remove(this);
-                                    }
-                                }
-                            }
-                        };
-                        nodeIndexCreatedAction.add(nodeIndexCreateListener);
-
-                        Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
-                            @Override public void run(Timeout timeout) throws Exception {
-                                listener.onResponse(new Response(false, indexMetaData));
-                                nodeIndexCreatedAction.remove(nodeIndexCreateListener);
-                            }
-                        }, request.timeout, TimerService.ExecutionType.THREADED);
-                        listener.timeout = timeoutTask;
-                    }
-
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks.isEmpty()) {
                         for (ClusterBlock block : request.blocks) {
@@ -257,6 +216,27 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     listener.onFailure(e);
                     return currentState;
                 }
+            }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
+                    @Override public ClusterState execute(ClusterState currentState) {
+                        RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
+                        for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
+                            routingTableBuilder.add(indexRoutingTable);
+                        }
+                        IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
+                                .initializeEmpty(currentState.metaData().index(request.index));
+                        routingTableBuilder.add(indexRoutingBuilder);
+                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
+                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                    }
+
+                    @Override public void clusterStateProcessed(ClusterState clusterState) {
+                        logger.info("[{}] created and added to cluster_state", request.index);
+                        listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
+                    }
+                });
             }
         });
     }
@@ -273,58 +253,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 mappings.put(fileNameNoSuffix, new CompressedString(Streams.copyToString(new FileReader(mappingFile))));
             } catch (IOException e) {
                 logger.warn("failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
-            }
-        }
-    }
-
-    class CreateIndexListener implements Listener {
-
-        private AtomicBoolean notified = new AtomicBoolean();
-
-        private final Request request;
-
-        private final Listener listener;
-
-        volatile Timeout timeout;
-
-        private CreateIndexListener(Request request, Listener listener) {
-            this.request = request;
-            this.listener = listener;
-        }
-
-        @Override public void onResponse(final Response response) {
-            if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
-                }
-                // do the reroute after indices have been created on all the other nodes so we can query them for some info (like shard allocation)
-                clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
-                        RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
-                        for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
-                            routingTableBuilder.add(indexRoutingTable);
-                        }
-                        IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
-                                .initializeEmpty(currentState.metaData().index(request.index));
-                        routingTableBuilder.add(indexRoutingBuilder);
-                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
-                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
-                    }
-
-                    @Override public void clusterStateProcessed(ClusterState clusterState) {
-                        logger.info("[{}] created and added to cluster_state", request.index);
-                        listener.onResponse(response);
-                    }
-                });
-            }
-        }
-
-        @Override public void onFailure(Throwable t) {
-            if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
-                }
-                listener.onFailure(t);
             }
         }
     }

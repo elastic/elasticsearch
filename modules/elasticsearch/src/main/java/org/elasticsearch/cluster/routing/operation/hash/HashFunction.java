@@ -17,17 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.routing.plain;
-
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.routing.OperationRouting;
+package org.elasticsearch.cluster.routing.operation.hash;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class PlainOperationRoutingModule extends AbstractModule {
+public interface HashFunction {
 
-    @Override protected void configure() {
-        bind(OperationRouting.class).to(PlainOperationRouting.class).asEagerSingleton();
-    }
+    int hash(String type, String id);
 }

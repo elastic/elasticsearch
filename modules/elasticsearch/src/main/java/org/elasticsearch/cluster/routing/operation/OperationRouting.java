@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.routing;
+package org.elasticsearch.cluster.routing.operation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -28,20 +28,17 @@ import org.elasticsearch.indices.IndexMissingException;
 import javax.annotation.Nullable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface OperationRouting {
 
-    ShardsIterator indexShards(ClusterState clusterState, String type, String id) throws IndexMissingException, IndexShardMissingException;
+    ShardsIterator indexShards(ClusterState clusterState, String index, String type, String id) throws IndexMissingException, IndexShardMissingException;
 
-    ShardsIterator deleteShards(ClusterState clusterState, String type, String id) throws IndexMissingException, IndexShardMissingException;
+    ShardsIterator deleteShards(ClusterState clusterState, String index, String type, String id) throws IndexMissingException, IndexShardMissingException;
 
-    ShardsIterator getShards(ClusterState clusterState, String type, String id) throws IndexMissingException, IndexShardMissingException;
+    ShardsIterator getShards(ClusterState clusterState, String index, String type, String id) throws IndexMissingException, IndexShardMissingException;
 
-    /**
-     * Returns the shards grouped by shard
-     */
-    GroupShardsIterator deleteByQueryShards(ClusterState clusterState) throws IndexMissingException;
+    GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index) throws IndexMissingException;
 
-    GroupShardsIterator searchShards(ClusterState clusterState, @Nullable String queryHint) throws IndexMissingException;
+    GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, @Nullable String queryHint) throws IndexMissingException;
 }

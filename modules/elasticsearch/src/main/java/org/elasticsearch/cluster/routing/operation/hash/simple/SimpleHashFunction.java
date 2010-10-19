@@ -17,12 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.routing.hash;
+package org.elasticsearch.cluster.routing.operation.hash.simple;
+
+import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public interface HashFunction {
+public class SimpleHashFunction implements HashFunction {
 
-    int hash(String type, String id);
+    @Override public int hash(String type, String id) {
+        return type.hashCode() + 31 * id.hashCode();
+    }
 }

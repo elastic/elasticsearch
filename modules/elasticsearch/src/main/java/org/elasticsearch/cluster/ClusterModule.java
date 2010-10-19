@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationModule;
+import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -46,7 +47,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new ShardAllocationModule(settings));
+        return ImmutableList.of(new ShardAllocationModule(settings), new OperationRoutingModule(settings));
     }
 
     @Override

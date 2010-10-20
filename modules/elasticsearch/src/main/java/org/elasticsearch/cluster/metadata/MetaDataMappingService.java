@@ -69,32 +69,47 @@ public class MetaDataMappingService extends AbstractComponent {
     public void updateMapping(final String index, final String type, final String mappingSource) {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
-
-                DocumentMapper existingMapper = mapperService.documentMapper(type);
-                // parse the updated one
-                DocumentMapper updatedMapper = mapperService.parse(type, mappingSource);
-                if (existingMapper == null) {
-                    existingMapper = updatedMapper;
-                } else {
-                    // merge from the updated into the existing, ignore conflicts (we know we have them, we just want the new ones)
-                    existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
-                }
-                // build the updated mapping source
-                if (logger.isDebugEnabled()) {
-                    try {
-                        logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, existingMapper.mappingSource().string());
-                    } catch (IOException e) {
-                        // ignore
+                try {
+                    IndexService indexService = indicesService.indexService(index);
+                    if (indexService == null) {
+                        // we need to create the index here, and add the current mapping to it, so we can merge
+                        final IndexMetaData indexMetaData = currentState.metaData().index(index);
+                        indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                        // only add the current relevant mapping (if exists)
+                        if (indexMetaData.mappings().containsKey(type)) {
+                            indexService.mapperService().add(type, indexMetaData.mappings().get(type).string());
+                        }
                     }
-                } else if (logger.isInfoEnabled()) {
-                    logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
-                }
+                    MapperService mapperService = indexService.mapperService();
 
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                IndexMetaData indexMetaData = currentState.metaData().index(index);
-                builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, existingMapper.mappingSource()));
-                return newClusterStateBuilder().state(currentState).metaData(builder).build();
+                    DocumentMapper existingMapper = mapperService.documentMapper(type);
+                    // parse the updated one
+                    DocumentMapper updatedMapper = mapperService.parse(type, mappingSource);
+                    if (existingMapper == null) {
+                        existingMapper = updatedMapper;
+                    } else {
+                        // merge from the updated into the existing, ignore conflicts (we know we have them, we just want the new ones)
+                        existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
+                    }
+                    // build the updated mapping source
+                    if (logger.isDebugEnabled()) {
+                        try {
+                            logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, existingMapper.mappingSource().string());
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    } else if (logger.isInfoEnabled()) {
+                        logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
+                    }
+
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    IndexMetaData indexMetaData = currentState.metaData().index(index);
+                    builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, existingMapper.mappingSource()));
+                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
+                } catch (Exception e) {
+                    logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
+                    return currentState;
+                }
             }
         });
     }
@@ -143,10 +158,9 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
                         IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
-                        for (Map.Entry<String, CompressedString> mapping : indexMetaData.mappings().entrySet()) {
-                            if (!indexService.mapperService().hasMapping(mapping.getKey())) {
-                                indexService.mapperService().add(mapping.getKey(), mapping.getValue().string());
-                            }
+                        // only add the current relevant mapping (if exists)
+                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                            indexService.mapperService().add(request.mappingType, indexMetaData.mappings().get(request.mappingType).string());
                         }
                     }
 

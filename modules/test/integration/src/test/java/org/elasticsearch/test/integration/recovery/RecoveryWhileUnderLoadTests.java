@@ -53,6 +53,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         final AtomicLong idGenerator = new AtomicLong();
+        final AtomicLong indexCounter = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] writers = new Thread[5];
         final CountDownLatch stopLatch = new CountDownLatch(writers.length);
@@ -68,6 +69,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                             long id = idGenerator.incrementAndGet();
                             client("node1").prepareIndex("test", "type1", Long.toString(id))
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
+                            indexCounter.incrementAndGet();
                         }
                         logger.info("**** done indexing thread {}", indexerId);
                     } catch (Exception e) {
@@ -123,7 +125,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verifying indexed content");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(indexCounter.get()));
         }
     }
 
@@ -135,6 +137,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         final AtomicLong idGenerator = new AtomicLong();
+        final AtomicLong indexCounter = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] writers = new Thread[5];
         logger.info("--> starting {} indexing threads", writers.length);
@@ -149,6 +152,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                             long id = idGenerator.incrementAndGet();
                             client("node1").prepareIndex("test", "type1", Long.toString(id))
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
+                            indexCounter.incrementAndGet();
                         }
                         logger.info("**** done indexing thread {}", indexerId);
                     } catch (Exception e) {
@@ -210,7 +214,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verifying indexed content");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(indexCounter.get()));
         }
     }
 
@@ -224,6 +228,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         final AtomicLong idGenerator = new AtomicLong();
+        final AtomicLong indexCounter = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] writers = new Thread[5];
         final CountDownLatch stopLatch = new CountDownLatch(writers.length);
@@ -238,6 +243,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                             long id = idGenerator.incrementAndGet();
                             client("node2").prepareIndex("test", "type1", Long.toString(id))
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
+                            indexCounter.incrementAndGet();
                         }
                         logger.info("**** done indexing thread {}", indexerId);
                     } catch (Exception e) {
@@ -314,7 +320,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         logger.info("--> verifying indexed content");
         client("node2").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node2").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
+            assertThat(client("node2").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(indexCounter.get()));
         }
     }
 }

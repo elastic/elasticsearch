@@ -8,7 +8,7 @@ dependencies {
     runtime 'com.google.inject.extensions:guice-assisted-inject:2.0'
     runtime 'com.google.inject.extensions:guice-multibindings:2.0'
 
-    runtime 'com.google.guava:guava:r06'
+    runtime 'com.google.guava:guava:r07'
     runtime 'org.elasticsearch:es-trove:2.1.0'
     runtime 'org.elasticsearch:es-jsr166y:20100615'
 

@@ -136,6 +136,20 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
+                    // pre create indices here and add mappings to them so we can merge the mappings here if needed
+                    for (String index : request.indices) {
+                        if (indicesService.hasIndex(index)) {
+                            continue;
+                        }
+                        final IndexMetaData indexMetaData = currentState.metaData().index(index);
+                        IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                        for (Map.Entry<String, CompressedString> mapping : indexMetaData.mappings().entrySet()) {
+                            if (!indexService.mapperService().hasMapping(mapping.getKey())) {
+                                indexService.mapperService().add(mapping.getKey(), mapping.getValue().string());
+                            }
+                        }
+                    }
+
                     Map<String, DocumentMapper> newMappers = newHashMap();
                     Map<String, DocumentMapper> existingMappers = newHashMap();
                     for (String index : request.indices) {

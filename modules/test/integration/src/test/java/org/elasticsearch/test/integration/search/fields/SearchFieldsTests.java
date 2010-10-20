@@ -66,6 +66,8 @@ public class SearchFieldsTests extends AbstractNodesTests {
 
         client.admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
 
+        Thread.sleep(100); // sleep a bit here..., so hte mappings get applied
+
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")

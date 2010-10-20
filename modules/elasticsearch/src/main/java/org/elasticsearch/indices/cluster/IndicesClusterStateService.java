@@ -30,10 +30,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -124,6 +121,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         applyNewOrUpdatedShards(event);
         applyDeletedIndices(event);
         applyDeletedShards(event);
+        applyCleanedIndices(event);
+    }
+
+    private void applyCleanedIndices(final ClusterChangedEvent event) {
+        for (final String index : indicesService.indices()) {
+            if (indicesService.indexService(index).shardIds().isEmpty()) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] cleaning index (no shards allocated)", index);
+                }
+                // clean the index
+                indicesService.cleanIndex(index);
+            }
+        }
     }
 
     private void applyDeletedIndices(final ClusterChangedEvent event) {
@@ -173,9 +183,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyNewIndices(final ClusterChangedEvent event) {
-        // first, go over and create and indices that needs to be created
-        for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            if (!indicesService.hasIndex(indexMetaData.index())) {
+        // we only create indices for shards that are allocated
+        RoutingNode routingNode = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
+        if (routingNode == null) {
+            return;
+        }
+        for (MutableShardRouting shard : routingNode) {
+            if (!indicesService.hasIndex(shard.index())) {
+                final IndexMetaData indexMetaData = event.state().metaData().index(shard.index());
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] creating index", indexMetaData.index());
                 }

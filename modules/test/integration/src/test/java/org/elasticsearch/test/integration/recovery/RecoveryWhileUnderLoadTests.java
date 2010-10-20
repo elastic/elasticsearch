@@ -70,6 +70,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
                         }
                         logger.info("**** done indexing thread {}", indexerId);
+                    } catch (Exception e) {
+                        logger.warn("**** failed indexing thread {}", e, indexerId);
                     } finally {
                         stopLatch.countDown();
                     }
@@ -149,6 +151,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
                         }
                         logger.info("**** done indexing thread {}", indexerId);
+                    } catch (Exception e) {
+                        logger.warn("**** failed indexing thread {}", e, indexerId);
                     } finally {
                         stopLatch.countDown();
                     }
@@ -236,6 +240,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
                         }
                         logger.info("**** done indexing thread {}", indexerId);
+                    } catch (Exception e) {
+                        logger.warn("**** failed indexing thread {}", e, indexerId);
                     } finally {
                         stopLatch.countDown();
                     }

@@ -27,8 +27,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.timer.Timeout;
-import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -50,13 +48,14 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.*;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -81,7 +80,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final FetchPhase fetchPhase;
 
 
-    private final TimeValue defaultKeepAlive;
+    private final long defaultKeepAlive;
+
+    private final ScheduledFuture keepAliveReaper;
 
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -92,7 +93,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
-    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, TimerService timerService,
+    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool, TimerService timerService,
                                  ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.clusterService = clusterService;
@@ -103,8 +104,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
 
+        TimeValue keepAliveInterval = componentSettings.getAsTime("keep_alive_interval", timeValueMinutes(1));
         // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-        this.defaultKeepAlive = componentSettings.getAsTime("default_keep_alive", timeValueMinutes(5));
+        this.defaultKeepAlive = componentSettings.getAsTime("default_keep_alive", timeValueMinutes(5)).millis();
 
         Map<String, SearchParseElement> elementParsers = new HashMap<String, SearchParseElement>();
         elementParsers.putAll(dfsPhase.parseElements());
@@ -112,6 +114,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         elementParsers.putAll(fetchPhase.parseElements());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
         indicesLifecycle.addListener(indicesLifecycleListener);
+
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -125,6 +129,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     @Override protected void doClose() throws ElasticSearchException {
+        keepAliveReaper.cancel(false);
         indicesService.indicesLifecycle().removeListener(indicesLifecycleListener);
     }
 
@@ -344,9 +349,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             fetchPhase.preProcess(context);
 
             // compute the context keep alive
-            TimeValue keepAlive = defaultKeepAlive;
+            long keepAlive = defaultKeepAlive;
             if (request.scroll() != null && request.scroll().keepAlive() != null) {
-                keepAlive = request.scroll().keepAlive();
+                keepAlive = request.scroll().keepAlive().millis();
             }
             context.keepAlive(keepAlive);
         } catch (RuntimeException e) {
@@ -371,18 +376,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void contextProcessing(SearchContext context) {
-        if (context.keepAliveTimeout() != null) {
-            ((KeepAliveTimerTask) context.keepAliveTimeout().getTask()).processing();
-        }
+        // disable timeout while executing a search
+        context.accessed(-1);
     }
 
     private void contextProcessedSuccessfully(SearchContext context) {
-        if (context.keepAliveTimeout() != null) {
-            ((KeepAliveTimerTask) context.keepAliveTimeout().getTask()).doneProcessing();
-        } else {
-            context.accessed(timerService.estimatedTimeInMillis());
-            context.keepAliveTimeout(timerService.newTimeout(new KeepAliveTimerTask(context), context.keepAlive(), TimerService.ExecutionType.DEFAULT));
-        }
+        context.accessed(timerService.estimatedTimeInMillis());
     }
 
     private void cleanContext(SearchContext context) {
@@ -451,7 +450,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         context.scroll(request.scroll());
         // update the context keep alive based on the new scroll value
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
-            context.keepAlive(request.scroll().keepAlive());
+            context.keepAlive(request.scroll().keepAlive().millis());
         }
     }
 
@@ -466,35 +465,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    class KeepAliveTimerTask implements TimerTask {
-
-        private final SearchContext context;
-
-        KeepAliveTimerTask(SearchContext context) {
-            this.context = context;
-        }
-
-        public void processing() {
-            context.keepAliveTimeout().cancel();
-        }
-
-        public void doneProcessing() {
-            context.accessed(timerService.estimatedTimeInMillis());
-            context.keepAliveTimeout(timerService.newTimeout(this, context.keepAlive(), TimerService.ExecutionType.DEFAULT));
-        }
-
-        @Override public void run(Timeout timeout) throws Exception {
-            if (timeout.isCancelled()) {
-                return;
-            }
-            long currentTime = timerService.estimatedTimeInMillis();
-            long nextDelay = context.keepAlive().millis() - (currentTime - context.lastAccessTime());
-            if (nextDelay <= 0) {
-                // Time out, free the context (and remove it from the active context)
-                freeContext(context.id());
-            } else {
-                // Read occurred before the timeout - set a new timeout with shorter delay.
-                context.keepAliveTimeout(timerService.newTimeout(this, nextDelay, TimeUnit.MILLISECONDS, TimerService.ExecutionType.DEFAULT));
+    class Reaper implements Runnable {
+        @Override public void run() {
+            for (SearchContext context : activeContexts.values()) {
+                if (context.lastAccessTime() == -1) { // its being processed or timeout is disabled
+                    continue;
+                }
+                if ((timerService.estimatedTimeInMillis() - context.lastAccessTime() > context.keepAlive())) {
+                    freeContext(context);
+                }
             }
         }
     }

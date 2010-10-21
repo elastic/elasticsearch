@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -130,11 +129,9 @@ public class SearchContext implements Releasable {
 
     private boolean queryRewritten;
 
-    private volatile TimeValue keepAlive;
+    private volatile long keepAlive;
 
     private volatile long lastAccessTime;
-
-    private volatile Timeout keepAliveTimeout;
 
     public SearchContext(long id, SearchShardTarget shardTarget, int numberOfShards, TimeValue timeout,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
@@ -161,9 +158,6 @@ public class SearchContext implements Releasable {
             // ignore any exception here
         }
         engineSearcher.release();
-        if (keepAliveTimeout != null) {
-            keepAliveTimeout.cancel();
-        }
         return true;
     }
 
@@ -392,20 +386,12 @@ public class SearchContext implements Releasable {
         return this.lastAccessTime;
     }
 
-    public TimeValue keepAlive() {
+    public long keepAlive() {
         return this.keepAlive;
     }
 
-    public void keepAlive(TimeValue keepAlive) {
+    public void keepAlive(long keepAlive) {
         this.keepAlive = keepAlive;
-    }
-
-    public void keepAliveTimeout(Timeout keepAliveTimeout) {
-        this.keepAliveTimeout = keepAliveTimeout;
-    }
-
-    public Timeout keepAliveTimeout() {
-        return this.keepAliveTimeout;
     }
 
     public ScriptSearchLookup scriptSearchLookup() {

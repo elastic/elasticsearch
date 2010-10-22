@@ -53,15 +53,18 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
 
     @Test public void testQuorumRecovery() throws Exception {
         // clean three nodes
+        logger.info("--> cleaning nodes");
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
         buildNode("node3", settingsBuilder().put("gateway.type", "local").build());
         cleanAndCloseNodes();
 
+        logger.info("--> starting 3 nodes");
         Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
         Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
         Node node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
 
+        logger.info("--> indexing...");
         node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareFlush().execute().actionGet();
         node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();

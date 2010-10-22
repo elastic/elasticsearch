@@ -149,6 +149,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
         for (IndexRoutingTable indexRoutingTable : routingNodes.routingTable()) {
             // only do the allocation if there is a local "INDEX NOT RECOVERED" block
+            // we check this here since it helps distinguish between index creation though an API, where the below logic
+            // should not apply, and when recovering from the gateway, where we should apply this logic
             if (!routingNodes.blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
                 continue;
             }

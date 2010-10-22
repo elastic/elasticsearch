@@ -85,11 +85,11 @@ public class MissingFilterParser extends AbstractIndexComponent implements XCont
             filter = new TermRangeFilter(fieldName, null, null, true, true);
         }
 
-        // we always cache this one, really does not change...
+        // we always cache this one, really does not change... (exists)
         filter = parseContext.cacheFilter(filter);
-        // we do the cached before the NotFilter, since there is no need to cache the not result, and this
-        // way we share with the exists filter
         filter = new NotFilter(filter);
+        // cache the not filter as well, so it will be faster
+        filter = parseContext.cacheFilter(filter);
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {

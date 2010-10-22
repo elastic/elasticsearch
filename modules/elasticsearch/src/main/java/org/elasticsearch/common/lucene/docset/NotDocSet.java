@@ -34,7 +34,8 @@ public class NotDocSet extends GetDocSet {
     }
 
     @Override public boolean isCacheable() {
-        return set.isCacheable();
+        // if it is cached, create a new doc set for it so it will be fast for advance in iterator
+        return false;
     }
 
     @Override public boolean get(int doc) throws IOException {

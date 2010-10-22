@@ -143,6 +143,46 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
+     * Constructs a simple document with a field and a value.
+     */
+    public IndexRequestBuilder setSource(String field1, Object value1) {
+        request.source(field1, value1);
+        return this;
+    }
+
+    /**
+     * Constructs a simple document with a field and value pairs.
+     */
+    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2) {
+        request.source(field1, value1, field2, value2);
+        return this;
+    }
+
+    /**
+     * Constructs a simple document with a field and value pairs.
+     */
+    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
+        request.source(field1, value1, field2, value2, field3, value3);
+        return this;
+    }
+
+    /**
+     * Constructs a simple document with a field and value pairs.
+     */
+    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
+        request.source(field1, value1, field2, value2, field3, value3, field4, value4);
+        return this;
+    }
+
+    /**
+     * The content type that will be used to generate a document from user provided objects (like Map).
+     */
+    public IndexRequestBuilder setContentType(XContentType contentType) {
+        request.contentType(contentType);
+        return this;
+    }
+
+    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public IndexRequestBuilder setTimeout(TimeValue timeout) {

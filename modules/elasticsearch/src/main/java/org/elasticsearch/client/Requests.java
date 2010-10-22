@@ -63,6 +63,11 @@ public class Requests {
      */
     public static XContentType CONTENT_TYPE = XContentType.SMILE;
 
+    /**
+     * The default content type to use to generate source documents when indexing.
+     */
+    public static XContentType INDEX_CONTENT_TYPE = XContentType.JSON;
+
     public static IndexRequest indexRequest() {
         return new IndexRequest();
     }

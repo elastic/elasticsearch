@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -116,6 +117,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private boolean refresh = false;
 
+    private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
+
     public IndexRequest() {
     }
 
@@ -174,6 +177,14 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
+     * Sets the content type that will be used when generating a document from user provided objects (like Map).
+     */
+    public IndexRequest contentType(XContentType contentType) {
+        this.contentType = contentType;
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     @Override public IndexRequest listenerThreaded(boolean threadedListener) {
@@ -221,7 +232,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * The source of the JSON document to index.
+     * The source of the document to index.
      */
     public byte[] source() {
         if (sourceUnsafe || sourceOffset > 0) {
@@ -233,12 +244,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Index the Map as a JSON.
+     * Index the Map as a {@link org.elasticsearch.client.Requests#INDEX_CONTENT_TYPE}.
      *
      * @param source The map to index
      */
     @Required public IndexRequest source(Map source) throws ElasticSearchGenerationException {
-        return source(source, XContentType.JSON);
+        return source(source, contentType);
     }
 
     /**
@@ -285,6 +296,46 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             throw new ElasticSearchGenerationException("Failed to generate [" + sourceBuilder + "]", e);
         }
         return this;
+    }
+
+    @Required public IndexRequest source(String field1, Object value1) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject().field(field1, value1).endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
+    }
+
+    @Required public IndexRequest source(String field1, Object value1, String field2, Object value2) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject().field(field1, value1).field(field2, value2).endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
+    }
+
+    @Required public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
+    }
+
+    @Required public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
     }
 
     /**

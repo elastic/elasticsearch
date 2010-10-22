@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,6 +40,7 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
     private boolean threadedListener = false;
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
+    protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     public TimeValue timeout() {
         return timeout;
@@ -76,8 +78,13 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return this.replicationType;
     }
 
+    public WriteConsistencyLevel consistencyLevel() {
+        return this.consistencyLevel;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         replicationType = ReplicationType.fromId(in.readByte());
+        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
@@ -87,6 +94,7 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(replicationType.id());
+        out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeVInt(indices.length);
         for (String index : indices) {

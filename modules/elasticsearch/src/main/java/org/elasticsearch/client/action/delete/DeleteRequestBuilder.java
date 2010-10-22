@@ -20,6 +20,7 @@
 package org.elasticsearch.client.action.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -95,6 +96,14 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
      */
     public DeleteRequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
+        return this;
+    }
+
+    /**
+     * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
+     */
+    public DeleteRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

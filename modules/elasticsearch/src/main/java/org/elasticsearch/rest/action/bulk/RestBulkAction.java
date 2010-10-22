@@ -20,9 +20,11 @@
 package org.elasticsearch.rest.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
@@ -60,6 +62,14 @@ public class RestBulkAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
 
+        String replicationType = request.param("replication");
+        if (replicationType != null) {
+            bulkRequest.replicationType(ReplicationType.fromString(replicationType));
+        }
+        String consistencyLevel = request.param("consistency");
+        if (consistencyLevel != null) {
+            bulkRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+        }
         try {
             bulkRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
         } catch (Exception e) {

@@ -107,6 +107,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
     }
 
+    @Override protected boolean checkWriteConsistency() {
+        return true;
+    }
+
     @Override protected IndexRequest newRequestInstance() {
         return new IndexRequest();
     }

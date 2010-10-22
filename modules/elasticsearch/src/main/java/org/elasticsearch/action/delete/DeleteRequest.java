@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Required;
@@ -114,6 +115,14 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
      */
     @Override public DeleteRequest replicationType(ReplicationType replicationType) {
         super.replicationType(replicationType);
+        return this;
+    }
+
+    /**
+     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     */
+    @Override public DeleteRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        super.consistencyLevel(consistencyLevel);
         return this;
     }
 

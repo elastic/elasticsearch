@@ -23,7 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.PrimaryNotStartedActionException;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -73,6 +74,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected final ReplicationType defaultReplicationType;
 
+    protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
+
     protected TransportShardReplicationOperationAction(Settings settings, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
                                                        ThreadPool threadPool, ShardStateAction shardStateAction) {
@@ -87,6 +90,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         transportService.registerHandler(transportReplicaAction(), new ReplicaOperationTransportHandler());
 
         this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
+        this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
     }
 
     @Override protected void doExecute(Request request, ActionListener<Response> listener) {
@@ -104,6 +108,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected abstract void shardOperationOnReplica(ShardOperationRequest shardRequest);
 
     protected abstract ShardsIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+
+    protected abstract boolean checkWriteConsistency();
 
     protected void checkBlock(Request request, ClusterState state) {
 
@@ -251,7 +257,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
             if (!clusterState.routingTable().hasIndex(request.index())) {
-                retryPrimary(fromClusterEvent, null);
+                retry(fromClusterEvent, null);
                 return false;
             }
             try {
@@ -263,64 +269,85 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             boolean foundPrimary = false;
             for (final ShardRouting shard : shards) {
-                if (shard.primary()) {
-                    if (!shard.active() || !nodes.nodeExists(shard.currentNodeId())) {
-                        retryPrimary(fromClusterEvent, shard.shardId());
+                // we only deal with primary shards here...
+                if (!shard.primary()) {
+                    continue;
+                }
+                if (!shard.active() || !nodes.nodeExists(shard.currentNodeId())) {
+                    retry(fromClusterEvent, shard.shardId());
+                    return false;
+                }
+
+                // check here for consistency
+                if (checkWriteConsistency()) {
+                    WriteConsistencyLevel consistencyLevel = defaultWriteConsistencyLevel;
+                    if (request.consistencyLevel() != WriteConsistencyLevel.DEFAULT) {
+                        consistencyLevel = request.consistencyLevel();
+                    }
+                    int requiredNumber = 1;
+                    if (consistencyLevel == WriteConsistencyLevel.QUORUM && shards.size() > 2) {
+                        // only for more than 2 in the number of shards it makes sense, otherwise its 1 shard with 1 replica, quorum is 1 (which is what it is initialized to)
+                        requiredNumber = (shards.size() / 2) + 1;
+                    } else if (consistencyLevel == WriteConsistencyLevel.ALL) {
+                        requiredNumber = shards.size();
+                    }
+                    if (shards.sizeActive() < requiredNumber) {
+                        retry(fromClusterEvent, shard.shardId());
                         return false;
                     }
+                }
 
-                    if (!primaryOperationStarted.compareAndSet(false, true)) {
-                        return false;
-                    }
+                if (!primaryOperationStarted.compareAndSet(false, true)) {
+                    return false;
+                }
 
-                    foundPrimary = true;
-                    if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                        if (request.operationThreaded()) {
-                            request.beforeLocalFork();
-                            threadPool.execute(new Runnable() {
-                                @Override public void run() {
-                                    performOnPrimary(shard.id(), fromClusterEvent, true, shard);
-                                }
-                            });
-                        } else {
-                            performOnPrimary(shard.id(), fromClusterEvent, false, shard);
-                        }
-                    } else {
-                        DiscoveryNode node = nodes.get(shard.currentNodeId());
-                        transportService.sendRequest(node, transportAction(), request, transportOptions(), new BaseTransportResponseHandler<Response>() {
-
-                            @Override public Response newInstance() {
-                                return newResponseInstance();
-                            }
-
-                            @Override public void handleResponse(Response response) {
-                                listener.onResponse(response);
-                            }
-
-                            @Override public void handleException(RemoteTransportException exp) {
-                                // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                                if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
-                                        exp.unwrapCause() instanceof IllegalIndexShardStateException) {
-                                    primaryOperationStarted.set(false);
-                                    // we already marked it as started when we executed it (removed the listener) so pass false
-                                    // to re-add to the cluster listener
-                                    retryPrimary(false, shard.shardId());
-                                } else {
-                                    listener.onFailure(exp);
-                                }
-                            }
-
-                            @Override public boolean spawn() {
-                                return request.listenerThreaded();
+                foundPrimary = true;
+                if (shard.currentNodeId().equals(nodes.localNodeId())) {
+                    if (request.operationThreaded()) {
+                        request.beforeLocalFork();
+                        threadPool.execute(new Runnable() {
+                            @Override public void run() {
+                                performOnPrimary(shard.id(), fromClusterEvent, true, shard);
                             }
                         });
+                    } else {
+                        performOnPrimary(shard.id(), fromClusterEvent, false, shard);
                     }
-                    break;
+                } else {
+                    DiscoveryNode node = nodes.get(shard.currentNodeId());
+                    transportService.sendRequest(node, transportAction(), request, transportOptions(), new BaseTransportResponseHandler<Response>() {
+
+                        @Override public Response newInstance() {
+                            return newResponseInstance();
+                        }
+
+                        @Override public void handleResponse(Response response) {
+                            listener.onResponse(response);
+                        }
+
+                        @Override public void handleException(RemoteTransportException exp) {
+                            // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
+                            if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
+                                    exp.unwrapCause() instanceof IllegalIndexShardStateException) {
+                                primaryOperationStarted.set(false);
+                                // we already marked it as started when we executed it (removed the listener) so pass false
+                                // to re-add to the cluster listener
+                                retry(false, shard.shardId());
+                            } else {
+                                listener.onFailure(exp);
+                            }
+                        }
+
+                        @Override public boolean spawn() {
+                            return request.listenerThreaded();
+                        }
+                    });
                 }
+                break;
             }
             // we should never get here, but here we go
             if (!foundPrimary) {
-                final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shards.shardId(), request.toString());
+                final UnavailableShardsException failure = new UnavailableShardsException(shards.shardId(), request.toString());
                 if (request.listenerThreaded()) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
@@ -334,7 +361,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
 
-        private void retryPrimary(boolean fromClusterEvent, final ShardId shardId) {
+        private void retry(boolean fromClusterEvent, final ShardId shardId) {
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
                 request.operationThreaded(true);
@@ -365,7 +392,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             return;
                         }
                         clusterService.remove(this);
-                        final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shardId, "Timeout waiting for [" + timeValue + "], request: " + request.toString());
+                        final UnavailableShardsException failure = new UnavailableShardsException(shardId, "[" + shards.size() + "] shards, [" + shards.sizeActive() + "] active : Timeout waiting for [" + timeValue + "], request: " + request.toString());
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
@@ -387,7 +414,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here
                 if (e instanceof IndexShardMissingException || e instanceof IllegalIndexShardStateException || e instanceof IndexMissingException) {
-                    retryPrimary(fromDiscoveryListener, shard.shardId());
+                    retry(fromDiscoveryListener, shard.shardId());
                     return;
                 }
                 if (logger.isDebugEnabled()) {

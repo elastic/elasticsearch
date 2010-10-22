@@ -22,6 +22,7 @@ package org.elasticsearch.action.deletebyquery;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Requests;
@@ -235,6 +236,11 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     public DeleteByQueryRequest replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
+        return this;
+    }
+
+    public DeleteByQueryRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        this.consistencyLevel = consistencyLevel;
         return this;
     }
 

@@ -50,8 +50,8 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         this.queryParserName = request.queryParserName();
         this.types = request.types();
         this.replicationType = request.replicationType();
+        this.consistencyLevel = request.consistencyLevel();
     }
-
 
     IndexDeleteByQueryRequest() {
     }

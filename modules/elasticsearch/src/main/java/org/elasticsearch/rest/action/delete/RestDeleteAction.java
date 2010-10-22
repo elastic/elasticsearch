@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -57,6 +58,10 @@ public class RestDeleteAction extends BaseRestHandler {
         String replicationType = request.param("replication");
         if (replicationType != null) {
             deleteRequest.replicationType(ReplicationType.fromString(replicationType));
+        }
+        String consistencyLevel = request.param("consistency");
+        if (consistencyLevel != null) {
+            deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
 
         client.delete(deleteRequest, new ActionListener<DeleteResponse>() {

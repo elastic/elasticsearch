@@ -20,6 +20,7 @@
 package org.elasticsearch.client.action.deletebyquery;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -126,7 +127,7 @@ public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQuer
     /**
      * The replication type to use with this operation.
      */
-    public DeleteByQueryRequestBuilder replicationType(ReplicationType replicationType) {
+    public DeleteByQueryRequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
         return this;
     }
@@ -134,8 +135,13 @@ public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQuer
     /**
      * The replication type to use with this operation.
      */
-    public DeleteByQueryRequestBuilder replicationType(String replicationType) {
+    public DeleteByQueryRequestBuilder setReplicationType(String replicationType) {
         request.replicationType(replicationType);
+        return this;
+    }
+
+    public DeleteByQueryRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

@@ -25,9 +25,9 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  * @author kimchy (shay.banon)
  */
-public class PrimaryNotStartedActionException extends ElasticSearchException {
+public class UnavailableShardsException extends ElasticSearchException {
 
-    public PrimaryNotStartedActionException(ShardId shardId, String message) {
+    public UnavailableShardsException(ShardId shardId, String message) {
         super(buildMessage(shardId, message));
     }
 

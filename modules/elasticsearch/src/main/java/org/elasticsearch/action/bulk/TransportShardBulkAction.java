@@ -66,6 +66,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
+    @Override protected boolean checkWriteConsistency() {
+        return true;
+    }
+
     @Override protected TransportRequestOptions transportOptions() {
         return TransportRequestOptions.options().withCompress(true);
     }

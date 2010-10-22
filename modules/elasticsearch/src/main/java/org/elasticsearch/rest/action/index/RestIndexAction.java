@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.index;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -81,6 +82,10 @@ public class RestIndexAction extends BaseRestHandler {
         String replicationType = request.param("replication");
         if (replicationType != null) {
             indexRequest.replicationType(ReplicationType.fromString(replicationType));
+        }
+        String consistencyLevel = request.param("consistency");
+        if (consistencyLevel != null) {
+            indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         // we just send a response, no need to fork
         indexRequest.listenerThreaded(false);

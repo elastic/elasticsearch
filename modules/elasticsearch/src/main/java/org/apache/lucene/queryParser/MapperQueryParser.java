@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -45,6 +46,15 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  * @author kimchy (shay.banon)
  */
 public class MapperQueryParser extends QueryParser {
+
+    public static final ImmutableMap<String, FieldQueryExtension> fieldQueryExtensions;
+
+    static {
+        fieldQueryExtensions = ImmutableMap.<String, FieldQueryExtension>builder()
+                .put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension())
+                .put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension())
+                .build();
+    }
 
     private final QueryParseContext parseContext;
 
@@ -89,6 +99,10 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override public Query getFieldQuery(String field, String queryText) throws ParseException {
+        FieldQueryExtension fieldQueryExtension = fieldQueryExtensions.get(field);
+        if (fieldQueryExtension != null) {
+            return fieldQueryExtension.query(parseContext, queryText);
+        }
         currentMapper = null;
         if (parseContext.mapperService() != null) {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);

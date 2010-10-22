@@ -17,27 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.docset;
+package org.apache.lucene.queryParser;
 
-import java.io.IOException;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NotDocSet extends GetDocSet {
+public interface FieldQueryExtension {
 
-    private final DocSet set;
-
-    public NotDocSet(DocSet set, int max) {
-        super(max);
-        this.set = set;
-    }
-
-    @Override public boolean isCacheable() {
-        return set.isCacheable();
-    }
-
-    @Override public boolean get(int doc) throws IOException {
-        return !set.get(doc);
-    }
+    Query query(QueryParseContext parseContext, String queryText);
 }

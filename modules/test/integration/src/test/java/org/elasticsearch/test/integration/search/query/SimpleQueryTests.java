@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.search.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -59,6 +60,8 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "value1_2").execute().actionGet();
         client.prepareIndex("test", "type1", "3").setSource("field2", "value2_3").execute().actionGet();
@@ -67,6 +70,16 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(filtered(matchAllQuery(), exists("field1"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
+
+        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(exists("field1"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
+
+        searchResponse = client.prepareSearch().setQuery(queryString("_exists_:field1")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
@@ -81,6 +94,22 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("4"));
 
         searchResponse = client.prepareSearch().setQuery(filtered(matchAllQuery(), missing("field1"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
+
+        // double check for cache
+        searchResponse = client.prepareSearch().setQuery(filtered(matchAllQuery(), missing("field1"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
+
+        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(missing("field1"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
+
+        searchResponse = client.prepareSearch().setQuery(queryString("_missing_:field1")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));

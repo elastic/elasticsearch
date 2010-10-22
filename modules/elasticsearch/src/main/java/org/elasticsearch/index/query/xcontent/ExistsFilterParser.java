@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.MultiTermQueryWrapperFilter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +84,6 @@ public class ExistsFilterParser extends AbstractIndexComponent implements XConte
             filter = new TermRangeFilter(fieldName, null, null, true, true);
         }
 
-        filter = new ExistsFilter((MultiTermQueryWrapperFilter) filter);
         // we always cache this one, really does not change...
         filter = parseContext.cacheFilter(filter);
 
@@ -96,33 +92,5 @@ public class ExistsFilterParser extends AbstractIndexComponent implements XConte
             parseContext.addNamedFilter(filterName, filter);
         }
         return filter;
-    }
-
-    public static final class ExistsFilter extends Filter {
-
-        private final MultiTermQueryWrapperFilter filter;
-
-        public ExistsFilter(MultiTermQueryWrapperFilter filter) {
-            this.filter = filter;
-        }
-
-        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            return filter.getDocIdSet(reader);
-        }
-
-        @Override public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ExistsFilter that = (ExistsFilter) o;
-
-            if (filter != null ? !filter.equals(that.filter) : that.filter != null) return false;
-
-            return true;
-        }
-
-        @Override public int hashCode() {
-            return filter != null ? filter.hashCode() : 0;
-        }
     }
 }

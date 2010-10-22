@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.MultiTermQueryWrapperFilter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -86,7 +85,7 @@ public class MissingFilterParser extends AbstractIndexComponent implements XCont
             filter = new TermRangeFilter(fieldName, null, null, true, true);
         }
 
-        filter = new NotFilter(new ExistsFilterParser.ExistsFilter((MultiTermQueryWrapperFilter) filter));
+        filter = new NotFilter(filter);
         // we always cache this one, really does not change...
         filter = parseContext.cacheFilter(filter);
 

@@ -44,6 +44,10 @@ public class OpenBitDocSet extends DocSet {
         this.set = new OpenBitSetDISI(disi, numBits);
     }
 
+    @Override public boolean isCacheable() {
+        return true;
+    }
+
     public OpenBitSet set() {
         return set;
     }

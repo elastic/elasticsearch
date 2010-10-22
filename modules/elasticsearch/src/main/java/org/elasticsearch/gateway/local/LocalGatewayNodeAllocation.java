@@ -155,6 +155,11 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 continue;
             }
 
+            // the index might be created, but shards not instantiated yet, ignore this state
+            if (indexRoutingTable.shards().isEmpty()) {
+                continue;
+            }
+
             if (indexRoutingTable.allPrimaryShardsUnassigned()) {
                 // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
                 Set<String> nodesIds = Sets.newHashSet();

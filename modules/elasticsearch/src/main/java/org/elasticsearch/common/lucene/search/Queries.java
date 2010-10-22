@@ -82,7 +82,7 @@ public class Queries {
     public static Query fixNegativeQueryIfNeeded(Query q) {
         if (isNegativeQuery(q)) {
             BooleanQuery newBq = (BooleanQuery) q.clone();
-            newBq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+            newBq.add(MATCH_ALL_QUERY, BooleanClause.Occur.MUST);
             return newBq;
         }
         return q;

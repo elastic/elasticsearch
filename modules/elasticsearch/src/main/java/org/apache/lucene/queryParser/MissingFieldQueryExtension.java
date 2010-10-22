@@ -50,9 +50,11 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
             filter = new TermRangeFilter(fieldName, null, null, true, true);
         }
 
-        filter = new NotFilter(filter);
         // we always cache this one, really does not change...
         filter = parseContext.cacheFilter(filter);
+        // we do the cached before the NotFilter, since there is no need to cache the not result, and this
+        // way we share with the exists filter
+        filter = new NotFilter(filter);
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
 

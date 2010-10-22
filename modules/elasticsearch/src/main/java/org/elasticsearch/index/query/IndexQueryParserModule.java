@@ -262,6 +262,8 @@ public class IndexQueryParserModule extends AbstractModule {
             bindings.processXContentQueryFilter(OrFilterParser.NAME, OrFilterParser.class);
             bindings.processXContentQueryFilter(NotFilterParser.NAME, NotFilterParser.class);
             bindings.processXContentQueryFilter(MatchAllFilterParser.NAME, MatchAllFilterParser.class);
+            bindings.processXContentQueryFilter(ExistsFilterParser.NAME, ExistsFilterParser.class);
+            bindings.processXContentQueryFilter(MissingFilterParser.NAME, MissingFilterParser.class);
         }
     }
 }

@@ -228,6 +228,24 @@ public abstract class FilterBuilders {
         return new GeoPolygonFilterBuilder(name);
     }
 
+    /**
+     * A filter to filter only documents where a field exists in them.
+     *
+     * @param name The name of the field
+     */
+    public static ExistsFilterBuilder exists(String name) {
+        return new ExistsFilterBuilder(name);
+    }
+
+    /**
+     * A filter to filter only documents where a field does not exists in them.
+     *
+     * @param name The name of the field
+     */
+    public static MissingFilterBuilder missing(String name) {
+        return new MissingFilterBuilder(name);
+    }
+
     public static BoolFilterBuilder boolFilter() {
         return new BoolFilterBuilder();
     }

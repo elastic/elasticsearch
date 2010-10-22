@@ -44,6 +44,10 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
     }
 
+    @Override protected boolean checkWriteConsistency() {
+        return true;
+    }
+
     @Override protected ShardDeleteByQueryRequest newRequestInstance() {
         return new ShardDeleteByQueryRequest();
     }

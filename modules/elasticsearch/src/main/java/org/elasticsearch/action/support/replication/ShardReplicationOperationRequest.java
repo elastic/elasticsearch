@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,6 +46,7 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
+    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     public TimeValue timeout() {
         return timeout;
@@ -106,6 +108,15 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this;
     }
 
+    public WriteConsistencyLevel consistencyLevel() {
+        return this.consistencyLevel;
+    }
+
+    public ShardReplicationOperationRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        this.consistencyLevel = consistencyLevel;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
@@ -116,6 +127,7 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
 
     @Override public void readFrom(StreamInput in) throws IOException {
         replicationType = ReplicationType.fromId(in.readByte());
+        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readUTF();
         // no need to serialize threaded* parameters, since they only matter locally
@@ -123,6 +135,7 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(replicationType.id());
+        out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeUTF(index);
     }

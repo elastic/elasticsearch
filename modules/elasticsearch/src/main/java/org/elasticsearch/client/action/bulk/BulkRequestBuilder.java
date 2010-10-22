@@ -20,10 +20,12 @@
 package org.elasticsearch.client.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
@@ -80,6 +82,22 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
         request.add(data, from, length, contentUnsafe);
+        return this;
+    }
+
+    /**
+     * Set the replication type for this operation.
+     */
+    public BulkRequestBuilder setReplicationType(ReplicationType replicationType) {
+        request.replicationType(replicationType);
+        return this;
+    }
+
+    /**
+     * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
+     */
+    public BulkRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

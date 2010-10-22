@@ -20,6 +20,7 @@
 package org.elasticsearch.client.action.index;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -197,6 +198,14 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
      */
     public IndexRequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
+        return this;
+    }
+
+    /**
+     * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
+     */
+    public IndexRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

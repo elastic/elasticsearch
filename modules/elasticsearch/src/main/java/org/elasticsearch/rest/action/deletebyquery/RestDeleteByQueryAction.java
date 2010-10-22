@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.deletebyquery;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
@@ -72,6 +73,10 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             String replicationType = request.param("replication");
             if (replicationType != null) {
                 deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
+            }
+            String consistencyLevel = request.param("consistency");
+            if (consistencyLevel != null) {
+                deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
         } catch (Exception e) {
             try {

@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,6 +42,7 @@ public class IndexReplicationOperationRequest implements ActionRequest {
     private boolean threadedListener = false;
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
+    protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     public TimeValue timeout() {
         return timeout;
@@ -63,6 +65,10 @@ public class IndexReplicationOperationRequest implements ActionRequest {
         return this.replicationType;
     }
 
+    public WriteConsistencyLevel consistencyLevel() {
+        return this.consistencyLevel;
+    }
+
     @Override public IndexReplicationOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;
@@ -78,12 +84,14 @@ public class IndexReplicationOperationRequest implements ActionRequest {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         replicationType = ReplicationType.fromId(in.readByte());
+        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readUTF();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(replicationType.id());
+        out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeUTF(index);
     }

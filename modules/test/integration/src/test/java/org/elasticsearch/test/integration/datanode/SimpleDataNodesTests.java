@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.integration.datanode;
 
-import org.elasticsearch.action.PrimaryNotStartedActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -47,7 +47,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
         try {
             client("nonData1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
             assert false : "no allocation should happen";
-        } catch (PrimaryNotStartedActionException e) {
+        } catch (UnavailableShardsException e) {
             // all is well
         }
 
@@ -58,7 +58,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
         try {
             client("nonData2").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
             assert false : "no allocation should happen";
-        } catch (PrimaryNotStartedActionException e) {
+        } catch (UnavailableShardsException e) {
             // all is well
         }
 

@@ -21,8 +21,10 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,6 +49,9 @@ public class BulkRequest implements ActionRequest {
     final List<ActionRequest> requests = Lists.newArrayList();
 
     private boolean listenerThreaded = false;
+
+    private ReplicationType replicationType = ReplicationType.DEFAULT;
+    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     /**
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
@@ -150,6 +155,30 @@ public class BulkRequest implements ActionRequest {
         return this;
     }
 
+    /**
+     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     */
+    public BulkRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        this.consistencyLevel = consistencyLevel;
+        return this;
+    }
+
+    public WriteConsistencyLevel consistencyLevel() {
+        return this.consistencyLevel;
+    }
+
+    /**
+     * Set the replication type for this operation.
+     */
+    public BulkRequest replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
+        return this;
+    }
+
+    public ReplicationType replicationType() {
+        return this.replicationType;
+    }
+
     private int findNextMarker(byte marker, int from, byte[] data, int length) {
         for (int i = from; i < length; i++) {
             if (data[i] == marker) {
@@ -191,6 +220,8 @@ public class BulkRequest implements ActionRequest {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        replicationType = ReplicationType.fromId(in.readByte());
+        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             byte type = in.readByte();
@@ -207,6 +238,8 @@ public class BulkRequest implements ActionRequest {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(replicationType.id());
+        out.writeByte(consistencyLevel.id());
         out.writeVInt(requests.size());
         for (ActionRequest request : requests) {
             if (request instanceof IndexRequest) {

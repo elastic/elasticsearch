@@ -31,7 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportShardReplicationPingAction extends TransportShardReplicationOperationAction<ShardReplicationPingRequest, ShardReplicationPingResponse> {
 
@@ -39,6 +39,10 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
                                                        ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                                        ShardStateAction shardStateAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+    }
+
+    @Override protected boolean checkWriteConsistency() {
+        return true;
     }
 
     @Override protected ShardReplicationPingRequest newRequestInstance() {

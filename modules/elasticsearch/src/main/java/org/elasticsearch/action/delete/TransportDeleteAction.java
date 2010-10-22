@@ -80,6 +80,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         }
     }
 
+    @Override protected boolean checkWriteConsistency() {
+        return true;
+    }
+
     @Override protected DeleteRequest newRequestInstance() {
         return new DeleteRequest();
     }

@@ -310,7 +310,14 @@ public class Lucene {
             return list;
         } else if (type == 8) {
             int size = in.readVInt();
-            Map map = new HashMap();
+            Object[] list = new Object[size];
+            for (int i = 0; i < size; i++) {
+                list[i] = readFieldValue(in);
+            }
+            return list;
+        } else if (type == 9) {
+            int size = in.readVInt();
+            Map map = new HashMap(size);
             for (int i = 0; i < size; i++) {
                 map.put(in.readUTF(), readFieldValue(in));
             }
@@ -355,8 +362,15 @@ public class Lucene {
             for (Object o : list) {
                 writeFieldValue(out, o);
             }
-        } else if (value instanceof Map) {
+        } else if (value instanceof Object[]) {
             out.writeByte((byte) 8);
+            Object[] list = (Object[]) value;
+            out.writeVInt(list.length);
+            for (Object o : list) {
+                writeFieldValue(out, o);
+            }
+        } else if (value instanceof Map) {
+            out.writeByte((byte) 9);
             Map<String, Object> map = (Map<String, Object>) value;
             out.writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {

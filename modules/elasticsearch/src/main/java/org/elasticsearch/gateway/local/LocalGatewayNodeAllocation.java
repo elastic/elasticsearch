@@ -37,6 +37,7 @@ import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -86,7 +87,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         }
         for (ShardRouting failedShard : allocation.failedShards()) {
             IndexRoutingTable indexRoutingTable = allocation.routingTable().index(failedShard.index());
-            if (!allocation.routingNodes().blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
+            if (!allocation.routingNodes().blocks().hasIndexBlock(indexRoutingTable.index(), GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
                 continue;
             }
 
@@ -151,7 +152,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             // only do the allocation if there is a local "INDEX NOT RECOVERED" block
             // we check this here since it helps distinguish between index creation though an API, where the below logic
             // should not apply, and when recovering from the gateway, where we should apply this logic
-            if (!routingNodes.blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
+            if (!routingNodes.blocks().hasIndexBlock(indexRoutingTable.index(), GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
                 continue;
             }
 

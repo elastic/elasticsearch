@@ -150,7 +150,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         for (String index : indices) {
             IndexRoutingTable indexRoutingTable = index(index);
             if (indexRoutingTable == null) {
-                throw new IndexMissingException(new Index(index));
+                continue;
+                // we simply ignore indices that don't exists (make sense for operations that use it currently)
+//                throw new IndexMissingException(new Index(index));
             }
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -186,6 +188,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             }
         }
         return its;
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static Builder newRoutingTableBuilder() {
@@ -246,6 +252,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
         public Builder add(IndexRoutingTable.Builder indexRoutingTableBuilder) {
             add(indexRoutingTableBuilder.build());
+            return this;
+        }
+
+        public Builder remove(String index) {
+            indicesRouting.remove(index);
             return this;
         }
 

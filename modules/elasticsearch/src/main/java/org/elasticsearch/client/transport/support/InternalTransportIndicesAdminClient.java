@@ -26,6 +26,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -38,6 +40,8 @@ import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingReques
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -51,12 +55,14 @@ import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.action.admin.indices.alias.ClientTransportIndicesAliasesAction;
 import org.elasticsearch.client.transport.action.admin.indices.cache.clear.ClientTransportClearIndicesCacheAction;
+import org.elasticsearch.client.transport.action.admin.indices.close.ClientTransportCloseIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.create.ClientTransportCreateIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
 import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
 import org.elasticsearch.client.transport.action.admin.indices.mapping.delete.ClientTransportDeleteMappingAction;
 import org.elasticsearch.client.transport.action.admin.indices.mapping.put.ClientTransportPutMappingAction;
+import org.elasticsearch.client.transport.action.admin.indices.open.ClientTransportOpenIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.settings.ClientTransportUpdateSettingsAction;
@@ -81,6 +87,10 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     private final ClientTransportDeleteIndexAction deleteIndexAction;
 
+    private final ClientTransportCloseIndexAction closeIndexAction;
+
+    private final ClientTransportOpenIndexAction openIndexAction;
+
     private final ClientTransportRefreshAction refreshAction;
 
     private final ClientTransportFlushAction flushAction;
@@ -102,6 +112,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     @Inject public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
+                                                       ClientTransportCloseIndexAction closeIndexAction, ClientTransportOpenIndexAction openIndexAction,
                                                        ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
                                                        ClientTransportPutMappingAction putMappingAction, ClientTransportDeleteMappingAction deleteMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
                                                        ClientTransportIndicesAliasesAction indicesAliasesAction, ClientTransportClearIndicesCacheAction clearIndicesCacheAction,
@@ -111,6 +122,8 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
         this.deleteIndexAction = deleteIndexAction;
+        this.closeIndexAction = closeIndexAction;
+        this.openIndexAction = openIndexAction;
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
         this.optimizeAction = optimizeAction;
@@ -172,6 +185,40 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 deleteIndexAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<CloseIndexResponse> close(final CloseIndexRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<org.elasticsearch.action.ActionFuture<CloseIndexResponse>>() {
+            @Override public ActionFuture<CloseIndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return closeIndexAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void close(final CloseIndexRequest request, final ActionListener<CloseIndexResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                closeIndexAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<OpenIndexResponse> open(final OpenIndexRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<org.elasticsearch.action.ActionFuture<OpenIndexResponse>>() {
+            @Override public ActionFuture<OpenIndexResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return openIndexAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void open(final OpenIndexRequest request, final ActionListener<OpenIndexResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                openIndexAction.execute(node, request, listener);
                 return null;
             }
         });

@@ -30,12 +30,14 @@ import org.elasticsearch.client.transport.action.admin.cluster.ping.single.Clien
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
 import org.elasticsearch.client.transport.action.admin.indices.alias.ClientTransportIndicesAliasesAction;
 import org.elasticsearch.client.transport.action.admin.indices.cache.clear.ClientTransportClearIndicesCacheAction;
+import org.elasticsearch.client.transport.action.admin.indices.close.ClientTransportCloseIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.create.ClientTransportCreateIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
 import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
 import org.elasticsearch.client.transport.action.admin.indices.mapping.delete.ClientTransportDeleteMappingAction;
 import org.elasticsearch.client.transport.action.admin.indices.mapping.put.ClientTransportPutMappingAction;
+import org.elasticsearch.client.transport.action.admin.indices.open.ClientTransportOpenIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.settings.ClientTransportUpdateSettingsAction;
@@ -71,6 +73,8 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportOptimizeAction.class).asEagerSingleton();
         bind(ClientTransportCreateIndexAction.class).asEagerSingleton();
         bind(ClientTransportDeleteIndexAction.class).asEagerSingleton();
+        bind(ClientTransportCloseIndexAction.class).asEagerSingleton();
+        bind(ClientTransportOpenIndexAction.class).asEagerSingleton();
         bind(ClientTransportPutMappingAction.class).asEagerSingleton();
         bind(ClientTransportDeleteMappingAction.class).asEagerSingleton();
         bind(ClientTransportGatewaySnapshotAction.class).asEagerSingleton();

@@ -1,0 +1,100 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.admin.indices.open;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Delete index action.
+ *
+ * @author kimchy (shay.banon)
+ */
+public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
+
+    private final MetaDataStateIndexService stateIndexService;
+
+    @Inject public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                            ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
+        super(settings, transportService, clusterService, threadPool);
+        this.stateIndexService = stateIndexService;
+    }
+
+    @Override protected String transportAction() {
+        return TransportActions.Admin.Indices.OPEN;
+    }
+
+    @Override protected OpenIndexRequest newRequest() {
+        return new OpenIndexRequest();
+    }
+
+    @Override protected OpenIndexResponse newResponse() {
+        return new OpenIndexResponse();
+    }
+
+    @Override protected void checkBlock(OpenIndexRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, request.index());
+    }
+
+    @Override protected OpenIndexResponse masterOperation(OpenIndexRequest request, ClusterState state) throws ElasticSearchException {
+        final AtomicReference<OpenIndexResponse> responseRef = new AtomicReference<OpenIndexResponse>();
+        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+            @Override public void onResponse(MetaDataStateIndexService.Response response) {
+                responseRef.set(new OpenIndexResponse(response.acknowledged()));
+                latch.countDown();
+            }
+
+            @Override public void onFailure(Throwable t) {
+                failureRef.set(t);
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            failureRef.set(e);
+        }
+
+        if (failureRef.get() != null) {
+            if (failureRef.get() instanceof ElasticSearchException) {
+                throw (ElasticSearchException) failureRef.get();
+            } else {
+                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
+            }
+        }
+
+        return responseRef.get();
+    }
+}

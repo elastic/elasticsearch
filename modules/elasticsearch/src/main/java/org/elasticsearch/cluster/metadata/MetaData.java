@@ -215,6 +215,11 @@ public class MetaData implements Iterable<IndexMetaData> {
         return indices.values().iterator();
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+
     public static Builder newMetaDataBuilder() {
         return new Builder();
     }

@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -37,6 +39,8 @@ import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingReques
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -47,12 +51,14 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
@@ -138,6 +144,56 @@ public interface IndicesAdminClient {
      * @param index The index name to delete
      */
     DeleteIndexRequestBuilder prepareDelete(String index);
+
+    /**
+     * Closes an index based on the index name.
+     *
+     * @param request The close index request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#closeIndexRequest(String)
+     */
+    ActionFuture<CloseIndexResponse> close(CloseIndexRequest request);
+
+    /**
+     * Closes an index based on the index name.
+     *
+     * @param request  The close index request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#closeIndexRequest(String)
+     */
+    void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener);
+
+    /**
+     * Closes an index based on the index name.
+     *
+     * @param index The index name to close
+     */
+    CloseIndexRequestBuilder prepareClose(String index);
+
+    /**
+     * OPen an index based on the index name.
+     *
+     * @param request The close index request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    ActionFuture<OpenIndexResponse> open(OpenIndexRequest request);
+
+    /**
+     * Open an index based on the index name.
+     *
+     * @param request  The close index request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
+
+    /**
+     * Opens an index based on the index name.
+     *
+     * @param index The index name to close
+     */
+    OpenIndexRequestBuilder prepareOpen(String index);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).

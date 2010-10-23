@@ -32,12 +32,14 @@ import org.elasticsearch.action.admin.cluster.ping.single.TransportSinglePingAct
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.settings.TransportUpdateSettingsAction;
@@ -80,6 +82,8 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportIndicesStatusAction.class).asEagerSingleton();
         bind(TransportCreateIndexAction.class).asEagerSingleton();
         bind(TransportDeleteIndexAction.class).asEagerSingleton();
+        bind(TransportOpenIndexAction.class).asEagerSingleton();
+        bind(TransportCloseIndexAction.class).asEagerSingleton();
         bind(TransportPutMappingAction.class).asEagerSingleton();
         bind(TransportDeleteMappingAction.class).asEagerSingleton();
         bind(TransportIndicesAliasesAction.class).asEagerSingleton();

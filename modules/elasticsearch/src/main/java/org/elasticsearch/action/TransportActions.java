@@ -49,6 +49,8 @@ public class TransportActions {
         public static class Indices {
             public static final String CREATE = "indices/createIndex";
             public static final String DELETE = "indices/deleteIndex";
+            public static final String OPEN = "indices/openIndex";
+            public static final String CLOSE = "indices/closeIndex";
             public static final String FLUSH = "indices/flush";
             public static final String REFRESH = "indices/refresh";
             public static final String OPTIMIZE = "indices/optimize";

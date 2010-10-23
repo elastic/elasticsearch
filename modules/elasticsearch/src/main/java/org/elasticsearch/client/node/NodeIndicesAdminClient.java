@@ -27,6 +27,9 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -45,6 +48,9 @@ import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMapp
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
@@ -76,6 +82,10 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportDeleteIndexAction deleteIndexAction;
 
+    private final TransportCloseIndexAction closeIndexAction;
+
+    private final TransportOpenIndexAction openIndexAction;
+
     private final TransportRefreshAction refreshAction;
 
     private final TransportFlushAction flushAction;
@@ -96,6 +106,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesStatusAction indicesStatusAction,
                                           TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
+                                          TransportCloseIndexAction closeIndexAction, TransportOpenIndexAction openIndexAction,
                                           TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
                                           TransportPutMappingAction putMappingAction, TransportDeleteMappingAction deleteMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
                                           TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
@@ -104,6 +115,8 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
         this.deleteIndexAction = deleteIndexAction;
+        this.closeIndexAction = closeIndexAction;
+        this.openIndexAction = openIndexAction;
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
         this.optimizeAction = optimizeAction;
@@ -141,6 +154,22 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @Override public void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
         deleteIndexAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<CloseIndexResponse> close(CloseIndexRequest request) {
+        return closeIndexAction.execute(request);
+    }
+
+    @Override public void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
+        closeIndexAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<OpenIndexResponse> open(OpenIndexRequest request) {
+        return openIndexAction.execute(request);
+    }
+
+    @Override public void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
+        openIndexAction.execute(request, listener);
     }
 
     @Override public ActionFuture<RefreshResponse> refresh(RefreshRequest request) {

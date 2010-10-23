@@ -21,12 +21,14 @@ package org.elasticsearch.client.support;
 
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
@@ -52,6 +54,14 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
 
     @Override public DeleteIndexRequestBuilder prepareDelete(String index) {
         return new DeleteIndexRequestBuilder(this, index);
+    }
+
+    @Override public CloseIndexRequestBuilder prepareClose(String index) {
+        return new CloseIndexRequestBuilder(this, index);
+    }
+
+    @Override public OpenIndexRequestBuilder prepareOpen(String index) {
+        return new OpenIndexRequestBuilder(this, index);
     }
 
     @Override public FlushRequestBuilder prepareFlush(String... indices) {

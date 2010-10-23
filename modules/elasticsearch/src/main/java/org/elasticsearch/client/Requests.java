@@ -30,12 +30,14 @@ import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
@@ -208,6 +210,28 @@ public class Requests {
     }
 
     /**
+     * Creates a close index request.
+     *
+     * @param index The index to close
+     * @return The delete index request
+     * @see org.elasticsearch.client.IndicesAdminClient#close(org.elasticsearch.action.admin.indices.close.CloseIndexRequest)
+     */
+    public static CloseIndexRequest closeIndexRequest(String index) {
+        return new CloseIndexRequest(index);
+    }
+
+    /**
+     * Creates an open index request.
+     *
+     * @param index The index to open
+     * @return The delete index request
+     * @see org.elasticsearch.client.IndicesAdminClient#open(org.elasticsearch.action.admin.indices.open.OpenIndexRequest)
+     */
+    public static OpenIndexRequest openIndexRequest(String index) {
+        return new OpenIndexRequest(index);
+    }
+
+    /**
      * Create a create mapping request against one or more indices.
      *
      * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
@@ -223,7 +247,7 @@ public class Requests {
      *
      * @param indices The indices the mapping will be deleted from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The create mapping request
-     * @see org.elasticsearch.client.IndicesAdminClient#deleteMapping(org.elasticsearch.action.admin.indices.mapping.put.DeleteMappingRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#deleteMapping(org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest)
      */
     public static DeleteMappingRequest deleteMappingRequest(String... indices) {
         return new DeleteMappingRequest(indices);

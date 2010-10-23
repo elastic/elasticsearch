@@ -195,6 +195,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                         indexMetaDataBuilder.putMapping(entry.getKey(), entry.getValue());
                     }
+                    indexMetaDataBuilder.state(request.state);
                     final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
 
                     MetaData newMetaData = newMetaDataBuilder()
@@ -210,6 +211,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             blocks.addIndexBlock(request.index, block);
                         }
                     }
+                    if (request.state == State.CLOSE) {
+                        blocks.addIndexBlock(request.index, MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
+                    }
 
                     return newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
                 } catch (Exception e) {
@@ -219,12 +223,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
+                if (request.state == State.CLOSE) { // no need to do shard allocated when closed...
+                    return;
+                }
                 clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
-                        for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
-                            routingTableBuilder.add(indexRoutingTable);
-                        }
+                        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                         IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
                                 .initializeEmpty(currentState.metaData().index(request.index));
                         routingTableBuilder.add(indexRoutingBuilder);
@@ -270,6 +274,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         final String index;
 
+        State state = State.OPEN;
+
         Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
         Map<String, String> mappings = Maps.newHashMap();
@@ -302,6 +308,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request blocks(Set<ClusterBlock> blocks) {
             this.blocks.addAll(blocks);
+            return this;
+        }
+
+        public Request state(State state) {
+            this.state = state;
             return this;
         }
 

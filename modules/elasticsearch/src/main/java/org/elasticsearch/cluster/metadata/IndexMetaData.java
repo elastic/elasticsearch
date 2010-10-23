@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -46,11 +47,46 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 @Immutable
 public class IndexMetaData {
 
+    public static enum State {
+        OPEN((byte) 0),
+        CLOSE((byte) 1);
+
+        private final byte id;
+
+        State(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return this.id;
+        }
+
+        public static State fromId(byte id) {
+            if (id == 0) {
+                return OPEN;
+            } else if (id == 1) {
+                return CLOSE;
+            }
+            throw new ElasticSearchIllegalStateException("No state match for id [" + id + "]");
+        }
+
+        public static State fromString(String state) {
+            if ("open".equals(state)) {
+                return OPEN;
+            } else if ("close".equals(state)) {
+                return CLOSE;
+            }
+            throw new ElasticSearchIllegalStateException("No state match for [" + state + "]");
+        }
+    }
+
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
 
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
 
     private final String index;
+
+    private final State state;
 
     private final ImmutableSet<String> aliases;
 
@@ -60,10 +96,11 @@ public class IndexMetaData {
 
     private transient final int totalNumberOfShards;
 
-    private IndexMetaData(String index, Settings settings, ImmutableMap<String, CompressedString> mappings) {
+    private IndexMetaData(String index, State state, Settings settings, ImmutableMap<String, CompressedString> mappings) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
+        this.state = state;
         this.settings = settings;
         this.mappings = mappings;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
@@ -77,6 +114,14 @@ public class IndexMetaData {
 
     public String getIndex() {
         return index();
+    }
+
+    public State state() {
+        return this.state;
+    }
+
+    public State getState() {
+        return state();
     }
 
     public int numberOfShards() {
@@ -143,6 +188,8 @@ public class IndexMetaData {
 
         private String index;
 
+        private State state = State.OPEN;
+
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
         private MapBuilder<String, CompressedString> mappings = MapBuilder.newMapBuilder();
@@ -155,6 +202,7 @@ public class IndexMetaData {
             this(indexMetaData.index());
             settings(indexMetaData.settings());
             mappings.putAll(indexMetaData.mappings);
+            this.state = indexMetaData.state;
         }
 
         public String index() {
@@ -204,12 +252,19 @@ public class IndexMetaData {
             return this;
         }
 
+        public Builder state(State state) {
+            this.state = state;
+            return this;
+        }
+
         public IndexMetaData build() {
-            return new IndexMetaData(index, settings, mappings.immutableMap());
+            return new IndexMetaData(index, state, settings, mappings.immutableMap());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.index());
+
+            builder.field("state", indexMetaData.state().toString().toLowerCase());
 
             builder.startObject("settings");
             for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
@@ -262,6 +317,10 @@ public class IndexMetaData {
                             }
                         }
                     }
+                } else if (token.isValue()) {
+                    if ("state".equals(currentFieldName)) {
+                        builder.state(State.fromString(parser.text()));
+                    }
                 }
             }
             return builder.build();
@@ -269,6 +328,7 @@ public class IndexMetaData {
 
         public static IndexMetaData readFrom(StreamInput in, Settings globalSettings) throws IOException {
             Builder builder = new Builder(in.readUTF());
+            builder.state(State.fromId(in.readByte()));
             builder.settings(readSettingsFromStream(in, globalSettings));
             int mappingsSize = in.readVInt();
             for (int i = 0; i < mappingsSize; i++) {
@@ -279,6 +339,7 @@ public class IndexMetaData {
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
             out.writeUTF(indexMetaData.index());
+            out.writeByte(indexMetaData.state().id());
             writeSettingsToStream(indexMetaData.settings(), out);
             out.writeVInt(indexMetaData.mappings().size());
             for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {

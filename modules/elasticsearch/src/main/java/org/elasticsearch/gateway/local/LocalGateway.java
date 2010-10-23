@@ -22,9 +22,6 @@ package org.elasticsearch.gateway.local;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -44,10 +41,10 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
 
 import java.io.*;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -63,8 +60,6 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
  * @author kimchy (shay.banon)
  */
 public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements Gateway, ClusterStateListener {
-
-    public static final ClusterBlock INDEX_NOT_RECOVERED_BLOCK = new ClusterBlock(3, "index not recovered (not enough nodes with shards allocated found)", ClusterBlockLevel.READ_WRITE);
 
     private File location;
 
@@ -185,7 +180,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                         createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index())
                                 .settings(indexMetaData.settings())
                                 .mappingsCompressed(indexMetaData.mappings())
-                                .blocks(ImmutableSet.of(INDEX_NOT_RECOVERED_BLOCK))
+                                .blocks(ImmutableSet.of(GatewayService.INDEX_NOT_RECOVERED_BLOCK))
                                 .timeout(timeValueSeconds(30)),
 
                                 new MetaDataCreateIndexService.Listener() {
@@ -216,7 +211,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {
-        // nothing to do until we actually recover from hte gateway
+        // nothing to do until we actually recover from the gateway
         if (!event.state().metaData().recoveredFromGateway()) {
             return;
         }
@@ -224,26 +219,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         // the location is set to null, so we should not store it (for example, its not a data/master node)
         if (location == null) {
             return;
-        }
-
-        // go over the indices, if they are blocked, and all are allocated, update the cluster state that it is no longer blocked
-        if (event.state().nodes().localNodeMaster()) {
-            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : event.state().blocks().indices().entrySet()) {
-                final String index = entry.getKey();
-                ImmutableSet<ClusterBlock> indexBlocks = entry.getValue();
-                if (indexBlocks.contains(INDEX_NOT_RECOVERED_BLOCK)) {
-                    IndexRoutingTable indexRoutingTable = event.state().routingTable().index(index);
-                    if (indexRoutingTable != null && indexRoutingTable.allPrimaryShardsActive()) {
-                        clusterService.submitStateUpdateTask("remove-index-block (all primary shards active for [" + index + "])", new ClusterStateUpdateTask() {
-                            @Override public ClusterState execute(ClusterState currentState) {
-                                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                                blocks.removeIndexBlock(index, INDEX_NOT_RECOVERED_BLOCK);
-                                return ClusterState.builder().state(currentState).blocks(blocks).build();
-                            }
-                        });
-                    }
-                }
-            }
         }
 
         if (event.state().nodes().localNode().masterNode() && event.metaDataChanged()) {

@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -145,17 +147,23 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
                     try {
-                        createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index()).settings(indexMetaData.settings()).mappingsCompressed(indexMetaData.mappings()).timeout(timeValueSeconds(30)), new MetaDataCreateIndexService.Listener() {
-                            @Override public void onResponse(MetaDataCreateIndexService.Response response) {
-                                if (indicesCounter.decrementAndGet() == 0) {
-                                    listener.onSuccess();
-                                }
-                            }
+                        createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index())
+                                .settings(indexMetaData.settings())
+                                .mappingsCompressed(indexMetaData.mappings())
+                                .blocks(ImmutableSet.of(GatewayService.INDEX_NOT_RECOVERED_BLOCK))
+                                .timeout(timeValueSeconds(30)),
 
-                            @Override public void onFailure(Throwable t) {
-                                logger.error("failed to create index [{}]", indexMetaData.index(), t);
-                            }
-                        });
+                                new MetaDataCreateIndexService.Listener() {
+                                    @Override public void onResponse(MetaDataCreateIndexService.Response response) {
+                                        if (indicesCounter.decrementAndGet() == 0) {
+                                            listener.onSuccess();
+                                        }
+                                    }
+
+                                    @Override public void onFailure(Throwable t) {
+                                        logger.error("failed to create index [{}]", indexMetaData.index(), t);
+                                    }
+                                });
                     } catch (IOException e) {
                         logger.error("failed to create index [{}]", indexMetaData.index(), e);
                     }

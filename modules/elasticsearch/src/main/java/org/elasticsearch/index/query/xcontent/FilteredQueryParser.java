@@ -86,7 +86,16 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
             filter = parseContext.cacheFilter(filter);
         }
 
-        // we don't cache the filter, we assume it is already cached in the filter parsers...
+        // TODO
+        // With the way filtered queries work today, both query and filter advance (one at a time)
+        // to get hits. Since all filters support random access, it might make sense to use that.
+        // But, it make more sense to apply it down at the postings level then letting the query
+        // construct doc ids and extract it.
+        // This might be possible in lucene 4.0.
+        // More info:
+        //    - https://issues.apache.org/jira/browse/LUCENE-1536
+        //    - http://chbits.blogspot.com/2010/09/fast-search-filters-using-flex.html
+
         FilteredQuery filteredQuery = new FilteredQuery(query, filter);
         filteredQuery.setBoost(boost);
         return filteredQuery;

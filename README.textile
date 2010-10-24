@@ -123,7 +123,7 @@ Maan, that twitter index might get big (in this case, index size == valuation). 
 
 ElasticSearch support multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
 
-Another way to define our simple twitter system is to have a different index per user. Here is the indexing curl's in this case:
+Another way to define our simple twitter system is to have a different index per user (though note that an index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
 curl -XPUT 'http://localhost:9200/kimchy/info/1' -d '{ "name" : "Shay Banon" }'
@@ -182,25 +182,13 @@ curl -XGET 'http://localhost:9200/_search?pretty=true' -d '
 
 {One liner teaser}: And the cool part about that? You can easily search on multiple twitter users (indices), with different boost levels per user (index), making social search so much simpler (results from my friends rank higher than results from my friends friends).
 
-h3. Distributed, Highly Available, and Write Behind
+h3. Distributed, Highly Available
 
 Lets face it, things will fail....
 
 ElasticSearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replica. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 
 In order to play with Elastic Search distributed nature, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
-
-If the whole cluster is brought down, all the indexed data will be lost (each shard local storage is temporal). For long term persistency, write behind should be enabled. This is as simple as configuring the @elasticsearch.yml@ configuration file (which effectively enables write behind to file system for all indices created unless configured otherwise when creating the index):
-
-<pre>
-gateway:
-  type: fs
-</pre>
-
-Alternatively, elastic search can be started with the following command line: 
-@elasticsearch -f -Des.gateway.type=fs@.
-
-The above configuration will persist the indices create on ElasticSearch to a file system (path can be configured) in an asynchronous, reliable fashion. Other gateways implementations can be easily implemented and more will be provided out of the box in later versions (did someone say AmazonS3/Hadoop/Cassandra?).
 
 h3. Where to go from here?
 

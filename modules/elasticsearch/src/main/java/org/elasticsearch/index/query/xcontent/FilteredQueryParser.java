@@ -53,7 +53,7 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
         Query query = null;
         Filter filter = null;
         float boost = 1.0f;
-        boolean cache = true;
+        boolean cache = false;
 
         String currentFieldName = null;
         XContentParser.Token token;

@@ -52,7 +52,7 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true; // default to true, since anyhow NumericRangeFilter and TermFilter construct an OpenBitSet
+        boolean cache = false;
         String fieldName = null;
         String from = null;
         String to = null;
@@ -113,9 +113,15 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
         }
+
+        // we weak cache the filter if not cached, since in any case it builds an OpenBitSet
+        // we might as well weak cache it...
         if (cache) {
             filter = parseContext.cacheFilter(filter);
+        } else {
+            filter = parseContext.cacheWeakFilter(filter);
         }
+
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

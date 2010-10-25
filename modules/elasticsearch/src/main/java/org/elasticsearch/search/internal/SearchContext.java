@@ -41,7 +41,7 @@ import org.elasticsearch.script.search.ScriptSearchLookup;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facets.SearchContextFacets;
+import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;

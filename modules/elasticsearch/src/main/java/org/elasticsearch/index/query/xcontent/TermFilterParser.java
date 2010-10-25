@@ -75,6 +75,10 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
             }
         }
 
+        if (fieldName == null) {
+            throw new QueryParsingException(index, "No field specified for term filter");
+        }
+
         if (value == null) {
             throw new QueryParsingException(index, "No value specified for term filter");
         }

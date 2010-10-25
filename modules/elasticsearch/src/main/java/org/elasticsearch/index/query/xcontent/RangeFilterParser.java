@@ -103,6 +103,10 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
             }
         }
 
+        if (fieldName == null) {
+            throw new QueryParsingException(index, "No field specified for range filter");
+        }
+
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {

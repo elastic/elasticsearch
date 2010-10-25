@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -77,19 +76,12 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
             throw new QueryParsingException(index, "[constant_score] requires 'filter' element");
         }
 
-        // cache the filter if possible
-        Query query;
+        // cache the filter if possible needed
         if (cache) {
-            Filter nonCachedFilter = filter;
             filter = parseContext.cacheFilter(filter);
-            if (parseContext.indexEngine().readerClonedOnDeletion() && (filter != nonCachedFilter)) {
-                query = new DeletionAwareConstantScoreQuery(filter, true);
-            } else {
-                query = new ConstantScoreQuery(filter);
-            }
-        } else {
-            query = new ConstantScoreQuery(filter);
         }
+
+        Query query = new DeletionAwareConstantScoreQuery(filter, true);
         query.setBoost(boost);
         return query;
     }

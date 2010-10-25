@@ -32,7 +32,7 @@ import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
-import org.elasticsearch.search.facets.FacetsPhase;
+import org.elasticsearch.search.facet.FacetsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 

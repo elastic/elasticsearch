@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.facets.Facets;
-import org.elasticsearch.search.facets.internal.InternalFacets;
+import org.elasticsearch.search.facet.Facets;
+import org.elasticsearch.search.facet.internal.InternalFacets;
 
 import java.io.IOException;
 

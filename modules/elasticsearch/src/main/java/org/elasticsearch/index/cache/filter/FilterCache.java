@@ -33,6 +33,8 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
 
     Filter cache(Filter filterToCache);
 
+    Filter weakCache(Filter filterToCache);
+
     boolean isCached(Filter filter);
 
     void clear(IndexReader reader);

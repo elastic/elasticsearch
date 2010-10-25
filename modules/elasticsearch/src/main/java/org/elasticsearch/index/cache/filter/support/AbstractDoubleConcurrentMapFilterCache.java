@@ -41,15 +41,17 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  *
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
+public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
 
     final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
+    final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> weakCache;
 
-    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    protected AbstractDoubleConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         // weak keys is fine, it will only be cleared once IndexReader references will be removed
         // (assuming clear(...) will not be called)
         this.cache = new MapMaker().weakKeys().makeMap();
+        this.weakCache = new MapMaker().weakKeys().makeMap();
     }
 
     @Override public void close() {
@@ -66,26 +68,14 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         if (map != null) {
             map.clear();
         }
+        map = weakCache.remove(reader.getFieldCacheKey());
+        // help soft/weak handling GC
+        if (map != null) {
+            map.clear();
+        }
     }
 
     @Override public void clearUnreferenced() {
-        // can't do this, since we cache on cacheKey...
-//        int totalCount = cache.size();
-//        int cleaned = 0;
-//        for (Iterator<IndexReader> readerIt = cache.keySet().iterator(); readerIt.hasNext();) {
-//            IndexReader reader = readerIt.next();
-//            if (reader.getRefCount() <= 0) {
-//                readerIt.remove();
-//                cleaned++;
-//            }
-//        }
-//        if (logger.isDebugEnabled()) {
-//            if (cleaned > 0) {
-//                logger.debug("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
-//            }
-//        } else if (logger.isTraceEnabled()) {
-//            logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
-//        }
     }
 
     @Override public Filter cache(Filter filterToCache) {
@@ -96,28 +86,39 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public Filter weakCache(Filter filterToCache) {
-        return cache(filterToCache);
+        if (isCached(filterToCache)) {
+            return filterToCache;
+        }
+        return new FilterWeakCacheFilterWrapper(filterToCache, this);
     }
 
     @Override public boolean isCached(Filter filter) {
-        return filter instanceof FilterCacheFilterWrapper;
+        return filter instanceof CacheMarker;
     }
 
-    protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+    protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
         return newConcurrentMap();
+    }
+
+    protected ConcurrentMap<Filter, DocSet> buildWeakCacheMap() {
+        return newConcurrentMap();
+    }
+
+    static abstract class CacheMarker extends Filter {
+
     }
 
     // LUCENE MONITOR: Check next version Lucene for CachingWrapperFilter, consider using that logic
     // and not use the DeletableConstantScoreQuery, instead pass the DeletesMode enum to the cache method
     // see: https://issues.apache.org/jira/browse/LUCENE-2468
 
-    static class FilterCacheFilterWrapper extends Filter {
+    static class FilterCacheFilterWrapper extends CacheMarker {
 
         private final Filter filter;
 
-        private final AbstractConcurrentMapFilterCache cache;
+        private final AbstractDoubleConcurrentMapFilterCache cache;
 
-        FilterCacheFilterWrapper(Filter filter, AbstractConcurrentMapFilterCache cache) {
+        FilterCacheFilterWrapper(Filter filter, AbstractDoubleConcurrentMapFilterCache cache) {
             this.filter = filter;
             this.cache = cache;
         }
@@ -125,16 +126,82 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
             if (cachedFilters == null) {
-                cachedFilters = cache.buildFilterMap();
+                cachedFilters = cache.buildCacheMap();
                 cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
             }
             DocSet docSet = cachedFilters.get(filter);
             if (docSet != null) {
                 return docSet;
             }
+
+            // check if its in the weak cache, if so, move it from weak to soft
+            ConcurrentMap<Filter, DocSet> weakCachedFilters = cache.weakCache.get(reader.getFieldCacheKey());
+            if (weakCachedFilters != null) {
+                docSet = weakCachedFilters.get(filter);
+                if (docSet != null) {
+                    cachedFilters.put(filter, docSet);
+                    weakCachedFilters.remove(filter);
+                    return docSet;
+                }
+            }
+
             DocIdSet docIdSet = filter.getDocIdSet(reader);
             docSet = cacheable(reader, docIdSet);
             cachedFilters.putIfAbsent(filter, docSet);
+            return docIdSet;
+        }
+
+        public String toString() {
+            return "FilterCacheFilterWrapper(" + filter + ")";
+        }
+
+        public boolean equals(Object o) {
+            if (!(o instanceof FilterCacheFilterWrapper)) return false;
+            return this.filter.equals(((FilterCacheFilterWrapper) o).filter);
+        }
+
+        public int hashCode() {
+            return filter.hashCode() ^ 0x1117BF25;
+        }
+    }
+
+    static class FilterWeakCacheFilterWrapper extends CacheMarker {
+
+        private final Filter filter;
+
+        private final AbstractDoubleConcurrentMapFilterCache cache;
+
+        FilterWeakCacheFilterWrapper(Filter filter, AbstractDoubleConcurrentMapFilterCache cache) {
+            this.filter = filter;
+            this.cache = cache;
+        }
+
+        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+            DocSet docSet;
+            // first check if its in the actual cache
+            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
+            if (cachedFilters != null) {
+                docSet = cachedFilters.get(filter);
+                if (docSet != null) {
+                    return docSet;
+                }
+            }
+
+            // now, handle it in the weak cache
+            ConcurrentMap<Filter, DocSet> weakCacheFilters = cache.weakCache.get(reader.getFieldCacheKey());
+            if (weakCacheFilters == null) {
+                weakCacheFilters = cache.buildWeakCacheMap();
+                cache.weakCache.putIfAbsent(reader.getFieldCacheKey(), weakCacheFilters);
+            }
+
+            docSet = weakCacheFilters.get(filter);
+            if (docSet != null) {
+                return docSet;
+            }
+
+            DocIdSet docIdSet = filter.getDocIdSet(reader);
+            docSet = cacheable(reader, docIdSet);
+            weakCacheFilters.putIfAbsent(filter, docSet);
             return docIdSet;
         }
 

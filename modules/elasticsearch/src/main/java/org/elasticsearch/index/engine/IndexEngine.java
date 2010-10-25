@@ -29,11 +29,5 @@ import org.elasticsearch.index.IndexComponent;
  */
 public interface IndexEngine extends IndexComponent {
 
-    /**
-     * Are readers cloned on deletion? If this is the case, then some specific
-     * needs to be taken.
-     */
-    boolean readerClonedOnDeletion();
-
     void close();
 }

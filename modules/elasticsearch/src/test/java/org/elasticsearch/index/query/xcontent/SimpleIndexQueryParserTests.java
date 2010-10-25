@@ -881,8 +881,8 @@ public class SimpleIndexQueryParserTests {
     @Test public void testConstantScoreQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(constantScoreQuery(termFilter("name.last", "banon"))).query();
-        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
-        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
         assertThat(((TermFilter) constantScoreQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 
@@ -890,8 +890,8 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/constantScore-query.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
-        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
         assertThat(((TermFilter) constantScoreQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 

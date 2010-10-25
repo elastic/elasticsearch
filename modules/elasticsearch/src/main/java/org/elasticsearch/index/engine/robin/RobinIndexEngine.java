@@ -41,13 +41,6 @@ public class RobinIndexEngine extends AbstractIndexComponent implements IndexEng
         super(index, indexSettings);
     }
 
-    /**
-     * With NRT, readers are cloned on deletions... .
-     */
-    @Override public boolean readerClonedOnDeletion() {
-        return true;
-    }
-
     @Override public void close() {
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cache.query.parser;
 
-import org.elasticsearch.cache.query.parser.weak.WeakQueryParserCache;
+import org.elasticsearch.cache.query.parser.none.NoneQueryParserCache;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ public class QueryParserCacheModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(QueryParserCache.class)
-                .to(settings.getAsClass("cache.query.parser.type", WeakQueryParserCache.class, "org.elasticsearch.cache.query.parser.", "QueryParserCache"))
+                .to(settings.getAsClass("cache.query.parser.type", NoneQueryParserCache.class, "org.elasticsearch.cache.query.parser.", "QueryParserCache"))
                 .in(Scopes.SINGLETON);
     }
 }

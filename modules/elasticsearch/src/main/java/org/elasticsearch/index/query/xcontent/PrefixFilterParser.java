@@ -53,7 +53,7 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true; // default to true, make sense to cache prefix
+        boolean cache = false;
         String fieldName = null;
         String value = null;
 
@@ -88,9 +88,15 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
         }
 
         Filter filter = new PrefixFilter(new Term(fieldName, value));
+
+        // we weak cache the filter if not cached, since in any case it builds an OpenBitSet
+        // we might as well weak cache it...
         if (cache) {
             filter = parseContext.cacheFilter(filter);
+        } else {
+            filter = parseContext.cacheWeakFilter(filter);
         }
+
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

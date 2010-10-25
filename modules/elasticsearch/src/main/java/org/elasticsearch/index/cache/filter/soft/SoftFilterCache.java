@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
+import org.elasticsearch.index.cache.filter.support.AbstractDoubleConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
@@ -35,16 +35,22 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @author kimchy (shay.banon)
  */
-public class SoftFilterCache extends AbstractConcurrentMapFilterCache {
+public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
 
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+    @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
         return new MapMaker().softValues().makeMap();
+    }
+
+    @Override protected ConcurrentMap<Filter, DocSet> buildWeakCacheMap() {
+        // DocSet are not really stored with strong reference only when searching on them...
+        // Filter might be stored in query cache
+        return new MapMaker().weakValues().makeMap();
     }
 
     @Override public String type() {

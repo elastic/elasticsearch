@@ -53,7 +53,7 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true; // we want to cache term by default
+        boolean cache = false;
         String fieldName = null;
         String value = null;
 
@@ -89,9 +89,15 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
         if (filter == null) {
             filter = new TermFilter(new Term(fieldName, value));
         }
+
+        // we weak cache the filter if not cached, since in any case it builds an OpenBitSet
+        // we might as well weak cache it...
         if (cache) {
             filter = parseContext.cacheFilter(filter);
+        } else {
+            filter = parseContext.cacheWeakFilter(filter);
         }
+
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

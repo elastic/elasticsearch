@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * A simple filter for a specific term.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermFilter extends Filter {
 
@@ -51,7 +51,7 @@ public class TermFilter extends Filter {
         try {
             td.seek(term);
             while (td.next()) {
-                result.set(td.doc());
+                result.fastSet(td.doc());
             }
         }
         finally {

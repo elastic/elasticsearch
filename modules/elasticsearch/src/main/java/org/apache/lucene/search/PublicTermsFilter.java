@@ -19,8 +19,12 @@
 
 package org.apache.lucene.search;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermDocs;
+import org.apache.lucene.util.OpenBitSet;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -30,5 +34,25 @@ public class PublicTermsFilter extends TermsFilter {
 
     public Set<Term> getTerms() {
         return terms;
+    }
+
+    // override default impl here to use fastSet...
+
+    @Override
+    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        OpenBitSet result = new OpenBitSet(reader.maxDoc());
+        TermDocs td = reader.termDocs();
+        try {
+            for (Term term : terms) {
+                td.seek(term);
+                while (td.next()) {
+                    result.fastSet(td.doc());
+                }
+            }
+        }
+        finally {
+            td.close();
+        }
+        return result;
     }
 }

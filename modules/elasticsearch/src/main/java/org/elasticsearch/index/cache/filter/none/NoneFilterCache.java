@@ -50,6 +50,10 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
         return filterToCache;
     }
 
+    @Override public Filter weakCache(Filter filterToCache) {
+        return filterToCache;
+    }
+
     @Override public boolean isCached(Filter filter) {
         return false;
     }

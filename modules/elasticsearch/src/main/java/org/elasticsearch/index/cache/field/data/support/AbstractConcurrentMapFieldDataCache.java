@@ -81,7 +81,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                 }
             }
         }
-        FieldData fieldData = (FieldData) fieldDataCache.get(fieldName);
+        FieldData fieldData = fieldDataCache.get(fieldName);
         if (fieldData == null) {
             synchronized (fieldDataCache) {
                 fieldData = fieldDataCache.get(fieldName);

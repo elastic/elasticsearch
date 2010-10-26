@@ -35,7 +35,7 @@ public enum DistanceUnit {
         }@Override public double toMiles(double distance) {
             return distance;
         }@Override public double toKilometers(double distance) {
-            return distance / MILES_KILOMETRES_RATIO;
+            return distance * MILES_KILOMETRES_RATIO;
         }
         @Override public String toString(double distance) {
             return distance + "mi";
@@ -44,7 +44,7 @@ public enum DistanceUnit {
         @Override public String toString() {
             return "km";
         }@Override public double toMiles(double distance) {
-            return distance * MILES_KILOMETRES_RATIO;
+            return distance / MILES_KILOMETRES_RATIO;
         }@Override public double toKilometers(double distance) {
             return distance;
         }

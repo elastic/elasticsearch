@@ -176,10 +176,14 @@ public class NodesFaultDetection extends AbstractComponent {
         }
     }
 
-    private void notifyNodeFailure(DiscoveryNode node, String reason) {
-        for (Listener listener : listeners) {
-            listener.onNodeFailure(node, reason);
-        }
+    private void notifyNodeFailure(final DiscoveryNode node, final String reason) {
+        threadPool.cached().execute(new Runnable() {
+            @Override public void run() {
+                for (Listener listener : listeners) {
+                    listener.onNodeFailure(node, reason);
+                }
+            }
+        });
     }
 
     private class SendPingRequest implements Runnable {
@@ -231,6 +235,10 @@ public class NodesFaultDetection extends AbstractComponent {
                                     transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withTimeout(pingRetryTimeout), this);
                                 }
                             }
+                        }
+
+                        @Override public boolean spawn() {
+                            return false; // no need to spawn, we hardly do anything
                         }
                     });
         }

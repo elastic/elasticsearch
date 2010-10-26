@@ -66,7 +66,7 @@ public class AllDocSet extends DocSet {
             if (++doc < maxDoc) {
                 return doc;
             }
-            return NO_MORE_DOCS;
+            return doc = NO_MORE_DOCS;
         }
 
         @Override public int advance(int target) throws IOException {
@@ -74,7 +74,7 @@ public class AllDocSet extends DocSet {
             if (doc < maxDoc) {
                 return doc;
             }
-            return NO_MORE_DOCS;
+            return doc = NO_MORE_DOCS;
         }
     }
 }

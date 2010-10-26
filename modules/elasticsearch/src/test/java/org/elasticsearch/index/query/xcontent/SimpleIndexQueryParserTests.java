@@ -1246,6 +1246,31 @@ public class SimpleIndexQueryParserTests {
         assertThat(filter.distance(), closeTo(12, 0.00001));
     }
 
+    @Test public void testGeoDistanceFilter7() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance7.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(filter.fieldName(), equalTo("location"));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.distance(), closeTo(12, 0.00001));
+    }
+
+    @Test public void testGeoDistanceFilter8() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance8.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(filter.fieldName(), equalTo("location"));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.distance(), closeTo(12, 0.00001));
+    }
     @Test public void testGeoBoundingBoxFilterNamed() throws IOException {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox-named.json");

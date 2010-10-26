@@ -74,7 +74,8 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
         double lon = 0;
         String fieldName = null;
         double distance = 0;
-        DistanceUnit unit = null;
+        Object vDistance = null;
+        DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
         GeoDistance geoDistance = GeoDistance.ARC;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -110,9 +111,9 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
             } else if (token.isValue()) {
                 if (currentFieldName.equals("distance")) {
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        distance = DistanceUnit.parse(parser.text(), DistanceUnit.KILOMETERS, DistanceUnit.MILES);
+                        vDistance = parser.text(); // a String
                     } else {
-                        distance = parser.doubleValue();
+                        vDistance = parser.numberValue(); // a Number
                     }
                 } else if (currentFieldName.equals("unit")) {
                     unit = DistanceUnit.fromString(parser.text());
@@ -150,8 +151,10 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
             }
         }
 
-        if (unit != null) {
-            distance = unit.toMiles(distance);
+        if (vDistance instanceof Number) {
+            distance = unit.toMiles(((Number)vDistance).doubleValue());
+        } else {
+            distance = DistanceUnit.parse((String)vDistance, unit, DistanceUnit.MILES);
         }
 
         MapperService mapperService = parseContext.mapperService();

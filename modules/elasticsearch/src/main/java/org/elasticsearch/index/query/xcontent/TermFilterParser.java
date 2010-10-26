@@ -53,7 +53,7 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = false;
+        boolean cache = true; // since usually term filter is on repeating terms, cache it by default
         String fieldName = null;
         String value = null;
 

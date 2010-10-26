@@ -208,9 +208,13 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
     private void notifyDisconnectedFromMaster() {
-        for (Listener listener : listeners) {
-            listener.onDisconnectedFromMaster();
-        }
+        threadPool.cached().execute(new Runnable() {
+            @Override public void run() {
+                for (Listener listener : listeners) {
+                    listener.onDisconnectedFromMaster();
+                }
+            }
+        });
     }
 
     private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
@@ -296,6 +300,10 @@ public class MasterFaultDetection extends AbstractComponent {
                                     }
                                 }
                             }
+                        }
+
+                        @Override public boolean spawn() {
+                            return false; // no need to spawn, we hardly do anything
                         }
                     });
         }

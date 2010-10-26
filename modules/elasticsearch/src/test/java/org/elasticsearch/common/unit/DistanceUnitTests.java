@@ -27,12 +27,13 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
+@Test
 public class DistanceUnitTests {
 
     @Test void testSimpleDistanceUnit() {
         assertThat(DistanceUnit.MILES.toKilometers(10), closeTo(16.09344, 0.001));
         assertThat(DistanceUnit.MILES.toMiles(10), closeTo(10, 0.001));
-        assertThat(DistanceUnit.KILOMETERS.toMiles(10), closeTo(6.21371192, 0.000));
-        assertThat(DistanceUnit.KILOMETERS.toKilometers(10), closeTo(10, 0.000));
+        assertThat(DistanceUnit.KILOMETERS.toMiles(10), closeTo(6.21371192, 0.001));
+        assertThat(DistanceUnit.KILOMETERS.toKilometers(10), closeTo(10, 0.001));
     }
 }

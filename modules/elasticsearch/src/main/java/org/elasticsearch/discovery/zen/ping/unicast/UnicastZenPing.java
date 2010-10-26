@@ -240,6 +240,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         logger.warn("failed to send ping to [{}]", exp, node);
                     }
                 }
+
+                @Override public boolean spawn() {
+                    return false;
+                }
             });
         }
         if (wait) {
@@ -281,6 +285,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         @Override public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(handlePingRequest(request));
+        }
+
+        @Override public boolean spawn() {
+            return false;
         }
     }
 

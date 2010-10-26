@@ -262,6 +262,10 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             }
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
+
+        @Override public boolean spawn() {
+            return false;
+        }
     }
 
     static class MulticastPingResponse implements Streamable {
@@ -340,7 +344,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
                     if (!transportService.nodeConnected(requestingNode)) {
                         // do the connect and send on a thread pool
-                        threadPool.execute(new Runnable() {
+                        threadPool.cached().execute(new Runnable() {
                             @Override public void run() {
                                 // connect to the node if possible
                                 try {

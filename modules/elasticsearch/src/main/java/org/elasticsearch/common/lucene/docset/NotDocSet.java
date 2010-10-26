@@ -34,11 +34,74 @@ public class NotDocSet extends GetDocSet {
     }
 
     @Override public boolean isCacheable() {
-        // if it is cached, create a new doc set for it so it will be fast for advance in iterator
-        return false;
+        return set.isCacheable();
     }
 
     @Override public boolean get(int doc) throws IOException {
         return !set.get(doc);
     }
+
+    // This seems like overhead compared to testing with get and iterating over docs
+//    @Override public DocIdSetIterator iterator() throws IOException {
+//        return new NotDocIdSetIterator();
+//    }
+//
+//    class NotDocIdSetIterator extends DocIdSetIterator {
+//        int lastReturn = -1;
+//        private DocIdSetIterator it1 = null;
+//        private int innerDocid = -1;
+//
+//        NotDocIdSetIterator() throws IOException {
+//            initialize();
+//        }
+//
+//        private void initialize() throws IOException {
+//            it1 = set.iterator();
+//
+//            if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) it1 = null;
+//        }
+//
+//        @Override
+//        public int docID() {
+//            return lastReturn;
+//        }
+//
+//        @Override
+//        public int nextDoc() throws IOException {
+//            return advance(0);
+//        }
+//
+//        @Override
+//        public int advance(int target) throws IOException {
+//
+//            if (lastReturn == DocIdSetIterator.NO_MORE_DOCS) {
+//                return DocIdSetIterator.NO_MORE_DOCS;
+//            }
+//
+//            if (target <= lastReturn) target = lastReturn + 1;
+//
+//            if (it1 != null && innerDocid < target) {
+//                if ((innerDocid = it1.advance(target)) == DocIdSetIterator.NO_MORE_DOCS) {
+//                    it1 = null;
+//                }
+//            }
+//
+//            while (it1 != null && innerDocid == target) {
+//                target++;
+//                if (target >= max) {
+//                    return (lastReturn = DocIdSetIterator.NO_MORE_DOCS);
+//                }
+//                if ((innerDocid = it1.advance(target)) == DocIdSetIterator.NO_MORE_DOCS) {
+//                    it1 = null;
+//                }
+//            }
+//
+//            // ADDED THIS, bug in code
+//            if (target >= max) {
+//                return (lastReturn = DocIdSetIterator.NO_MORE_DOCS);
+//            }
+//
+//            return (lastReturn = target);
+//        }
+//    }
 }

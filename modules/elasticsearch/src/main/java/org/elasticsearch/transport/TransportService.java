@@ -248,7 +248,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 // lets see if its in the timeout holder
                 TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
                 if (timeoutInfoHolder != null) {
-                    logger.warn("Transport response handler timed out, action [{}], node [{}]", timeoutInfoHolder.action(), timeoutInfoHolder.node());
+                    logger.warn("Transport response handler timed out, action [{}], node [{}], id [{}]", timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
                 } else {
                     logger.warn("Transport response handler not found of id [{}]", requestId);
                 }

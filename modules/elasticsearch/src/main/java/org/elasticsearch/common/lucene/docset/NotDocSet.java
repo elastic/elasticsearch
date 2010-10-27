@@ -34,8 +34,10 @@ public class NotDocSet extends GetDocSet {
     }
 
     @Override public boolean isCacheable() {
-        // if it is cached, create a new doc set for it so it will be fast for advance in iterator
+        // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
+        // so if someone wants it to be cacheable, we might as well construct a cached version of the result
         return false;
+//        return set.isCacheable();
     }
 
     @Override public boolean get(int doc) throws IOException {

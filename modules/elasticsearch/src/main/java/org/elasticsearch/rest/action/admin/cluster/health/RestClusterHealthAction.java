@@ -89,6 +89,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     builder.field(Fields.STATUS, response.status().name().toLowerCase());
                     builder.field(Fields.TIMED_OUT, response.timedOut());
                     builder.field(Fields.NUMBER_OF_NODES, response.numberOfNodes());
+                    builder.field(Fields.NUMBER_OF_DATA_NODES, response.numberOfDataNodes());
                     builder.field(Fields.ACTIVE_PRIMARY_SHARDS, response.activePrimaryShards());
                     builder.field(Fields.ACTIVE_SHARDS, response.activeShards());
                     builder.field(Fields.RELOCATING_SHARDS, response.relocatingShards());
@@ -191,6 +192,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         static final XContentBuilderString NUMBER_OF_SHARDS = new XContentBuilderString("number_of_shards");
         static final XContentBuilderString NUMBER_OF_REPLICAS = new XContentBuilderString("number_of_replicas");
         static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
+        static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
         static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
         static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
         static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");

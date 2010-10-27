@@ -56,7 +56,7 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
         XContentParser parser = parseContext.parser();
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = null;
-        boolean cache = false;
+        boolean cache = true;
         TermsFilter termsFilter = new PublicTermsFilter();
         String filterName = null;
         String currentFieldName = null;

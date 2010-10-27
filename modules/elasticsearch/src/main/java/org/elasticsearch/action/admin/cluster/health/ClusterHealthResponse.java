@@ -42,6 +42,8 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
 
     int numberOfNodes = 0;
 
+    int numberOfDataNodes = 0;
+
     int activeShards = 0;
 
     int relocatingShards = 0;
@@ -157,6 +159,14 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return numberOfNodes();
     }
 
+    public int numberOfDataNodes() {
+        return this.numberOfDataNodes;
+    }
+
+    public int getNumberOfDataNodes() {
+        return numberOfDataNodes();
+    }
+
     /**
      * <tt>true</tt> if the waitForXXX has timeout out and did not match.
      */
@@ -196,6 +206,7 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
+        numberOfDataNodes = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -221,6 +232,7 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeVInt(numberOfNodes);
+        out.writeVInt(numberOfDataNodes);
         out.writeByte(status.value());
         out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {

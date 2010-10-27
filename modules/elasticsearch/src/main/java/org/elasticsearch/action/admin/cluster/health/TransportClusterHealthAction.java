@@ -165,6 +165,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
         response.numberOfNodes = clusterState.nodes().size();
+        response.numberOfDataNodes = clusterState.nodes().dataNodes().size();
         request.indices(clusterState.metaData().concreteIndices(request.indices()));
 
         for (String index : request.indices()) {

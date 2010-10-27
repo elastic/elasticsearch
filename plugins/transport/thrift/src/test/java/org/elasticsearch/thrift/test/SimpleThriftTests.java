@@ -83,6 +83,6 @@ public class SimpleThriftTests {
     }
 
     private Map<String, Object> parseBody(RestResponse response) throws IOException {
-        return XContentFactory.xContent(XContentType.JSON).createParser(response.getBody().array(), response.getBody().arrayOffset(), response.getBody().remaining()).map();
+        return XContentFactory.xContent(XContentType.JSON).createParser(response.BufferForBody().array(), response.BufferForBody().arrayOffset(), response.BufferForBody().remaining()).map();
     }
 }

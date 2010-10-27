@@ -315,11 +315,6 @@ public class Rest {
             return new execute_args(this);
         }
 
-        @Deprecated
-        public execute_args clone() {
-            return new execute_args(this);
-        }
-
         @Override
         public void clear() {
             this.request = null;
@@ -364,10 +359,6 @@ public class Rest {
             }
         }
 
-        public void setFieldValue(int fieldID, Object value) {
-            setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-        }
-
         public Object getFieldValue(_Fields field) {
             switch (field) {
                 case REQUEST:
@@ -377,23 +368,19 @@ public class Rest {
             throw new IllegalStateException();
         }
 
-        public Object getFieldValue(int fieldId) {
-            return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-        }
-
         /**
          * Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
          */
         public boolean isSet(_Fields field) {
+            if (field == null) {
+                throw new IllegalArgumentException();
+            }
+
             switch (field) {
                 case REQUEST:
                     return isSetRequest();
             }
             throw new IllegalStateException();
-        }
-
-        public boolean isSet(int fieldID) {
-            return isSet(_Fields.findByThriftIdOrThrow(fieldID));
         }
 
         @Override
@@ -445,6 +432,10 @@ public class Rest {
                 }
             }
             return 0;
+        }
+
+        public _Fields fieldForId(int fieldId) {
+            return _Fields.findByThriftId(fieldId);
         }
 
         public void read(TProtocol iprot) throws TException {
@@ -614,11 +605,6 @@ public class Rest {
             return new execute_result(this);
         }
 
-        @Deprecated
-        public execute_result clone() {
-            return new execute_result(this);
-        }
-
         @Override
         public void clear() {
             this.success = null;
@@ -663,10 +649,6 @@ public class Rest {
             }
         }
 
-        public void setFieldValue(int fieldID, Object value) {
-            setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-        }
-
         public Object getFieldValue(_Fields field) {
             switch (field) {
                 case SUCCESS:
@@ -676,23 +658,19 @@ public class Rest {
             throw new IllegalStateException();
         }
 
-        public Object getFieldValue(int fieldId) {
-            return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-        }
-
         /**
          * Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
          */
         public boolean isSet(_Fields field) {
+            if (field == null) {
+                throw new IllegalArgumentException();
+            }
+
             switch (field) {
                 case SUCCESS:
                     return isSetSuccess();
             }
             throw new IllegalStateException();
-        }
-
-        public boolean isSet(int fieldID) {
-            return isSet(_Fields.findByThriftIdOrThrow(fieldID));
         }
 
         @Override
@@ -744,6 +722,10 @@ public class Rest {
                 }
             }
             return 0;
+        }
+
+        public _Fields fieldForId(int fieldId) {
+            return _Fields.findByThriftId(fieldId);
         }
 
         public void read(TProtocol iprot) throws TException {

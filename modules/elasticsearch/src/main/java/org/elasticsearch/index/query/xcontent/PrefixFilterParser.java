@@ -53,7 +53,7 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = false;
+        boolean cache = true;
         String fieldName = null;
         String value = null;
 

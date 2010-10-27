@@ -52,7 +52,7 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = false;
+        boolean cache = true;
         String fieldName = null;
         String from = null;
         String to = null;

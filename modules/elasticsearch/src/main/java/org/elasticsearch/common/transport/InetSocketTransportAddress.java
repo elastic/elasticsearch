@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
@@ -66,18 +67,34 @@ public class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        address = new InetSocketAddress(in.readUTF(), in.readInt());
+        if (in.readByte() == 0) {
+            int len = in.readByte();
+            byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
+            in.readFully(a);
+            InetAddress inetAddress;
+            if (len == 16) {
+                int scope_id = in.readInt();
+                inetAddress = Inet6Address.getByAddress(null, a, scope_id);
+            } else {
+                inetAddress = InetAddress.getByAddress(a);
+            }
+            int port = in.readInt();
+            this.address = new InetSocketAddress(inetAddress, port);
+        } else {
+            this.address = new InetSocketAddress(in.readUTF(), in.readInt());
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        // prefer host address if possible, better than hostname (for example, on rackspace cloud)
         if (address.getAddress() != null) {
-            if (address.getAddress().getHostAddress() != null) {
-                out.writeUTF(address.getAddress().getHostAddress());
-            } else {
-                out.writeUTF(address.getHostName());
-            }
+            out.writeByte((byte) 0);
+            byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
+            out.writeByte((byte) bytes.length); // 1 byte
+            out.write(bytes, 0, bytes.length);
+            if (address().getAddress() instanceof Inet6Address)
+                out.writeInt(((Inet6Address) address.getAddress()).getScopeId());
         } else {
+            out.writeByte((byte) 1);
             out.writeUTF(address.getHostName());
         }
         out.writeInt(address.getPort());

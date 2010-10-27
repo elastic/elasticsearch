@@ -28,31 +28,24 @@ import java.util.List;
 /**
  * @author kimchy (shay.banon)
  */
-public class OrDocSet extends DocSet {
+public class OrDocIdSet extends DocIdSet {
 
-    private final List<DocSet> sets;
+    private final List<DocIdSet> sets;
 
-    public OrDocSet(List<DocSet> sets) {
+    public OrDocIdSet(List<DocIdSet> sets) {
         this.sets = sets;
     }
 
-    @Override public boolean get(int doc) throws IOException {
+    @Override public boolean isCacheable() {
         // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
         // so if someone wants it to be cacheable, we might as well construct a cached version of the result
         return false;
-//        for (DocSet s : sets) {
-//            if (s.get(doc)) return true;
+//        for (DocIdSet set : sets) {
+//            if (!set.isCacheable()) {
+//                return false;
+//            }
 //        }
-//        return false;
-    }
-
-    @Override public boolean isCacheable() {
-        for (DocSet set : sets) {
-            if (!set.isCacheable()) {
-                return false;
-            }
-        }
-        return true;
+//        return true;
     }
 
     @Override public DocIdSetIterator iterator() throws IOException {

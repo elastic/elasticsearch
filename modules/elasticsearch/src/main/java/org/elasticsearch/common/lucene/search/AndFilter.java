@@ -23,9 +23,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.lucene.docset.AndDocIdSet;
 import org.elasticsearch.common.lucene.docset.AndDocSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,13 +47,21 @@ public class AndFilter extends Filter {
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         if (filters.size() == 1) {
-            return DocSets.convert(reader, filters.get(0).getDocIdSet(reader));
+            return filters.get(0).getDocIdSet(reader);
         }
-        List<DocSet> sets = Lists.newArrayListWithExpectedSize(filters.size());
+        List sets = Lists.newArrayListWithExpectedSize(filters.size());
+        boolean allAreDocSet = true;
         for (Filter filter : filters) {
-            sets.add(DocSets.convert(reader, filter.getDocIdSet(reader)));
+            DocIdSet set = filter.getDocIdSet(reader);
+            if (!(set instanceof DocSet)) {
+                allAreDocSet = false;
+            }
+            sets.add(set);
         }
-        return new AndDocSet(sets);
+        if (allAreDocSet) {
+            return new AndDocSet(sets);
+        }
+        return new AndDocIdSet(sets);
     }
 
     @Override public int hashCode() {

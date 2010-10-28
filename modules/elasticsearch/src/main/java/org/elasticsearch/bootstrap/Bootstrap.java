@@ -131,6 +131,7 @@ public class Bootstrap {
 
 
     public static void main(String[] args) {
+        System.setProperty("es.logger.prefix", "");
         Bootstrap bootstrap = new Bootstrap();
         String pidFile = System.getProperty("es-pidfile");
 

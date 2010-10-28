@@ -88,6 +88,7 @@ public class SigarNetworkProbe extends AbstractComponent implements NetworkProbe
                     ifconfig = sigar.getNetInterfaceConfig(ifname);
                 } catch (SigarException e) {
                     sb.append(ifname + "\t" + "Not Avaialbe [" + e.getMessage() + "]");
+                    continue;
                 }
                 long flags = ifconfig.getFlags();
 

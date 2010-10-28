@@ -25,6 +25,7 @@ import org.testng.annotations.Test;
 
 import java.io.*;
 import java.security.SecureRandom;
+import java.util.Random;
 
 /**
  * @author kimchy (shay.banon)
@@ -89,6 +90,49 @@ public class LZFInputStreamTests {
             outputBytes++;
         }
         Assert.assertTrue(outputBytes == reference.length);
+    }
+
+    @Test void testIncremental() throws IOException {
+        // first need to compress something...
+        String[] words = new String[]{"what", "ever", "some", "other", "words", "too"};
+        StringBuilder sb = new StringBuilder(258000);
+        Random rnd = new Random(123);
+        while (sb.length() < 256000) {
+            int i = (rnd.nextInt() & 31);
+            if (i < words.length) {
+                sb.append(words[i]);
+            } else {
+                sb.append(i);
+            }
+        }
+        byte[] uncomp = sb.toString().getBytes("UTF-8");
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        LZFOutputStream lzOut = new LZFOutputStream(bytes);
+        lzOut.write(uncomp);
+        lzOut.close();
+        byte[] comp = bytes.toByteArray();
+
+        // read back, in chunks
+        bytes = new ByteArrayOutputStream(uncomp.length);
+        byte[] buffer = new byte[64];
+        LZFInputStream lzIn = new LZFInputStream(new ByteArrayInputStream(comp));
+
+        while (true) {
+            int len = 1 + ((rnd.nextInt() & 0x7FFFFFFF) % buffer.length);
+            int offset = buffer.length - len;
+
+            int count = lzIn.read(buffer, offset, len);
+            if (count < 0) {
+                break;
+            }
+            if (count > len) {
+                Assert.fail("Requested " + len + " bytes (offset " + offset + ", array length " + buffer.length + "), got " + count);
+            }
+            bytes.write(buffer, offset, count);
+        }
+        byte[] result = bytes.toByteArray();
+        Assert.assertEquals(result.length, uncomp.length);
+        Assert.assertEquals(result, uncomp);
     }
 
 

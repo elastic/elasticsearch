@@ -75,6 +75,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
                 .put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser())
                 .put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser())
                 .put(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser())
+                .put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser())
                 .put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser())
                 .put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(MultiFieldMapper.CONTENT_TYPE, new MultiFieldMapper.TypeParser())

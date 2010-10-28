@@ -88,6 +88,10 @@ public final class XContentMapperBuilders {
         return new DateFieldMapper.Builder(name);
     }
 
+    public static IpFieldMapper.Builder ipField(String name) {
+        return new IpFieldMapper.Builder(name);
+    }
+
     public static ShortFieldMapper.Builder shortField(String name) {
         return new ShortFieldMapper.Builder(name);
     }

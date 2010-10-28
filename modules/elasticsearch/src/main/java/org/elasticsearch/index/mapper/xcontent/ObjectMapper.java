@@ -386,7 +386,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
             if (token == XContentParser.Token.VALUE_STRING) {
                 String text = context.parser().text();
                 // check if it fits one of the date formats
-                boolean isDate = false;
+                boolean resolved = false;
                 // a safe check since "1" gets parsed as well
                 if (text.contains(":") || text.contains("-") || text.contains("/")) {
                     for (FormatDateTimeFormatter dateTimeFormatter : context.root().dateTimeFormatters()) {
@@ -397,14 +397,28 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                                 builder = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter);
                             }
                             mapper = builder.build(builderContext);
-                            isDate = true;
+                            resolved = true;
                             break;
                         } catch (Exception e) {
                             // failure to parse this, continue
                         }
                     }
                 }
-                if (!isDate) {
+                // check if its an ip
+                if (!resolved && text.indexOf('.') != -1) {
+                    try {
+                        IpFieldMapper.ipToLong(text);
+                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "ip");
+                        if (builder == null) {
+                            builder = ipField(currentFieldName);
+                        }
+                        mapper = builder.build(builderContext);
+                        resolved = true;
+                    } catch (Exception e) {
+                        // failure to parse, not ip...
+                    }
+                }
+                if (!resolved) {
                     XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
                     if (builder == null) {
                         builder = stringField(currentFieldName);

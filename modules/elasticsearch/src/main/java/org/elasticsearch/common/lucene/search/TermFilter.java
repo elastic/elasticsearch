@@ -76,4 +76,8 @@ public class TermFilter extends Filter {
     public int hashCode() {
         return term != null ? term.hashCode() : 0;
     }
+
+    @Override public String toString() {
+        return term.field() + ":" + term.text();
+    }
 }

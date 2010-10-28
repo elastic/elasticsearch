@@ -40,7 +40,7 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class Loggers {
 
-    private final static String commonPrefix = System.getProperty("es.logger.prefix", "");
+    private final static String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     public static final String SPACE = " ";
 
@@ -76,7 +76,7 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {
-        return getLogger(getLoggerName(clazz), settings, prefixes);
+        return getLogger(buildClassLoggerName(clazz), settings, prefixes);
     }
 
     public static ESLogger getLogger(String loggerName, Settings settings, String... prefixes) {
@@ -114,11 +114,11 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(Class clazz) {
-        return ESLoggerFactory.getLogger(getLoggerName(clazz));
+        return ESLoggerFactory.getLogger(getLoggerName(buildClassLoggerName(clazz)));
     }
 
     public static ESLogger getLogger(Class clazz, String... prefixes) {
-        return getLogger(getLoggerName(clazz), prefixes);
+        return getLogger(buildClassLoggerName(clazz), prefixes);
     }
 
     public static ESLogger getLogger(String name, String... prefixes) {
@@ -142,17 +142,17 @@ public class Loggers {
         return ESLoggerFactory.getLogger(prefix, getLoggerName(name));
     }
 
-    private static String getLoggerName(Class clazz) {
+    private static String buildClassLoggerName(Class clazz) {
         String name = clazz.getName();
         if (name.startsWith("org.elasticsearch.")) {
             name = Classes.getPackageName(clazz);
         }
-        return getLoggerName(name);
+        return name;
     }
 
     private static String getLoggerName(String name) {
         if (name.startsWith("org.elasticsearch.")) {
-            return name.substring("org.elasticsearch.".length());
+            name = name.substring("org.elasticsearch.".length());
         }
         return commonPrefix + name;
     }

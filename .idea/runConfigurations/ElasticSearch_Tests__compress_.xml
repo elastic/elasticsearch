@@ -11,7 +11,7 @@
     <option name="METHOD_NAME" value="" />
     <option name="GROUP_NAME" value="" />
     <option name="TEST_OBJECT" value="PACKAGE" />
-    <option name="VM_PARAMETERS" value="-Des.transport.tcp.compress=true -Xmx512m" />
+    <option name="VM_PARAMETERS" value="-Des.transport.tcp.compress=true -Xmx512m -Des.logger.prefix=" />
     <option name="PARAMETERS" value="" />
     <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
     <option name="OUTPUT_DIRECTORY" value="" />

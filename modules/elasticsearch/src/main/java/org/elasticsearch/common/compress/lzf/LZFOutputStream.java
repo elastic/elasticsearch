@@ -82,7 +82,9 @@ public class LZFOutputStream extends OutputStream {
      * Compress and write the current block to the OutputStream
      */
     private void writeCompressedBlock() throws IOException {
-        encoder.encodeChunk(outputStream, outputBuffer, 0, position);
-        position = 0;
+        if (position > 0) {
+            encoder.encodeChunk(outputStream, outputBuffer, 0, position);
+            position = 0;
+        }
     }
 }

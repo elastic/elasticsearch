@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -380,12 +381,55 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    private class SmartIndexNameSearchAnalyzer extends Analyzer {
+    class SmartIndexNameSearchAnalyzer extends Analyzer {
 
         private final Analyzer defaultAnalyzer;
 
-        private SmartIndexNameSearchAnalyzer(Analyzer defaultAnalyzer) {
+        SmartIndexNameSearchAnalyzer(Analyzer defaultAnalyzer) {
             this.defaultAnalyzer = defaultAnalyzer;
+        }
+
+        @Override public int getPositionIncrementGap(String fieldName) {
+            int dotIndex = fieldName.indexOf('.');
+            if (dotIndex != -1) {
+                String possibleType = fieldName.substring(0, dotIndex);
+                DocumentMapper possibleDocMapper = mappers.get(possibleType);
+                if (possibleDocMapper != null) {
+                    return possibleDocMapper.mappers().searchAnalyzer().getPositionIncrementGap(fieldName);
+                }
+            }
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchAnalyzer().getPositionIncrementGap(fieldName);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchAnalyzer().getPositionIncrementGap(fieldName);
+            }
+            return defaultAnalyzer.getPositionIncrementGap(fieldName);
+        }
+
+        @Override public int getOffsetGap(Fieldable field) {
+            String fieldName = field.name();
+            int dotIndex = fieldName.indexOf('.');
+            if (dotIndex != -1) {
+                String possibleType = fieldName.substring(0, dotIndex);
+                DocumentMapper possibleDocMapper = mappers.get(possibleType);
+                if (possibleDocMapper != null) {
+                    return possibleDocMapper.mappers().searchAnalyzer().getOffsetGap(field);
+                }
+            }
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchAnalyzer().getOffsetGap(field);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchAnalyzer().getOffsetGap(field);
+            }
+            return defaultAnalyzer.getOffsetGap(field);
         }
 
         @Override public TokenStream tokenStream(String fieldName, Reader reader) {

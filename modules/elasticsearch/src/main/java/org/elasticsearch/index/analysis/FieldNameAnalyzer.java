@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.io.IOException;
@@ -51,6 +52,10 @@ public class FieldNameAnalyzer extends Analyzer {
 
     @Override public int getPositionIncrementGap(String fieldName) {
         return getAnalyzer(fieldName).getPositionIncrementGap(fieldName);
+    }
+
+    @Override public int getOffsetGap(Fieldable field) {
+        return getAnalyzer(field.name()).getOffsetGap(field);
     }
 
     private Analyzer getAnalyzer(String name) {

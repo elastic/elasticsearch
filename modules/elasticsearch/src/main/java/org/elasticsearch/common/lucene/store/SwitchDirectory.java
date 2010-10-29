@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -86,12 +87,14 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
     }
 
     @Override public String[] listAll() throws IOException {
-        String[] primaryFiles = primaryDir.listAll();
-        String[] secondaryFiles = secondaryDir.listAll();
-        String[] files = new String[primaryFiles.length + secondaryFiles.length];
-        System.arraycopy(primaryFiles, 0, files, 0, primaryFiles.length);
-        System.arraycopy(secondaryFiles, 0, files, primaryFiles.length, secondaryFiles.length);
-        return files;
+        Set<String> files = new HashSet<String>();
+        for (String f : primaryDir.listAll()) {
+            files.add(f);
+        }
+        for (String f : secondaryDir.listAll()) {
+            files.add(f);
+        }
+        return files.toArray(new String[files.size()]);
     }
 
     /**

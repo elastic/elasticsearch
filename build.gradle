@@ -49,6 +49,7 @@ allprojects {
         mavenRepo urls: 'http://elasticsearch.googlecode.com/svn/maven'
         mavenRepo urls: 'http://oss.sonatype.org/content/repositories/releases'
         mavenRepo urls: 'http://oss.sonatype.org/content/repositories/snapshots'
+        mavenRepo urls: 'http://download.java.net/maven/2/'
     }
 }
 

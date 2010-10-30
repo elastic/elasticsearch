@@ -38,6 +38,15 @@
         </SOURCES>
       </library>
     </orderEntry>
+    <orderEntry type="module-library" exported="">
+      <library name="jna">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/net.java.dev.jna/jna/jars/jna-3.2.7.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

@@ -63,9 +63,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private volatile ByteSizeValue indexingBufferSize;
 
-    private final TimeValue refreshInterval;
+    private final boolean compoundFormat;
 
     private final int termIndexInterval;
+
+    private final TimeValue refreshInterval;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
 
@@ -108,8 +110,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
 
         this.indexingBufferSize = componentSettings.getAsBytesSize("indexing_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB));
+        this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
+        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", indexSettings.getAsBoolean("index.merge.policy.use_compound_file", store == null ? false : store.suggestUseCompoundFile()));
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", timeValueSeconds(1));
-        this.termIndexInterval = componentSettings.getAsInt("term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
 
         this.store = store;
         this.deletionPolicy = deletionPolicy;
@@ -605,6 +608,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             indexWriter.setSimilarity(similarityService.defaultIndexSimilarity());
             indexWriter.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
             indexWriter.setTermIndexInterval(termIndexInterval);
+            indexWriter.setUseCompoundFile(compoundFormat);
         } catch (IOException e) {
             safeClose(indexWriter);
             throw e;

@@ -40,7 +40,6 @@ public class BalancedSegmentMergePolicyProvider extends AbstractIndexShardCompon
     private final int maxMergeDocs;
     private final int numLargeSegments;
     private final int maxSmallSegments;
-    private final Boolean useCompoundFile;
 
     @Inject public BalancedSegmentMergePolicyProvider(Store store) {
         super(store.shardId(), store.indexSettings());
@@ -53,10 +52,8 @@ public class BalancedSegmentMergePolicyProvider extends AbstractIndexShardCompon
         this.numLargeSegments = componentSettings.getAsInt("num_large_segments", BalancedSegmentMergePolicy.DEFAULT_NUM_LARGE_SEGMENTS);
         this.maxSmallSegments = componentSettings.getAsInt("max_small_segments", 2 * LogMergePolicy.DEFAULT_MERGE_FACTOR);
 
-        this.useCompoundFile = componentSettings.getAsBoolean("use_compound_file", store == null || store.suggestUseCompoundFile());
-
-        logger.debug("Using [balanced] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}] use_compound_file[{}]",
-                mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, useCompoundFile);
+        logger.debug("Using [balanced] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}]",
+                mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs);
     }
 
     @Override public BalancedSegmentMergePolicy newMergePolicy(IndexWriter indexWriter) {
@@ -65,8 +62,6 @@ public class BalancedSegmentMergePolicyProvider extends AbstractIndexShardCompon
         mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
-        mergePolicy.setUseCompoundFile(useCompoundFile);
-        mergePolicy.setUseCompoundDocStore(useCompoundFile);
 
         mergePolicy.setMaxSmallSegments(maxSmallSegments);
         mergePolicy.setNumLargeSegments(numLargeSegments);

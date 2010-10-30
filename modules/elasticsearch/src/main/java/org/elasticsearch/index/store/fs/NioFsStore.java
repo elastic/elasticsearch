@@ -56,7 +56,7 @@ public class NioFsStore extends FsStore {
         boolean suggestUseCompoundFile;
         Tuple<SwitchDirectory, Boolean> switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory, byteBufferCache);
         if (switchDirectory != null) {
-            suggestUseCompoundFile = true;
+            suggestUseCompoundFile = DEFAULT_SUGGEST_USE_COMPOUND_FILE;
             if (switchDirectory.v2() != null) {
                 suggestUseCompoundFile = switchDirectory.v2();
             }

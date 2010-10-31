@@ -65,8 +65,11 @@ jar << {
 
         // seems like empty dirs still exists, unjar and clean them
         unjar(src: jar.archivePath, dest: "build/tmp/extracted")
+        delete(file: "build/tmp/extracted/NOTICE")
+        delete(file: "build/tmp/extracted/LICENSE")
+        delete(file: "build/tmp/extracted/build.properties")
         delete(dir: "build/tmp/extracted/jsr166y")
-        delete(dir: "build/tmp/extracted/gnu/trove")
+        delete(dir: "build/tmp/extracted/gnu")
         delete(dir: "build/tmp/extracted/org/codehaus")
         delete(dir: "build/tmp/extracted/org/aopalliance")
         delete(dir: "build/tmp/extracted/com/google")

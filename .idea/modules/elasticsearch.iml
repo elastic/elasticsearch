@@ -12,7 +12,6 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" exported="" scope="RUNTIME" name="config" level="project" />
     <orderEntry type="module-library" exported="">
       <library name="jarjar">
         <CLASSES>

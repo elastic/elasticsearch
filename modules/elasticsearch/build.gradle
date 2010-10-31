@@ -21,7 +21,7 @@ processResources.doLast {
 }
 
 // no need to use the resource dir
-sourceSets.main.resources.srcDirs 'src/main/java', rootProject.file('config')
+sourceSets.main.resources.srcDirs 'src/main/java'
 sourceSets.test.resources.srcDirs 'src/test/java'
 
 dependencies {

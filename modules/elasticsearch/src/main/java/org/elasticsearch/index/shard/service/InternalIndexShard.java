@@ -464,6 +464,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         scheduleRefresherIfNeeded();
         engine.refresh(new Engine.Refresh(true));
+
+        // clear unreferenced files
+        translog.clearUnreferenced();
     }
 
     public void performRecoveryOperation(Translog.Operation operation) throws ElasticSearchException {

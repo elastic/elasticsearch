@@ -88,6 +88,11 @@ public interface Translog extends IndexShardComponent {
     Snapshot snapshot(Snapshot snapshot);
 
     /**
+     * Clears unreferenced transaclogs.
+     */
+    void clearUnreferenced();
+
+    /**
      * Sync's the translog.
      */
     void sync();

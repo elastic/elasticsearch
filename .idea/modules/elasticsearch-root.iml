@@ -7,6 +7,7 @@
     <content url="file://$MODULE_DIR$/../..">
       <excludeFolder url="file://$MODULE_DIR$/../../.gradle" />
       <excludeFolder url="file://$MODULE_DIR$/../../build" />
+      <excludeFolder url="file://$MODULE_DIR$/../../modules/jarjar/build" />
       <excludeFolder url="file://$MODULE_DIR$/../../test-output" />
       <excludeFolder url="file://$MODULE_DIR$/../../work" />
     </content>

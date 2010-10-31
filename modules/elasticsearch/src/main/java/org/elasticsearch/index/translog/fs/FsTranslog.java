@@ -92,6 +92,24 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return new ByteSizeValue(0, ByteSizeUnit.BYTES);
     }
 
+    @Override public void clearUnreferenced() {
+        synchronized (mutex) {
+            File[] files = location.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.getName().equals("translog-" + id)) {
+                        continue;
+                    }
+                    try {
+                        file.delete();
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    }
+
     @Override public void newTranslog() throws TranslogException {
         synchronized (mutex) {
             operationCounter.set(0);

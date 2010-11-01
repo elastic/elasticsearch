@@ -212,9 +212,15 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
         if (ctx.containsKey("ignore") && ctx.get("ignore").equals(Boolean.TRUE)) {
             // ignore dock
         } else if (ctx.containsKey("deleted") && ctx.get("deleted").equals(Boolean.TRUE)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("processing [delete]: [{}]/[{}]/[{}]", indexName, typeName, id);
+            }
             bulk.add(deleteRequest(indexName).type(typeName).id(id));
         } else if (ctx.containsKey("doc")) {
             Map<String, Object> doc = (Map<String, Object>) ctx.get("doc");
+            if (logger.isTraceEnabled()) {
+                logger.trace("processing [index ]: [{}]/[{}]/[{}], source {}", indexName, typeName, id, doc);
+            }
             bulk.add(indexRequest(indexName).type(typeName).id(id).source(doc));
         } else {
             logger.warn("ignoring unknown change {}", s);
@@ -264,6 +270,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
                 if (lastSeq != null) {
                     try {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeq);
+                        }
                         bulk.add(indexRequest(riverIndexName).type(riverName.name()).id("_seq")
                                 .source(jsonBuilder().startObject().startObject("couchdb").field("last_seq", lastSeq).endObject().endObject()));
                     } catch (IOException e) {
@@ -328,6 +337,10 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 }
                 if (lastSeq != null) {
                     file = file + "&since=" + lastSeq;
+                }
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug("using host [{}], port [{}], path [{}]", couchHost, couchPort, file);
                 }
 
                 HttpURLConnection connection = null;

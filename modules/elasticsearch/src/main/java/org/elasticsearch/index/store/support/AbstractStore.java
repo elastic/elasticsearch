@@ -20,7 +20,10 @@
 package org.elasticsearch.index.store.support;
 
 import org.apache.lucene.store.*;
+import org.elasticsearch.common.Digest;
+import org.elasticsearch.common.Hex;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.lucene.Directories;
@@ -35,6 +38,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.Map;
 
 /**
@@ -73,7 +77,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         return builder.build();
     }
 
-    private StoreFileMetaData metaData(String name) throws IOException {
+    public StoreFileMetaData metaData(String name) throws IOException {
         StoreFileMetaData md = filesMetadata.get(name);
         if (md == null) {
             return null;
@@ -108,6 +112,24 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         directory().close();
     }
 
+    @Override public IndexOutput createOutputWithNoChecksum(String name) throws IOException {
+        return ((StoreDirectory) directory()).createOutput(name, false);
+    }
+
+    @Override public void writeChecksum(String name, String checksum) throws IOException {
+        // write the checksum (using the delegate, so we won't checksum this one as well...)
+        IndexOutput checkSumOutput = ((StoreDirectory) directory()).delegate().createOutput(name + ".cks");
+        byte[] checksumBytes = Unicode.fromStringAsBytes(checksum);
+        checkSumOutput.writeBytes(checksumBytes, checksumBytes.length);
+        checkSumOutput.close();
+        // update the metadata to include the checksum
+        synchronized (mutex) {
+            StoreFileMetaData metaData = filesMetadata.get(name);
+            metaData = new StoreFileMetaData(metaData.name(), metaData.length(), metaData.lastModified(), checksum);
+            filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
+        }
+    }
+
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
@@ -120,11 +142,32 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             synchronized (mutex) {
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
                 for (String file : delegate.listAll()) {
-                    builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file)));
+                    if (file.endsWith(".cks")) { // ignore checksum files here
+                        continue;
+                    }
+                    // try and load the checksum for the file
+                    String checksum = null;
+                    if (delegate.fileExists(file + ".cks")) {
+                        IndexInput indexInput = delegate.openInput(file + ".cks");
+                        try {
+                            if (indexInput.length() > 0) {
+                                byte[] checksumBytes = new byte[(int) indexInput.length()];
+                                indexInput.readBytes(checksumBytes, 0, checksumBytes.length, false);
+                                checksum = Unicode.fromBytes(checksumBytes);
+                            }
+                        } finally {
+                            indexInput.close();
+                        }
+                    }
+                    builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), checksum));
                 }
                 filesMetadata = builder.immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
             }
+        }
+
+        public Directory delegate() {
+            return delegate;
         }
 
         @Override public String[] listAll() throws IOException {
@@ -152,7 +195,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             synchronized (mutex) {
                 StoreFileMetaData metaData = filesMetadata.get(name);
                 if (metaData != null) {
-                    metaData = new StoreFileMetaData(metaData.name(), metaData.length(), delegate.fileModified(name));
+                    metaData = new StoreFileMetaData(metaData.name(), metaData.length(), delegate.fileModified(name), metaData.checksum());
                     filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
                 }
             }
@@ -160,6 +203,11 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         @Override public void deleteFile(String name) throws IOException {
             delegate.deleteFile(name);
+            try {
+                delegate.deleteFile(name + ".cks");
+            } catch (Exception e) {
+                // ignore
+            }
             synchronized (mutex) {
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
@@ -179,13 +227,23 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         }
 
         @Override public IndexOutput createOutput(String name) throws IOException {
+            return createOutput(name, true);
+        }
+
+        public IndexOutput createOutput(String name, boolean computeChecksum) throws IOException {
             IndexOutput out = delegate.createOutput(name);
+            // delete the relevant cks file for an existing file, if exists
+            try {
+                delegate.deleteFile(name + ".cks");
+            } catch (Exception e) {
+                // ignore
+            }
             synchronized (mutex) {
-                StoreFileMetaData metaData = new StoreFileMetaData(name, -1, -1);
+                StoreFileMetaData metaData = new StoreFileMetaData(name, -1, -1, null);
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
             }
-            return new StoreIndexOutput(out, name);
+            return new StoreIndexOutput(out, name, computeChecksum);
         }
 
         @Override public IndexInput openInput(String name) throws IOException {
@@ -227,29 +285,63 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         @Override public void sync(String name) throws IOException {
             if (sync) {
                 delegate.sync(name);
+                try {
+                    if (delegate.fileExists(name + ".cks")) {
+                        delegate.sync(name + ".cks");
+                    }
+                } catch (Exception e) {
+                    //ignore
+                }
             }
         }
 
         @Override public void forceSync(String name) throws IOException {
             delegate.sync(name);
+            try {
+                if (delegate.fileExists(name + ".cks")) {
+                    delegate.sync(name + ".cks");
+                }
+            } catch (Exception e) {
+                //ignore
+            }
         }
     }
 
-    private class StoreIndexOutput extends IndexOutput {
+    class StoreIndexOutput extends IndexOutput {
 
         private final IndexOutput delegate;
 
         private final String name;
 
-        private StoreIndexOutput(IndexOutput delegate, String name) {
+        private final MessageDigest digest;
+
+        StoreIndexOutput(IndexOutput delegate, String name, boolean computeChecksum) {
             this.delegate = delegate;
             this.name = name;
+            if (computeChecksum) {
+                if ("segments.gen".equals(name)) {
+                    // no need to create checksum for segments.gen since its not snapshot to recovery
+                    this.digest = null;
+                } else {
+                    this.digest = Digest.getMd5Digest();
+                }
+            } else {
+                this.digest = null;
+            }
         }
 
         @Override public void close() throws IOException {
             delegate.close();
+            String checksum = null;
+            if (digest != null) {
+                checksum = Hex.encodeHexString(digest.digest());
+                IndexOutput checkSumOutput = ((StoreDirectory) directory()).delegate().createOutput(name + ".cks");
+                byte[] checksumBytes = Unicode.fromStringAsBytes(checksum);
+                checkSumOutput.writeBytes(checksumBytes, checksumBytes.length);
+                checkSumOutput.close();
+            }
             synchronized (mutex) {
-                StoreFileMetaData md = new StoreFileMetaData(name, directory().fileLength(name), directory().fileModified(name));
+                StoreFileMetaData md = new StoreFileMetaData(name, directory().fileLength(name), directory().fileModified(name), checksum);
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, md).immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
             }
@@ -257,10 +349,16 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         @Override public void writeByte(byte b) throws IOException {
             delegate.writeByte(b);
+            if (digest != null) {
+                digest.update(b);
+            }
         }
 
         @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
             delegate.writeBytes(b, offset, length);
+            if (digest != null) {
+                digest.update(b, offset, length);
+            }
         }
 
         // don't override it, base class method simple reads from input and writes to this output
@@ -277,6 +375,9 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         }
 
         @Override public void seek(long pos) throws IOException {
+            // seek might be called on files, which means that the checksum is not file checksum
+            // but a checksum of the bytes written to this stream, which is the same for each
+            // type of file in lucene
             delegate.seek(pos);
         }
 

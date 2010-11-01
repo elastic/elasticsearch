@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardComponent;
@@ -35,6 +36,12 @@ public interface Store extends IndexShardComponent {
      * The Lucene {@link Directory} this store is using.
      */
     Directory directory();
+
+    IndexOutput createOutputWithNoChecksum(String name) throws IOException;
+
+    void writeChecksum(String name, String checksum) throws IOException;
+
+    StoreFileMetaData metaData(String name) throws IOException;
 
     ImmutableMap<String, StoreFileMetaData> list() throws IOException;
 

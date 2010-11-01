@@ -97,6 +97,9 @@ public class CommitPoints implements Iterable<CommitPoint> {
             builder.startObject(fileInfo.name());
             builder.field("physical_name", fileInfo.physicalName());
             builder.field("length", fileInfo.length());
+            if (fileInfo.checksum() != null) {
+                builder.field("checksum", fileInfo.checksum());
+            }
             builder.endObject();
         }
         builder.endObject();
@@ -147,6 +150,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
                             String fileName = currentFieldName;
                             String physicalName = null;
                             long size = -1;
+                            String checksum = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
@@ -155,6 +159,8 @@ public class CommitPoints implements Iterable<CommitPoint> {
                                         physicalName = parser.text();
                                     } else if ("length".equals(currentFieldName)) {
                                         size = parser.longValue();
+                                    } else if ("checksum".equals(currentFieldName)) {
+                                        checksum = parser.text();
                                     }
                                 }
                             }
@@ -164,7 +170,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
                             if (size == -1) {
                                 throw new IOException("Malformed commit, missing length for [" + fileName + "]");
                             }
-                            files.add(new CommitPoint.FileInfo(fileName, physicalName, size));
+                            files.add(new CommitPoint.FileInfo(fileName, physicalName, size, checksum));
                         }
                     }
                 } else if (token.isValue()) {

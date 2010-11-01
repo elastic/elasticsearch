@@ -315,7 +315,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                                 long sizeMatched = 0;
 
                                 for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).length() == storeFileMetaData.length()) {
+                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
                                         sizeMatched += storeFileMetaData.length();
                                     }
                                 }

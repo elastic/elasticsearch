@@ -104,7 +104,7 @@ public class RollingRestartStressTest {
         return this;
     }
 
-    public RollingRestartStressTest cleanNodeWork(boolean cleanNodeWork) {
+    public RollingRestartStressTest cleanNodeWork(boolean clearNodeWork) {
         this.clearNodeWork = clearNodeWork;
         return this;
     }
@@ -222,7 +222,7 @@ public class RollingRestartStressTest {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                 .field("field", "value" + ThreadLocalRandom.current().nextInt());
 
-        int fields = ThreadLocalRandom.current().nextInt() % numberOfFields;
+        int fields = Math.abs(ThreadLocalRandom.current().nextInt()) % numberOfFields;
         for (int i = 0; i < fields; i++) {
             json.field("num_" + i, ThreadLocalRandom.current().nextDouble());
             int tokens = ThreadLocalRandom.current().nextInt() % textTokens;

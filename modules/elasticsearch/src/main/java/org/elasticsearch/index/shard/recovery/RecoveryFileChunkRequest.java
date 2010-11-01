@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -35,17 +36,19 @@ class RecoveryFileChunkRequest implements Streamable {
     private String name;
     private long position;
     private long length;
+    private String checksum;
     private byte[] content;
     private int contentLength;
 
     RecoveryFileChunkRequest() {
     }
 
-    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, byte[] content, int contentLength) {
+    RecoveryFileChunkRequest(ShardId shardId, String name, long position, long length, String checksum, byte[] content, int contentLength) {
         this.shardId = shardId;
         this.name = name;
         this.position = position;
         this.length = length;
+        this.checksum = checksum;
         this.content = content;
         this.contentLength = contentLength;
     }
@@ -60,6 +63,10 @@ class RecoveryFileChunkRequest implements Streamable {
 
     public long position() {
         return position;
+    }
+
+    @Nullable public String checksum() {
+        return this.checksum;
     }
 
     public long length() {
@@ -85,6 +92,9 @@ class RecoveryFileChunkRequest implements Streamable {
         name = in.readUTF();
         position = in.readVLong();
         length = in.readVLong();
+        if (in.readBoolean()) {
+            checksum = in.readUTF();
+        }
         contentLength = in.readVInt();
         content = new byte[contentLength];
         in.readFully(content);
@@ -95,6 +105,12 @@ class RecoveryFileChunkRequest implements Streamable {
         out.writeUTF(name);
         out.writeVLong(position);
         out.writeVLong(length);
+        if (checksum == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(checksum);
+        }
         out.writeVInt(contentLength);
         out.writeBytes(content, 0, contentLength);
     }

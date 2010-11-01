@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,28 +97,28 @@ public class RecoverySource extends AbstractComponent {
                     StopWatch stopWatch = new StopWatch().start();
 
                     for (String name : snapshot.getFiles()) {
-                        long length = shard.store().directory().fileLength(name);
+                        StoreFileMetaData md = shard.store().metaData(name);
                         boolean useExisting = false;
                         if (request.existingFiles().containsKey(name)) {
-                            if (!name.contains("segment") && length == request.existingFiles().get(name).length()) {
+                            if (!name.contains("segment") && md.isSame(request.existingFiles().get(name))) {
                                 response.phase1ExistingFileNames.add(name);
-                                response.phase1ExistingFileSizes.add(length);
-                                existingTotalSize += length;
+                                response.phase1ExistingFileSizes.add(md.length());
+                                existingTotalSize += md.length();
                                 useExisting = true;
                                 if (logger.isTraceEnabled()) {
-                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, length);
+                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, md.checksum(), md.length());
                                 }
                             }
                         }
                         if (!useExisting) {
                             if (request.existingFiles().containsKey(name)) {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but has different length: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name).length(), length);
+                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name), md);
                             } else {
                                 logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name);
                             }
                             response.phase1FileNames.add(name);
-                            response.phase1FileSizes.add(length);
-                            totalSize += length;
+                            response.phase1FileSizes.add(md.length());
+                            totalSize += md.length();
                         }
                     }
                     response.phase1TotalSize = totalSize;
@@ -138,6 +139,7 @@ public class RecoverySource extends AbstractComponent {
                                 try {
                                     final int BUFFER_SIZE = (int) fileChunkSize.bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];
+                                    StoreFileMetaData md = shard.store().metaData(name);
                                     indexInput = snapshot.getDirectory().openInput(name);
                                     long len = indexInput.length();
                                     long readCount = 0;
@@ -148,7 +150,7 @@ public class RecoverySource extends AbstractComponent {
                                         int toRead = readCount + BUFFER_SIZE > len ? (int) (len - readCount) : BUFFER_SIZE;
                                         long position = indexInput.getFilePointer();
                                         indexInput.readBytes(buf, 0, toRead, false);
-                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, buf, toRead),
+                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, md.checksum(), buf, toRead),
                                                 TransportRequestOptions.options().withCompress(compress), VoidTransportResponseHandler.INSTANCE).txGet();
                                         readCount += toRead;
                                     }

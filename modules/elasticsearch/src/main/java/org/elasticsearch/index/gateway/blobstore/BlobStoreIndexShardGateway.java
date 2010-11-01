@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -181,9 +182,9 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         int indexNumberOfFiles = 0;
         long indexTotalFilesSize = 0;
         for (final String fileName : snapshotIndexCommit.getFiles()) {
-            long fileLength = 0;
+            StoreFileMetaData md;
             try {
-                fileLength = store.directory().fileLength(fileName);
+                md = store.metaData(fileName);
             } catch (IOException e) {
                 throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to get store file metadata", e);
             }
@@ -194,17 +195,17 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
 
             CommitPoint.FileInfo fileInfo = commitPoints.findPhysicalIndexFile(fileName);
-            if (fileInfo == null || fileInfo.length() != fileLength || !commitPointFileExistsInBlobs(fileInfo, blobs)) {
+            if (fileInfo == null || !fileInfo.isSame(md) || !commitPointFileExistsInBlobs(fileInfo, blobs)) {
                 // commit point file does not exists in any commit point, or has different length, or does not fully exists in the listed blobs
                 snapshotRequired = true;
             }
 
             if (snapshotRequired) {
                 indexNumberOfFiles++;
-                indexTotalFilesSize += fileLength;
+                indexTotalFilesSize += md.length();
                 // create a new FileInfo
                 try {
-                    CommitPoint.FileInfo snapshotFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), fileName, fileLength);
+                    CommitPoint.FileInfo snapshotFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), fileName, md.length(), md.checksum());
                     indexCommitPointFiles.add(snapshotFileInfo);
                     snapshotFile(snapshotIndexCommit.getDirectory(), snapshotFileInfo, indexLatch, failures);
                 } catch (IOException e) {
@@ -280,7 +281,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         currentSnapshotStatus.translog().expectedNumberOfOperations(expectedNumberOfOperations);
 
         if (snapshotRequired) {
-            CommitPoint.FileInfo addedTranslogFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), "translog-" + translogSnapshot.translogId(), translogSnapshot.lengthInBytes());
+            CommitPoint.FileInfo addedTranslogFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), "translog-" + translogSnapshot.translogId(), translogSnapshot.lengthInBytes(), null /* no need for checksum in translog */);
             translogCommitPointFiles.add(addedTranslogFileInfo);
             try {
                 snapshotTranslog(translogSnapshot, addedTranslogFileInfo);
@@ -520,26 +521,26 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         List<CommitPoint.FileInfo> filesToRecover = Lists.newArrayList();
         for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
             String fileName = fileInfo.physicalName();
-            long fileLength = -1;
+            StoreFileMetaData md = null;
             try {
-                fileLength = store.directory().fileLength(fileName);
+                md = store.metaData(fileName);
             } catch (Exception e) {
                 // no file
             }
-            if (!fileName.contains("segment") && fileLength == fileInfo.length()) {
+            if (!fileName.contains("segment") && md != null && fileInfo.isSame(md)) {
                 numberOfFiles++;
-                totalSize += fileLength;
+                totalSize += md.length();
                 numberOfReusedFiles++;
-                reusedTotalSize += fileLength;
+                reusedTotalSize += md.length();
                 if (logger.isTraceEnabled()) {
-                    logger.trace("not_recovering [{}], exists in local store and has same length [{}]", fileInfo.physicalName(), fileInfo.length());
+                    logger.trace("not_recovering [{}], exists in local store and is same", fileInfo.physicalName());
                 }
             } else {
                 if (logger.isTraceEnabled()) {
-                    if (fileLength == -1) {
+                    if (md == null) {
                         logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
                     } else {
-                        logger.trace("recovering [{}], exists in local store but has different length: gateway [{}], local [{}]", fileInfo.physicalName(), fileInfo.length(), fileLength);
+                        logger.trace("recovering [{}], exists in local store but is different", fileInfo.physicalName());
                     }
                 }
                 numberOfFiles++;
@@ -591,12 +592,12 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 if (!commitPoint.containPhysicalIndexFile(storeFile)) {
                     try {
                         store.directory().deleteFile(storeFile);
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         // ignore
                     }
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // ignore
         }
     }
@@ -604,7 +605,9 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private void recoverFile(final CommitPoint.FileInfo fileInfo, final ImmutableMap<String, BlobMetaData> blobs, final CountDownLatch latch, final List<Throwable> failures) {
         final IndexOutput indexOutput;
         try {
-            indexOutput = store.directory().createOutput(fileInfo.physicalName());
+            // we create an output with no checksum, this is because the pure binary data of the file is not
+            // the checksum (because of seek). We will create the checksum file once copying is done
+            indexOutput = store.createOutputWithNoChecksum(fileInfo.physicalName());
         } catch (IOException e) {
             failures.add(e);
             latch.countDown();
@@ -641,6 +644,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     // we are done...
                     try {
                         indexOutput.close();
+                        // write the checksum
+                        if (fileInfo.checksum() != null) {
+                            store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
+                        }
+                        store.directory().sync(fileInfo.physicalName());
                     } catch (IOException e) {
                         onFailure(e);
                         return;

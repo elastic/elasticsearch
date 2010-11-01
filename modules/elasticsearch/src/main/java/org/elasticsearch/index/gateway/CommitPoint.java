@@ -20,7 +20,9 @@
 package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.index.store.StoreFileMetaData;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -34,11 +36,13 @@ public class CommitPoint {
         private final String name;
         private final String physicalName;
         private final long length;
+        private final String checksum;
 
-        public FileInfo(String name, String physicalName, long length) {
+        public FileInfo(String name, String physicalName, long length, String checksum) {
             this.name = name;
             this.physicalName = physicalName;
             this.length = length;
+            this.checksum = checksum;
         }
 
         public String name() {
@@ -51,6 +55,17 @@ public class CommitPoint {
 
         public long length() {
             return length;
+        }
+
+        @Nullable public String checksum() {
+            return checksum;
+        }
+
+        public boolean isSame(StoreFileMetaData md) {
+            if (checksum != null && md.checksum() != null) {
+                return checksum.equals(md.checksum());
+            }
+            return length == md.length();
         }
     }
 

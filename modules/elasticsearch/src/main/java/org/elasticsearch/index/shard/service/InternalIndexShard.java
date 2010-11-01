@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard.service;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FilterClause;
@@ -188,10 +189,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            engine.start();
             if (checkIndex) {
                 checkIndex(true);
             }
+            engine.start();
             scheduleRefresherIfNeeded();
             logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
@@ -436,6 +437,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        // also check here, before we apply the translog
+        if (checkIndex) {
+            checkIndex(true);
+        }
         engine.start();
     }
 
@@ -454,9 +459,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public void performRecoveryFinalization(boolean withFlush) throws ElasticSearchException {
         if (withFlush) {
             engine.flush(new Engine.Flush());
-        }
-        if (checkIndex) {
-            checkIndex(true);
         }
         synchronized (mutex) {
             logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
@@ -576,6 +578,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
+            if (!IndexReader.indexExists(store.directory())) {
+                return;
+            }
             CheckIndex checkIndex = new CheckIndex(store.directory());
             FastByteArrayOutputStream os = new FastByteArrayOutputStream();
             PrintStream out = new PrintStream(os);

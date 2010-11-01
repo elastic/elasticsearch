@@ -27,10 +27,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -157,7 +159,19 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         for (File file : indexFile.listFiles()) {
-            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified()));
+            if (file.getName().endsWith(".cks")) {
+                continue;
+            }
+            // try and load the checksum
+            String checksum = null;
+            File checksumFile = new File(file.getParentFile(), file.getName() + ".cks");
+            if (checksumFile.exists()) {
+                byte[] checksumBytes = Streams.copyToByteArray(checksumFile);
+                if (checksumBytes.length > 0) {
+                    checksum = Unicode.fromBytes(checksumBytes);
+                }
+            }
+            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksum));
         }
         return new StoreFilesMetaData(false, shardId, files);
     }

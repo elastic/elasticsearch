@@ -38,12 +38,12 @@ public class CommitPointsTests {
 
     @Test public void testCommitPointXContent() throws Exception {
         ArrayList<CommitPoint.FileInfo> indexFiles = Lists.newArrayList();
-        indexFiles.add(new CommitPoint.FileInfo("file1", "file1_p", 100));
-        indexFiles.add(new CommitPoint.FileInfo("file2", "file2_p", 200));
+        indexFiles.add(new CommitPoint.FileInfo("file1", "file1_p", 100, "ck1"));
+        indexFiles.add(new CommitPoint.FileInfo("file2", "file2_p", 200, "ck2"));
 
         ArrayList<CommitPoint.FileInfo> translogFiles = Lists.newArrayList();
-        translogFiles.add(new CommitPoint.FileInfo("t_file1", "t_file1_p", 100));
-        translogFiles.add(new CommitPoint.FileInfo("t_file2", "t_file2_p", 200));
+        translogFiles.add(new CommitPoint.FileInfo("t_file1", "t_file1_p", 100, null));
+        translogFiles.add(new CommitPoint.FileInfo("t_file2", "t_file2_p", 200, null));
 
         CommitPoint commitPoint = new CommitPoint(1, "test", CommitPoint.Type.GENERATED, indexFiles, translogFiles);
 
@@ -59,6 +59,7 @@ public class CommitPointsTests {
             assertThat(desCp.indexFiles().get(i).name(), equalTo(commitPoint.indexFiles().get(i).name()));
             assertThat(desCp.indexFiles().get(i).physicalName(), equalTo(commitPoint.indexFiles().get(i).physicalName()));
             assertThat(desCp.indexFiles().get(i).length(), equalTo(commitPoint.indexFiles().get(i).length()));
+            assertThat(desCp.indexFiles().get(i).checksum(), equalTo(commitPoint.indexFiles().get(i).checksum()));
         }
 
         assertThat(desCp.translogFiles().size(), equalTo(commitPoint.translogFiles().size()));
@@ -66,6 +67,7 @@ public class CommitPointsTests {
             assertThat(desCp.translogFiles().get(i).name(), equalTo(commitPoint.translogFiles().get(i).name()));
             assertThat(desCp.translogFiles().get(i).physicalName(), equalTo(commitPoint.translogFiles().get(i).physicalName()));
             assertThat(desCp.translogFiles().get(i).length(), equalTo(commitPoint.translogFiles().get(i).length()));
+            assertThat(desCp.translogFiles().get(i).checksum(), nullValue());
         }
     }
 }

@@ -174,27 +174,15 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                             break;
                         }
 
-                        if (logger.isTraceEnabled()) {
-                            StringBuilder sb = new StringBuilder(shard + ": checking for pre_allocation (gateway) on node " + discoNode + "\n");
-                            sb.append("    gateway_files:\n");
-                            for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
-                                sb.append("        [").append(fileInfo.name()).append("]/[").append(fileInfo.physicalName()).append("], size [").append(new ByteSizeValue(fileInfo.length())).append("]\n");
-                            }
-                            sb.append("    node_files:\n");
-                            for (StoreFileMetaData md : storeFilesMetaData) {
-                                sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.length())).append("]\n");
-                            }
-                            logger.trace(sb.toString());
-                        }
                         long sizeMatched = 0;
                         for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
                             CommitPoint.FileInfo fileInfo = commitPoint.findPhysicalIndexFile(storeFileMetaData.name());
                             if (fileInfo != null) {
-                                if (fileInfo.length() == storeFileMetaData.length()) {
-                                    logger.trace("{}: [{}] reusing file since it exists on remote node and on gateway with size [{}]", shard, storeFileMetaData.name(), new ByteSizeValue(storeFileMetaData.length()));
+                                if (fileInfo.isSame(storeFileMetaData)) {
+                                    logger.trace("{}: [{}] reusing file since it exists on remote node and on gateway", shard, storeFileMetaData.name());
                                     sizeMatched += storeFileMetaData.length();
                                 } else {
-                                    logger.trace("{}: [{}] ignore file since it exists on remote node and on gateway but has different size, remote node [{}], gateway [{}]", shard, storeFileMetaData.name(), storeFileMetaData.length(), fileInfo.length());
+                                    logger.trace("{}: [{}] ignore file since it exists on remote node and on gateway but is different", shard, storeFileMetaData.name());
                                 }
                             } else {
                                 logger.trace("{}: [{}] exists on remote node, does not exists on gateway", shard, storeFileMetaData.name());
@@ -224,7 +212,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                                 long sizeMatched = 0;
 
                                 for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).length() == storeFileMetaData.length()) {
+                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
                                         sizeMatched += storeFileMetaData.length();
                                     }
                                 }

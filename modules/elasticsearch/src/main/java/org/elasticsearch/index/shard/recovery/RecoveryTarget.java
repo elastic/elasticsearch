@@ -364,7 +364,7 @@ public class RecoveryTarget extends AbstractComponent {
                 if (!request.snapshotFiles().contains(existingFile)) {
                     try {
                         shard.store().directory().deleteFile(existingFile);
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         // ignore, we don't really care, will get deleted later on
                     }
                 }
@@ -398,7 +398,9 @@ public class RecoveryTarget extends AbstractComponent {
                         // ignore
                     }
                 }
-                indexOutput = shard.store().directory().createOutput(request.name());
+                // we create an output with no checksum, this is because the pure binary data of the file is not
+                // the checksum (because of seek). We will create the checksum file once copying is done
+                indexOutput = shard.store().createOutputWithNoChecksum(request.name());
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {
                 indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());
@@ -414,6 +416,11 @@ public class RecoveryTarget extends AbstractComponent {
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done
                         indexOutput.close();
+                        // write the checksum
+                        if (request.checksum() != null) {
+                            shard.store().writeChecksum(request.name(), request.checksum());
+                        }
+                        shard.store().directory().sync(request.name());
                         onGoingRecovery.openIndexOutputs.remove(request.name());
                     }
                 } catch (IOException e) {
@@ -423,6 +430,7 @@ public class RecoveryTarget extends AbstractComponent {
                     } catch (IOException e1) {
                         // ignore
                     }
+                    throw e;
                 }
             }
             channel.sendResponse(VoidStreamable.INSTANCE);

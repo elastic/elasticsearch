@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -36,13 +37,16 @@ public class StoreFileMetaData implements Streamable {
 
     private long length;
 
+    private String checksum;
+
     StoreFileMetaData() {
     }
 
-    public StoreFileMetaData(String name, long length, long lastModified) {
+    public StoreFileMetaData(String name, long length, long lastModified, String checksum) {
         this.name = name;
         this.lastModified = lastModified;
         this.length = length;
+        this.checksum = checksum;
     }
 
     public String name() {
@@ -57,6 +61,17 @@ public class StoreFileMetaData implements Streamable {
         return length;
     }
 
+    @Nullable public String checksum() {
+        return this.checksum;
+    }
+
+    public boolean isSame(StoreFileMetaData other) {
+        if (checksum != null && other.checksum != null) {
+            return checksum.equals(other.checksum);
+        }
+        return length == other.length;
+    }
+
     public static StoreFileMetaData readStoreFileMetaData(StreamInput in) throws IOException {
         StoreFileMetaData md = new StoreFileMetaData();
         md.readFrom(in);
@@ -64,16 +79,25 @@ public class StoreFileMetaData implements Streamable {
     }
 
     @Override public String toString() {
-        return "name [" + name + "], length [" + length + "]";
+        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "]";
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         length = in.readVLong();
+        if (in.readBoolean()) {
+            checksum = in.readUTF();
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeVLong(length);
+        if (checksum == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(checksum);
+        }
     }
 }

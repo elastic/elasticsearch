@@ -63,6 +63,15 @@ public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetRespons
     }
 
     /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    public GetRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
      * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */

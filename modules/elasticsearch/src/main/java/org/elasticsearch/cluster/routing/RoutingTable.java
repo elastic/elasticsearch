@@ -33,6 +33,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -143,7 +144,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      * @see IndexRoutingTable#groupByAllIt()
      */
     public GroupShardsIterator allShardsGrouped(String... indices) throws IndexMissingException {
-        GroupShardsIterator its = new GroupShardsIterator();
+        // use list here since we need to maintain identity across shards
+        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }
@@ -156,11 +158,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             }
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    its.add(shardRouting.shardsIt());
+                    set.add(shardRouting.shardsIt());
                 }
             }
         }
-        return its;
+        return new GroupShardsIterator(set);
     }
 
     /**
@@ -174,7 +176,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      * @see IndexRoutingTable#groupByAllIt()
      */
     public GroupShardsIterator primaryShardsGrouped(String... indices) throws IndexMissingException {
-        GroupShardsIterator its = new GroupShardsIterator();
+        // use list here since we need to maintain identity across shards
+        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }
@@ -184,10 +187,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                 throw new IndexMissingException(new Index(index));
             }
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                its.add(indexShardRoutingTable.primaryShard().shardsIt());
+                set.add(indexShardRoutingTable.primaryShard().shardsIt());
             }
         }
-        return its;
+        return new GroupShardsIterator(set);
     }
 
     public static Builder builder() {

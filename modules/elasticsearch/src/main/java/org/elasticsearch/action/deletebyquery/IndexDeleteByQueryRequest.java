@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 import static org.elasticsearch.action.Actions.*;
@@ -42,6 +43,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     private byte[] querySource;
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
+    @Nullable private String routing;
 
     IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index) {
         this.index = index;
@@ -51,6 +53,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         this.types = request.types();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
+        this.routing = request.routing();
     }
 
     IndexDeleteByQueryRequest() {
@@ -81,6 +84,10 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return queryParserName;
     }
 
+    String routing() {
+        return this.routing;
+    }
+
     String[] types() {
         return this.types;
     }
@@ -109,6 +116,9 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
                 types[i] = in.readUTF();
             }
         }
+        if (in.readBoolean()) {
+            routing = in.readUTF();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -124,6 +134,12 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
+        }
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
         }
     }
 }

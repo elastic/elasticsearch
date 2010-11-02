@@ -139,6 +139,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.timeout(request.paramAsTime("timeout", null));
         searchRequest.types(RestActions.splitTypes(request.param("type")));
         searchRequest.queryHint(request.param("query_hint"));
+        searchRequest.routing(request.param("routing"));
 
         return searchRequest;
     }

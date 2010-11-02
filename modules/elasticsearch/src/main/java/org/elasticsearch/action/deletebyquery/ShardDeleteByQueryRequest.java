@@ -43,20 +43,18 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     private byte[] querySource;
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
-
-    public ShardDeleteByQueryRequest(String index, byte[] querySource, @Nullable String queryParserName, String[] types, int shardId) {
-        this.index = index;
-        this.querySource = querySource;
-        this.queryParserName = queryParserName;
-        this.types = types;
-        this.shardId = shardId;
-    }
+    @Nullable private String routing;
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
-        this(request.index(), request.querySource(), request.queryParserName(), request.types(), shardId);
+        this.index = request.index();
+        this.querySource = request.querySource();
+        this.queryParserName = request.queryParserName();
+        this.types = request.types();
+        this.shardId = shardId;
         replicationType(request.replicationType());
         consistencyLevel(request.consistencyLevel());
         timeout = request.timeout();
+        this.routing = request.routing();
     }
 
     ShardDeleteByQueryRequest() {
@@ -86,6 +84,10 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.types;
     }
 
+    public String routing() {
+        return this.routing;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         querySource = new byte[in.readVInt()];
@@ -100,6 +102,9 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
             for (int i = 0; i < typesSize; i++) {
                 types[i] = in.readUTF();
             }
+        }
+        if (in.readBoolean()) {
+            routing = in.readUTF();
         }
     }
 
@@ -117,6 +122,12 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
+        }
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
         }
     }
 

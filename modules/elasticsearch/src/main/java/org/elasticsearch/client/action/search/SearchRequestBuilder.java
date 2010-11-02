@@ -135,6 +135,22 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public SearchRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the search will be executed on.
+     */
+    public SearchRequestBuilder setRouting(String... routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
      * Controls the the search operation threading model.
      */
     public SearchRequestBuilder setOperationThreading(SearchOperationThreading operationThreading) {

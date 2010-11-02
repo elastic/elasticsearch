@@ -63,6 +63,7 @@ public class CountRequest extends BroadcastOperationRequest {
     private float minScore = DEFAULT_MIN_SCORE;
 
     @Nullable protected String queryHint;
+    @Nullable protected String routing;
 
     private byte[] querySource;
     private int querySourceOffset;
@@ -264,12 +265,38 @@ public class CountRequest extends BroadcastOperationRequest {
         return this;
     }
 
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public String routing() {
+        return this.routing;
+    }
+
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public CountRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the search will be executed on.
+     */
+    public CountRequest routing(String... routings) {
+        this.routing = Strings.arrayToCommaDelimitedString(routings);
+        return this;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
 
         if (in.readBoolean()) {
             queryHint = in.readUTF();
+        }
+        if (in.readBoolean()) {
+            routing = in.readUTF();
         }
 
         querySourceUnsafe = false;
@@ -299,6 +326,12 @@ public class CountRequest extends BroadcastOperationRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(queryHint);
+        }
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
         }
 
         out.writeVInt(querySourceLength);

@@ -65,6 +65,15 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
     }
 
     /**
+     * Controls the shard routing of the delete request. Using this value to hash the shard
+     * and not the id.
+     */
+    public DeleteRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
      * Should a refresh be executed post this index operation causing the operation to
      * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.

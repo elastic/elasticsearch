@@ -19,34 +19,18 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.common.collect.IdentityHashSet;
-
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class GroupShardsIterator implements Iterable<ShardsIterator> {
 
-    private final Set<ShardsIterator> iterators;
+    private final Collection<ShardsIterator> iterators;
 
-    public GroupShardsIterator() {
-        this(new IdentityHashSet<ShardsIterator>());
-    }
-
-    public GroupShardsIterator(Set<ShardsIterator> iterators) {
+    public GroupShardsIterator(Collection<ShardsIterator> iterators) {
         this.iterators = iterators;
-    }
-
-    public void add(ShardsIterator shardsIterator) {
-        iterators.add(shardsIterator);
-    }
-
-    public void add(Iterable<ShardsIterator> shardsIterator) {
-        for (ShardsIterator it : shardsIterator) {
-            add(it);
-        }
     }
 
     public int totalSize() {
@@ -69,7 +53,7 @@ public class GroupShardsIterator implements Iterable<ShardsIterator> {
         return iterators.size();
     }
 
-    public Set<ShardsIterator> iterators() {
+    public Collection<ShardsIterator> iterators() {
         return iterators;
     }
 

@@ -40,11 +40,11 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
-    private final ShardId shardId;
+    final ShardId shardId;
 
-    private final ImmutableList<ShardRouting> shards;
+    final ImmutableList<ShardRouting> shards;
 
-    private final AtomicInteger counter;
+    final AtomicInteger counter;
 
     IndexShardRoutingTable(ShardId shardId, ImmutableList<ShardRouting> shards) {
         this.shardId = shardId;
@@ -278,6 +278,20 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         @Override public ShardId shardId() {
             return IndexShardRoutingTable.this.shardId();
+        }
+
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+
+            ShardsIterator that = (ShardsIterator) o;
+
+            if (shardId != null ? !shardId.equals(that.shardId()) : that.shardId() != null) return false;
+
+            return true;
+        }
+
+        @Override public int hashCode() {
+            return shardId != null ? shardId.hashCode() : 0;
         }
     }
 

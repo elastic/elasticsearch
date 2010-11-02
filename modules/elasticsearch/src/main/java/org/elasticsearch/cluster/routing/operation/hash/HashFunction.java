@@ -24,5 +24,7 @@ package org.elasticsearch.cluster.routing.operation.hash;
  */
 public interface HashFunction {
 
+    int hash(String routing);
+
     int hash(String type, String id);
 }

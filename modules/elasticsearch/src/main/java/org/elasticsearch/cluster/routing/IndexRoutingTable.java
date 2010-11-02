@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.IdentityHashSet;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -30,10 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.common.collect.Lists.*;
 
@@ -146,7 +142,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * is an iterator across shard replication group.
      */
     public GroupShardsIterator groupByShardsIt() {
-        IdentityHashSet<ShardsIterator> set = new IdentityHashSet<ShardsIterator>();
+        // use list here since we need to maintain identity across shards
+        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
         for (IndexShardRoutingTable indexShard : this) {
             set.add(indexShard.shardsIt());
         }
@@ -161,7 +158,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * over *all* the shards (all the replicas) within the index.
      */
     public GroupShardsIterator groupByAllIt() {
-        IdentityHashSet<ShardsIterator> set = new IdentityHashSet<ShardsIterator>();
+        // use list here since we need to maintain identity across shards
+        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
         for (IndexShardRoutingTable indexShard : this) {
             for (ShardRouting shardRouting : indexShard) {
                 set.add(shardRouting.shardsIt());

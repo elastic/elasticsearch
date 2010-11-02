@@ -110,7 +110,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
             }
 
-            shardsIts = clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint());
+            shardsIts = clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint(), request.routing());
             expectedSuccessfulOps = shardsIts.size();
             expectedTotalOps = shardsIts.totalSizeActive();
 

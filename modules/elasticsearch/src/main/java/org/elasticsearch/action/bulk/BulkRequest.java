@@ -108,6 +108,7 @@ public class BulkRequest implements ActionRequest {
             String index = null;
             String type = null;
             String id = null;
+            String routing = null;
             String opType = null;
 
             String currentFieldName = null;
@@ -121,6 +122,8 @@ public class BulkRequest implements ActionRequest {
                         type = parser.text();
                     } else if ("_id".equals(currentFieldName)) {
                         id = parser.text();
+                    } else if ("_routing".equals(currentFieldName)) {
+                        routing = parser.text();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
                     }
@@ -128,7 +131,7 @@ public class BulkRequest implements ActionRequest {
             }
 
             if ("delete".equals(action)) {
-                add(new DeleteRequest(index, type, id));
+                add(new DeleteRequest(index, type, id).routing(routing));
             } else {
                 nextMarker = findNextMarker(marker, from, data, length);
                 if (nextMarker == -1) {
@@ -136,15 +139,15 @@ public class BulkRequest implements ActionRequest {
                 }
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        add(new IndexRequest(index, type, id)
+                        add(new IndexRequest(index, type, id).routing(routing)
                                 .source(data, from, nextMarker - from, contentUnsafe));
                     } else {
-                        add(new IndexRequest(index, type, id)
+                        add(new IndexRequest(index, type, id).routing(routing)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe));
                     }
                 } else if ("create".equals(action)) {
-                    add(new IndexRequest(index, type, id)
+                    add(new IndexRequest(index, type, id).routing(routing)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe));
                 }

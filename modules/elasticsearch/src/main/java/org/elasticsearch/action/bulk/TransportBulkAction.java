@@ -157,10 +157,10 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             ShardId shardId = null;
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id()).shardId();
+                shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                shardId = clusterService.operationRouting().deleteShards(clusterState, deleteRequest.index(), deleteRequest.type(), deleteRequest.id()).shardId();
+                shardId = clusterService.operationRouting().deleteShards(clusterState, deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), deleteRequest.routing()).shardId();
             }
             List<BulkItemRequest> list = requestsByShard.get(shardId);
             if (list == null) {

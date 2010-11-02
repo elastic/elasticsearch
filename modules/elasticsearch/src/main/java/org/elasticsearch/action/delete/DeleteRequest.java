@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 import static org.elasticsearch.action.Actions.*;
@@ -48,6 +49,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
+    @Nullable private String routing;
     private boolean refresh;
 
     /**
@@ -165,6 +167,23 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     }
 
     /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    public DeleteRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    /**
+     * Controls the shard routing of the delete request. Using this value to hash the shard
+     * and not the id.
+     */
+    public String routing() {
+        return this.routing;
+    }
+
+    /**
      * Should a refresh be executed post this index operation causing the operation to
      * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.
@@ -182,6 +201,9 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         super.readFrom(in);
         type = in.readUTF();
         id = in.readUTF();
+        if (in.readBoolean()) {
+            routing = in.readUTF();
+        }
         refresh = in.readBoolean();
     }
 
@@ -189,6 +211,12 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         super.writeTo(out);
         out.writeUTF(type);
         out.writeUTF(id);
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
+        }
         out.writeBoolean(refresh);
     }
 

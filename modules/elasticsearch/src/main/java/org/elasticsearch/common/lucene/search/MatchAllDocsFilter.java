@@ -55,4 +55,8 @@ public class MatchAllDocsFilter extends Filter {
 
         return false;
     }
+
+    @Override public String toString() {
+        return "*:*";
+    }
 }

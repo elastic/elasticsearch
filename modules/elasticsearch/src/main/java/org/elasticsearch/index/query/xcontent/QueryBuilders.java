@@ -251,6 +251,10 @@ public abstract class QueryBuilders {
         return new SpanOrQueryBuilder();
     }
 
+    public static FieldMaskingSpanQueryBuilder fieldMaskingSpanQuery(XContentSpanQueryBuilder query, String field) {
+        return new FieldMaskingSpanQueryBuilder(query, field);
+    }
+
     /**
      * A query that applies a filter to the results of another query.
      *

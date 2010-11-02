@@ -25,6 +25,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
@@ -50,7 +51,7 @@ public class SingleThreadBulkStress {
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put("index.engine.robin.refreshInterval", "-1")
-                .put("gateway.type", "none")
+                .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -67,11 +68,11 @@ public class SingleThreadBulkStress {
         Thread.sleep(5000);
 
         StopWatch stopWatch = new StopWatch().start();
-        int COUNT = 200000;
+        long COUNT = SizeValue.parseSizeValue("5m").singles();
         int BATCH = 100;
         System.out.println("Indexing [" + COUNT + "] ...");
-        int ITERS = COUNT / BATCH;
-        int i = 1;
+        long ITERS = COUNT / BATCH;
+        long i = 1;
         int counter = 0;
         for (; i <= ITERS; i++) {
             BulkRequestBuilder request = client1.prepareBulk();

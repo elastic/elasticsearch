@@ -26,6 +26,10 @@ import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
  */
 public class SimpleHashFunction implements HashFunction {
 
+    @Override public int hash(String routing) {
+        return routing.hashCode();
+    }
+
     @Override public int hash(String type, String id) {
         return type.hashCode() + 31 * id.hashCode();
     }

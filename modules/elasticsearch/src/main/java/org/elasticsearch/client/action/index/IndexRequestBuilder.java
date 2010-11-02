@@ -70,6 +70,15 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    public IndexRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
      * Index the Map as a JSON.
      *
      * @param source The map to index

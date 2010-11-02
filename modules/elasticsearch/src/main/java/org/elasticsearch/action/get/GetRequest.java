@@ -89,6 +89,16 @@ public class GetRequest extends SingleOperationRequest {
     }
 
     /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    public GetRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+
+    /**
      * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */

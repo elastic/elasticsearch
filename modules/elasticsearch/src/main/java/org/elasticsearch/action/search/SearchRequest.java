@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -68,7 +69,8 @@ public class SearchRequest implements ActionRequest {
 
     private String[] indices;
 
-    private String queryHint;
+    @Nullable private String queryHint;
+    @Nullable private String routing;
 
     private byte[] source;
     private int sourceOffset;
@@ -192,6 +194,29 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest types(String... types) {
         this.types = types;
+        return this;
+    }
+
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public String routing() {
+        return this.routing;
+    }
+
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public SearchRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the search will be executed on.
+     */
+    public SearchRequest routing(String... routings) {
+        this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
     }
 
@@ -466,6 +491,9 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             queryHint = in.readUTF();
         }
+        if (in.readBoolean()) {
+            routing = in.readUTF();
+        }
 
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -517,6 +545,12 @@ public class SearchRequest implements ActionRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(queryHint);
+        }
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
         }
 
         if (scroll == null) {

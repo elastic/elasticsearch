@@ -118,7 +118,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
                 .from(0).size(60).explain(true);
 
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -185,7 +185,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -275,7 +275,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 
         // do this with dfs, since we have uneven distribution of docs between shards
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
@@ -330,7 +330,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
                 .facet(queryFacet("test1").query(termQuery("name", "test1")));
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null)) {
+        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardsIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));

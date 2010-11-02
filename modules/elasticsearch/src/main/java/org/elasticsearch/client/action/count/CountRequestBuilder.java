@@ -80,6 +80,22 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
     }
 
     /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public CountRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the search will be executed on.
+     */
+    public CountRequestBuilder setRouting(String... routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
      * The query source to execute.
      *
      * @see org.elasticsearch.index.query.xcontent.QueryBuilders

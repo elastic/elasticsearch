@@ -26,6 +26,16 @@ import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
  */
 public class DjbHashFunction implements HashFunction {
 
+    @Override public int hash(String routing) {
+        long hash = 5381;
+
+        for (int i = 0; i < routing.length(); i++) {
+            hash = ((hash << 5) + hash) + routing.charAt(i);
+        }
+
+        return (int) hash;
+    }
+
     @Override public int hash(String type, String id) {
         long hash = 5381;
 

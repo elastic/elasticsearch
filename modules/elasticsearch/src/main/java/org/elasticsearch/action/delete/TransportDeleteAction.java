@@ -102,7 +102,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override protected DeleteResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        indexShard(shardRequest).delete(request.type(), request.id());
+        IndexShard indexShard = indexShard(shardRequest);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id());
+        delete.refresh(request.refresh());
+        indexShard.delete(delete);
         return new DeleteResponse(request.index(), request.type(), request.id());
     }
 
@@ -116,6 +119,6 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override protected ShardsIterator shards(ClusterState clusterState, DeleteRequest request) {
         return clusterService.operationRouting()
-                .deleteShards(clusterService.state(), request.index(), request.type(), request.id());
+                .deleteShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }
 }

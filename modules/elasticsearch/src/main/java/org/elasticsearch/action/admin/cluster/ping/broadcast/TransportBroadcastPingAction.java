@@ -61,7 +61,7 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
     }
 
     @Override protected GroupShardsIterator shards(BroadcastPingRequest request, ClusterState clusterState) {
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint(), null);
     }
 
     @Override protected BroadcastPingResponse newResponse(BroadcastPingRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {

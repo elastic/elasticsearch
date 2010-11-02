@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.common.collect.IdentityHashSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -37,11 +36,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
+
+    public final static Pattern routingPattern = Pattern.compile(",");
 
     private final HashFunction hashFunction;
 
@@ -50,35 +54,79 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         this.hashFunction = hashFunction;
     }
 
-    @Override public ShardsIterator indexShards(ClusterState clusterState, String index, String type, String id) throws IndexMissingException, IndexShardMissingException {
-        return shards(clusterState, index, type, id).shardsIt();
+    @Override public ShardsIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+        return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override public ShardsIterator deleteShards(ClusterState clusterState, String index, String type, String id) throws IndexMissingException, IndexShardMissingException {
-        return shards(clusterState, index, type, id).shardsIt();
+    @Override public ShardsIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+        return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override public ShardsIterator getShards(ClusterState clusterState, String index, String type, String id) throws IndexMissingException, IndexShardMissingException {
-        return shards(clusterState, index, type, id).shardsRandomIt();
+    @Override public ShardsIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+        return shards(clusterState, index, type, id, routing).shardsRandomIt();
     }
 
-    @Override public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index) throws IndexMissingException {
-        return indexRoutingTable(clusterState, index).groupByShardsIt();
+    @Override public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable String routing) throws IndexMissingException {
+        if (routing == null) {
+            return indexRoutingTable(clusterState, index).groupByShardsIt();
+        }
+
+        String[] routings = routingPattern.split(routing);
+        if (routing.length() == 0) {
+            return indexRoutingTable(clusterState, index).groupByShardsIt();
+        }
+
+        // we use set here and not identity set since we might get duplicates
+        HashSet<ShardsIterator> set = new HashSet<ShardsIterator>();
+        IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+        for (String r : routings) {
+            int shardId = shardId(clusterState, index, null, null, r);
+            IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+            if (indexShard == null) {
+                throw new IndexShardMissingException(new ShardId(index, shardId));
+            }
+            set.add(indexShard.shardsRandomIt());
+        }
+        return new GroupShardsIterator(set);
     }
 
-    @Override public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, @Nullable String queryHint) throws IndexMissingException {
+    @Override public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, @Nullable String queryHint, @Nullable String routing) throws IndexMissingException {
         if (indices == null || indices.length == 0) {
             indices = clusterState.metaData().concreteAllIndices();
         }
 
-        IdentityHashSet<ShardsIterator> set = new IdentityHashSet<ShardsIterator>();
-        for (String index : indices) {
-            IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-            for (IndexShardRoutingTable indexShard : indexRouting) {
-                set.add(indexShard.shardsRandomIt());
-            }
+        String[] routings = null;
+        if (routing != null) {
+            routings = routingPattern.split(routing);
         }
-        return new GroupShardsIterator(set);
+
+        if (routings != null && routings.length > 0) {
+            // we use set here and not list since we might get duplicates
+            HashSet<ShardsIterator> set = new HashSet<ShardsIterator>();
+            for (String index : indices) {
+                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                for (String r : routings) {
+                    int shardId = shardId(clusterState, index, null, null, r);
+                    IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+                    if (indexShard == null) {
+                        throw new IndexShardMissingException(new ShardId(index, shardId));
+                    }
+                    // we might get duplicates, but that's ok, they will override one another
+                    set.add(indexShard.shardsRandomIt());
+                }
+            }
+            return new GroupShardsIterator(set);
+        } else {
+            // we use list here since we know we are not going to create duplicates
+            ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
+            for (String index : indices) {
+                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                for (IndexShardRoutingTable indexShard : indexRouting) {
+                    set.add(indexShard.shardsRandomIt());
+                }
+            }
+            return new GroupShardsIterator(set);
+        }
     }
 
     public IndexMetaData indexMetaData(ClusterState clusterState, String index) {
@@ -98,13 +146,26 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     }
 
 
-    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String type, String id) {
-        int shardId = Math.abs(hash(type, id)) % indexMetaData(clusterState, index).numberOfShards();
+    // either routing is set, or type/id are set
+
+    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String type, String id, String routing) {
+        int shardId = shardId(clusterState, index, type, id, routing);
         IndexShardRoutingTable indexShard = indexRoutingTable(clusterState, index).shard(shardId);
         if (indexShard == null) {
             throw new IndexShardMissingException(new ShardId(index, shardId));
         }
         return indexShard;
+    }
+
+    private int shardId(ClusterState clusterState, String index, String type, @Nullable String id, @Nullable String routing) {
+        if (routing == null) {
+            return Math.abs(hash(type, id)) % indexMetaData(clusterState, index).numberOfShards();
+        }
+        return Math.abs(hash(routing)) % indexMetaData(clusterState, index).numberOfShards();
+    }
+
+    protected int hash(String routing) {
+        return hashFunction.hash(routing);
     }
 
     protected int hash(String type, String id) {

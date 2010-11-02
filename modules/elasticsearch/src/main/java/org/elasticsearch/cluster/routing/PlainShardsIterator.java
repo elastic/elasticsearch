@@ -148,4 +148,18 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override public void remove() {
         throw new UnsupportedOperationException();
     }
+
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;
+
+        ShardsIterator that = (ShardsIterator) o;
+
+        if (shardId != null ? !shardId.equals(that.shardId()) : that.shardId() != null) return false;
+
+        return true;
+    }
+
+    @Override public int hashCode() {
+        return shardId != null ? shardId.hashCode() : 0;
+    }
 }

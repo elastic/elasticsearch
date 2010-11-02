@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -106,6 +107,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
+    @Nullable private String routing;
 
     private byte[] source;
     private int sourceOffset;
@@ -229,6 +231,23 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     public IndexRequest id(String id) {
         this.id = id;
         return this;
+    }
+
+    /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    public IndexRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    /**
+     * Controls the shard routing of the request. Using this value to hash the shard
+     * and not the id.
+     */
+    public String routing() {
+        return this.routing;
     }
 
     /**
@@ -472,6 +491,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (in.readBoolean()) {
             id = in.readUTF();
         }
+        if (in.readBoolean()) {
+            routing = in.readUTF();
+        }
 
         sourceUnsafe = false;
         sourceOffset = 0;
@@ -491,6 +513,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(id);
+        }
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
         }
         out.writeVInt(sourceLength);
         out.writeBytes(source, sourceOffset, sourceLength);

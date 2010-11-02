@@ -35,6 +35,7 @@ public abstract class SingleOperationRequest implements ActionRequest {
     protected String index;
     protected String type;
     protected String id;
+    protected String routing;
 
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
@@ -79,6 +80,10 @@ public abstract class SingleOperationRequest implements ActionRequest {
         return id;
     }
 
+    public String routing() {
+        return this.routing;
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */
@@ -110,6 +115,9 @@ public abstract class SingleOperationRequest implements ActionRequest {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
+        if (in.readBoolean()) {
+            routing = in.readUTF();
+        }
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
@@ -117,6 +125,12 @@ public abstract class SingleOperationRequest implements ActionRequest {
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
+        }
     }
 
 }

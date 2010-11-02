@@ -57,6 +57,7 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
         getRequest.operationThreaded(true);
+        getRequest.routing(request.param("routing"));
 
 
         String sField = request.param("fields");

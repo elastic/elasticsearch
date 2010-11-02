@@ -129,7 +129,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     @Override protected ShardsIterator shards(ClusterState clusterState, IndexRequest request) {
         return clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id());
+                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }
 
     @Override protected IndexResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
@@ -141,9 +141,9 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             index.refresh(request.refresh());
             doc = indexShard.index(index);
         } else {
-            Engine.Create create = indexShard(shardRequest).prepareCreate(request.type(), request.id(), request.source());
+            Engine.Create create = indexShard.prepareCreate(request.type(), request.id(), request.source());
             create.refresh(request.refresh());
-            doc = indexShard(shardRequest).create(create);
+            doc = indexShard.create(create);
         }
         if (doc.mappersAdded()) {
             updateMappingOnMaster(request);
@@ -152,11 +152,16 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
+        IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            indexShard(shardRequest).index(request.type(), request.id(), request.source());
+            Engine.Index index = indexShard.prepareIndex(request.type(), request.id(), request.source());
+            index.refresh(request.refresh());
+            indexShard.index(index);
         } else {
-            indexShard(shardRequest).create(request.type(), request.id(), request.source());
+            Engine.Create create = indexShard.prepareCreate(request.type(), request.id(), request.source());
+            create.refresh(request.refresh());
+            indexShard.create(create);
         }
     }
 

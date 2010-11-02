@@ -58,6 +58,23 @@ public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQuer
     }
 
     /**
+     * A comma separated list of routing values to control the shards the action will be executed on.
+     */
+    public DeleteByQueryRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the action will be executed on.
+     */
+    public DeleteByQueryRequestBuilder setRouting(String... routing) {
+        request.routing(routing);
+        return this;
+    }
+
+
+    /**
      * The query source to execute.
      *
      * @see org.elasticsearch.index.query.xcontent.QueryBuilders
@@ -103,7 +120,7 @@ public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQuer
     /**
      * The query source to execute.
      */
-    public DeleteByQueryRequestBuilder query(byte[] querySource, int offset, int length, boolean unsafe) {
+    public DeleteByQueryRequestBuilder setQuery(byte[] querySource, int offset, int length, boolean unsafe) {
         request.query(querySource, offset, length, unsafe);
         return this;
     }

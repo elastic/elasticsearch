@@ -101,4 +101,8 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRo
      * @see ShardRouting#assignedToNode()
      */
     ShardRouting nextAssignedOrNull();
+
+    int hashCode();
+
+    boolean equals(Object other);
 }

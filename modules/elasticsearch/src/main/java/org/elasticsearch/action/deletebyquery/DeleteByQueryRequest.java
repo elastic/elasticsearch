@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -67,6 +68,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
+    @Nullable private String routing;
 
     /**
      * Constructs a new delete by query request to run against the provided indices. No indices means
@@ -208,6 +210,29 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     }
 
     /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public String routing() {
+        return this.routing;
+    }
+
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public DeleteByQueryRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the search will be executed on.
+     */
+    public DeleteByQueryRequest routing(String... routings) {
+        this.routing = Strings.arrayToCommaDelimitedString(routings);
+        return this;
+    }
+
+    /**
      * The types of documents the query will run against. Defaults to all types.
      */
     public DeleteByQueryRequest types(String... types) {
@@ -264,6 +289,10 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
+
+        if (in.readBoolean()) {
+            routing = in.readUTF();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -277,6 +306,12 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(queryParserName);
+        }
+        if (routing == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(routing);
         }
     }
 

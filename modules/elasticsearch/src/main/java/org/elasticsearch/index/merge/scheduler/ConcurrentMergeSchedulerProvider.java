@@ -42,7 +42,7 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
         super(shardId, indexSettings);
 
         // TODO LUCENE MONITOR this will change in Lucene 4.0
-        this.maxThreadCount = componentSettings.getAsInt("max_thread_count", 1);
+        this.maxThreadCount = componentSettings.getAsInt("max_thread_count", Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2)));
         logger.debug("using [concurrent] merge scheduler with max_thread_count[{}]", maxThreadCount);
     }
 

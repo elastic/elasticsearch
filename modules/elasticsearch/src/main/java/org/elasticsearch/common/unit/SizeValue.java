@@ -123,6 +123,10 @@ public class SizeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
+    public static SizeValue parseSizeValue(String sValue) throws ElasticSearchParseException {
+        return parseSizeValue(sValue, null);
+    }
+
     public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ElasticSearchParseException {
         if (sValue == null) {
             return defaultValue;

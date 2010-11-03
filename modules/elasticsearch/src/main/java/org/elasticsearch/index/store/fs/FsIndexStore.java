@@ -38,12 +38,15 @@ import java.io.IOException;
  */
 public abstract class FsIndexStore extends AbstractIndexStore {
 
+    private final NodeEnvironment nodeEnv;
+
     private final File location;
 
     public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService);
+        this.nodeEnv = nodeEnv;
         if (nodeEnv.hasNodeFile()) {
-            this.location = new File(new File(nodeEnv.nodeDataLocation(), "indices"), index.name());
+            this.location = nodeEnv.indexLocation(index);
         } else {
             this.location = null;
         }
@@ -86,7 +89,7 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     }
 
     public File shardLocation(ShardId shardId) {
-        return new File(location, Integer.toString(shardId.id()));
+        return nodeEnv.shardLocation(shardId);
     }
 
     public File shardIndexLocation(ShardId shardId) {

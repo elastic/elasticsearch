@@ -25,6 +25,8 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.File;
 import java.io.IOException;
@@ -96,6 +98,14 @@ public class NodeEnvironment extends AbstractComponent {
             throw new ElasticSearchIllegalStateException("node is not configured to store local location");
         }
         return nodeFile;
+    }
+
+    public File indexLocation(Index index) {
+        return new File(new File(nodeDataLocation(), "indices"), index.name());
+    }
+
+    public File shardLocation(ShardId shardId) {
+        return new File(indexLocation(shardId.index()), Integer.toString(shardId.id()));
     }
 
     public void close() {

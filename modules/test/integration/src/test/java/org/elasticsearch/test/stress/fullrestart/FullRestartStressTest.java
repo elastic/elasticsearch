@@ -197,7 +197,7 @@ public class FullRestartStressTest {
 
             client.close();
             for (Node node : nodes) {
-                File nodeWork = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeLocation();
+                File nodeWork = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocation();
                 node.close();
                 if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
                     FileSystemUtils.deleteRecursively(nodeWork);

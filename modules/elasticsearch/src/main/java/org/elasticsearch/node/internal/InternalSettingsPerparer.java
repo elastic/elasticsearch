@@ -100,6 +100,8 @@ public class InternalSettingsPerparer {
         settingsBuilder.put("path.home", cleanPath(environment.homeFile().getAbsolutePath()));
         settingsBuilder.put("path.work", cleanPath(environment.workFile().getAbsolutePath()));
         settingsBuilder.put("path.work_with_cluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
+        settingsBuilder.put("path.data", cleanPath(environment.dataFile().getAbsolutePath()));
+        settingsBuilder.put("path.data_with_cluster", cleanPath(environment.dataWithClusterFile().getAbsolutePath()));
         settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
 
         v1 = settingsBuilder.build();

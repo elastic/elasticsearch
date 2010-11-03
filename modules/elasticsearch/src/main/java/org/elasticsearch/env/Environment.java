@@ -46,6 +46,10 @@ public class Environment {
 
     private final File workWithClusterFile;
 
+    private final File dataFile;
+
+    private final File dataWithClusterFile;
+
     private final File configFile;
 
     private final File pluginsFile;
@@ -82,10 +86,17 @@ public class Environment {
         }
         workWithClusterFile = new File(workFile, ClusterName.clusterNameFromSettings(settings).value());
 
+        if (settings.get("path.data") != null) {
+            dataFile = new File(cleanPath(settings.get("path.data")));
+        } else {
+            dataFile = new File(homeFile, "data");
+        }
+        dataWithClusterFile = new File(dataFile, ClusterName.clusterNameFromSettings(settings).value());
+
         if (settings.get("path.logs") != null) {
             logsFile = new File(cleanPath(settings.get("path.logs")));
         } else {
-            logsFile = new File(workFile, "logs");
+            logsFile = new File(homeFile, "logs");
         }
     }
 
@@ -104,6 +115,27 @@ public class Environment {
     }
 
     /**
+     * The work location with the cluster name as a sub directory.
+     */
+    public File workWithClusterFile() {
+        return workWithClusterFile;
+    }
+
+    /**
+     * The data location.
+     */
+    public File dataFile() {
+        return dataFile;
+    }
+
+    /**
+     * The data location with the cluster name as a sub directory.
+     */
+    public File dataWithClusterFile() {
+        return dataWithClusterFile;
+    }
+
+    /**
      * The config location.
      */
     public File configFile() {
@@ -112,10 +144,6 @@ public class Environment {
 
     public File pluginsFile() {
         return pluginsFile;
-    }
-
-    public File workWithClusterFile() {
-        return workWithClusterFile;
     }
 
     public File logsFile() {

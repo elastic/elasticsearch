@@ -47,7 +47,7 @@ public class FsGateway extends BlobStoreGateway {
         String location = componentSettings.get("location");
         if (location == null) {
             logger.warn("using local fs location for gateway, should be changed to be a shared location across nodes");
-            gatewayFile = new File(environment.workFile(), "gateway");
+            gatewayFile = new File(environment.dataFile(), "gateway");
         } else {
             gatewayFile = new File(location);
         }

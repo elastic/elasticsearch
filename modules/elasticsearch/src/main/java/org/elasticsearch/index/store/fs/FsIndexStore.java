@@ -43,7 +43,7 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService);
         if (nodeEnv.hasNodeFile()) {
-            this.location = new File(new File(nodeEnv.nodeLocation(), "indices"), index.name());
+            this.location = new File(new File(nodeEnv.nodeDataLocation(), "indices"), index.name());
         } else {
             this.location = null;
         }

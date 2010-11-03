@@ -31,9 +31,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -76,6 +78,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 @ThreadSafe
 public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
 
+    private final NodeEnvironment nodeEnv;
+
     private final ThreadPool threadPool;
 
     private final InternalIndicesLifecycle indicesLifecycle;
@@ -92,8 +96,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
-    @Inject public InternalIndicesService(Settings settings, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
+    @Inject public InternalIndicesService(Settings settings, NodeEnvironment nodeEnv, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
+        this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indicesAnalysisService = indicesAnalysisService;
@@ -286,6 +291,10 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         Injectors.close(injector);
 
         indicesLifecycle.afterIndexClosed(indexService.index(), delete);
+
+        if (delete) {
+            FileSystemUtils.deleteRecursively(nodeEnv.indexLocation(new Index(index)));
+        }
     }
 
     private static class CacheReaderPurgeListener implements IndexReaderPurgedListener {

@@ -55,7 +55,7 @@ public class NodeEnvironment extends AbstractComponent {
         File dir = null;
         int localNodeId = -1;
         for (int i = 0; i < 100; i++) {
-            dir = new File(new File(environment.workWithClusterFile(), "nodes"), Integer.toString(i));
+            dir = new File(new File(environment.dataWithClusterFile(), "nodes"), Integer.toString(i));
             if (!dir.exists()) {
                 dir.mkdirs();
             }
@@ -91,7 +91,7 @@ public class NodeEnvironment extends AbstractComponent {
         return nodeFile != null && lock != null;
     }
 
-    public File nodeLocation() {
+    public File nodeDataLocation() {
         if (nodeFile == null || lock == null) {
             throw new ElasticSearchIllegalStateException("node is not configured to store local location");
         }

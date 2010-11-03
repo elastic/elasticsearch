@@ -208,7 +208,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public void reset() throws Exception {
-        FileSystemUtils.deleteRecursively(nodeEnv.nodeLocation());
+        FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocation());
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {
@@ -346,7 +346,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             location = null;
         } else {
             // create the location where the state will be stored
-            this.location = new File(nodeEnv.nodeLocation(), "_state");
+            this.location = new File(nodeEnv.nodeDataLocation(), "_state");
             this.location.mkdirs();
 
             if (clusterService.localNode().masterNode()) {

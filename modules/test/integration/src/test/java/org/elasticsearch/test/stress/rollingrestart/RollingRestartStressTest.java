@@ -140,7 +140,7 @@ public class RollingRestartStressTest {
         // start doing the rolling restart
         int nodeIndex = 0;
         while (true) {
-            File nodeWork = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeLocation();
+            File nodeWork = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocation();
             nodes[nodeIndex].close();
             if (clearNodeWork) {
                 FileSystemUtils.deleteRecursively(nodeWork);

@@ -157,8 +157,8 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Closing the server");
         closeNode("server1");
-        logger.info("Clearing cluster work dir, so there will be a full recovery from the gateway");
-        FileSystemUtils.deleteRecursively(environment.workWithClusterFile());
+        logger.info("Clearing cluster data dir, so there will be a full recovery from the gateway");
+        FileSystemUtils.deleteRecursively(environment.dataWithClusterFile());
         logger.info("Starting the server, should recover from the gateway (both index and translog) without reusing work dir");
         startNode("server1");
 
@@ -264,8 +264,8 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         logger.info("--> closing the server");
         closeNode("server1");
         if (fullRecovery) {
-            logger.info("Clearing cluster work dir, so there will be a full recovery from the gateway");
-            FileSystemUtils.deleteRecursively(environment.workWithClusterFile());
+            logger.info("Clearing cluster data dir, so there will be a full recovery from the gateway");
+            FileSystemUtils.deleteRecursively(environment.dataWithClusterFile());
             logger.info("Starting the server, should recover from the gateway (both index and translog) without reusing work dir");
         }
 

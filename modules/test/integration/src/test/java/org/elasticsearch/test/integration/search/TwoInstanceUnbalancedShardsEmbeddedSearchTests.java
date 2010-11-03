@@ -394,6 +394,17 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
             super(settings, null);
         }
 
+        @Override protected int hash(String routing) {
+            long lId = Long.parseLong(routing);
+            if (lId < 60) {
+                return 0;
+            }
+            if (lId >= 60 && lId < 90) {
+                return 1;
+            }
+            return 2;
+        }
+
         @Override protected int hash(String type, String id) {
             long lId = Long.parseLong(id);
             if (lId < 60) {

@@ -20,6 +20,8 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 
@@ -31,6 +33,8 @@ import org.elasticsearch.common.component.LifecycleComponent;
  * @author kimchy (shay.banon)
  */
 public interface Discovery extends LifecycleComponent<Discovery> {
+
+    final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", ClusterBlockLevel.ALL);
 
     DiscoveryNode localNode();
 

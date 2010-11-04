@@ -22,6 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.TermsFilter;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -216,6 +219,20 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public DocumentMapper documentMapper(String type) {
         return mappers.get(type);
+    }
+
+    /**
+     * A filter to filter based on several types.
+     */
+    public Filter typesFilter(String... types) {
+        if (types.length == 1) {
+            return documentMapper(types[0]).typeFilter();
+        }
+        TermsFilter termsFilter = new TermsFilter();
+        for (String type : types) {
+            termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
+        }
+        return termsFilter;
     }
 
     /**

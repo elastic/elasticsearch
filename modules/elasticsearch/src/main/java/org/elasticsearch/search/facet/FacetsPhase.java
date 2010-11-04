@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.facet;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
@@ -28,8 +26,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.collector.FacetCollector;
@@ -66,18 +62,7 @@ public class FacetsPhase implements SearchPhase {
         if (context.searcher().globalCollectors() != null) {
             Query query = Queries.MATCH_ALL_QUERY;
             if (context.types().length > 0) {
-                if (context.types().length == 1) {
-                    String type = context.types()[0];
-                    DocumentMapper docMapper = context.mapperService().documentMapper(type);
-                    query = new FilteredQuery(query, context.filterCache().cache(docMapper.typeFilter()));
-                } else {
-                    XBooleanFilter booleanFilter = new XBooleanFilter();
-                    for (String type : context.types()) {
-                        DocumentMapper docMapper = context.mapperService().documentMapper(type);
-                        booleanFilter.add(new FilterClause(context.filterCache().cache(docMapper.typeFilter()), BooleanClause.Occur.SHOULD));
-                    }
-                    query = new FilteredQuery(query, booleanFilter);
-                }
+                query = new FilteredQuery(query, context.filterCache().cache(context.mapperService().typesFilter(context.types())));
             }
 
             context.searcher().useGlobalCollectors(true);

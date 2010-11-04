@@ -23,8 +23,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -55,7 +52,6 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.recovery.RecoveryStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
@@ -532,24 +528,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private Query filterByTypesIfNeeded(Query query, String[] types) {
         if (types != null && types.length > 0) {
-            if (types.length == 1) {
-                String type = types[0];
-                DocumentMapper docMapper = mapperService.documentMapper(type);
-                if (docMapper == null) {
-                    throw new TypeMissingException(shardId.index(), type);
-                }
-                query = new FilteredQuery(query, indexCache.filter().cache(docMapper.typeFilter()));
-            } else {
-                XBooleanFilter booleanFilter = new XBooleanFilter();
-                for (String type : types) {
-                    DocumentMapper docMapper = mapperService.documentMapper(type);
-                    if (docMapper == null) {
-                        throw new TypeMissingException(shardId.index(), type);
-                    }
-                    booleanFilter.add(new FilterClause(indexCache.filter().cache(docMapper.typeFilter()), BooleanClause.Occur.SHOULD));
-                }
-                query = new FilteredQuery(query, booleanFilter);
-            }
+            query = new FilteredQuery(query, indexCache.filter().cache(mapperService.typesFilter(types)));
         }
         return query;
     }

@@ -19,16 +19,15 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
@@ -81,24 +80,7 @@ public class QueryPhase implements SearchPhase {
 
             Query query = searchContext.query();
             if (searchContext.types().length > 0) {
-                if (searchContext.types().length == 1) {
-                    String type = searchContext.types()[0];
-                    DocumentMapper docMapper = searchContext.mapperService().documentMapper(type);
-                    if (docMapper == null) {
-                        throw new TypeMissingException(new Index(searchContext.shardTarget().index()), type);
-                    }
-                    query = new FilteredQuery(query, searchContext.filterCache().cache(docMapper.typeFilter()));
-                } else {
-                    XBooleanFilter booleanFilter = new XBooleanFilter();
-                    for (String type : searchContext.types()) {
-                        DocumentMapper docMapper = searchContext.mapperService().documentMapper(type);
-                        if (docMapper == null) {
-                            throw new TypeMissingException(new Index(searchContext.shardTarget().index()), type);
-                        }
-                        booleanFilter.add(new FilterClause(searchContext.filterCache().cache(docMapper.typeFilter()), BooleanClause.Occur.SHOULD));
-                    }
-                    query = new FilteredQuery(query, booleanFilter);
-                }
+                query = new FilteredQuery(query, searchContext.filterCache().cache(searchContext.mapperService().typesFilter(searchContext.types())));
             }
 
             TopDocs topDocs;

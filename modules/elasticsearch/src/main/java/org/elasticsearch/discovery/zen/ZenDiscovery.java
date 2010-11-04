@@ -22,8 +22,6 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,8 +60,6 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  * @author kimchy (shay.banon)
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
-
-    public final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", ClusterBlockLevel.ALL);
 
     private final ThreadPool threadPool;
 

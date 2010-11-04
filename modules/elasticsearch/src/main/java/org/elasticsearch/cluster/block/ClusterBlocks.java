@@ -91,6 +91,10 @@ public class ClusterBlocks {
         return levelHolders[level.id()].indices();
     }
 
+    public boolean hasGlobalBlock(ClusterBlock block) {
+        return global.contains(block);
+    }
+
     public boolean hasIndexBlock(String index, ClusterBlock block) {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
     }

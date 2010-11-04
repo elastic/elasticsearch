@@ -30,7 +30,7 @@ import java.util.List;
 public class Queries {
 
     // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
-    public final static Query MATCH_ALL_QUERY = new DeletionAwareConstantScoreQuery(new MatchAllDocsFilter(), true);
+    public final static Query MATCH_ALL_QUERY = new DeletionAwareConstantScoreQuery(new MatchAllDocsFilter());
 
     /**
      * A match all docs filter. Note, requires no caching!.

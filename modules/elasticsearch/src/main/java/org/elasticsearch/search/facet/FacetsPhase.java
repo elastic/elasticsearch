@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.facet;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.FilterClause;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
@@ -61,7 +64,7 @@ public class FacetsPhase implements SearchPhase {
 
         // run global facets ...
         if (context.searcher().globalCollectors() != null) {
-            Query query = new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER, true); // no need to cache a MATCH ALL FILTER
+            Query query = Queries.MATCH_ALL_QUERY;
             if (context.types().length > 0) {
                 if (context.types().length == 1) {
                     String type = context.types()[0];

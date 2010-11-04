@@ -58,6 +58,6 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
 
-        return new DeletionAwareConstantScoreQuery(filter, true);
+        return new DeletionAwareConstantScoreQuery(filter);
     }
 }

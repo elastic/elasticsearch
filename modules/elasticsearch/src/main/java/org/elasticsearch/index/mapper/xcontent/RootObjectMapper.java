@@ -167,7 +167,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     public XContentMapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
-        DynamicTemplate dynamicTemplate = findTemplate(name, dynamicType);
+        DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, dynamicType);
         if (dynamicTemplate == null) {
             return null;
         }
@@ -175,9 +175,9 @@ public class RootObjectMapper extends ObjectMapper {
         return parserContext.typeParser(dynamicTemplate.mappingType(dynamicType)).parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    public DynamicTemplate findTemplate(String name, String dynamicType) {
+    public DynamicTemplate findTemplate(ContentPath path, String name, String dynamicType) {
         for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (dynamicTemplate.match(name, dynamicType)) {
+            if (dynamicTemplate.match(path, name, dynamicType)) {
                 return dynamicTemplate;
             }
         }

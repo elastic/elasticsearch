@@ -154,7 +154,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
         private void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             for (Map.Entry<String, Object> entry : propsNode.entrySet()) {
-                String propName = entry.getKey();
+                String propName = Strings.toUnderscoreCase(entry.getKey());
                 Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
 
                 String type;
@@ -320,13 +320,18 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     if (objectMapper != null) {
                         objectMapper.parse(context);
                     } else {
-                        BuilderContext builderContext = new BuilderContext(context.path());
                         XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
                             builder = XContentMapperBuilders.object(currentFieldName).enabled(true).dynamic(dynamic).pathType(pathType);
                         }
+                        // remove the current field name from path, since the object builder adds it as well...
+                        context.path().remove();
+                        BuilderContext builderContext = new BuilderContext(context.path());
                         objectMapper = builder.build(builderContext);
                         putMapper(objectMapper);
+
+                        // now re add it and parse...
+                        context.path().add(currentFieldName);
                         objectMapper.parse(context);
                         context.addedMapper();
                     }

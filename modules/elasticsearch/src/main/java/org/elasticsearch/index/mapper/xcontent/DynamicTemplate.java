@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -48,23 +49,49 @@ public class DynamicTemplate {
     }
 
     public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
-        if (!conf.containsKey("match")) {
-            throw new MapperParsingException("template must have match set");
+        String match = null;
+        String pathMatch = null;
+        String unmatch = null;
+        String pathUnmatch = null;
+        Map<String, Object> mapping = null;
+        String matchMappingType = null;
+        String matchPattern = "simple";
+
+        for (Map.Entry<String, Object> entry : conf.entrySet()) {
+            String propName = Strings.toUnderscoreCase(entry.getKey());
+            if ("match".equals(propName)) {
+                match = entry.getValue().toString();
+            } else if ("path_match".equals(propName)) {
+                pathMatch = entry.getValue().toString();
+            } else if ("unmatch".equals(propName)) {
+                unmatch = entry.getValue().toString();
+            } else if ("path_unmatch".equals(propName)) {
+                pathUnmatch = entry.getValue().toString();
+            } else if ("match_mapping_type".equals(propName)) {
+                matchMappingType = entry.getValue().toString();
+            } else if ("match_pattern".equals(propName)) {
+                matchPattern = entry.getValue().toString();
+            } else if ("mapping".equals(propName)) {
+                mapping = (Map<String, Object>) entry.getValue();
+            }
         }
-        String match = conf.get("match").toString();
-        String unmatch = conf.containsKey("unmatch") ? conf.get("unmatch").toString() : null;
-        String matchMappingType = conf.containsKey("match_mapping_type") ? conf.get("match_mapping_type").toString() : null;
-        if (!conf.containsKey("mapping")) {
+
+        if (match == null && pathMatch == null) {
+            throw new MapperParsingException("template must have match or path_match set");
+        }
+        if (mapping == null) {
             throw new MapperParsingException("template must have mapping set");
         }
-        Map<String, Object> mapping = (Map<String, Object>) conf.get("mapping");
-        String matchType = conf.containsKey("match_pattern") ? conf.get("match_pattern").toString() : "simple";
-        return new DynamicTemplate(name, conf, match, unmatch, matchMappingType, MatchType.fromString(matchType), mapping);
+        return new DynamicTemplate(name, conf, pathMatch, pathUnmatch, match, unmatch, matchMappingType, MatchType.fromString(matchPattern), mapping);
     }
 
     private final String name;
 
     private final Map<String, Object> conf;
+
+    private final String pathMatch;
+
+    private final String pathUnmatch;
 
     private final String match;
 
@@ -76,9 +103,11 @@ public class DynamicTemplate {
 
     private final Map<String, Object> mapping;
 
-    public DynamicTemplate(String name, Map<String, Object> conf, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+    public DynamicTemplate(String name, Map<String, Object> conf, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
         this.name = name;
         this.conf = conf;
+        this.pathMatch = pathMatch;
+        this.pathUnmatch = pathUnmatch;
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
@@ -94,11 +123,17 @@ public class DynamicTemplate {
         return this.conf;
     }
 
-    public boolean match(String name, String dynamicType) {
-        if (!patternMatch(match, name)) {
+    public boolean match(ContentPath path, String name, String dynamicType) {
+        if (pathMatch != null && !patternMatch(pathMatch, path.fullPathAsText(name))) {
             return false;
         }
-        if (patternMatch(unmatch, name)) {
+        if (match != null && !patternMatch(match, name)) {
+            return false;
+        }
+        if (pathUnmatch != null && patternMatch(pathUnmatch, path.fullPathAsText(name))) {
+            return false;
+        }
+        if (unmatch != null && patternMatch(unmatch, name)) {
             return false;
         }
         if (matchMappingType != null) {

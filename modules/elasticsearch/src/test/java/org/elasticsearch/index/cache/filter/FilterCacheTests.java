@@ -82,7 +82,7 @@ public class FilterCacheTests {
         long constantScoreCount = filter == cachedFilter ? 0 : 1;
         // sadly, when caching based on cacheKey with NRT, this fails, that's why we have DeletionAware one
         assertThat(Lucene.count(searcher, new ConstantScoreQuery(cachedFilter), -1), equalTo(constantScoreCount));
-        assertThat(Lucene.count(searcher, new DeletionAwareConstantScoreQuery(cachedFilter, true), -1), equalTo(0l));
+        assertThat(Lucene.count(searcher, new DeletionAwareConstantScoreQuery(cachedFilter), -1), equalTo(0l));
         assertThat(Lucene.count(searcher, new FilteredQuery(new MatchAllDocsQuery(), cachedFilter), -1), equalTo(0l));
 
         indexWriter.close();

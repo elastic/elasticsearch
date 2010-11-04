@@ -33,15 +33,9 @@ import java.util.Set;
 // See more: https://issues.apache.org/jira/browse/LUCENE-2468
 public class DeletionAwareConstantScoreQuery extends Query {
     protected final Filter filter;
-    protected final boolean deletionAware;
 
     public DeletionAwareConstantScoreQuery(Filter filter) {
-        this(filter, false);
-    }
-
-    public DeletionAwareConstantScoreQuery(Filter filter, boolean deletionAware) {
         this.filter = filter;
-        this.deletionAware = deletionAware;
     }
 
     /**
@@ -102,7 +96,7 @@ public class DeletionAwareConstantScoreQuery extends Query {
         public Explanation explain(IndexReader reader, int doc) throws IOException {
 
             ConstantScorer cs = new ConstantScorer(similarity, reader, this);
-            boolean exists = cs.docIdSetIterator.advance(doc) == doc;
+            boolean exists = cs._innerIter.advance(doc) == doc;
 
             ComplexExplanation result = new ComplexExplanation();
 
@@ -125,8 +119,9 @@ public class DeletionAwareConstantScoreQuery extends Query {
 
     protected class ConstantScorer extends Scorer {
         final IndexReader reader;
-        final DocIdSetIterator docIdSetIterator;
+        final DocIdSetIterator _innerIter;
         final float theScore;
+        private int doc = -1;
 
         public ConstantScorer(Similarity similarity, IndexReader reader, Weight w) throws IOException {
             super(similarity);
@@ -134,35 +129,30 @@ public class DeletionAwareConstantScoreQuery extends Query {
             theScore = w.getValue();
             DocIdSet docIdSet = filter.getDocIdSet(reader);
             if (docIdSet == null) {
-                docIdSetIterator = DocIdSet.EMPTY_DOCIDSET.iterator();
+                _innerIter = DocIdSet.EMPTY_DOCIDSET.iterator();
             } else {
                 DocIdSetIterator iter = docIdSet.iterator();
                 if (iter == null) {
-                    docIdSetIterator = DocIdSet.EMPTY_DOCIDSET.iterator();
+                    _innerIter = DocIdSet.EMPTY_DOCIDSET.iterator();
                 } else {
-                    docIdSetIterator = iter;
+                    _innerIter = iter;
                 }
             }
         }
 
         @Override
         public int nextDoc() throws IOException {
-            if (deletionAware) {
-                int nextDoc;
-                while ((nextDoc = docIdSetIterator.nextDoc()) != NO_MORE_DOCS) {
-                    if (!reader.isDeleted(nextDoc)) {
-                        return nextDoc;
-                    }
+            while ((doc = _innerIter.nextDoc()) != NO_MORE_DOCS) {
+                if (!reader.isDeleted(doc)) {
+                    return doc;
                 }
-                return nextDoc;
-            } else {
-                return docIdSetIterator.nextDoc();
             }
+            return doc;
         }
 
         @Override
         public int docID() {
-            return docIdSetIterator.docID();
+            return doc;
         }
 
         @Override
@@ -172,23 +162,20 @@ public class DeletionAwareConstantScoreQuery extends Query {
 
         @Override
         public int advance(int target) throws IOException {
-            if (deletionAware) {
-                int doc = docIdSetIterator.advance(target);
-                if (doc == NO_MORE_DOCS) {
-                    return doc;
-                }
+            doc = _innerIter.advance(target);
+            if (doc != NO_MORE_DOCS) {
                 if (!reader.isDeleted(doc)) {
                     return doc;
-                }
-                while ((doc = nextDoc()) < target) {
-                    if (!reader.isDeleted(doc)) {
-                        return doc;
+                } else {
+                    while ((doc = _innerIter.nextDoc()) != NO_MORE_DOCS) {
+                        if (!reader.isDeleted(doc)) {
+                            return doc;
+                        }
                     }
+                    return doc;
                 }
-                return doc;
-            } else {
-                return docIdSetIterator.advance(target);
             }
+            return doc;
         }
     }
 

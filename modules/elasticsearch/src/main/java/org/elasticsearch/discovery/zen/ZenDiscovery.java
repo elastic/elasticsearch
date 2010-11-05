@@ -85,8 +85,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     // a flag that should be used only for testing
     private final boolean sendLeaveRequest;
 
-    private final boolean blockClusterOnNoMaster;
-
     private final ElectMasterService electMaster;
 
 
@@ -112,7 +110,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.initialPingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
-        this.blockClusterOnNoMaster = componentSettings.getAsBoolean("block_on_no_master", true);
 
         logger.debug("using initial_ping_timeout [{}]", initialPingTimeout);
 

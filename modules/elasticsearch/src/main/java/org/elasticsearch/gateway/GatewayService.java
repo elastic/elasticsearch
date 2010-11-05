@@ -86,9 +86,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.recoverAfterNodes = componentSettings.getAsInt("recover_after_nodes", -1);
         this.expectedNodes = componentSettings.getAsInt("expected_nodes", -1);
         this.recoverAfterDataNodes = componentSettings.getAsInt("recover_after_data_nodes", -1);
-        this.expectedDataNodes = componentSettings.getAsInt("expected__data_nodes", -1);
+        this.expectedDataNodes = componentSettings.getAsInt("expected_data_nodes", -1);
         this.recoverAfterMasterNodes = componentSettings.getAsInt("recover_after_master_nodes", -1);
-        this.expectedMasterNodes = componentSettings.getAsInt("expected__master_nodes", -1);
+        this.expectedMasterNodes = componentSettings.getAsInt("expected_master_nodes", -1);
     }
 
     @Override protected void doStart() throws ElasticSearchException {

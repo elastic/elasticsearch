@@ -45,6 +45,7 @@ public class BoolQueryParser extends AbstractIndexComponent implements XContentQ
 
     @Inject public BoolQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
+        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount()));
     }
 
     @Override public String[] names() {

@@ -83,13 +83,13 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A Query that matches documents using fuzzy query.
+     * A Query that matches documents containing a term.
      *
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
-        return new FuzzyQueryBuilder(name, value);
+    public static TermQueryBuilder termQuery(String name, double value) {
+        return new TermQueryBuilder(name, value);
     }
 
     /**
@@ -98,8 +98,28 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, double value) {
+    public static TermQueryBuilder termQuery(String name, boolean value) {
         return new TermQueryBuilder(name, value);
+    }
+
+    /**
+     * A Query that matches documents containing a term.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
+    public static TermQueryBuilder termQuery(String name, Object value) {
+        return new TermQueryBuilder(name, value);
+    }
+
+    /**
+     * A Query that matches documents using fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
+    public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
+        return new FuzzyQueryBuilder(name, value);
     }
 
     /**
@@ -158,6 +178,30 @@ public abstract class QueryBuilders {
      * @param query The query string
      */
     public static FieldQueryBuilder fieldQuery(String name, double query) {
+        return new FieldQueryBuilder(name, query);
+    }
+
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
+    public static FieldQueryBuilder fieldQuery(String name, boolean query) {
+        return new FieldQueryBuilder(name, query);
+    }
+
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
+    public static FieldQueryBuilder fieldQuery(String name, Object query) {
         return new FieldQueryBuilder(name, query);
     }
 

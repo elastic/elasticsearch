@@ -129,7 +129,19 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
      * @param name  The name of the field
      * @param query The query string
      */
-    private FieldQueryBuilder(String name, Object query) {
+    public FieldQueryBuilder(String name, boolean query) {
+        this(name, (Object) query);
+    }
+
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
+    public FieldQueryBuilder(String name, Object query) {
         this.name = name;
         this.query = query;
     }

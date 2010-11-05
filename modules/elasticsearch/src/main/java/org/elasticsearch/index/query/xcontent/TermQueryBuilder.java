@@ -92,7 +92,17 @@ public class TermQueryBuilder extends BaseQueryBuilder {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    private TermQueryBuilder(String name, Object value) {
+    public TermQueryBuilder(String name, boolean value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
+    public TermQueryBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
     }

@@ -104,21 +104,40 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
 }
 
 task zip(type: Zip, dependsOn: ['explodedDist']) {
-    zipRootFolder = "$archivesBaseName-${-> version}"
+    rootFolder = "$archivesBaseName-${-> version}"
     from(explodedDistDir) {
-        into zipRootFolder
+        into rootFolder
         exclude 'bin/elasticsearch'
         exclude 'bin/plugin'
     }
     from(explodedDistDir) {
-        into zipRootFolder
+        into rootFolder
         include 'bin/elasticsearch'
         include 'bin/plugin'
         fileMode = 0755
     }
 }
 
-task release(dependsOn: [zip]) << {
+task tar(type: Tar, dependsOn: ['explodedDist']) {
+    compression = Compression.GZIP
+    extension = "tar.gz"
+    rootFolder = "$archivesBaseName-${-> version}"
+    from(explodedDistDir) {
+        into rootFolder
+        exclude 'bin/*.bat'
+        exclude 'bin/elasticsearch'
+        exclude 'bin/plugin'
+        exclude 'lib/sigar/*win*'
+    }
+    from(explodedDistDir) {
+        into rootFolder
+        include 'bin/elasticsearch'
+        include 'bin/plugin'
+        fileMode = 0755
+    }
+}
+
+task release(dependsOn: [zip, tar]) << {
     ant.delete(dir: explodedDistDir)
 }
 

@@ -385,7 +385,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // relocating primaries, recovery from the relocating shard
                 final DiscoveryNode sourceNode = nodes.get(shardRouting.relocatingNodeId());
                 try {
-                    // we are recovering a backup from a primary, so no need to mark it as relocated
+                    // we don't mark this one as relocated at the end, requests in any case are routed to both when its relocating
+                    // and that way we handle the edge case where its mark as relocated, and we might need to roll it back...
                     final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
                     recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
                 } catch (Exception e) {

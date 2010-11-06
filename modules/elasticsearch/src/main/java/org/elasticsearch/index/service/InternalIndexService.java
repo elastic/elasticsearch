@@ -187,7 +187,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return similarityService;
     }
 
-    @Override public IndexEngine indexEngine() {
+    @Override public IndexEngine engine() {
         return indexEngine;
     }
 

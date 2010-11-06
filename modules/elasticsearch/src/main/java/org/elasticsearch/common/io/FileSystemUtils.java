@@ -21,11 +21,41 @@ package org.elasticsearch.common.io;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FileSystemUtils {
+
+    public static int maxOpenFiles(File testDir) {
+        boolean dirCreated = false;
+        if (!testDir.exists()) {
+            dirCreated = true;
+            testDir.mkdirs();
+        }
+        List<RandomAccessFile> files = new ArrayList<RandomAccessFile>();
+        try {
+            while (true) {
+                files.add(new RandomAccessFile(new File(testDir, "tmp" + files.size()), "rw"));
+            }
+        } catch (IOException ioe) {
+            int i = 0;
+            for (RandomAccessFile raf : files) {
+                try {
+                    raf.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+                new File(testDir, "tmp" + i++).delete();
+            }
+            if (dirCreated) {
+                deleteRecursively(testDir);
+            }
+        }
+        return files.size();
+    }
 
     public static boolean deleteRecursively(File root) {
         return deleteRecursively(root, true);

@@ -25,6 +25,7 @@ import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.jline.ANSI;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
@@ -153,6 +154,11 @@ public class Bootstrap {
             System.err.println(errorMessage);
             System.err.flush();
             System.exit(3);
+        }
+
+        if (System.getProperty("es.max-open-files", "false").equals("true")) {
+            ESLogger logger = Loggers.getLogger(Bootstrap.class);
+            logger.info("max_open_files [{}]", FileSystemUtils.maxOpenFiles(new File(tuple.v2().workFile(), "open_files")));
         }
 
         String stage = "Initialization";

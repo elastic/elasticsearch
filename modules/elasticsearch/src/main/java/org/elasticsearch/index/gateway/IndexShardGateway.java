@@ -64,6 +64,17 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
      */
     boolean requiresSnapshotScheduling();
 
+    SnapshotLock obtainSnapshotLock() throws Exception;
+
+    public static interface SnapshotLock {
+        void release();
+    }
+
+    public static final SnapshotLock NO_SNAPSHOT_LOCK = new SnapshotLock() {
+        @Override public void release() {
+        }
+    };
+
     public static class Snapshot {
         private final SnapshotIndexCommit indexCommit;
         private final Translog.Snapshot translogSnapshot;

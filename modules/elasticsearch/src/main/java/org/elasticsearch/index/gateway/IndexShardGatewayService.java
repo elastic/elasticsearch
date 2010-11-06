@@ -32,7 +32,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -53,8 +52,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final IndexShardGateway shardGateway;
 
-    private final Store store;
-
 
     private volatile long lastIndexVersion;
 
@@ -70,14 +67,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private RecoveryStatus recoveryStatus;
 
+    private IndexShardGateway.SnapshotLock snapshotLock;
+
     @Inject public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings,
-                                            ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway,
-                                            Store store) {
+                                            ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
-        this.store = store;
 
         this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
         this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
@@ -220,6 +217,16 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             // shard is recovering, don't snapshot
             return;
         }
+
+        if (snapshotLock == null) {
+            try {
+                snapshotLock = shardGateway.obtainSnapshotLock();
+            } catch (Exception e) {
+                logger.warn("failed to obtain snapshot lock, ignoring snapshot", e);
+                return;
+            }
+        }
+
         try {
             SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<SnapshotStatus>() {
                 @Override public SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
@@ -283,6 +290,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             delete = false;
         }
         shardGateway.close(delete);
+        if (snapshotLock != null) {
+            snapshotLock.release();
+        }
     }
 
     private synchronized void scheduleSnapshotIfNeeded() {

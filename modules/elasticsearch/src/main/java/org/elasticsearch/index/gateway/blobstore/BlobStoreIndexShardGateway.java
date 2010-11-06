@@ -113,6 +113,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         return true;
     }
 
+    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+        return NO_SNAPSHOT_LOCK;
+    }
+
     @Override public void close(boolean delete) throws ElasticSearchException {
         if (delete) {
             blobStore.delete(shardPath);

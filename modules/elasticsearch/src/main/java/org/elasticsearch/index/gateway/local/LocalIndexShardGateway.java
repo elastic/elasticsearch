@@ -173,6 +173,10 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         }
     }
 
+    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+        return NO_SNAPSHOT_LOCK;
+    }
+
     private class Sync implements Runnable {
         @Override public void run() {
             if (indexShard.state() == IndexShardState.STARTED) {

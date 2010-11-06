@@ -51,7 +51,7 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
 
     SimilarityService similarityService();
 
-    IndexEngine indexEngine();
+    IndexEngine engine();
 
     IndexStore store();
 

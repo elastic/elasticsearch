@@ -93,4 +93,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     @Override public void close(boolean delete) {
     }
+
+    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+        return NO_SNAPSHOT_LOCK;
+    }
 }

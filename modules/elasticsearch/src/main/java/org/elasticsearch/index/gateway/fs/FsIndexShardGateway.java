@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.gateway.fs;
 
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.blobstore.fs.AbstractFsBlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -29,17 +33,53 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+
 /**
  * @author kimchy (shay.banon)
  */
 public class FsIndexShardGateway extends BlobStoreIndexShardGateway {
 
+    private final boolean snapshotLock;
+
     @Inject public FsIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway fsIndexGateway,
                                        IndexShard indexShard, Store store) {
         super(shardId, indexSettings, threadPool, fsIndexGateway, indexShard, store);
+        this.snapshotLock = indexSettings.getAsBoolean("gateway.fs.snapshot_lock", true);
     }
 
     @Override public String type() {
         return "fs";
+    }
+
+    @Override public SnapshotLock obtainSnapshotLock() throws Exception {
+        if (!snapshotLock) {
+            return NO_SNAPSHOT_LOCK;
+        }
+        AbstractFsBlobContainer fsBlobContainer = (AbstractFsBlobContainer) blobContainer;
+        NativeFSLockFactory lockFactory = new NativeFSLockFactory(fsBlobContainer.filePath());
+
+        Lock lock = lockFactory.makeLock("snapshot.lock");
+        boolean obtained = lock.obtain();
+        if (!obtained) {
+            throw new ElasticSearchIllegalStateException("failed to obtain snapshot lock [" + lock + "]");
+        }
+        return new FsSnapshotLock(lock);
+    }
+
+    public class FsSnapshotLock implements SnapshotLock {
+        private final Lock lock;
+
+        public FsSnapshotLock(Lock lock) {
+            this.lock = lock;
+        }
+
+        @Override public void release() {
+            try {
+                lock.release();
+            } catch (IOException e) {
+                logger.warn("failed to release snapshot lock [{}]", e, lock);
+            }
+        }
     }
 }

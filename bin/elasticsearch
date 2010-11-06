@@ -15,10 +15,10 @@
 #
 #
 # Optionally, exact memory values can be set using the following values, note,
-# they can still be set using the `ES_JAVA_OPTS`.
+# they can still be set using the `ES_JAVA_OPTS`. Sample format include "512m", and "10g".
 #
-#   ES_MIN_MEM   -- The minimum number of memory to allocate, in megabytes.
-#   ES_MAX_MEM   -- The maximum number of memory to allocate, in megabytes.
+#   ES_MIN_MEM   -- The minimum number of memory to allocate.
+#   ES_MAX_MEM   -- The maximum number of memory to allocate.
 #
 # As a convenience, a fragment of shell is sourced in order to set one or
 # more of these variables. This so-called `include' can be placed in a

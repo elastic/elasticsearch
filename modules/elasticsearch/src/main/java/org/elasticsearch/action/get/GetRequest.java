@@ -149,6 +149,7 @@ public class GetRequest extends SingleOperationRequest {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        refresh = in.readBoolean();
         int size = in.readInt();
         if (size >= 0) {
             fields = new String[size];
@@ -160,6 +161,7 @@ public class GetRequest extends SingleOperationRequest {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(refresh);
         if (fields == null) {
             out.writeInt(-1);
         } else {

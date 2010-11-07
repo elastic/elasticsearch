@@ -81,6 +81,16 @@ public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetRespons
     }
 
     /**
+     * Should a refresh be executed before this get operation causing the operation to
+     * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public GetRequestBuilder setRefresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     public GetRequestBuilder setListenerThreaded(boolean threadedListener) {

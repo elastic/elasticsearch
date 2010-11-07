@@ -78,6 +78,10 @@ public class TransportGetAction extends TransportSingleOperationAction<GetReques
             throw new DocumentMapperNotFoundException("No mapper found for type [" + request.type() + "]");
         }
 
+        if (request.refresh()) {
+            indexShard.refresh(new Engine.Refresh(false));
+        }
+
         Engine.Searcher searcher = indexShard.searcher();
         boolean exists = false;
         byte[] source = null;

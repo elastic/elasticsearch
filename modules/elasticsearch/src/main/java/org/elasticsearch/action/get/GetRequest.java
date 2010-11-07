@@ -42,6 +42,8 @@ public class GetRequest extends SingleOperationRequest {
 
     private String[] fields;
 
+    private boolean refresh = false;
+
     GetRequest() {
     }
 
@@ -113,6 +115,20 @@ public class GetRequest extends SingleOperationRequest {
      */
     public String[] fields() {
         return this.fields;
+    }
+
+    /**
+     * Should a refresh be executed before this get operation causing the operation to
+     * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public GetRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
+    public boolean refresh() {
+        return this.refresh;
     }
 
     /**

@@ -152,6 +152,14 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     /**
+     * A smart analyzer used for indexing that takes into account specific analyzers configured
+     * per {@link FieldMapper} with a custom default analyzer for no explicit field analyzer.
+     */
+    public Analyzer indexAnalyzer(Analyzer defaultAnalyzer) {
+        return new FieldNameAnalyzer(indexAnalyzer.analyzers(), defaultAnalyzer);
+    }
+
+    /**
      * A smart analyzer used for searching that takes into account specific analyzers configured
      * per {@link FieldMapper}.
      */

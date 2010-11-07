@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.settings.IndexSettingsModule;
 
 /**
  * @author kimchy (shay.banon)
@@ -31,10 +36,19 @@ import org.elasticsearch.index.mapper.MapperService;
 public class MapperTests {
 
     public static XContentDocumentMapperParser newParser() {
-        return new XContentDocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")));
+        return new XContentDocumentMapperParser(new Index("test"), newAnalysisService());
     }
 
     public static MapperService newMapperService() {
-        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), new AnalysisService(new Index("test")));
+        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), newAnalysisService());
+    }
+
+    public static AnalysisService newAnalysisService() {
+        Injector injector = new ModulesBuilder().add(
+                new IndexSettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new IndexNameModule(new Index("test")),
+                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS)).createInjector();
+
+        return injector.getInstance(AnalysisService.class);
     }
 }

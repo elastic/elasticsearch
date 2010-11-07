@@ -51,7 +51,7 @@ import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
  */
 public class XContentDocumentMapperParser extends AbstractIndexComponent implements DocumentMapperParser {
 
-    private final AnalysisService analysisService;
+    final AnalysisService analysisService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -148,6 +148,8 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
                 docBuilder.boostField(parseBoostField((Map<String, Object>) fieldNode, parserContext));
             } else if (AllFieldMapper.CONTENT_TYPE.equals(fieldName) || "allField".equals(fieldName)) {
                 docBuilder.allField(parseAllField((Map<String, Object>) fieldNode, parserContext));
+            } else if (AnalyzerMapper.CONTENT_TYPE.equals(fieldName)) {
+                docBuilder.analyzerField(parseAnalyzerField((Map<String, Object>) fieldNode, parserContext));
             } else if ("index_analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
             } else if ("search_analyzer".equals(fieldName)) {
@@ -206,6 +208,18 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
     private IdFieldMapper.Builder parseIdField(Map<String, Object> idNode, XContentMapper.TypeParser.ParserContext parserContext) {
         IdFieldMapper.Builder builder = id();
         parseField(builder, builder.name, idNode, parserContext);
+        return builder;
+    }
+
+    private AnalyzerMapper.Builder parseAnalyzerField(Map<String, Object> analyzerNode, XContentMapper.TypeParser.ParserContext parserContext) {
+        AnalyzerMapper.Builder builder = analyzer();
+        for (Map.Entry<String, Object> entry : analyzerNode.entrySet()) {
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            Object fieldNode = entry.getValue();
+            if (fieldName.equals("field")) {
+                builder.field(fieldNode.toString());
+            }
+        }
         return builder;
     }
 

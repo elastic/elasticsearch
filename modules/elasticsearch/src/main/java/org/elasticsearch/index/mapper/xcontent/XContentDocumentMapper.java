@@ -58,6 +58,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private AllFieldMapper allFieldMapper = new AllFieldMapper();
 
+        private AnalyzerMapper analyzerMapper = new AnalyzerMapper(null);
+
         private NamedAnalyzer indexAnalyzer;
 
         private NamedAnalyzer searchAnalyzer;
@@ -115,6 +117,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             return this;
         }
 
+        public Builder analyzerField(AnalyzerMapper.Builder builder) {
+            this.analyzerMapper = builder.build(builderContext);
+            return this;
+        }
+
         public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
             return this;
@@ -136,7 +143,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         public XContentDocumentMapper build(XContentDocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new XContentDocumentMapper(index, docMapperParser, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
-                    sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
+                    sourceFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
 
@@ -171,6 +178,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final AllFieldMapper allFieldMapper;
 
+    private final AnalyzerMapper analyzerMapper;
+
     private final RootObjectMapper rootObjectMapper;
 
     private final NamedAnalyzer indexAnalyzer;
@@ -194,6 +203,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   IndexFieldMapper indexFieldMapper,
                                   SourceFieldMapper sourceFieldMapper,
                                   AllFieldMapper allFieldMapper,
+                                  AnalyzerMapper analyzerMapper,
                                   NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                   @Nullable BoostFieldMapper boostFieldMapper) {
         this.index = index;
@@ -207,6 +217,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         this.indexFieldMapper = indexFieldMapper;
         this.sourceFieldMapper = sourceFieldMapper;
         this.allFieldMapper = allFieldMapper;
+        this.analyzerMapper = analyzerMapper;
         this.boostFieldMapper = boostFieldMapper;
 
         this.indexAnalyzer = indexAnalyzer;
@@ -374,6 +385,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 context.parsedId(ParseContext.ParsedIdState.EXTERNAL);
                 idFieldMapper.parse(context);
             }
+            analyzerMapper.parse(context);
             allFieldMapper.parse(context);
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse", e);
@@ -382,7 +394,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 parser.close();
             }
         }
-        return new ParsedDocument(context.uid(), context.id(), context.type(), context.doc(), source, context.mappersAdded());
+        return new ParsedDocument(context.uid(), context.id(), context.type(), context.doc(), context.analyzer(), source, context.mappersAdded());
     }
 
     void addFieldMapper(FieldMapper fieldMapper) {
@@ -463,6 +475,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             }
             // no need to pass here id and boost, since they are added to the root object mapper
             // in the constructor
-        }, indexFieldMapper, typeFieldMapper, allFieldMapper, sourceFieldMapper);
+        }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper);
     }
 }

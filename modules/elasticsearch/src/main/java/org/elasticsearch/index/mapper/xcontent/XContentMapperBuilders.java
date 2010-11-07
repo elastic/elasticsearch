@@ -60,6 +60,10 @@ public final class XContentMapperBuilders {
         return new AllFieldMapper.Builder();
     }
 
+    public static AnalyzerMapper.Builder analyzer() {
+        return new AnalyzerMapper.Builder();
+    }
+
     public static MultiFieldMapper.Builder multiField(String name) {
         return new MultiFieldMapper.Builder(name);
     }

@@ -461,6 +461,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                     builder.field("_attributes", attributes());
                 }
             }
-        }, indexFieldMapper, typeFieldMapper, idFieldMapper, allFieldMapper, sourceFieldMapper);
+            // no need to pass here id and boost, since they are added to the root object mapper
+            // in the constructor
+        }, indexFieldMapper, typeFieldMapper, allFieldMapper, sourceFieldMapper);
     }
 }

@@ -102,7 +102,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         builder.field("type", contentType());
-        builder.field("index_name", names.indexNameClean());
+        if (!names.name().equals(names.indexNameClean())) {
+            builder.field("index_name", names.indexNameClean());
+        }
         builder.endObject();
     }
 }

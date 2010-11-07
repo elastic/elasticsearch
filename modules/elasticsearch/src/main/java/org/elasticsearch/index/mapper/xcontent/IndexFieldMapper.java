@@ -128,9 +128,17 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements org
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        // if all defaults, no need to write it at all
+        if (store == Defaults.STORE && enabled == Defaults.ENABLED) {
+            return;
+        }
         builder.startObject(CONTENT_TYPE);
-        builder.field("store", store.name().toLowerCase());
-        builder.field("enabled", enabled);
+        if (store != Defaults.STORE) {
+            builder.field("store", store.name().toLowerCase());
+        }
+        if (enabled != Defaults.ENABLED) {
+            builder.field("enabled", enabled);
+        }
         builder.endObject();
     }
 

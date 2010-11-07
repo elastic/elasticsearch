@@ -396,18 +396,22 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
 
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         builder.field("type", contentType());
-        builder.field("index_name", names.indexNameClean());
-        builder.field("index", index.name().toLowerCase());
-        builder.field("store", store.name().toLowerCase());
-        builder.field("term_vector", termVector.name().toLowerCase());
-        builder.field("boost", boost);
-        builder.field("omit_norms", omitNorms);
-        builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
-        if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-            builder.field("index_analyzer", indexAnalyzer.name());
+        if (!names.name().equals(names.indexNameClean())) {
+            builder.field("index_name", names.indexNameClean());
         }
-        if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-            builder.field("search_analyzer", searchAnalyzer.name());
+        if (boost != 1.0f) {
+            builder.field("boost", boost);
+        }
+        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
+            // same analyzers, output it once
+            builder.field("analyzer", indexAnalyzer.name());
+        } else {
+            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+                builder.field("index_analyzer", indexAnalyzer.name());
+            }
+            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
         }
     }
 

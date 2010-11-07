@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -166,16 +165,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     }
 
-    @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        builder.field("precision_step", precisionStep);
-    }
-
     @Override public abstract FieldDataType fieldDataType();
 
     /**
-     * Removes a cached numeric token stream. The stream will be returned to the cahed once it is used
-     * sicne it implements the end method.
+     * Removes a cached numeric token stream. The stream will be returned to the cached once it is used
+     * since it implements the end method.
      */
     protected CachedNumericTokenStream popCachedStream(int precisionStep) {
         Deque<CachedNumericTokenStream> deque = cachedStreams.get().get().get(precisionStep);

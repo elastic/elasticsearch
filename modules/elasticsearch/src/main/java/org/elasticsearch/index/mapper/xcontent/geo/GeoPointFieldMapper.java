@@ -66,19 +66,22 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
     public static class Defaults {
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
         public static final Field.Store STORE = Field.Store.NO;
+        public static final boolean ENABLE_LATLON = false;
+        public static final boolean ENABLE_GEOHASH = false;
+        public static final int PRECISION = GeoHashUtils.PRECISION;
     }
 
     public static class Builder extends XContentMapper.Builder<Builder, GeoPointFieldMapper> {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
-        private boolean enableGeoHash = false;
+        private boolean enableGeoHash = Defaults.ENABLE_GEOHASH;
 
-        private boolean enableLatLon = false;
+        private boolean enableLatLon = Defaults.ENABLE_LATLON;
 
         private Integer precisionStep;
 
-        private int precision = GeoHashUtils.PRECISION;
+        private int precision = Defaults.PRECISION;
 
         private Field.Store store = Defaults.STORE;
 
@@ -354,11 +357,21 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
-        builder.field("path", pathType.name().toLowerCase());
-        builder.field("lat_lon", enableLatLon);
-        builder.field("geohash", enableGeoHash);
-        builder.field("store", geoStringMapper.store().name().toLowerCase());
-        builder.field("geohash_precision", precision);
+        if (pathType != Defaults.PATH_TYPE) {
+            builder.field("path", pathType.name().toLowerCase());
+        }
+        if (enableLatLon != Defaults.ENABLE_LATLON) {
+            builder.field("lat_lon", enableLatLon);
+        }
+        if (enableGeoHash != Defaults.ENABLE_GEOHASH) {
+            builder.field("geohash", enableGeoHash);
+        }
+        if (geoStringMapper.store() != Defaults.STORE) {
+            builder.field("store", geoStringMapper.store().name().toLowerCase());
+        }
+        if (precision != Defaults.PRECISION) {
+            builder.field("geohash_precision", precision);
+        }
         if (precisionStep != null) {
             builder.field("precision_step", precisionStep);
         }

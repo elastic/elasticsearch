@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -86,7 +87,18 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
-            analyzers.put(analyzerFactory.name(), new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get()));
+            NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get());
+            analyzers.put(analyzerFactory.name(), analyzer);
+            String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
+            if (strAliases != null) {
+                for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
+                    analyzers.put(alias, analyzer);
+                }
+            }
+            String[] aliases = indexSettings.getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
+            for (String alias : aliases) {
+                analyzers.put(alias, analyzer);
+            }
         }
         this.analyzers = ImmutableMap.copyOf(analyzers);
 

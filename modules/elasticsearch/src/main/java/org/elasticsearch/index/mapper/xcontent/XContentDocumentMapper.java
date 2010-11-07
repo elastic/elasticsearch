@@ -173,9 +173,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final RootObjectMapper rootObjectMapper;
 
-    private final Analyzer indexAnalyzer;
+    private final NamedAnalyzer indexAnalyzer;
 
-    private final Analyzer searchAnalyzer;
+    private final NamedAnalyzer searchAnalyzer;
 
     private volatile DocumentFieldMappers fieldMappers;
 
@@ -194,7 +194,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   IndexFieldMapper indexFieldMapper,
                                   SourceFieldMapper sourceFieldMapper,
                                   AllFieldMapper allFieldMapper,
-                                  Analyzer indexAnalyzer, Analyzer searchAnalyzer,
+                                  NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                   @Nullable BoostFieldMapper boostFieldMapper) {
         this.index = index;
         this.type = rootObjectMapper.name();
@@ -437,6 +437,26 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        rootObjectMapper.toXContent(builder, params, indexFieldMapper, typeFieldMapper, idFieldMapper, allFieldMapper, sourceFieldMapper);
+        rootObjectMapper.toXContent(builder, params, new ToXContent() {
+            @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+                if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
+                    if (!indexAnalyzer.name().equals("default")) {
+                        // same analyzers, output it once
+                        builder.field("analyzer", indexAnalyzer.name());
+                    }
+                } else {
+                    if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+                        if (!indexAnalyzer.name().equals("default")) {
+                            builder.field("index_analyzer", indexAnalyzer.name());
+                        }
+                    }
+                    if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+                        if (!searchAnalyzer.name().equals("default")) {
+                            builder.field("search_analyzer", searchAnalyzer.name());
+                        }
+                    }
+                }
+            }
+        }, indexFieldMapper, typeFieldMapper, idFieldMapper, allFieldMapper, sourceFieldMapper);
     }
 }

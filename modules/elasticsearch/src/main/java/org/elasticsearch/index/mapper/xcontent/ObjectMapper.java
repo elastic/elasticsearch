@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
@@ -546,10 +547,10 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        toXContent(builder, params, XContentMapper.EMPTY_ARRAY);
+        toXContent(builder, params, null, XContentMapper.EMPTY_ARRAY);
     }
 
-    public void toXContent(XContentBuilder builder, Params params, XContentMapper... additionalMappers) throws IOException {
+    public void toXContent(XContentBuilder builder, Params params, ToXContent custom, XContentMapper... additionalMappers) throws IOException {
         builder.startObject(name);
         if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
@@ -565,6 +566,10 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+
+        if (custom != null) {
+            custom.toXContent(builder, params);
         }
 
         doXContent(builder, params);

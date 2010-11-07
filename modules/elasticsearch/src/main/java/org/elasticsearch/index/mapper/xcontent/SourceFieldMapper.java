@@ -168,9 +168,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        // all are defaults, no need to write it at all
+        if (enabled == Defaults.ENABLED && compress == null) {
+            return;
+        }
         builder.startObject(contentType());
-        builder.field("name", name());
-        builder.field("enabled", enabled);
+        if (enabled != Defaults.ENABLED) {
+            builder.field("enabled", enabled);
+        }
         if (compress != null) {
             builder.field("compress", compress);
         }

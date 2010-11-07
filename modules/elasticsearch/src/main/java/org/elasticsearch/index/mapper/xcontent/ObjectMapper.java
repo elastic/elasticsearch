@@ -551,10 +551,18 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
     public void toXContent(XContentBuilder builder, Params params, XContentMapper... additionalMappers) throws IOException {
         builder.startObject(name);
-        builder.field("type", CONTENT_TYPE);
-        builder.field("dynamic", dynamic);
-        builder.field("enabled", enabled);
-        builder.field("path", pathType.name().toLowerCase());
+        if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
+            builder.field("type", CONTENT_TYPE);
+        }
+        if (dynamic != Defaults.DYNAMIC) {
+            builder.field("dynamic", dynamic);
+        }
+        if (enabled != Defaults.ENABLED) {
+            builder.field("enabled", enabled);
+        }
+        if (pathType != Defaults.PATH_TYPE) {
+            builder.field("path", pathType.name().toLowerCase());
+        }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         }

@@ -103,7 +103,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         Thread.sleep(200);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForActiveShards(10).execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));

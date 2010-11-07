@@ -266,7 +266,9 @@ public class MultiFieldMapper implements XContentMapper, IncludeInAllMapper {
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
-        builder.field("path", pathType.name().toLowerCase());
+        if (pathType != Defaults.PATH_TYPE) {
+            builder.field("path", pathType.name().toLowerCase());
+        }
 
         builder.startObject("fields");
         if (defaultMapper != null) {

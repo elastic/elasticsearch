@@ -176,8 +176,14 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        // all are defaults, don't write it at all
+        if (name().equals(Defaults.NAME) && nullValue == null) {
+            return;
+        }
         builder.startObject(contentType());
-        builder.field("name", name());
+        if (!name().equals(Defaults.NAME)) {
+            builder.field("name", name());
+        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }

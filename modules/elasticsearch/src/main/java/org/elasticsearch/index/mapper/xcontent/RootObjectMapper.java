@@ -93,14 +93,17 @@ public class RootObjectMapper extends ObjectMapper {
 
 
         @Override protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers) {
+            FormatDateTimeFormatter[] dates = null;
             if (dateTimeFormatters == null) {
-                dateTimeFormatters = newArrayList();
+                dates = new FormatDateTimeFormatter[0];
             } else if (dateTimeFormatters.isEmpty()) {
                 // add the default one
-                dateTimeFormatters.addAll(newArrayList(Defaults.DATE_TIME_FORMATTERS));
+                dates = Defaults.DATE_TIME_FORMATTERS;
+            } else {
+                dates = dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]);
             }
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
-                    dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]),
+                    dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]));
         }
     }
@@ -206,12 +209,14 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (dateTimeFormatters.length > 0) {
-            builder.startArray("date_formats");
-            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                builder.value(dateTimeFormatter.format());
+        if (dateTimeFormatters != Defaults.DATE_TIME_FORMATTERS) {
+            if (dateTimeFormatters.length > 0) {
+                builder.startArray("date_formats");
+                for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                    builder.value(dateTimeFormatter.format());
+                }
+                builder.endArray();
             }
-            builder.endArray();
         }
 
         if (dynamicTemplates != null && dynamicTemplates.length > 0) {

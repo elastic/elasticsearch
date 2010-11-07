@@ -222,6 +222,24 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
+        if (index != Defaults.INDEX) {
+            builder.field("index", index.name().toLowerCase());
+        }
+        if (store != Defaults.STORE) {
+            builder.field("store", store.name().toLowerCase());
+        }
+        if (termVector != Defaults.TERM_VECTOR) {
+            builder.field("term_vector", termVector.name().toLowerCase());
+        }
+        if (omitNorms != Defaults.OMIT_NORMS) {
+            builder.field("omit_norms", omitNorms);
+        }
+        if (omitTermFreqAndPositions != Defaults.OMIT_TERM_FREQ_AND_POSITIONS) {
+            builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
+        }
+        if (precisionStep != Defaults.PRECISION_STEP) {
+            builder.field("precision_step", precisionStep);
+        }
         builder.field("format", dateTimeFormatter.format());
         if (nullValue != null) {
             builder.field("null_value", nullValue);

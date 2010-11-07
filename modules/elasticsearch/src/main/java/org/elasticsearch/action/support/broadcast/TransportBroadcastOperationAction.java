@@ -255,7 +255,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                                 onOperation(shard, response, false);
                             }
 
-                            @Override public void handleException(RemoteTransportException e) {
+                            @Override public void handleException(TransportException e) {
                                 onOperation(shard, shardIt, e, false);
                             }
 

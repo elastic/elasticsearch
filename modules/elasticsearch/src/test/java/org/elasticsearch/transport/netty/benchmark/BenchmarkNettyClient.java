@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -76,7 +76,7 @@ public class BenchmarkNettyClient {
                 @Override public void handleResponse(BenchmarkMessage response) {
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     exp.printStackTrace();
                 }
             }).txGet();
@@ -103,7 +103,7 @@ public class BenchmarkNettyClient {
                                 latch.countDown();
                             }
 
-                            @Override public void handleException(RemoteTransportException exp) {
+                            @Override public void handleException(TransportException exp) {
                                 exp.printStackTrace();
                                 latch.countDown();
                             }

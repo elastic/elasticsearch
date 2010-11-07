@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -77,7 +77,7 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
                 listener.onResponse(response);
             }
 
-            @Override public void handleException(RemoteTransportException exp) {
+            @Override public void handleException(TransportException exp) {
                 listener.onFailure(exp);
             }
 

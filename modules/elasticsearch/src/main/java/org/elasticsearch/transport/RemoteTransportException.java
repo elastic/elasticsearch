@@ -23,52 +23,23 @@ import org.elasticsearch.ElasticSearchWrapperException;
 import org.elasticsearch.common.transport.TransportAddress;
 
 /**
+ * A remote exception for an action. A wrapper exception around the actual remote cause and does not fill the
+ * stack trace.
+ *
  * @author kimchy (shay.banon)
  */
-public class RemoteTransportException extends TransportException implements ElasticSearchWrapperException {
-
-    private TransportAddress address;
-
-    private String action;
+public class RemoteTransportException extends ActionTransportException implements ElasticSearchWrapperException {
 
     public RemoteTransportException(String msg, Throwable cause) {
         super(msg, cause);
     }
 
     public RemoteTransportException(String name, TransportAddress address, String action, Throwable cause) {
-        super(buildMessage(name, address, action), cause);
-        this.address = address;
-        this.action = action;
-    }
-
-    public TransportAddress address() {
-        return address;
-    }
-
-    public String action() {
-        return action;
+        super(name, address, action, cause);
     }
 
     @Override public Throwable fillInStackTrace() {
         // no need for stack trace here, we always have cause
         return null;
-    }
-
-    protected Throwable fillStack() {
-        return super.fillInStackTrace();
-    }
-
-    private static String buildMessage(String name, TransportAddress address, String action) {
-        StringBuilder sb = new StringBuilder();
-        if (name != null) {
-            sb.append('[').append(name).append(']');
-        }
-        if (address != null) {
-            sb.append('[').append(address).append(']');
-        }
-        if (action != null) {
-            sb.append('[').append(action).append(']');
-        }
-        return sb.toString();
     }
 }

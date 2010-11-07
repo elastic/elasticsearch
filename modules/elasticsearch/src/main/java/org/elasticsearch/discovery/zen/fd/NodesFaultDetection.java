@@ -215,7 +215,7 @@ public class NodesFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             // check if the master node did not get switched on us...
                             if (!running) {
                                 return;

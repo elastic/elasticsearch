@@ -36,7 +36,7 @@ public interface TransportResponseHandler<T extends Streamable> {
 
     void handleResponse(T response);
 
-    void handleException(RemoteTransportException exp);
+    void handleException(TransportException exp);
 
     boolean spawn();
 }

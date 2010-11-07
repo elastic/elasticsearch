@@ -98,7 +98,7 @@ public abstract class AbstractSimpleTransportTests {
                         assertThat("hello moshe", equalTo(response.message));
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         exp.printStackTrace();
                         assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
                     }
@@ -146,7 +146,7 @@ public abstract class AbstractSimpleTransportTests {
                         assertThat("hello moshe", equalTo(response.message));
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         exp.printStackTrace();
                         assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
                     }
@@ -187,7 +187,7 @@ public abstract class AbstractSimpleTransportTests {
                         assertThat("got response instead of exception", false, equalTo(true));
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         assertThat("bad message !!!", equalTo(exp.getCause().getMessage()));
                     }
                 });
@@ -251,7 +251,7 @@ public abstract class AbstractSimpleTransportTests {
                         assertThat("got response instead of exception", false, equalTo(true));
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
                     }
                 });
@@ -301,7 +301,7 @@ public abstract class AbstractSimpleTransportTests {
                         assertThat("got response instead of exception", false, equalTo(true));
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
                     }
                 });
@@ -330,7 +330,7 @@ public abstract class AbstractSimpleTransportTests {
                             assertThat("hello " + counter + "ms", equalTo(response.message));
                         }
 
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             exp.printStackTrace();
                             assertThat("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage(), false, equalTo(true));
                         }

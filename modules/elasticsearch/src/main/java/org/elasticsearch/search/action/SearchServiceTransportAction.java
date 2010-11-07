@@ -57,7 +57,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             this.logger = logger;
         }
 
-        @Override public void handleException(RemoteTransportException exp) {
+        @Override public void handleException(TransportException exp) {
             logger.warn("Failed to send release search context", exp);
         }
     }
@@ -114,7 +114,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -144,7 +144,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -174,7 +174,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -204,7 +204,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response.queryResult());
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -234,7 +234,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -264,7 +264,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -294,7 +294,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response.result());
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 
@@ -324,7 +324,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onResult(response);
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
 

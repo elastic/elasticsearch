@@ -350,7 +350,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 try {
                                     transportService.connectToNode(requestingNode);
                                     transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
-                                        @Override public void handleException(RemoteTransportException exp) {
+                                        @Override public void handleException(TransportException exp) {
                                             logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                                         }
                                     });
@@ -361,7 +361,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         });
                     } else {
                         transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
-                            @Override public void handleException(RemoteTransportException exp) {
+                            @Override public void handleException(TransportException exp) {
                                 logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                             }
                         });

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
@@ -77,5 +78,9 @@ public class AnalysisModuleTests {
 
         html = (HtmlStripCharFilterFactory) custom2.charFilters()[1];
         assertThat(html.readAheadLimit(), equalTo(1024));
+
+        // verify aliases
+        analyzer = analysisService.analyzer("alias1").analyzer();
+        assertThat(analyzer, instanceOf(StandardAnalyzer.class));
     }
 }

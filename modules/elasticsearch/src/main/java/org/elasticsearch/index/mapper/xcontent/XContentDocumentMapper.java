@@ -456,6 +456,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                         }
                     }
                 }
+
+                if (attributes != null && !attributes.isEmpty()) {
+                    builder.field("_attributes", attributes());
+                }
             }
         }, indexFieldMapper, typeFieldMapper, idFieldMapper, allFieldMapper, sourceFieldMapper);
     }

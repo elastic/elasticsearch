@@ -103,4 +103,15 @@ public class SimpleMapperTests {
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
+
+    @Test public void testAttributes() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test-mapping.json");
+        XContentDocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+
+        assertThat((String) docMapper.attributes().get("param1"), equalTo("value1"));
+
+        String builtMapping = docMapper.mappingSource().string();
+        XContentDocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
+        assertThat((String) builtDocMapper.attributes().get("param1"), equalTo("value1"));
+    }
 }

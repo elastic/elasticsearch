@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class VoidTransportResponseHandler implements TransportResponseHandler<VoidStreamable> {
 
@@ -46,7 +46,7 @@ public class VoidTransportResponseHandler implements TransportResponseHandler<Vo
     @Override public void handleResponse(VoidStreamable response) {
     }
 
-    @Override public void handleException(RemoteTransportException exp) {
+    @Override public void handleException(TransportException exp) {
     }
 
     @Override public boolean spawn() {

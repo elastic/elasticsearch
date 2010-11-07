@@ -325,7 +325,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             listener.onResponse(response);
                         }
 
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
                                     exp.unwrapCause() instanceof IllegalIndexShardStateException) {
@@ -547,7 +547,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         finishIfPossible();
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         if (!ignoreReplicaException(exp.unwrapCause())) {
                             logger.warn("Failed to perform " + transportAction() + " on replica " + shards.shardId(), exp);
                             shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on replica, message [" + detailedMessage(exp) + "]");

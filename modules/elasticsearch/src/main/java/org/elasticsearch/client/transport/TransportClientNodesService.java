@@ -37,7 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
@@ -194,7 +194,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                     latch.countDown();
                                 }
 
-                                @Override public void handleException(RemoteTransportException exp) {
+                                @Override public void handleException(TransportException exp) {
                                     logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list", exp);
                                     latch.countDown();
                                 }

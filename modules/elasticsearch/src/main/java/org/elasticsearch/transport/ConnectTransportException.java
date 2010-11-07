@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 /**
  * @author kimchy (shay.banon)
  */
-public class ConnectTransportException extends RemoteTransportException {
+public class ConnectTransportException extends ActionTransportException {
 
     private final DiscoveryNode node;
 

@@ -188,7 +188,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
                             }
                         }
 
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             onFailure(shard, exp);
                         }
 

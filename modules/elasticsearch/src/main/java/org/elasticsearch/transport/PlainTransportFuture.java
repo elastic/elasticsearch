@@ -79,7 +79,7 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         set(response);
     }
 
-    @Override public void handleException(RemoteTransportException exp) {
+    @Override public void handleException(TransportException exp) {
         handler.handleException(exp);
         setException(exp);
     }

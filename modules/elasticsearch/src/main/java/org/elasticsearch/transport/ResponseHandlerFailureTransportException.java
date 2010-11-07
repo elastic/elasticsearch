@@ -20,11 +20,17 @@
 package org.elasticsearch.transport;
 
 /**
+ * A failure to handle the response of a transaction action.
+ *
  * @author kimchy (shay.banon)
  */
-public class ResponseHandlerFailureTransportException extends RemoteTransportException {
+public class ResponseHandlerFailureTransportException extends TransportException {
 
     public ResponseHandlerFailureTransportException(Throwable cause) {
         super(cause.getMessage(), cause);
+    }
+
+    @Override public Throwable fillInStackTrace() {
+        return null;
     }
 }

@@ -229,7 +229,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     }
                 }
 
-                @Override public void handleException(RemoteTransportException exp) {
+                @Override public void handleException(TransportException exp) {
                     latch.countDown();
                     if (exp instanceof ConnectTransportException) {
                         // ok, not connected...

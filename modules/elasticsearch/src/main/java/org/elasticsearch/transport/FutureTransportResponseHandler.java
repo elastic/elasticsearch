@@ -31,6 +31,6 @@ public abstract class FutureTransportResponseHandler<T extends Streamable> exten
     @Override public void handleResponse(T response) {
     }
 
-    @Override public void handleException(RemoteTransportException exp) {
+    @Override public void handleException(TransportException exp) {
     }
 }

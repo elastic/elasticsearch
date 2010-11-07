@@ -120,7 +120,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                                     latch.countDown();
                                 }
 
-                                @Override public void handleException(RemoteTransportException exp) {
+                                @Override public void handleException(TransportException exp) {
                                     logger.warn("[cluster_shutdown]: received failed shutdown response from [{}]", exp, node);
                                     latch.countDown();
                                 }
@@ -141,7 +141,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                             logger.trace("[cluster_shutdown]: received shutdown response from master");
                         }
 
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             logger.warn("[cluster_shutdown]: received failed shutdown response master", exp);
                         }
                     });
@@ -183,7 +183,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                                 latch.countDown();
                             }
 
-                            @Override public void handleException(RemoteTransportException exp) {
+                            @Override public void handleException(TransportException exp) {
                                 logger.warn("[partial_cluster_shutdown]: received failed shutdown response from [{}]", exp, node);
                                 latch.countDown();
                             }

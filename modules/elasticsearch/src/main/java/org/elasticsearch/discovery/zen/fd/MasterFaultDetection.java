@@ -281,7 +281,7 @@ public class MasterFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             if (!running) {
                                 return;
                             }

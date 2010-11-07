@@ -30,7 +30,9 @@ public class NodeDisconnectedException extends ConnectTransportException {
         super(node, "disconnected", action, null);
     }
 
-//    @Override public Throwable fillInStackTrace() {
-//        return fillStack();
-//    }
+    // stack trace is meaningless...
+
+    @Override public Throwable fillInStackTrace() {
+        return null;
+    }
 }

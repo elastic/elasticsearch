@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 /**
  * @author kimchy (shay.banon)
  */
-public class ReceiveTimeoutTransportException extends RemoteTransportException {
+public class ReceiveTimeoutTransportException extends ActionTransportException {
 
     public ReceiveTimeoutTransportException(DiscoveryNode node, String action) {
         super(node.name(), node.address(), action, null);

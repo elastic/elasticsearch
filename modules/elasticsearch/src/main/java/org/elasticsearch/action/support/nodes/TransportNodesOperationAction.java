@@ -164,7 +164,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                                 onOperation(response);
                             }
 
-                            @Override public void handleException(RemoteTransportException exp) {
+                            @Override public void handleException(TransportException exp) {
                                 onFailure(node.id(), exp);
                             }
 

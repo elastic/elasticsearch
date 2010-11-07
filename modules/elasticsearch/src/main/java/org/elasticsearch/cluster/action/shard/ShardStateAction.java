@@ -83,7 +83,7 @@ public class ShardStateAction extends AbstractComponent {
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler() {
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             logger.warn("failed to send failed shard to [{}]", exp, clusterService.state().nodes().masterNode());
                         }
                     });
@@ -104,7 +104,7 @@ public class ShardStateAction extends AbstractComponent {
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler() {
-                        @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(TransportException exp) {
                             logger.warn("failed to send shard started to [{}]", exp, clusterService.state().nodes().masterNode());
                         }
                     });

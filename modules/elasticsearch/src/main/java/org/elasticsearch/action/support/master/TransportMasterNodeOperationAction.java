@@ -141,7 +141,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     listener.onResponse(response);
                 }
 
-                @Override public void handleException(final RemoteTransportException exp) {
+                @Override public void handleException(final TransportException exp) {
                     if (exp.unwrapCause() instanceof ConnectTransportException) {
                         // we want to retry here a bit to see if a new master is elected
                         clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
@@ -205,7 +205,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         }
                     }
 
-                    @Override public void handleException(RemoteTransportException exp) {
+                    @Override public void handleException(TransportException exp) {
                         try {
                             channel.sendResponse(exp);
                         } catch (Exception e) {

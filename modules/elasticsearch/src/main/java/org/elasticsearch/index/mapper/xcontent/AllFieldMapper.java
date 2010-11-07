@@ -29,7 +29,6 @@ import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
@@ -118,14 +117,14 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements org.ela
         // reset the entries
         context.allEntries().reset();
 
-        Analyzer analyzer = findAnalyzer(context.docMapper());
+        Analyzer analyzer = findAnalyzer(context);
         return new AllField(names.indexName(), store, termVector, context.allEntries(), analyzer);
     }
 
-    private Analyzer findAnalyzer(DocumentMapper docMapper) {
+    private Analyzer findAnalyzer(ParseContext context) {
         Analyzer analyzer = indexAnalyzer;
         if (analyzer == null) {
-            analyzer = docMapper.indexAnalyzer();
+            analyzer = context.analyzer();
             if (analyzer == null) {
                 analyzer = Lucene.STANDARD_ANALYZER;
             }

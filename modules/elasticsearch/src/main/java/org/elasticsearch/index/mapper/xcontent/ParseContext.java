@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 /**
@@ -40,6 +42,8 @@ public class ParseContext {
     private XContentParser parser;
 
     private Document document;
+
+    private Analyzer analyzer;
 
     private String index;
 
@@ -75,6 +79,7 @@ public class ParseContext {
     public void reset(XContentParser parser, Document document, String type, byte[] source, DocumentMapper.ParseListener listener) {
         this.parser = parser;
         this.document = document;
+        this.analyzer = null;
         this.type = type;
         this.source = source;
         this.path.reset();
@@ -132,6 +137,10 @@ public class ParseContext {
         return this.docMapper;
     }
 
+    public AnalysisService analysisService() {
+        return docMapperParser.analysisService;
+    }
+
     public String id() {
         return id;
     }
@@ -164,6 +173,14 @@ public class ParseContext {
 
     public AllEntries allEntries() {
         return this.allEntries;
+    }
+
+    public Analyzer analyzer() {
+        return this.analyzer;
+    }
+
+    public void analyzer(Analyzer analyzer) {
+        this.analyzer = analyzer;
     }
 
     public void externalValue(Object externalValue) {

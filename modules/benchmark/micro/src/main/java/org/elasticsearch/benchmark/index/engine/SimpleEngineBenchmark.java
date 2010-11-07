@@ -164,11 +164,11 @@ public class SimpleEngineBenchmark {
             String sId = Integer.toString(id);
             Document doc = doc().add(field("_id", sId))
                     .add(field("content", contentItem)).build();
-            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, TRANSLOG_PAYLOAD, false);
+            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
             if (create) {
-                engine.create(new Engine.Create(pDoc, Lucene.STANDARD_ANALYZER));
+                engine.create(new Engine.Create(pDoc));
             } else {
-                engine.index(new Engine.Index(new Term("_id", sId), pDoc, Lucene.STANDARD_ANALYZER));
+                engine.index(new Engine.Index(new Term("_id", sId), pDoc));
             }
         }
         engine.refresh(new Engine.Refresh(true));
@@ -278,11 +278,11 @@ public class SimpleEngineBenchmark {
                     String sId = Integer.toString(id);
                     Document doc = doc().add(field("_id", sId))
                             .add(field("content", content(id))).build();
-                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, TRANSLOG_PAYLOAD, false);
+                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
                     if (create) {
-                        engine.create(new Engine.Create(pDoc, Lucene.STANDARD_ANALYZER));
+                        engine.create(new Engine.Create(pDoc));
                     } else {
-                        engine.index(new Engine.Index(new Term("_id", sId), pDoc, Lucene.STANDARD_ANALYZER));
+                        engine.index(new Engine.Index(new Term("_id", sId), pDoc));
                     }
                 }
             } catch (Exception e) {

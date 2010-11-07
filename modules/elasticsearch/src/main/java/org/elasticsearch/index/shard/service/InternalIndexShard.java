@@ -214,7 +214,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
         }
         ParsedDocument doc = docMapper.parse(type, id, source);
-        return new Engine.Create(doc, docMapper.mappers().indexAnalyzer());
+        return new Engine.Create(doc);
     }
 
     @Override public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
@@ -236,7 +236,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
         }
         ParsedDocument doc = docMapper.parse(type, id, source);
-        return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc, docMapper.mappers().indexAnalyzer());
+        return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc);
     }
 
     @Override public ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException {

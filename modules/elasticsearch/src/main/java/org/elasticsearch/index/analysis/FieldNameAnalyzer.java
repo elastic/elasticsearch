@@ -42,6 +42,14 @@ public class FieldNameAnalyzer extends Analyzer {
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
+    public ImmutableMap<String, Analyzer> analyzers() {
+        return analyzers;
+    }
+
+    public Analyzer defaultAnalyzer() {
+        return defaultAnalyzer;
+    }
+
     @Override public TokenStream tokenStream(String fieldName, Reader reader) {
         return getAnalyzer(fieldName).tokenStream(fieldName, reader);
     }

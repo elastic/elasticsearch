@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 
 /**
@@ -34,16 +35,19 @@ public class ParsedDocument {
 
     private final Document document;
 
+    private final Analyzer analyzer;
+
     private final byte[] source;
 
     private boolean mappersAdded;
 
-    public ParsedDocument(String uid, String id, String type, Document document, byte[] source, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
         this.document = document;
         this.source = source;
+        this.analyzer = analyzer;
         this.mappersAdded = mappersAdded;
     }
 
@@ -61,6 +65,10 @@ public class ParsedDocument {
 
     public Document doc() {
         return this.document;
+    }
+
+    public Analyzer analyzer() {
+        return this.analyzer;
     }
 
     public byte[] source() {

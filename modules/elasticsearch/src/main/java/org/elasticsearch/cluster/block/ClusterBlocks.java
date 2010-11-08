@@ -199,6 +199,9 @@ public class ClusterBlocks {
                 return this;
             }
             indices.get(index).remove(block);
+            if (indices.get(index).isEmpty()) {
+                indices.remove(index);
+            }
             return this;
         }
 

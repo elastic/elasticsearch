@@ -37,7 +37,7 @@ public class AnalyzerMapperTests {
 
     @Test public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_analyzer").field("field", "field_analyzer").endObject()
+                .startObject("_analyzer").field("path", "field_analyzer").endObject()
                 .startObject("properties")
                 .startObject("field_analyzer").field("type", "string").endObject()
                 .startObject("field1").field("type", "string").endObject()

@@ -216,7 +216,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         for (Map.Entry<String, Object> entry : analyzerNode.entrySet()) {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
-            if (fieldName.equals("field")) {
+            if (fieldName.equals("path")) {
                 builder.field(fieldNode.toString());
             }
         }

@@ -60,7 +60,7 @@ public class AnalyzerMapper implements XContentMapper {
 //            for (Map.Entry<String, Object> entry : node.entrySet()) {
 //                String fieldName = Strings.toUnderscoreCase(entry.getKey());
 //                Object fieldNode = entry.getValue();
-//                if ("field".equals(fieldName)) {
+//                if ("path".equals(fieldName)) {
 //                    builder.field(fieldNode.toString());
 //                }
 //            }
@@ -68,10 +68,10 @@ public class AnalyzerMapper implements XContentMapper {
 //        }
 //    }
 
-    private final String field;
+    private final String path;
 
-    public AnalyzerMapper(String field) {
-        this.field = field;
+    public AnalyzerMapper(String path) {
+        this.path = path;
     }
 
     @Override public String name() {
@@ -80,12 +80,12 @@ public class AnalyzerMapper implements XContentMapper {
 
     @Override public void parse(ParseContext context) throws IOException {
         Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
-        if (field != null) {
-            String value = context.doc().get(field);
+        if (path != null) {
+            String value = context.doc().get(path);
             if (value != null) {
                 analyzer = context.analysisService().analyzer(value);
                 if (analyzer == null) {
-                    throw new MapperParsingException("No analyzer found for [" + value + "] from field [" + field + "]");
+                    throw new MapperParsingException("No analyzer found for [" + value + "] from path [" + path + "]");
                 }
                 analyzer = context.docMapper().mappers().indexAnalyzer(analyzer);
             }
@@ -100,12 +100,12 @@ public class AnalyzerMapper implements XContentMapper {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (field == null) {
+        if (path == null) {
             return;
         }
         builder.startObject(CONTENT_TYPE);
-        if (field != null) {
-            builder.field("field", field);
+        if (path != null) {
+            builder.field("path", path);
         }
         builder.endObject();
     }

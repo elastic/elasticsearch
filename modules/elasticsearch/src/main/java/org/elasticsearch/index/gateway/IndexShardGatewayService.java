@@ -325,6 +325,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             try {
                 snapshot("scheduled");
             } catch (Exception e) {
+                if (indexShard.state() == IndexShardState.CLOSED) {
+                    return;
+                }
                 logger.warn("failed to snapshot (scheduled)", e);
             }
         }

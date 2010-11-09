@@ -83,7 +83,11 @@ public class HdfsGatewayTests {
         assertThat(createIndexResponse.acknowledged(), equalTo(true));
         node.close();
         node = buildNode().start();
-        Thread.sleep(500);
+
+        logger.info("--> waiting for green status");
+        ClusterHealthResponse health = node.client().admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
         try {
             node.client().admin().indices().create(createIndexRequest("test")).actionGet();
             assert false : "index should exists";

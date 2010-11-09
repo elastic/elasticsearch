@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
@@ -166,9 +167,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
         response.numberOfNodes = clusterState.nodes().size();
         response.numberOfDataNodes = clusterState.nodes().dataNodes().size();
-        request.indices(clusterState.metaData().concreteIndices(request.indices()));
 
-        for (String index : request.indices()) {
+        for (String index : clusterState.metaData().concreteIndices(request.indices())) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetaData indexMetaData = clusterState.metaData().index(index);
             if (indexRoutingTable == null) {
@@ -219,6 +219,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             indexHealth.status = ClusterHealthStatus.GREEN;
             if (!indexHealth.validationFailures().isEmpty()) {
                 indexHealth.status = ClusterHealthStatus.RED;
+            } else if (clusterState.blocks().hasIndexBlock(indexHealth.index(), GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
+                indexHealth.status = ClusterHealthStatus.RED;
+            } else if (indexHealth.shards().isEmpty()) { // might be since none has been created yet (two phase index creation)
+                indexHealth.status = ClusterHealthStatus.RED;
             } else {
                 for (ClusterShardHealth shardHealth : indexHealth) {
                     if (shardHealth.status() == ClusterHealthStatus.RED) {
@@ -244,6 +248,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
         response.status = ClusterHealthStatus.GREEN;
         if (!response.validationFailures().isEmpty()) {
+            response.status = ClusterHealthStatus.RED;
+        } else if (clusterState.blocks().hasGlobalBlock(GatewayService.NOT_RECOVERED_FROM_GATEWAY_BLOCK)) {
             response.status = ClusterHealthStatus.RED;
         } else {
             for (ClusterIndexHealth indexHealth : response) {

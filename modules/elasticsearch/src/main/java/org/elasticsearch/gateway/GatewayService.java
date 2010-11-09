@@ -112,6 +112,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     updateClusterStateBlockedOnNotRecovered();
                     logger.debug("not recovering from gateway, recover_after_time [{}]", recoverAfterTime);
                 } else {
+                    // first update the state that its blocked for not recovered, and then let recovery take its place
+                    // that way, we can wait till it is resolved
+                    updateClusterStateBlockedOnNotRecovered();
                     performStateRecovery(initialStateTimeout);
                 }
             }
@@ -179,11 +182,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             clusterService.submitStateUpdateTask("remove-index-block (all primary shards active for [" + index + "])", new ClusterStateUpdateTask() {
                                 @Override public ClusterState execute(ClusterState currentState) {
                                     // check if the block was removed...
-                                    if (!currentState.blocks().indices().containsKey(index)) {
-                                        return currentState;
-                                    }
-                                    // check if the block was removed...
-                                    if (!currentState.blocks().indices().get(index).contains(GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
+                                    if (!currentState.blocks().hasIndexBlock(index, GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
                                         return currentState;
                                     }
                                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

@@ -224,6 +224,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
                 if (request.state == State.CLOSE) { // no need to do shard allocated when closed...
+                    listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
                     return;
                 }
                 clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {

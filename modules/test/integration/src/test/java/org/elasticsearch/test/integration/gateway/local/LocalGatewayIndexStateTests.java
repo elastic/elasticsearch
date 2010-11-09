@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.gateway.local;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -87,6 +88,11 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.state().routingTable().index("test"), nullValue());
 
+        logger.info("--> verifying that the state is green");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.status(), equalTo(ClusterHealthStatus.GREEN));
+
         logger.info("--> trying to index into a closed index ...");
         try {
             client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
@@ -103,8 +109,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("gateway.type", "local").build());
         startNode("node2", settingsBuilder().put("gateway.type", "local").build());
 
-        logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        logger.info("--> waiting for two nodes");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(health.timedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();

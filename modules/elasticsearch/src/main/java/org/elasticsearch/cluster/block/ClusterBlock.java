@@ -104,6 +104,15 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         }
     }
 
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(id).append(",").append(description).append(", blocks ");
+        for (ClusterBlockLevel level : levels) {
+            sb.append(level.name()).append(",");
+        }
+        return sb.toString();
+    }
+
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

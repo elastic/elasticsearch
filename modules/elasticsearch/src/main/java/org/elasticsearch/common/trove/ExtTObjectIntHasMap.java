@@ -54,7 +54,7 @@ public class ExtTObjectIntHasMap<T> extends TObjectIntHashMap<T> {
         return this;
     }
 
-    @Override public int get(T key) {
+    @Override public final int get(T key) {
         int index = index(key);
         return index < 0 ? defaultReturnValue : _values[index];
     }

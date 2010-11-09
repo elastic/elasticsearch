@@ -74,6 +74,10 @@ public class AnalyzerMapper implements XContentMapper {
 
     private final String path;
 
+    public AnalyzerMapper() {
+        this(Defaults.PATH);
+    }
+
     public AnalyzerMapper(String path) {
         this.path = path;
     }

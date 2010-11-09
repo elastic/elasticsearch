@@ -58,7 +58,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private AllFieldMapper allFieldMapper = new AllFieldMapper();
 
-        private AnalyzerMapper analyzerMapper = new AnalyzerMapper(null);
+        private AnalyzerMapper analyzerMapper = new AnalyzerMapper();
 
         private NamedAnalyzer indexAnalyzer;
 

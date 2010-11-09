@@ -180,7 +180,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 } else {
                     return new FsChannelSnapshot(shardId, this.id, raf, lastPosition, operationCounter.get(), operationCounter.get());
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new TranslogException(shardId, "Failed to snapshot", e);
             }
         }

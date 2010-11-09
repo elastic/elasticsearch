@@ -64,12 +64,12 @@ public class ContentPath {
     }
 
     public void add(String name) {
-        if (index == path.length) { // resize
+        path[index++] = name;
+        if (index == path.length) { // expand if needed
             String[] newPath = new String[path.length + 10];
             System.arraycopy(path, 0, newPath, 0, path.length);
             path = newPath;
         }
-        path[index++] = name;
     }
 
     public void remove() {

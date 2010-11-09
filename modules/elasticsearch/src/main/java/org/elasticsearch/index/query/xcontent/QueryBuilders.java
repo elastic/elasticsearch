@@ -304,8 +304,19 @@ public abstract class QueryBuilders {
      *
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
+     * @deprecated Use filteredQuery instead (rename)
      */
     public static FilteredQueryBuilder filtered(XContentQueryBuilder queryBuilder, XContentFilterBuilder filterBuilder) {
+        return new FilteredQueryBuilder(queryBuilder, filterBuilder);
+    }
+
+    /**
+     * A query that applies a filter to the results of another query.
+     *
+     * @param queryBuilder  The query to apply the filter to
+     * @param filterBuilder The filter to apply on the query
+     */
+    public static FilteredQueryBuilder filteredQuery(XContentQueryBuilder queryBuilder, XContentFilterBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 

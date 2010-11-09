@@ -178,6 +178,14 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         if (indexRoutingTable != null && indexRoutingTable.allPrimaryShardsActive()) {
                             clusterService.submitStateUpdateTask("remove-index-block (all primary shards active for [" + index + "])", new ClusterStateUpdateTask() {
                                 @Override public ClusterState execute(ClusterState currentState) {
+                                    // check if the block was removed...
+                                    if (!currentState.blocks().indices().containsKey(index)) {
+                                        return currentState;
+                                    }
+                                    // check if the block was removed...
+                                    if (!currentState.blocks().indices().get(index).contains(GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
+                                        return currentState;
+                                    }
                                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                                     blocks.removeIndexBlock(index, GatewayService.INDEX_NOT_RECOVERED_BLOCK);
                                     return ClusterState.builder().state(currentState).blocks(blocks).build();

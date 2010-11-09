@@ -531,7 +531,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             } catch (Exception e) {
                 // no file
             }
-            if (!fileName.contains("segment") && md != null && fileInfo.isSame(md)) {
+            // we don't compute checksum for segments, so always recover them
+            if (!fileName.startsWith("segments") && md != null && fileInfo.isSame(md)) {
                 numberOfFiles++;
                 totalSize += md.length();
                 numberOfReusedFiles++;

@@ -34,9 +34,13 @@ public class AnalyzerMapper implements XContentMapper {
 
     public static final String CONTENT_TYPE = "_analyzer";
 
+    public static class Defaults {
+        public static final String PATH = "_analyzer";
+    }
+
     public static class Builder extends XContentMapper.Builder<Builder, AnalyzerMapper> {
 
-        private String field = null;
+        private String field = Defaults.PATH;
 
         public Builder() {
             super(CONTENT_TYPE);
@@ -100,11 +104,11 @@ public class AnalyzerMapper implements XContentMapper {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (path == null) {
+        if (path.equals(Defaults.PATH)) {
             return;
         }
         builder.startObject(CONTENT_TYPE);
-        if (path != null) {
+        if (!path.equals(Defaults.PATH)) {
             builder.field("path", path);
         }
         builder.endObject();

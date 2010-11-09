@@ -100,7 +100,8 @@ public class RecoverySource extends AbstractComponent {
                         StoreFileMetaData md = shard.store().metaData(name);
                         boolean useExisting = false;
                         if (request.existingFiles().containsKey(name)) {
-                            if (!name.contains("segment") && md.isSame(request.existingFiles().get(name))) {
+                            // we don't compute checksum for segments, so always recover them
+                            if (!name.startsWith("segments") && md.isSame(request.existingFiles().get(name))) {
                                 response.phase1ExistingFileNames.add(name);
                                 response.phase1ExistingFileSizes.add(md.length());
                                 existingTotalSize += md.length();

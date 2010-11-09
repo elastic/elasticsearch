@@ -233,10 +233,12 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         public IndexOutput createOutput(String name, boolean computeChecksum) throws IOException {
             IndexOutput out = delegate.createOutput(name);
             // delete the relevant cks file for an existing file, if exists
-            try {
-                delegate.deleteFile(name + ".cks");
-            } catch (Exception e) {
-                // ignore
+            if (filesMetadata.containsKey(name)) {
+                try {
+                    delegate.deleteFile(name + ".cks");
+                } catch (Exception e) {
+                    // ignore
+                }
             }
             synchronized (mutex) {
                 StoreFileMetaData metaData = new StoreFileMetaData(name, -1, -1, null);
@@ -285,25 +287,11 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         @Override public void sync(String name) throws IOException {
             if (sync) {
                 delegate.sync(name);
-                try {
-                    if (delegate.fileExists(name + ".cks")) {
-                        delegate.sync(name + ".cks");
-                    }
-                } catch (Exception e) {
-                    //ignore
-                }
             }
         }
 
         @Override public void forceSync(String name) throws IOException {
             delegate.sync(name);
-            try {
-                if (delegate.fileExists(name + ".cks")) {
-                    delegate.sync(name + ".cks");
-                }
-            } catch (Exception e) {
-                //ignore
-            }
         }
     }
 
@@ -321,6 +309,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             if (computeChecksum) {
                 if ("segments.gen".equals(name)) {
                     // no need to create checksum for segments.gen since its not snapshot to recovery
+                    this.digest = null;
+                } else if (name.startsWith("segments")) {
+                    // don't compute checksum for segments files, so pure Lucene can open this directory
+                    // and since we, in any case, always recover the segments files
                     this.digest = null;
                 } else {
                     this.digest = Digest.getMd5Digest();

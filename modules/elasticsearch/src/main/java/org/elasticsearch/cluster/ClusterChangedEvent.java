@@ -60,6 +60,16 @@ public class ClusterChangedEvent {
         return state.routingTable() != previousState.routingTable();
     }
 
+    public boolean indexRoutingTableChanged(String index) {
+        if (!state.routingTable().hasIndex(index) && !previousState.routingTable().hasIndex(index)) {
+            return false;
+        }
+        if (state.routingTable().hasIndex(index) && previousState.routingTable().hasIndex(index)) {
+            return state.routingTable().index(index) != previousState.routingTable().index(index);
+        }
+        return true;
+    }
+
     public boolean metaDataChanged() {
         return state.metaData() != previousState.metaData();
     }

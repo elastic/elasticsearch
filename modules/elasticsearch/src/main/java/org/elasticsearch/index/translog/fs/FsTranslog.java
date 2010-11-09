@@ -202,7 +202,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     newSnapshot.seekForward(snapshot.position());
                     return newSnapshot;
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new TranslogException(shardId, "Failed to snapshot", e);
             }
         }

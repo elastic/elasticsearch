@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -246,6 +247,14 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
                 builder.enabled(nodeBooleanValue(fieldNode));
             } else if (fieldName.equals("compress") && fieldNode != null) {
                 builder.compress(nodeBooleanValue(fieldNode));
+            } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
+                if (fieldNode instanceof Number) {
+                    builder.compressThreshold(((Number) fieldNode).longValue());
+                    builder.compress(true);
+                } else {
+                    builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
+                    builder.compress(true);
+                }
             }
         }
         return builder;

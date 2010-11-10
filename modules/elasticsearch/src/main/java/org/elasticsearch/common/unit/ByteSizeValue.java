@@ -123,6 +123,10 @@ public class ByteSizeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
+    public static ByteSizeValue parseBytesSizeValue(String sValue) throws ElasticSearchParseException {
+        return parseBytesSizeValue(sValue, null);
+    }
+
     public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue) throws ElasticSearchParseException {
         if (sValue == null) {
             return defaultValue;

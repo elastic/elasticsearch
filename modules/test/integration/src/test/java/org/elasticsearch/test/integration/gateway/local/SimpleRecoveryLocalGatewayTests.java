@@ -51,21 +51,69 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
+    @Test public void testX() throws Exception {
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        node1.client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
+                .field("_id", "10990239")
+                .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "10990473").setSource(jsonBuilder().startObject()
+                .field("_id", "10990473")
+                .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "10990513").setSource(jsonBuilder().startObject()
+                .field("_id", "10990513")
+                .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "10990695").setSource(jsonBuilder().startObject()
+                .field("_id", "10990695")
+                .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "11026351").setSource(jsonBuilder().startObject()
+                .field("_id", "11026351")
+                .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
+
+        node1.client().admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().count(), equalTo(2l));
+
+        closeNode("node1");
+        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
+        assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().count(), equalTo(2l));
+
+        closeNode("node1");
+        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
+        assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().count(), equalTo(2l));
+    }
+
     @Test public void testSingleNodeNoFlush() throws Exception {
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
         cleanAndCloseNodes();
 
         Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
-        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").field("num", 1).endObject()).execute().actionGet();
-        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").field("num", 2).endObject()).execute().actionGet();
+        for (int i = 0; i < 100; i++) {
+            node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("_id", "1").field("field", "value1").startArray("num").value(14).value(179).endArray().endObject()).execute().actionGet();
+            node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("_id", "2").field("field", "value2").startArray("num").value(14).endArray().endObject()).execute().actionGet();
+        }
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
             assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet().count(), equalTo(1l));
             assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet().count(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 1)).execute().actionGet().count(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 2)).execute().actionGet().count(), equalTo(1l));
+            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet().count(), equalTo(1l));
         }
 
         closeNode("node1");
@@ -81,8 +129,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
             assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet().count(), equalTo(1l));
             assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet().count(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 1)).execute().actionGet().count(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 2)).execute().actionGet().count(), equalTo(1l));
+            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet().count(), equalTo(1l));
         }
 
         closeNode("node1");
@@ -98,8 +145,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
             assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet().count(), equalTo(1l));
             assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet().count(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 1)).execute().actionGet().count(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 2)).execute().actionGet().count(), equalTo(1l));
+            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet().count(), equalTo(1l));
         }
     }
 

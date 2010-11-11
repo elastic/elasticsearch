@@ -155,7 +155,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
         private void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             for (Map.Entry<String, Object> entry : propsNode.entrySet()) {
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
 
                 String type;

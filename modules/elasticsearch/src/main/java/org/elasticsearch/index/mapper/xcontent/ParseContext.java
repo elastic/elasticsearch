@@ -27,6 +27,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -59,6 +62,8 @@ public class ParseContext {
 
     private StringBuilder stringBuilder = new StringBuilder();
 
+    private Map<String, String> ignoredValues = new HashMap<String, String>();
+
     private ParsedIdState parsedIdState;
 
     private boolean mappersAdded = false;
@@ -87,6 +92,7 @@ public class ParseContext {
         this.mappersAdded = false;
         this.listener = listener;
         this.allEntries = new AllEntries();
+        this.ignoredValues.clear();
     }
 
     public XContentDocumentMapperParser docMapperParser() {
@@ -151,6 +157,14 @@ public class ParseContext {
 
     public ParsedIdState parsedIdState() {
         return this.parsedIdState;
+    }
+
+    public void ignoredValue(String indexName, String value) {
+        ignoredValues.put(indexName, value);
+    }
+
+    public String ignoredValue(String indexName) {
+        return ignoredValues.get(indexName);
     }
 
     /**

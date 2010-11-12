@@ -28,6 +28,8 @@ import org.apache.lucene.document.Fieldable;
  */
 public class DocumentBuilder {
 
+    public static final Document EMPTY = new Document();
+
     public static DocumentBuilder doc() {
         return new DocumentBuilder();
     }

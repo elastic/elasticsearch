@@ -244,9 +244,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         tempFieldMappers.add(sourceFieldMapper);
         tempFieldMappers.add(uidFieldMapper);
         tempFieldMappers.add(allFieldMapper);
-        if (boostFieldMapper != null) {
-            tempFieldMappers.add(boostFieldMapper);
-        }
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(new FieldMapperListener() {
             @Override public void fieldMapper(FieldMapper fieldMapper) {
@@ -415,7 +412,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 }
                 fieldMapperListener.fieldMapper(sourceFieldMapper);
                 fieldMapperListener.fieldMapper(typeFieldMapper);
-                fieldMapperListener.fieldMapper(idFieldMapper);
                 fieldMapperListener.fieldMapper(uidFieldMapper);
                 fieldMapperListener.fieldMapper(allFieldMapper);
                 rootObjectMapper.traverse(fieldMapperListener);

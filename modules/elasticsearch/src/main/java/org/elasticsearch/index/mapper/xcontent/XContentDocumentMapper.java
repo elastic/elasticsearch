@@ -391,7 +391,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 parser.close();
             }
         }
-        return new ParsedDocument(context.uid(), context.id(), context.type(), context.doc(), context.analyzer(), source, context.mappersAdded());
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), context.doc(), context.analyzer(), source, context.mappersAdded());
+        // reset the context to free up memory
+        context.reset(null, null, null, null, null);
+        return doc;
     }
 
     void addFieldMapper(FieldMapper fieldMapper) {

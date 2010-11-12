@@ -35,11 +35,89 @@ import static org.hamcrest.Matchers.*;
  */
 public class AnalyzerMapperTests {
 
-    @Test public void testLatLonValues() throws Exception {
+    @Test public void testAnalyzerMapping() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_analyzer").field("path", "field_analyzer").endObject()
+                .startObject("properties")
+                .startObject("field1").field("type", "string").endObject()
+                .startObject("field2").field("type", "string").field("analyzer", "simple").endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        XContentDocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field_analyzer", "whitespace")
+                .field("field1", "value1")
+                .field("field2", "value2")
+                .endObject().copiedBytes());
+
+        FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
+        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
+
+        // check that it serializes and de-serializes correctly
+
+        XContentDocumentMapper reparsedMapper = MapperTests.newParser().parse(documentMapper.mappingSource().string());
+
+        doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field_analyzer", "whitespace")
+                .field("field1", "value1")
+                .field("field2", "value2")
+                .endObject().copiedBytes());
+
+        analyzer = (FieldNameAnalyzer) doc.analyzer();
+        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
+    }
+
+
+    @Test public void testAnalyzerMappingExplicit() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_analyzer").field("path", "field_analyzer").endObject()
                 .startObject("properties")
                 .startObject("field_analyzer").field("type", "string").endObject()
+                .startObject("field1").field("type", "string").endObject()
+                .startObject("field2").field("type", "string").field("analyzer", "simple").endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        XContentDocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field_analyzer", "whitespace")
+                .field("field1", "value1")
+                .field("field2", "value2")
+                .endObject().copiedBytes());
+
+        FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
+        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
+
+        // check that it serializes and de-serializes correctly
+
+        XContentDocumentMapper reparsedMapper = MapperTests.newParser().parse(documentMapper.mappingSource().string());
+
+        doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field_analyzer", "whitespace")
+                .field("field1", "value1")
+                .field("field2", "value2")
+                .endObject().copiedBytes());
+
+        analyzer = (FieldNameAnalyzer) doc.analyzer();
+        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
+        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
+    }
+
+    @Test public void testAnalyzerMappingNotIndexedNorStored() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_analyzer").field("path", "field_analyzer").endObject()
+                .startObject("properties")
+                .startObject("field_analyzer").field("type", "string").field("index", "no").field("store", "no").endObject()
                 .startObject("field1").field("type", "string").endObject()
                 .startObject("field2").field("type", "string").field("analyzer", "simple").endObject()
                 .endObject()

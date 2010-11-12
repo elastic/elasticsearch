@@ -144,6 +144,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
             context.allEntries().addText(names.fullName(), value, boost);
         }
         if (!indexed() && !stored()) {
+            context.ignoredValue(names.indexName(), value);
             return null;
         }
         return new Field(names.indexName(), value, store, index, termVector);

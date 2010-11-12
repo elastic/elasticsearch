@@ -90,6 +90,9 @@ public class AnalyzerMapper implements XContentMapper {
         Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
         if (path != null) {
             String value = context.doc().get(path);
+            if (value == null) {
+                value = context.ignoredValue(path);
+            }
             if (value != null) {
                 analyzer = context.analysisService().analyzer(value);
                 if (analyzer == null) {

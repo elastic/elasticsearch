@@ -193,11 +193,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                                     }
 
                                     @Override public void onFailure(Throwable t) {
-                                        logger.error("failed to create index [{}]", indexMetaData.index(), t);
+                                        logger.error("failed to create index [{}]", t, indexMetaData.index());
                                     }
                                 });
                     } catch (IOException e) {
-                        logger.error("failed to create index [{}]", indexMetaData.index(), e);
+                        logger.error("failed to create index [{}]", e, indexMetaData.index());
                     }
                 }
             }

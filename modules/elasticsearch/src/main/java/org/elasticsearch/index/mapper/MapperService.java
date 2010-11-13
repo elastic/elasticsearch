@@ -40,6 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.InvalidTypeNameException;
 
 import javax.annotation.Nullable;
 import java.io.File;

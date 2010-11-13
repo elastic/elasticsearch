@@ -17,14 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.indices;
+
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class InvalidTypeNameException extends MapperException {
+public class InvalidAliasNameException extends IndexException {
 
-    public InvalidTypeNameException(String message) {
-        super(message);
+    public InvalidAliasNameException(Index index, String name, String desc) {
+        super(index, "Invalid alias name [" + name + "], " + desc);
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.util.Set;
 
@@ -55,6 +56,10 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                 for (AliasAction aliasAction : request.actions) {
                     if (!currentState.metaData().hasIndex(aliasAction.index())) {
                         listener.onFailure(new IndexMissingException(new Index(aliasAction.index())));
+                        return currentState;
+                    }
+                    if (currentState.metaData().hasIndex(aliasAction.alias())) {
+                        listener.onFailure(new InvalidAliasNameException(new Index(aliasAction.index()), aliasAction.alias(), "an index exists with the same name as the alias"));
                         return currentState;
                     }
                 }

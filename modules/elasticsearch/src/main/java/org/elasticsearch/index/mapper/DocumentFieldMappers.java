@@ -20,14 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.collect.*;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
@@ -117,6 +116,20 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     public FieldMappers fullName(String fullName) {
         return fullNameFieldMappers.get(fullName);
+    }
+
+    public Set<String> simpleMatchToIndexNames(String pattern) {
+        Set<String> fields = Sets.newHashSet();
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
+                fields.add(fieldMapper.names().indexName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
+                fields.add(fieldMapper.names().name());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
+                fields.add(fieldMapper.names().indexName());
+            }
+        }
+        return fields;
     }
 
     /**

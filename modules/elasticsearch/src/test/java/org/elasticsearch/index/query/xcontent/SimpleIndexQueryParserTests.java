@@ -140,6 +140,17 @@ public class SimpleIndexQueryParserTests {
         assertThat(((TermQuery) bQuery.clauses().get(1).getQuery()).getTerm(), equalTo(new Term("name", "test")));
     }
 
+    @Test public void testQueryStringFieldsMatch() throws Exception {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/query-fields-match.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery bQuery = (BooleanQuery) parsedQuery;
+        assertThat(bQuery.clauses().size(), equalTo(2));
+        assertThat(((TermQuery) bQuery.clauses().get(0).getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
+        assertThat(((TermQuery) bQuery.clauses().get(1).getQuery()).getTerm(), equalTo(new Term("name.last", "test")));
+    }
+
     @Test public void testQueryStringFields2Builder() throws Exception {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(true)).query();
@@ -400,7 +411,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testPrefixFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), prefixFilter("name.first", "sh"))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), prefixFilter("name.first", "sh"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         PrefixFilter prefixFilter = (PrefixFilter) filteredQuery.getFilter();
@@ -507,7 +518,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testRangeFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         Filter filter = ((FilteredQuery) parsedQuery).getFilter();
@@ -554,7 +565,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testNumericRangeFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), numericRangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), numericRangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         Filter filter = ((FilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
@@ -594,7 +605,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testAndFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), andFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), andFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
@@ -646,7 +657,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testOrFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), orFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), orFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
@@ -684,7 +695,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testNotFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), notFilter(termFilter("name.first", "shay1")))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), notFilter(termFilter("name.first", "shay1")))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
@@ -751,7 +762,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), termFilter("name.last", "banon"))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termFilter("name.last", "banon"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
@@ -834,7 +845,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testTermsFilterQueryBuilder() throws Exception {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
@@ -1037,7 +1048,7 @@ public class SimpleIndexQueryParserTests {
 
     @Test public void testQueryFilterBuilder() throws Exception {
         IndexQueryParser queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), queryFilter(termQuery("name.last", "banon")))).query();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), queryFilter(termQuery("name.last", "banon")))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();

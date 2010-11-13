@@ -30,6 +30,13 @@ import java.util.regex.Pattern;
 public class Regex {
 
     /**
+     * Is the str a simple match pattern.
+     */
+    public static boolean isSimpleMatchPattern(String str) {
+        return str.indexOf('*') != -1;
+    }
+
+    /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
      * arbitrary number of pattern parts), as well as direct equality.

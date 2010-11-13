@@ -87,7 +87,7 @@ public class RecoverySource extends AbstractComponent {
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
         final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
-        logger.trace("starting recovery to {}, mark_as_relocated {}", request.targetNode(), request.markAsRelocated());
+        logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final RecoveryResponse response = new RecoveryResponse();
         shard.recover(new Engine.RecoveryHandler() {
             @Override public void phase1(final SnapshotIndexCommit snapshot) throws ElasticSearchException {

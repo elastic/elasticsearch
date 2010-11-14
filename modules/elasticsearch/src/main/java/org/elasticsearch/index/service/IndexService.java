@@ -62,6 +62,11 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
      */
     void cleanShard(int shardId) throws ElasticSearchException;
 
+    /**
+     * Removes the shard, does not delete local data or the gateway.
+     */
+    void removeShard(int shardId) throws ElasticSearchException;
+
     int numberOfShards();
 
     ImmutableSet<Integer> shardIds();

@@ -422,13 +422,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }, retryAfter);
         }
 
-        @Override public void onIgnoreRecovery(boolean cleanShard, String reason) {
-            if (!cleanShard) {
+        @Override public void onIgnoreRecovery(boolean removeShard, String reason) {
+            if (!removeShard) {
                 return;
             }
             if (indexService.hasShard(shardRouting.shardId().id())) {
                 try {
-                    indexService.cleanShard(shardRouting.shardId().id());
+                    indexService.removeShard(shardRouting.shardId().id());
                 } catch (IndexShardMissingException e) {
                     // the node got closed on us, ignore it
                 } catch (Exception e1) {

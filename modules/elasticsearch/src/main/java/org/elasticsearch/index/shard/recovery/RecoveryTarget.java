@@ -194,6 +194,7 @@ public class RecoveryTarget extends AbstractComponent {
             removeAndCleanOnGoingRecovery(request.shardId());
             listener.onRecoveryDone();
         } catch (Exception e) {
+//            logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
             if (shard.state() == IndexShardState.CLOSED) {
                 removeAndCleanOnGoingRecovery(request.shardId());
                 listener.onIgnoreRecovery(false, "shard closed, stop recovery");
@@ -211,13 +212,21 @@ public class RecoveryTarget extends AbstractComponent {
                 cause = cause.getCause();
             }
 
-            if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                listener.onRetryRecovery(TimeValue.timeValueMillis(500));
-                return;
-            }
+            // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
+
+
+            // here, we check against ignore recovery options
+
+            // in general, no need to clean the shard on ignored recovery, since we want to try and reuse it later
+            // it will get deleted in the IndicesStore if all are allocated and no shard exists on this node...
 
             removeAndCleanOnGoingRecovery(request.shardId());
-            logger.trace("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
+
+            if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
+                // no need to retry here, since we only get to try and recover when there is an existing shard on the other side
+                listener.onIgnoreRecovery(true, "shard does not exists on source, ignore...");
+                return;
+            }
 
             if (cause instanceof ConnectTransportException) {
                 listener.onIgnoreRecovery(true, "source node disconnected");
@@ -229,6 +238,7 @@ public class RecoveryTarget extends AbstractComponent {
                 return;
             }
 
+            logger.trace("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
             listener.onRecoveryFailure(new RecoveryFailedException(request, e), true);
         }
     }
@@ -238,7 +248,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         void onRetryRecovery(TimeValue retryAfter);
 
-        void onIgnoreRecovery(boolean cleanShard, String reason);
+        void onIgnoreRecovery(boolean removeShard, String reason);
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }

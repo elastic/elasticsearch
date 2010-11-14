@@ -40,6 +40,10 @@ public final class XContentMapperBuilders {
         return new IdFieldMapper.Builder();
     }
 
+    public static RoutingFieldMapper.Builder routing() {
+        return new RoutingFieldMapper.Builder();
+    }
+
     public static UidFieldMapper.Builder uid() {
         return new UidFieldMapper.Builder();
     }

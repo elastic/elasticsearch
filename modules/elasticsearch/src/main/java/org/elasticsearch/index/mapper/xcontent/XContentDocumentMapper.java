@@ -54,6 +54,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private SourceFieldMapper sourceFieldMapper = new SourceFieldMapper();
 
+        private RoutingFieldMapper routingFieldMapper = new RoutingFieldMapper();
+
         private BoostFieldMapper boostFieldMapper = new BoostFieldMapper();
 
         private AllFieldMapper allFieldMapper = new AllFieldMapper();
@@ -107,6 +109,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             return this;
         }
 
+        public Builder routingField(RoutingFieldMapper.Builder builder) {
+            this.routingFieldMapper = builder.build(builderContext);
+            return this;
+        }
+
         public Builder boostField(BoostFieldMapper.Builder builder) {
             this.boostFieldMapper = builder.build(builderContext);
             return this;
@@ -143,7 +150,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         public XContentDocumentMapper build(XContentDocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new XContentDocumentMapper(index, docMapperParser, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
-                    sourceFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
+                    sourceFieldMapper, routingFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
 
@@ -174,6 +181,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final SourceFieldMapper sourceFieldMapper;
 
+    private final RoutingFieldMapper routingFieldMapper;
+
     private final BoostFieldMapper boostFieldMapper;
 
     private final AllFieldMapper allFieldMapper;
@@ -202,6 +211,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   TypeFieldMapper typeFieldMapper,
                                   IndexFieldMapper indexFieldMapper,
                                   SourceFieldMapper sourceFieldMapper,
+                                  RoutingFieldMapper routingFieldMapper,
                                   AllFieldMapper allFieldMapper,
                                   AnalyzerMapper analyzerMapper,
                                   NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
@@ -216,6 +226,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         this.typeFieldMapper = typeFieldMapper;
         this.indexFieldMapper = indexFieldMapper;
         this.sourceFieldMapper = sourceFieldMapper;
+        this.routingFieldMapper = routingFieldMapper;
         this.allFieldMapper = allFieldMapper;
         this.analyzerMapper = analyzerMapper;
         this.boostFieldMapper = boostFieldMapper;
@@ -234,6 +245,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         if (boostFieldMapper != null) {
             rootObjectMapper.putMapper(boostFieldMapper);
         }
+        rootObjectMapper.putMapper(routingFieldMapper);
 
         final List<FieldMapper> tempFieldMappers = newArrayList();
         // add the basic ones
@@ -316,26 +328,30 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         return this.fieldMappers;
     }
 
-    @Override public ParsedDocument parse(byte[] source) {
-        return parse(null, null, source);
+    @Override public ParsedDocument parse(byte[] source) throws MapperParsingException {
+        return parse(SourceToParse.source(source));
     }
 
-    @Override public ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source) throws MapperParsingException {
-        return parse(type, id, source, ParseListener.EMPTY);
+    @Override public ParsedDocument parse(String type, String id, byte[] source) throws MapperParsingException {
+        return parse(SourceToParse.source(source).type(type).id(id));
     }
 
-    @Override public ParsedDocument parse(String type, String id, byte[] source, ParseListener listener) {
+    @Override public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
+        return parse(source, null);
+    }
+
+    @Override public ParsedDocument parse(SourceToParse source, @Nullable ParseListener listener) throws MapperParsingException {
         ParseContext context = cache.get().get();
 
-        if (type != null && !type.equals(this.type)) {
-            throw new MapperParsingException("Type mismatch, provide type [" + type + "] but mapper is of type [" + this.type + "]");
+        if (source.type() != null && !source.type().equals(this.type)) {
+            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]");
         }
-        type = this.type;
+        source.type(this.type);
 
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            context.reset(parser, new Document(), type, source, listener);
+            parser = XContentFactory.xContent(source.source()).createParser(source.source());
+            context.reset(parser, new Document(), type, source.source(), listener);
 
             // will result in START_OBJECT
             XContentParser.Token token = parser.nextToken();
@@ -363,18 +379,22 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 sourceFieldMapper.parse(context);
             }
             // set the id if we have it so we can validate it later on, also, add the uid if we can
-            if (id != null) {
-                context.id(id);
+            if (source.id() != null) {
+                context.id(source.id());
                 uidFieldMapper.parse(context);
             }
             typeFieldMapper.parse(context);
+            if (source.routing() != null) {
+                context.externalValue(source.routing());
+                routingFieldMapper.parse(context);
+            }
 
             indexFieldMapper.parse(context);
 
             rootObjectMapper.parse(context);
 
             // if we did not get the id, we need to parse the uid into the document now, after it was added
-            if (id == null) {
+            if (source.id() == null) {
                 uidFieldMapper.parse(context);
             }
             if (context.parsedIdState() != ParseContext.ParsedIdState.PARSED) {
@@ -391,7 +411,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 parser.close();
             }
         }
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), context.doc(), context.analyzer(), source, context.mappersAdded());
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), context.doc(), context.analyzer(), source.source(), context.mappersAdded());
         // reset the context to free up memory
         context.reset(null, null, null, null, null);
         return doc;

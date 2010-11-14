@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -135,13 +136,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Override protected IndexResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
         IndexShard indexShard = indexShard(shardRequest);
         final IndexRequest request = shardRequest.request;
+        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id()).routing(request.routing());
         ParsedDocument doc;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(request.type(), request.id(), request.source());
+            Engine.Index index = indexShard.prepareIndex(sourceToParse);
             index.refresh(request.refresh());
             doc = indexShard.index(index);
         } else {
-            Engine.Create create = indexShard.prepareCreate(request.type(), request.id(), request.source());
+            Engine.Create create = indexShard.prepareCreate(sourceToParse);
             create.refresh(request.refresh());
             doc = indexShard.create(create);
         }
@@ -154,12 +156,13 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
+        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id()).routing(request.routing());
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(request.type(), request.id(), request.source());
+            Engine.Index index = indexShard.prepareIndex(sourceToParse);
             index.refresh(request.refresh());
             indexShard.index(index);
         } else {
-            Engine.Create create = indexShard.prepareCreate(request.type(), request.id(), request.source());
+            Engine.Create create = indexShard.prepareCreate(sourceToParse);
             create.refresh(request.refresh());
             indexShard.create(create);
         }

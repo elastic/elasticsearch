@@ -90,7 +90,7 @@ public class ParseContext {
         this.path.reset();
         this.parsedIdState = ParsedIdState.NO;
         this.mappersAdded = false;
-        this.listener = listener;
+        this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
     }

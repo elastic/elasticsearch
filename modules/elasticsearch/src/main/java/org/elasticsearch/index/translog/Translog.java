@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.service.IndexShard;
 
@@ -232,7 +233,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void execute(IndexShard indexShard) throws ElasticSearchException {
-            indexShard.create(type, id, source);
+            indexShard.create(indexShard.prepareCreate(SourceToParse.source(source).type(type).id(id)));
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
@@ -291,7 +292,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void execute(IndexShard indexShard) throws ElasticSearchException {
-            indexShard.index(type, id, source);
+            indexShard.index(indexShard.prepareIndex(SourceToParse.source(source).type(type).id(id)));
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {

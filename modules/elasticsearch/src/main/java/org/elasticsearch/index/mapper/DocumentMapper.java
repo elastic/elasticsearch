@@ -91,7 +91,7 @@ public interface DocumentMapper {
      * <p>Validates that the source has the provided id and type. Note, most times
      * we will already have the id and the type even though they exist in the source as well.
      */
-    ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source) throws MapperParsingException;
+    ParsedDocument parse(byte[] source) throws MapperParsingException;
 
     /**
      * Parses the source into a parsed document.
@@ -99,12 +99,23 @@ public interface DocumentMapper {
      * <p>Validates that the source has the provided id and type. Note, most times
      * we will already have the id and the type even though they exist in the source as well.
      */
-    ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source, @Nullable ParseListener listener) throws MapperParsingException;
+    ParsedDocument parse(String type, String id, byte[] source) throws MapperParsingException;
 
     /**
-     * Parses the source into the parsed document.
+     * Parses the source into a parsed document.
+     *
+     * <p>Validates that the source has the provided id and type. Note, most times
+     * we will already have the id and the type even though they exist in the source as well.
      */
-    ParsedDocument parse(byte[] source) throws MapperParsingException;
+    ParsedDocument parse(SourceToParse source) throws MapperParsingException;
+
+    /**
+     * Parses the source into a parsed document.
+     *
+     * <p>Validates that the source has the provided id and type. Note, most times
+     * we will already have the id and the type even though they exist in the source as well.
+     */
+    ParsedDocument parse(SourceToParse source, @Nullable ParseListener listener) throws MapperParsingException;
 
     /**
      * Merges this document mapper with the provided document mapper. If there are conflicts, the

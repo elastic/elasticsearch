@@ -40,10 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -59,6 +56,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.ScheduledFuture;
+
+import static org.elasticsearch.index.mapper.SourceToParse.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -208,17 +207,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return engine.estimateFlushableMemorySize();
     }
 
-    @Override public Engine.Create prepareCreate(String type, String id, byte[] source) throws ElasticSearchException {
-        DocumentMapper docMapper = mapperService.type(type);
+    @Override public Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException {
+        DocumentMapper docMapper = mapperService.type(source.type());
         if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
+            throw new DocumentMapperNotFoundException("No mapper found for type [" + source.type() + "]");
         }
-        ParsedDocument doc = docMapper.parse(type, id, source);
+        ParsedDocument doc = docMapper.parse(source);
         return new Engine.Create(doc);
-    }
-
-    @Override public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
-        return create(prepareCreate(type, id, source));
     }
 
     @Override public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
@@ -230,17 +225,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return create.parsedDoc();
     }
 
-    @Override public Engine.Index prepareIndex(String type, String id, byte[] source) throws ElasticSearchException {
-        DocumentMapper docMapper = mapperService.type(type);
+    @Override public Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException {
+        DocumentMapper docMapper = mapperService.type(source.type());
         if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
+            throw new DocumentMapperNotFoundException("No mapper found for type [" + source.type() + "]");
         }
-        ParsedDocument doc = docMapper.parse(type, id, source);
+        ParsedDocument doc = docMapper.parse(source);
         return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc);
-    }
-
-    @Override public ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException {
-        return index(prepareIndex(type, id, source));
     }
 
     @Override public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
@@ -258,10 +249,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
         }
         return new Engine.Delete(docMapper.uidMapper().term(type, id));
-    }
-
-    @Override public void delete(String type, String id) {
-        delete(prepareDelete(type, id));
     }
 
     @Override public void delete(Term uid) {
@@ -474,11 +461,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         switch (operation.opType()) {
             case CREATE:
                 Translog.Create create = (Translog.Create) operation;
-                engine.create(prepareCreate(create.type(), create.id(), create.source()));
+                engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())));
                 break;
             case SAVE:
                 Translog.Index index = (Translog.Index) operation;
-                engine.index(prepareIndex(index.type(), index.id(), index.source()));
+                engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())));
                 break;
             case DELETE:
                 Translog.Delete delete = (Translog.Delete) operation;

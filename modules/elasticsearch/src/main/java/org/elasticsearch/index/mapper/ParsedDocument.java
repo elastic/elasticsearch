@@ -23,6 +23,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 
 /**
+ * The result of parsing a document.
+ *
  * @author kimchy (shay.banon)
  */
 public class ParsedDocument {

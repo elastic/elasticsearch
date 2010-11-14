@@ -214,6 +214,11 @@ public class RecoveryTarget extends AbstractComponent {
 
             // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
 
+            if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
+                // no need to retry here, since we only get to try and recover when there is an existing shard on the other side
+                listener.onRetryRecovery(TimeValue.timeValueMillis(500));
+                return;
+            }
 
             // here, we check against ignore recovery options
 
@@ -221,12 +226,6 @@ public class RecoveryTarget extends AbstractComponent {
             // it will get deleted in the IndicesStore if all are allocated and no shard exists on this node...
 
             removeAndCleanOnGoingRecovery(request.shardId());
-
-            if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                // no need to retry here, since we only get to try and recover when there is an existing shard on the other side
-                listener.onIgnoreRecovery(true, "shard does not exists on source, ignore...");
-                return;
-            }
 
             if (cause instanceof ConnectTransportException) {
                 listener.onIgnoreRecovery(true, "source node disconnected");

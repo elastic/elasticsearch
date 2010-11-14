@@ -40,6 +40,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -104,10 +105,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
+                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id()).routing(indexRequest.routing());
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        ops[i] = indexShard.prepareIndex(indexRequest.type(), indexRequest.id(), indexRequest.source());
+                        ops[i] = indexShard.prepareIndex(sourceToParse);
                     } else {
-                        ops[i] = indexShard.prepareCreate(indexRequest.type(), indexRequest.id(), indexRequest.source());
+                        ops[i] = indexShard.prepareCreate(sourceToParse);
                     }
                 } catch (Exception e) {
                     responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
@@ -185,10 +187,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
+                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id()).routing(indexRequest.routing());
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        ops[i] = indexShard.prepareIndex(indexRequest.type(), indexRequest.id(), indexRequest.source());
+                        ops[i] = indexShard.prepareIndex(sourceToParse);
                     } else {
-                        ops[i] = indexShard.prepareCreate(indexRequest.type(), indexRequest.id(), indexRequest.source());
+                        ops[i] = indexShard.prepareCreate(sourceToParse);
                     }
                 } catch (Exception e) {
                     // ignore, we are on backup

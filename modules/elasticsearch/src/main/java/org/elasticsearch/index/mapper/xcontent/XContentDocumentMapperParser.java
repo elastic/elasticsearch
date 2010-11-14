@@ -145,6 +145,8 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
                 docBuilder.typeField(parseTypeField((Map<String, Object>) fieldNode, parserContext));
             } else if (UidFieldMapper.CONTENT_TYPE.equals(fieldName) || "uidField".equals(fieldName)) {
                 docBuilder.uidField(parseUidField((Map<String, Object>) fieldNode, parserContext));
+            } else if (RoutingFieldMapper.CONTENT_TYPE.equals(fieldName)) {
+                docBuilder.routingField(parseRoutingField((Map<String, Object>) fieldNode, parserContext));
             } else if (BoostFieldMapper.CONTENT_TYPE.equals(fieldName) || "boostField".equals(fieldName)) {
                 docBuilder.boostField(parseBoostField((Map<String, Object>) fieldNode, parserContext));
             } else if (AllFieldMapper.CONTENT_TYPE.equals(fieldName) || "allField".equals(fieldName)) {
@@ -209,6 +211,12 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
     private IdFieldMapper.Builder parseIdField(Map<String, Object> idNode, XContentMapper.TypeParser.ParserContext parserContext) {
         IdFieldMapper.Builder builder = id();
         parseField(builder, builder.name, idNode, parserContext);
+        return builder;
+    }
+
+    private RoutingFieldMapper.Builder parseRoutingField(Map<String, Object> routingNode, XContentMapper.TypeParser.ParserContext parserContext) {
+        RoutingFieldMapper.Builder builder = routing();
+        parseField(builder, builder.name, routingNode, parserContext);
         return builder;
     }
 

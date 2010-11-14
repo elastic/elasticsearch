@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 
@@ -48,23 +49,17 @@ public interface IndexShard extends IndexShardComponent, CloseableComponent {
      */
     ByteSizeValue estimateFlushableMemorySize() throws ElasticSearchException;
 
-    Engine.Create prepareCreate(String type, String id, byte[] source) throws ElasticSearchException;
-
-    ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException;
+    Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException;
 
     ParsedDocument create(Engine.Create create) throws ElasticSearchException;
 
-    Engine.Index prepareIndex(String type, String id, byte[] source) throws ElasticSearchException;
+    Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException;
 
     ParsedDocument index(Engine.Index index) throws ElasticSearchException;
-
-    ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException;
 
     Engine.Delete prepareDelete(String type, String id) throws ElasticSearchException;
 
     void delete(Engine.Delete delete) throws ElasticSearchException;
-
-    void delete(String type, String id) throws ElasticSearchException;
 
     void delete(Term uid) throws ElasticSearchException;
 

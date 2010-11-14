@@ -267,6 +267,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return true;
             }
 
+            // no shards, might be in the case between index gateway recovery and shards initialization
+            if (shards.size() == 0) {
+                retry(fromClusterEvent, shards.shardId());
+                return false;
+            }
+
             boolean foundPrimary = false;
             for (final ShardRouting shard : shards) {
                 // we only deal with primary shards here...

@@ -145,10 +145,28 @@ public class RollingRestartStressTest {
             if (clearNodeWork) {
                 FileSystemUtils.deleteRecursively(nodeWork);
             }
+
+            try {
+                ClusterHealthResponse clusterHealth = client.client().admin().cluster().prepareHealth()
+                        .setWaitForGreenStatus()
+                        .setWaitForNodes(Integer.toString(numberOfNodes + 0 /* client node*/))
+                        .setWaitForRelocatingShards(0)
+                        .setTimeout("10m").execute().actionGet();
+                if (clusterHealth.timedOut()) {
+                    logger.warn("timed out waiting for green status....");
+                }
+            } catch (Exception e) {
+                logger.warn("failed to execute cluster health....");
+            }
+
             nodes[nodeIndex] = NodeBuilder.nodeBuilder().settings(settings).node();
 
             try {
-                ClusterHealthResponse clusterHealth = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
+                ClusterHealthResponse clusterHealth = client.client().admin().cluster().prepareHealth()
+                        .setWaitForGreenStatus()
+                        .setWaitForNodes(Integer.toString(numberOfNodes + 1 /* client node*/))
+                        .setWaitForRelocatingShards(0)
+                        .setTimeout("10m").execute().actionGet();
                 if (clusterHealth.timedOut()) {
                     logger.warn("timed out waiting for green status....");
                 }
@@ -242,6 +260,8 @@ public class RollingRestartStressTest {
     }
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("es.logger.prefix", "");
+
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.shard.check_index", true)
                 .put("gateway.type", "none")
@@ -250,7 +270,7 @@ public class RollingRestartStressTest {
         RollingRestartStressTest test = new RollingRestartStressTest()
                 .settings(settings)
                 .numberOfNodes(4)
-                .initialNumberOfDocs(100000)
+                .initialNumberOfDocs(1000)
                 .textTokens(150)
                 .numberOfFields(10)
                 .cleanNodeWork(true)

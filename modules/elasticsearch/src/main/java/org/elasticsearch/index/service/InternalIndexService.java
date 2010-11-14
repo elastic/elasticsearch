@@ -268,6 +268,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         deleteShard(shardId, true, false, false);
     }
 
+    @Override public synchronized void removeShard(int shardId) throws ElasticSearchException {
+        deleteShard(shardId, false, false, false);
+    }
+
     private void deleteShard(int shardId, boolean delete, boolean snapshotGateway, boolean deleteGateway) throws ElasticSearchException {
         Injector shardInjector;
         IndexShard indexShard;

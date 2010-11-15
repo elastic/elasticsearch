@@ -172,10 +172,10 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         }
 
         ImmutableMap<String, Object> attributes = ImmutableMap.of();
-        if (mapping.containsKey("_attributes")) {
-            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.get("_attributes"));
+        if (mapping.containsKey("_meta")) {
+            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.get("_meta"));
         }
-        docBuilder.attributes(attributes);
+        docBuilder.meta(attributes);
 
         XContentDocumentMapper documentMapper = docBuilder.build(this);
         // update the source with the generated one

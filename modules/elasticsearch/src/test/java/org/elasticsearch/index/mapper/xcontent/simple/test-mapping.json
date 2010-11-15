@@ -1,6 +1,6 @@
 {
     person : {
-        "_attributes" : {
+        "_meta" : {
             "param1" : "value1"
         },
         date_formats : ["yyyy-MM-dd", "dd-MM-yyyy"],

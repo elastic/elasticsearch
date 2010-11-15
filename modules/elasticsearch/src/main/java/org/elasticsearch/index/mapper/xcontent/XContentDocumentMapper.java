@@ -70,7 +70,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private final RootObjectMapper rootObjectMapper;
 
-        private ImmutableMap<String, Object> attributes = ImmutableMap.of();
+        private ImmutableMap<String, Object> meta = ImmutableMap.of();
 
         private XContentMapper.BuilderContext builderContext = new XContentMapper.BuilderContext(new ContentPath(1));
 
@@ -79,8 +79,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             this.rootObjectMapper = builder.build(builderContext);
         }
 
-        public Builder attributes(ImmutableMap<String, Object> attributes) {
-            this.attributes = attributes;
+        public Builder meta(ImmutableMap<String, Object> meta) {
+            this.meta = meta;
             return this;
         }
 
@@ -149,7 +149,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         public XContentDocumentMapper build(XContentDocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new XContentDocumentMapper(index, docMapperParser, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
+            return new XContentDocumentMapper(index, docMapperParser, rootObjectMapper, meta, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
                     sourceFieldMapper, routingFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
@@ -167,7 +167,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final XContentDocumentMapperParser docMapperParser;
 
-    private volatile ImmutableMap<String, Object> attributes;
+    private volatile ImmutableMap<String, Object> meta;
 
     private volatile CompressedString mappingSource;
 
@@ -205,7 +205,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     public XContentDocumentMapper(String index, XContentDocumentMapperParser docMapperParser,
                                   RootObjectMapper rootObjectMapper,
-                                  ImmutableMap<String, Object> attributes,
+                                  ImmutableMap<String, Object> meta,
                                   UidFieldMapper uidFieldMapper,
                                   IdFieldMapper idFieldMapper,
                                   TypeFieldMapper typeFieldMapper,
@@ -219,7 +219,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         this.index = index;
         this.type = rootObjectMapper.name();
         this.docMapperParser = docMapperParser;
-        this.attributes = attributes;
+        this.meta = meta;
         this.rootObjectMapper = rootObjectMapper;
         this.uidFieldMapper = uidFieldMapper;
         this.idFieldMapper = idFieldMapper;
@@ -272,8 +272,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         return this.type;
     }
 
-    @Override public ImmutableMap<String, Object> attributes() {
-        return this.attributes;
+    @Override public ImmutableMap<String, Object> meta() {
+        return this.meta;
     }
 
     @Override public CompressedString mappingSource() {
@@ -448,7 +448,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         rootObjectMapper.merge(xContentMergeWith.rootObjectMapper, mergeContext);
         if (!mergeFlags.simulate()) {
             // let the merge with attributes to override the attributes
-            attributes = mergeWith.attributes();
+            meta = mergeWith.meta();
             // update the source of the merged one
             refreshSource();
         }
@@ -488,8 +488,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                     }
                 }
 
-                if (attributes != null && !attributes.isEmpty()) {
-                    builder.field("_attributes", attributes());
+                if (meta != null && !meta.isEmpty()) {
+                    builder.field("_meta", meta());
                 }
             }
             // no need to pass here id and boost, since they are added to the root object mapper

@@ -45,7 +45,7 @@ public interface DocumentMapper {
     /**
      * Attributes of this type mappings.
      */
-    ImmutableMap<String, Object> attributes();
+    ImmutableMap<String, Object> meta();
 
     /**
      * Generates the source of the mapper based on the current mappings.

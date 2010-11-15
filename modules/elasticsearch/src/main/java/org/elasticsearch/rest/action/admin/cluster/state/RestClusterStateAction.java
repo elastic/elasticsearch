@@ -27,6 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -150,8 +150,8 @@ public class RestClusterStateAction extends BaseRestHandler {
                             builder.endObject();
 
                             builder.startObject("mappings");
-                            for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
-                                byte[] mappingSource = entry.getValue().uncompressed();
+                            for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
+                                byte[] mappingSource = entry.getValue().source().uncompressed();
                                 XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                                 Map<String, Object> mapping = parser.map();
                                 if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {

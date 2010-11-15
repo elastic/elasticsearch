@@ -149,7 +149,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                     try {
                         createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index())
                                 .settings(indexMetaData.settings())
-                                .mappingsCompressed(indexMetaData.mappings())
+                                .mappingsMetaData(indexMetaData.mappings())
                                 .state(indexMetaData.state())
                                 .blocks(ImmutableSet.of(GatewayService.INDEX_NOT_RECOVERED_BLOCK))
                                 .timeout(timeValueSeconds(30)),

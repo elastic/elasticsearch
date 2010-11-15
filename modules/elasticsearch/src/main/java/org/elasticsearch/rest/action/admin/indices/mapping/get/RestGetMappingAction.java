@@ -25,9 +25,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,19 +75,19 @@ public class RestGetMappingAction extends BaseRestHandler {
                     for (IndexMetaData indexMetaData : metaData) {
                         builder.startObject(indexMetaData.index());
 
-                        for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
-                            if (!types.isEmpty() && !types.contains(entry.getKey())) {
+                        for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+                            if (!types.isEmpty() && !types.contains(mappingMd.type())) {
                                 // filter this type out...
                                 continue;
                             }
-                            byte[] mappingSource = entry.getValue().uncompressed();
+                            byte[] mappingSource = mappingMd.source().uncompressed();
                             XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                             Map<String, Object> mapping = parser.map();
-                            if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                            if (mapping.size() == 1 && mapping.containsKey(mappingMd.type())) {
                                 // the type name is the root value, reduce it
-                                mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                                mapping = (Map<String, Object>) mapping.get(mappingMd.type());
                             }
-                            builder.field(entry.getKey());
+                            builder.field(mappingMd.type());
                             builder.map(mapping);
                         }
 

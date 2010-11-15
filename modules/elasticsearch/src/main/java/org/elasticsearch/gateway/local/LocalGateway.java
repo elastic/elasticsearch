@@ -180,7 +180,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     try {
                         createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index())
                                 .settings(indexMetaData.settings())
-                                .mappingsCompressed(indexMetaData.mappings())
+                                .mappingsMetaData(indexMetaData.mappings())
                                 .state(indexMetaData.state())
                                 .blocks(ImmutableSet.of(GatewayService.INDEX_NOT_RECOVERED_BLOCK))
                                 .timeout(timeValueSeconds(30)),

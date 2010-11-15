@@ -35,6 +35,8 @@ public class ParsedDocument {
 
     private final String type;
 
+    private final String routing;
+
     private final Document document;
 
     private final Analyzer analyzer;
@@ -43,10 +45,11 @@ public class ParsedDocument {
 
     private boolean mappersAdded;
 
-    public ParsedDocument(String uid, String id, String type, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, String routing, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
+        this.routing = routing;
         this.document = document;
         this.source = source;
         this.analyzer = analyzer;
@@ -63,6 +66,10 @@ public class ParsedDocument {
 
     public String type() {
         return this.type;
+    }
+
+    public String routing() {
+        return this.routing;
     }
 
     public Document doc() {

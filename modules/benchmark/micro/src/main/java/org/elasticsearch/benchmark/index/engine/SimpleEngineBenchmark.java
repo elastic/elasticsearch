@@ -164,7 +164,7 @@ public class SimpleEngineBenchmark {
             String sId = Integer.toString(id);
             Document doc = doc().add(field("_id", sId))
                     .add(field("content", contentItem)).build();
-            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
+            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
             if (create) {
                 engine.create(new Engine.Create(pDoc));
             } else {
@@ -278,7 +278,7 @@ public class SimpleEngineBenchmark {
                     String sId = Integer.toString(id);
                     Document doc = doc().add(field("_id", sId))
                             .add(field("content", content(id))).build();
-                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
+                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
                     if (create) {
                         engine.create(new Engine.Create(pDoc));
                     } else {

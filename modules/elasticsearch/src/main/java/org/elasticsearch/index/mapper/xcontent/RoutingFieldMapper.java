@@ -37,7 +37,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = "_routing";
-        public static final String INDEX_NAME = "_routing";
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final Field.Store STORE = Field.Store.YES;
         public static final boolean OMIT_NORMS = true;
@@ -48,30 +47,21 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
 
         public Builder() {
             super(Defaults.NAME);
-            indexName = Defaults.INDEX_NAME;
             store = Defaults.STORE;
             index = Defaults.INDEX;
-            omitNorms = Defaults.OMIT_NORMS;
-            omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
         }
 
         @Override public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
+            return new RoutingFieldMapper(store, index);
         }
     }
 
     protected RoutingFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME);
+        this(Defaults.STORE, Defaults.INDEX);
     }
 
-    protected RoutingFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS);
-    }
-
-    protected RoutingFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
-                                 float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
+    protected RoutingFieldMapper(Field.Store store, Field.Index index) {
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), index, store, Defaults.TERM_VECTOR, 1.0f, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
@@ -100,6 +90,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         if (context.externalValueSet()) {
             String routing = (String) context.externalValue();
             if (routing != null) {
+                if (!indexed() && !stored()) {
+                    context.ignoredValue(names.indexName(), routing);
+                    return null;
+                }
                 return new Field(names.indexName(), routing, store, index);
             }
         }
@@ -113,12 +107,15 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (index == Defaults.INDEX) {
+        if (index == Defaults.INDEX && store == Defaults.STORE) {
             return;
         }
         builder.startObject(CONTENT_TYPE);
         if (index != Defaults.INDEX) {
             builder.field("index", index.name().toLowerCase());
+        }
+        if (store != Defaults.STORE) {
+            builder.field("store", store.name().toLowerCase());
         }
         builder.endObject();
     }

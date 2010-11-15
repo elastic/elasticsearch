@@ -631,6 +631,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(histogramFacet("stats3").keyField("num").valueField("multi_num").interval(100))
                 .addFacet(histogramScriptFacet("stats4").keyScript("doc['date'].date.minuteOfHour").valueScript("doc['num'].value"))
                 .addFacet(histogramFacet("stats5").field("date").interval(1, TimeUnit.MINUTES))
+                .addFacet(histogramScriptFacet("stats6").keyField("num").valueScript("doc['num'].value").interval(100))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -700,6 +701,18 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(0).count(), equalTo(2l));
         assertThat(facet.entries().get(1).key(), equalTo(TimeValue.timeValueMinutes(2).millis()));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+        facet = searchResponse.facets().facet("stats6");
+        assertThat(facet.name(), equalTo("stats6"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(1000l));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).total(), equalTo(2120d));
+        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+        assertThat(facet.entries().get(1).key(), equalTo(1100l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).total(), equalTo(1175d));
+        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
     }
 
     @Test public void testRangeFacets() throws Exception {

@@ -27,11 +27,11 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -95,8 +95,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
 
                     IndexMetaData indexMetaData = event.state().metaData().index(riverIndexName);
                     // go over and create new river routing (with no node) for new types (rivers names)
-                    for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
-                        String mappingType = entry.getKey(); // mapping type is the name of the river
+                    for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+                        String mappingType = mappingMd.type(); // mapping type is the name of the river
                         if (!currentState.routing().hasRiverByName(mappingType)) {
                             // no river, we need to add it to the routing with no node allocation
                             try {

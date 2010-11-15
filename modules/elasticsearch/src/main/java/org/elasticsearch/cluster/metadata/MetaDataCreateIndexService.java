@@ -186,14 +186,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                     }
                     // now, update the mappings with the actual source
-                    mappings.clear();
+                    Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
                     for (DocumentMapper mapper : mapperService) {
-                        mappings.put(mapper.type(), mapper.mappingSource());
+                        MappingMetaData mappingMd = new MappingMetaData(mapper);
+                        mappingsMetaData.put(mapper.type(), mappingMd);
                     }
 
                     final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
-                    for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
-                        indexMetaDataBuilder.putMapping(entry.getKey(), entry.getValue());
+                    for (MappingMetaData mappingMd : mappingsMetaData.values()) {
+                        indexMetaDataBuilder.putMapping(mappingMd);
                     }
                     indexMetaDataBuilder.state(request.state);
                     final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
@@ -297,6 +298,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request mappings(Map<String, String> mappings) {
             this.mappings.putAll(mappings);
+            return this;
+        }
+
+        public Request mappingsMetaData(Map<String, MappingMetaData> mappings) throws IOException {
+            for (Map.Entry<String, MappingMetaData> entry : mappings.entrySet()) {
+                this.mappings.put(entry.getKey(), entry.getValue().source().string());
+            }
             return this;
         }
 

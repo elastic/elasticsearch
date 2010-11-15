@@ -233,7 +233,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof IndexShardClosedException) {
-                listener.onIgnoreRecovery(true, "source node disconnected");
+                listener.onIgnoreRecovery(true, "source shard is closed");
                 return;
             }
 

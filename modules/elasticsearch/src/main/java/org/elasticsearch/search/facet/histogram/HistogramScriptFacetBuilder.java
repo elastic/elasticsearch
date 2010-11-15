@@ -33,6 +33,7 @@ import java.util.Map;
  */
 public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
     private String lang;
+    private String keyFieldName;
     private String keyScript;
     private String valueScript;
     private Map<String, Object> params;
@@ -48,6 +49,11 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
      */
     public HistogramScriptFacetBuilder lang(String lang) {
         this.lang = lang;
+        return this;
+    }
+
+    public HistogramScriptFacetBuilder keyField(String keyFieldName) {
+        this.keyFieldName = keyFieldName;
         return this;
     }
 
@@ -90,8 +96,8 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (keyScript == null) {
-            throw new SearchSourceBuilderException("key_script must be set on histogram script facet for facet [" + name + "]");
+        if (keyScript == null && keyFieldName == null) {
+            throw new SearchSourceBuilderException("key_script or key_field must be set on histogram script facet for facet [" + name + "]");
         }
         if (valueScript == null) {
             throw new SearchSourceBuilderException("value_script must be set on histogram script facet for facet [" + name + "]");
@@ -99,7 +105,11 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         builder.startObject(name);
 
         builder.startObject(HistogramFacetCollectorParser.NAME);
-        builder.field("key_script", keyScript);
+        if (keyFieldName != null) {
+            builder.field("key_field", keyFieldName);
+        } else if (keyScript != null) {
+            builder.field("key_script", keyScript);
+        }
         builder.field("value_script", valueScript);
         if (lang != null) {
             builder.field("lang", lang);

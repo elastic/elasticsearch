@@ -93,11 +93,9 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
             throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
         }
 
-        if (interval < 0) {
-            throw new FacetPhaseExecutionException(facetName, "[interval] is required to be positive for histogram facet");
-        }
-
-        if (valueField == null || keyField.equals(valueField)) {
+        if (valueScript != null) {
+            return new KeyValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, comparatorType, context);
+        } else if (valueField == null || keyField.equals(valueField)) {
             return new HistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else {
             // we have a value field, and its different than the key

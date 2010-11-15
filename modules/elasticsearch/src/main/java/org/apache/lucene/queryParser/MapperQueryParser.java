@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -177,6 +178,9 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override protected Query getWildcardQuery(String field, String termStr) throws ParseException {
+        if (AllFieldMapper.NAME.equals(field) && termStr.equals("*")) {
+            return newMatchAllDocsQuery();
+        }
         String indexedNameField = field;
         currentMapper = null;
         if (parseContext.mapperService() != null) {

@@ -118,7 +118,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // create a document
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc));
 
         // its not there...
@@ -137,7 +137,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // now do an update
-        doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.index(new Engine.Index(newUid("1"), doc));
 
         // its not updated yet...
@@ -176,7 +176,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // add it back
-        doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc));
 
         // its not there...
@@ -201,7 +201,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // make sure we can still work with the engine
         // now do an update
-        doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.index(new Engine.Index(newUid("1"), doc));
 
         // its not updated yet...
@@ -229,13 +229,13 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         List<Engine.Operation> ops = Lists.newArrayList();
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "1_test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "1_test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         ops.add(new Engine.Create(doc));
-        doc = new ParsedDocument("2", "2", "test", doc().add(field("_uid", "2")).add(field("value", "2_test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
+        doc = new ParsedDocument("2", "2", "test", null, doc().add(field("_uid", "2")).add(field("value", "2_test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
         ops.add(new Engine.Create(doc));
-        doc = new ParsedDocument("3", "3", "test", doc().add(field("_uid", "3")).add(field("value", "3_test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
+        doc = new ParsedDocument("3", "3", "test", null, doc().add(field("_uid", "3")).add(field("value", "3_test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
         ops.add(new Engine.Create(doc));
-        doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "1_test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "1_test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         ops.add(new Engine.Index(newUid("1"), doc));
         ops.add(new Engine.Delete(newUid("2")));
 
@@ -261,7 +261,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // create a document
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc));
 
         // its not there...
@@ -294,7 +294,7 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testSimpleSnapshot() throws Exception {
         // create a document
-        ParsedDocument doc1 = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc1 = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc1));
 
         final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -310,10 +310,10 @@ public abstract class AbstractSimpleEngineTests {
                 Future<Object> future = executorService.submit(new Callable<Object>() {
                     @Override public Object call() throws Exception {
                         engine.flush(new Engine.Flush());
-                        ParsedDocument doc2 = new ParsedDocument("2", "2", "test", doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
+                        ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
                         engine.create(new Engine.Create(doc2));
                         engine.flush(new Engine.Flush());
-                        ParsedDocument doc3 = new ParsedDocument("3", "3", "test", doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
+                        ParsedDocument doc3 = new ParsedDocument("3", "3", "test", null, doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
                         engine.create(new Engine.Create(doc3));
                         return null;
                     }
@@ -348,7 +348,7 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test public void testSimpleRecover() throws Exception {
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc));
         engine.flush(new Engine.Flush());
 
@@ -389,10 +389,10 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
-        ParsedDocument doc1 = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc1 = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc1));
         engine.flush(new Engine.Flush());
-        ParsedDocument doc2 = new ParsedDocument("2", "2", "test", doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
+        ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.create(new Engine.Create(doc2));
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -416,10 +416,10 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
-        ParsedDocument doc1 = new ParsedDocument("1", "1", "test", doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc1 = new ParsedDocument("1", "1", "test", null, doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(doc1));
         engine.flush(new Engine.Flush());
-        ParsedDocument doc2 = new ParsedDocument("2", "2", "test", doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
+        ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.create(new Engine.Create(doc2));
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -433,7 +433,7 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(create.source(), equalTo(B_2));
 
                 // add for phase3
-                ParsedDocument doc3 = new ParsedDocument("3", "3", "test", doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
+                ParsedDocument doc3 = new ParsedDocument("3", "3", "test", null, doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
                 engine.create(new Engine.Create(doc3));
             }
 

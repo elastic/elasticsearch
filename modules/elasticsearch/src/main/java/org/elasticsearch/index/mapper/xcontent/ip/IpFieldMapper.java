@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper.xcontent.ip;
 
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
@@ -38,6 +38,10 @@ import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.xcontent.MergeContext;
+import org.elasticsearch.index.mapper.xcontent.NumberFieldMapper;
+import org.elasticsearch.index.mapper.xcontent.ParseContext;
+import org.elasticsearch.index.mapper.xcontent.XContentMapper;
 
 import java.io.IOException;
 import java.io.Reader;

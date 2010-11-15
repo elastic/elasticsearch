@@ -95,6 +95,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        valueScript.setNextReader(reader);
     }
 
     @Override public Facet facet() {

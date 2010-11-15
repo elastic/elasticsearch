@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.index.mapper.xcontent.ip.IpFieldMapper;
+
 /**
  * @author kimchy (shay.banon)
  */

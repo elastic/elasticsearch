@@ -66,38 +66,19 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
         KEY((byte) 0, "key", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
-                // really, there should not be two entries with the same value
-                int i = (int) (o1.key() - o2.key());
-                if (i == 0) {
-                    i = System.identityHashCode(o1) - System.identityHashCode(o2);
-                }
-                return i;
+                return (o1.key() < o2.key() ? -1 : (o1.key() == o2.key() ? 0 : 1));
             }
         }),
         COUNT((byte) 1, "count", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
-                int i = (int) (o2.count() - o1.count());
-                if (i == 0) {
-                    i = (int) (o2.total() - o1.total());
-                    if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                    }
-                }
-                return i;
+                return (o1.count() < o2.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
             }
         }),
         TOTAL((byte) 2, "total", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
-                int i = (int) (o2.total() - o1.total());
-                if (i == 0) {
-                    i = (int) (o2.count() - o1.count());
-                    if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                    }
-                }
-                return i;
+                return (o1.total() < o2.total() ? -1 : (o1.total() == o2.total() ? 0 : 1));
             }
         });
 

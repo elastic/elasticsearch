@@ -69,6 +69,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return shards(clusterState, index, type, id, routing).shardsRandomIt();
     }
 
+    @Override public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
+        return indexRoutingTable(clusterState, index).groupByShardsIt();
+    }
+
     @Override public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable String routing) throws IndexMissingException {
         if (routing == null) {
             return indexRoutingTable(clusterState, index).groupByShardsIt();

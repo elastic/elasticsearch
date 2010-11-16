@@ -210,5 +210,17 @@ public class SimpleRoutingTests extends AbstractNodesTests {
         } catch (ElasticSearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
+
+        logger.info("--> verifying get with routing, should find");
+        for (int i = 0; i < 5; i++) {
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
+        }
+
+        logger.info("--> deleting with no routing, should broadcast the delete since _routing is required");
+        client.prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
+        for (int i = 0; i < 5; i++) {
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(false));
+        }
     }
 }

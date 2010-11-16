@@ -135,7 +135,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         return indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
     }
 
-    private class OperationTransportHandler extends BaseTransportRequestHandler<Request> {
+    class OperationTransportHandler extends BaseTransportRequestHandler<Request> {
 
         @Override public Request newInstance() {
             return newRequestInstance();
@@ -170,7 +170,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    private class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ShardOperationRequest> {
+    class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ShardOperationRequest> {
 
         @Override public ShardOperationRequest newInstance() {
             return new ShardOperationRequest();
@@ -215,7 +215,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    private class AsyncShardOperationAction {
+    protected class AsyncShardOperationAction {
 
         private final ActionListener<Response> listener;
 

@@ -44,6 +44,8 @@ public class StringsTests {
         String testValue = "test_value";
         assertThat(toUnderscoreCase(testValue), equalTo(testValue));
         assertThat(toUnderscoreCase(testValue), sameInstance(testValue));
+
+        assertThat(toUnderscoreCase("Name"), equalTo("name"));
     }
 
 //    @Test public void testHasTextBlank() throws Exception {

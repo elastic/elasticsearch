@@ -97,6 +97,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                 if (request.routing() == null) {
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
                         @Override public void onResponse(IndexDeleteResponse indexDeleteResponse) {
+                            // TODO what do we do with specific failed shards?
                             listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id()));
                         }
 

@@ -66,6 +66,8 @@ public interface DocumentMapper {
 
     AllFieldMapper allFieldMapper();
 
+    RoutingFieldMapper routingFieldMapper();
+
     DocumentFieldMappers mappers();
 
     /**

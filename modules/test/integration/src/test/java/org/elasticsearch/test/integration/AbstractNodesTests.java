@@ -56,6 +56,10 @@ public abstract class AbstractNodesTests {
         return buildNode(id, EMPTY_SETTINGS);
     }
 
+    public Node buildNode(String id, Settings.Builder settings) {
+        return buildNode(id, settings.build());
+    }
+
     public Node buildNode(String id, Settings settings) {
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
         Settings finalSettings = settingsBuilder()

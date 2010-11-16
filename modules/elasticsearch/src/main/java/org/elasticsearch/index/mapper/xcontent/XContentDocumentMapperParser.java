@@ -218,6 +218,13 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
     private RoutingFieldMapper.Builder parseRoutingField(Map<String, Object> routingNode, XContentMapper.TypeParser.ParserContext parserContext) {
         RoutingFieldMapper.Builder builder = routing();
         parseField(builder, builder.name, routingNode, parserContext);
+        for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            Object fieldNode = entry.getValue();
+            if (fieldName.equals("required")) {
+                builder.required(nodeBooleanValue(fieldNode));
+            }
+        }
         return builder;
     }
 

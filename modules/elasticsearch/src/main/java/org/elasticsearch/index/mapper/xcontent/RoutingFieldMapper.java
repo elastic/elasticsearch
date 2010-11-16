@@ -41,9 +41,12 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         public static final Field.Store STORE = Field.Store.YES;
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final boolean REQUIRED = false;
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, RoutingFieldMapper> {
+
+        private boolean required = Defaults.REQUIRED;
 
         public Builder() {
             super(Defaults.NAME);
@@ -51,18 +54,30 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
             index = Defaults.INDEX;
         }
 
+        public Builder required(boolean required) {
+            this.required = required;
+            return builder;
+        }
+
         @Override public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(store, index);
+            return new RoutingFieldMapper(store, index, required);
         }
     }
 
+    private final boolean required;
+
     protected RoutingFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.REQUIRED);
     }
 
-    protected RoutingFieldMapper(Field.Store store, Field.Index index) {
+    protected RoutingFieldMapper(Field.Store store, Field.Index index, boolean required) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), index, store, Defaults.TERM_VECTOR, 1.0f, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        this.required = required;
+    }
+
+    @Override public boolean required() {
+        return this.required;
     }
 
     @Override public String value(Document document) {
@@ -107,7 +122,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (index == Defaults.INDEX && store == Defaults.STORE) {
+        if (index == Defaults.INDEX && store == Defaults.STORE && required == Defaults.REQUIRED) {
             return;
         }
         builder.startObject(CONTENT_TYPE);
@@ -116,6 +131,9 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         }
         if (store != Defaults.STORE) {
             builder.field("store", store.name().toLowerCase());
+        }
+        if (required != Defaults.REQUIRED) {
+            builder.field("required", required);
         }
         builder.endObject();
     }

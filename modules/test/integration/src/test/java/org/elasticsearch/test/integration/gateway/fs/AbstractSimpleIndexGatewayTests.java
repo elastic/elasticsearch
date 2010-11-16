@@ -68,6 +68,13 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         // get the environment, so we can clear the work dir when needed
         Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
 
+
+        logger.info("Running Cluster Health (waiting for node to startup properly)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
         // Translog tests
 
         logger.info("Creating index [{}]", "test");
@@ -107,7 +114,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
@@ -227,6 +234,12 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
     private void testLoad(boolean fullRecovery) {
         startNode("server1");
 
+        logger.info("Running Cluster Health (waiting for node to startup properly)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
         // get the environment, so we can clear the work dir when needed
         Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
 
@@ -234,7 +247,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         client("server1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));

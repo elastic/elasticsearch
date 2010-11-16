@@ -25,9 +25,11 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -54,6 +56,51 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
             }
         }
         closeAllNodes();
+    }
+
+    @Test public void testMappingMetaDataParsed() throws Exception {
+        logger.info("--> cleaning nodes");
+        buildNode("node1", settingsBuilder().put("gateway.type", "local"));
+        buildNode("node2", settingsBuilder().put("gateway.type", "local"));
+        cleanAndCloseNodes();
+
+        logger.info("--> starting 1 nodes");
+        startNode("node1", settingsBuilder().put("gateway.type", "local"));
+
+        logger.info("--> creating test index, with meta routing");
+        client("node1").admin().indices().prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> waiting for yellow status");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
+        if (health.timedOut()) {
+            ClusterStateResponse response = client("node1").admin().cluster().prepareState().execute().actionGet();
+            System.out.println("" + response);
+        }
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify meta _routing required exists");
+        MappingMetaData mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").mapping("type1");
+        assertThat(mappingMd.routing().required(), equalTo(true));
+
+        logger.info("--> close node");
+        closeNode("node1");
+
+        logger.info("--> starting node again...");
+        startNode("node1", settingsBuilder().put("gateway.type", "local"));
+
+        logger.info("--> waiting for yellow status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
+        if (health.timedOut()) {
+            ClusterStateResponse response = client("node1").admin().cluster().prepareState().execute().actionGet();
+            System.out.println("" + response);
+        }
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify meta _routing required exists");
+        mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").mapping("type1");
+        assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
     @Test public void testSimpleOpenClose() throws Exception {

@@ -64,7 +64,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected ShardDeleteByQueryResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
+    @Override protected ShardDeleteByQueryResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
         indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.types());
         return new ShardDeleteByQueryResponse();

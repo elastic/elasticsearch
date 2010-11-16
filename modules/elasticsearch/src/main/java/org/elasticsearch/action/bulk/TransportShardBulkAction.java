@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
@@ -95,7 +97,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         return clusterState.routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 
-    @Override protected BulkShardResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
+    @Override protected BulkShardResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         IndexShard indexShard = indexShard(shardRequest);
         final BulkShardRequest request = shardRequest.request;
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
@@ -105,6 +107,15 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
+
+                    // validate, if routing is required, that we got routing
+                    MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mapping(indexRequest.type());
+                    if (mappingMd != null && mappingMd.routing().required()) {
+                        if (indexRequest.routing() == null) {
+                            throw new RoutingMissingException(indexRequest.index(), indexRequest.type(), indexRequest.id());
+                        }
+                    }
+
                     SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id()).routing(indexRequest.routing());
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
                         ops[i] = indexShard.prepareIndex(sourceToParse);

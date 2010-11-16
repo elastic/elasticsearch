@@ -19,7 +19,10 @@
 
 package org.elasticsearch.test.integration.routing;
 
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -182,6 +185,30 @@ public class SimpleRoutingTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             assertThat(client.prepareSearch().setRouting("0", "1", "0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
             assertThat(client.prepareCount().setRouting("0", "1", "0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        }
+    }
+
+    @Test public void testRequiredRoutingMapping() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        logger.info("--> indexing with id [1], and routing [0]");
+        client.prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        logger.info("--> verifying get with no routing, should not find anything");
+
+        logger.info("--> indexing with id [1], with no routing, should fail");
+        try {
+            client.prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+            assert false;
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
     }
 }

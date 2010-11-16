@@ -312,6 +312,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         return this.allFieldMapper;
     }
 
+    @Override public org.elasticsearch.index.mapper.RoutingFieldMapper routingFieldMapper() {
+        return this.routingFieldMapper;
+    }
+
     @Override public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }

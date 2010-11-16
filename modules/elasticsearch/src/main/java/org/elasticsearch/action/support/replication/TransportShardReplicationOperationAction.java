@@ -103,7 +103,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract String transportAction();
 
-    protected abstract Response shardOperationOnPrimary(ShardOperationRequest shardRequest);
+    protected abstract Response shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest);
 
     protected abstract void shardOperationOnReplica(ShardOperationRequest shardRequest);
 
@@ -254,7 +254,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          * Returns <tt>true</tt> if the action starting to be performed on the primary (or is done).
          */
         public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
-            ClusterState clusterState = clusterService.state();
+            final ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
             if (!clusterState.routingTable().hasIndex(request.index())) {
                 retry(fromClusterEvent, null);
@@ -313,11 +313,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         request.beforeLocalFork();
                         threadPool.execute(new Runnable() {
                             @Override public void run() {
-                                performOnPrimary(shard.id(), fromClusterEvent, true, shard);
+                                performOnPrimary(shard.id(), fromClusterEvent, true, shard, clusterState);
                             }
                         });
                     } else {
-                        performOnPrimary(shard.id(), fromClusterEvent, false, shard);
+                        performOnPrimary(shard.id(), fromClusterEvent, false, shard, clusterState);
                     }
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
@@ -413,9 +413,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        private void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, boolean alreadyThreaded, final ShardRouting shard) {
+        private void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, boolean alreadyThreaded, final ShardRouting shard, ClusterState clusterState) {
             try {
-                Response response = shardOperationOnPrimary(new ShardOperationRequest(primaryShardId, request));
+                Response response = shardOperationOnPrimary(clusterState, new ShardOperationRequest(primaryShardId, request));
                 performReplicas(response, alreadyThreaded);
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here

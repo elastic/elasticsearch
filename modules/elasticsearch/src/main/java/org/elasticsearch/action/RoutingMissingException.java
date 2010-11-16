@@ -17,16 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.action;
 
-import org.apache.lucene.document.Document;
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface RoutingFieldMapper extends FieldMapper<String>, InternalMapper {
+public class RoutingMissingException extends ElasticSearchException {
 
-    boolean required();
+    private final String index;
 
-    String value(Document document);
+    private final String type;
+
+    private final String id;
+
+    public RoutingMissingException(String index, String type, String id) {
+        super("routing is required for [" + index + "]/[" + type + "]/[" + id + "]");
+        this.index = index;
+        this.type = type;
+        this.id = id;
+    }
+
+    public String index() {
+        return index;
+    }
+
+    public String type() {
+        return type;
+    }
+
+    public String id() {
+        return id;
+    }
 }

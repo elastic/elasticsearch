@@ -31,18 +31,43 @@ import java.io.IOException;
  */
 public class MappingMetaData {
 
+    public static class Routing {
+
+        public static final Routing EMPTY = new Routing(false);
+
+        private final boolean required;
+
+        public Routing(boolean required) {
+            this.required = required;
+        }
+
+        public boolean required() {
+            return required;
+        }
+    }
+
     private final String type;
 
     private final CompressedString source;
 
+    private final Routing routing;
+
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
+        this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
     public MappingMetaData(String type, CompressedString source) {
         this.type = type;
         this.source = source;
+        this.routing = Routing.EMPTY;
+    }
+
+    MappingMetaData(String type, CompressedString source, Routing routing) {
+        this.type = type;
+        this.source = source;
+        this.routing = routing;
     }
 
     public String type() {
@@ -53,12 +78,22 @@ public class MappingMetaData {
         return this.source;
     }
 
+    public Routing routing() {
+        return this.routing;
+    }
+
     public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
         out.writeUTF(mappingMd.type());
         mappingMd.source().writeTo(out);
+        // routing
+        out.writeBoolean(mappingMd.routing().required());
     }
 
     public static MappingMetaData readFrom(StreamInput in) throws IOException {
-        return new MappingMetaData(in.readUTF(), CompressedString.readCompressedString(in));
+        String type = in.readUTF();
+        CompressedString source = CompressedString.readCompressedString(in);
+        // routing
+        Routing routing = new Routing(in.readBoolean());
+        return new MappingMetaData(type, source, routing);
     }
 }

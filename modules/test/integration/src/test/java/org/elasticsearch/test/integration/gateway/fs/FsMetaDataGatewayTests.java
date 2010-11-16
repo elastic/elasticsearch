@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.gateway.fs;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.internal.InternalNode;
@@ -28,6 +30,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -50,6 +54,12 @@ public class FsMetaDataGatewayTests extends AbstractNodesTests {
 
     @Test public void testIndexActions() throws Exception {
         startNode("server1");
+
+        logger.info("Running Cluster Health (waiting for node to startup properly)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
 

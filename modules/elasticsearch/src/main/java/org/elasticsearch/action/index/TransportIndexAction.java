@@ -21,6 +21,7 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
@@ -133,9 +135,18 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }
 
-    @Override protected IndexResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
-        IndexShard indexShard = indexShard(shardRequest);
+    @Override protected IndexResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         final IndexRequest request = shardRequest.request;
+
+        // validate, if routing is required, that we got routing
+        MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mapping(request.type());
+        if (mappingMd != null && mappingMd.routing().required()) {
+            if (request.routing() == null) {
+                throw new RoutingMissingException(request.index(), request.type(), request.id());
+            }
+        }
+
+        IndexShard indexShard = indexShard(shardRequest);
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id()).routing(request.routing());
         ParsedDocument doc;
         if (request.opType() == IndexRequest.OpType.INDEX) {

@@ -57,7 +57,7 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
         return "ping/replication/shard";
     }
 
-    @Override protected ShardReplicationPingResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
+    @Override protected ShardReplicationPingResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         return new ShardReplicationPingResponse();
     }
 

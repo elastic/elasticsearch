@@ -1220,9 +1220,16 @@ public class Strings {
                         sb.append(value.charAt(j));
                     }
                     changed = true;
+                    if (i == 0) {
+                        sb.append(Character.toLowerCase(c));
+                    } else {
+                        sb.append('_');
+                        sb.append(Character.toLowerCase(c));
+                    }
+                } else {
+                    sb.append('_');
+                    sb.append(Character.toLowerCase(c));
                 }
-                sb.append('_');
-                sb.append(Character.toLowerCase(c));
             } else {
                 if (changed) {
                     sb.append(c);

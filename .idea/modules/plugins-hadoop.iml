@@ -20,10 +20,10 @@
         </CLASSES>
         <JAVADOC />
         <SOURCES>
-          <root url="file://$MODULE_DIR$/../../../../../opt/hadoop/0.20.2/src/mapred" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/hadoop/0.20.2/src/hdfs" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/hadoop/0.20.2/src/tools" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/hadoop/0.20.2/src/core" />
+          <root url="file://$USER_HOME$/opt/hadoop/0.20.2/src/mapred" />
+          <root url="file://$USER_HOME$/opt/hadoop/0.20.2/src/hdfs" />
+          <root url="file://$USER_HOME$/opt/hadoop/0.20.2/src/tools" />
+          <root url="file://$USER_HOME$/opt/hadoop/0.20.2/src/core" />
         </SOURCES>
       </library>
     </orderEntry>

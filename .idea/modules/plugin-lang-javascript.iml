@@ -19,7 +19,7 @@
         </CLASSES>
         <JAVADOC />
         <SOURCES>
-          <root url="file://$MODULE_DIR$/../../../../../opt/rhino1_7R2/src" />
+          <root url="file://$USER_HOME$/opt/rhino1_7R2/src" />
         </SOURCES>
       </library>
     </orderEntry>

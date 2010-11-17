@@ -25,6 +25,7 @@
     <orderEntry type="module" module-name="test-testng" scope="TEST" />
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
+    <orderEntry type="library" name="tika" level="project" />
   </component>
 </module>
 

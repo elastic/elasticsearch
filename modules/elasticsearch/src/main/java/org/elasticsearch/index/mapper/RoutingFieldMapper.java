@@ -28,5 +28,7 @@ public interface RoutingFieldMapper extends FieldMapper<String>, InternalMapper 
 
     boolean required();
 
+    String path();
+
     String value(Document document);
 }

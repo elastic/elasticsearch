@@ -19,9 +19,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
@@ -33,16 +35,38 @@ public class MappingMetaData {
 
     public static class Routing {
 
-        public static final Routing EMPTY = new Routing(false);
+        public static final Routing EMPTY = new Routing(false, null);
 
         private final boolean required;
 
-        public Routing(boolean required) {
+        private final String path;
+
+        private final String[] pathElements;
+
+        public Routing(boolean required, String path) {
             this.required = required;
+            this.path = path;
+            if (path == null) {
+                pathElements = Strings.EMPTY_ARRAY;
+            } else {
+                pathElements = Strings.delimitedListToStringArray(path, ".");
+            }
         }
 
         public boolean required() {
             return required;
+        }
+
+        public boolean hasPath() {
+            return path != null;
+        }
+
+        public String path() {
+            return this.path;
+        }
+
+        public String[] pathElements() {
+            return this.pathElements;
         }
     }
 
@@ -55,7 +79,7 @@ public class MappingMetaData {
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
-        this.routing = new Routing(docMapper.routingFieldMapper().required());
+        this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
     }
 
     public MappingMetaData(String type, CompressedString source) {
@@ -82,18 +106,58 @@ public class MappingMetaData {
         return this.routing;
     }
 
+    public String parseRouting(XContentParser parser) throws IOException {
+        return parseRouting(parser, 0);
+    }
+
+    private String parseRouting(XContentParser parser, int location) throws IOException {
+        XContentParser.Token t = parser.currentToken();
+        if (t == null) {
+            t = parser.nextToken();
+        }
+        if (t == XContentParser.Token.START_OBJECT) {
+            t = parser.nextToken();
+        }
+        String routingPart = routing().pathElements()[location];
+
+        for (; t == XContentParser.Token.FIELD_NAME; t = parser.nextToken()) {
+            // Must point to field name
+            String fieldName = parser.currentName();
+            // And then the value...
+            t = parser.nextToken();
+            if (routingPart.equals(fieldName)) {
+                location++;
+                if (location == routing.pathElements().length) {
+                    return parser.textOrNull();
+                }
+                if (t == XContentParser.Token.START_OBJECT) {
+                    return parseRouting(parser, location);
+                }
+            } else {
+                parser.skipChildren();
+            }
+        }
+        return null;
+    }
+
     public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
         out.writeUTF(mappingMd.type());
         mappingMd.source().writeTo(out);
         // routing
         out.writeBoolean(mappingMd.routing().required());
+        if (mappingMd.routing().hasPath()) {
+            out.writeBoolean(true);
+            out.writeUTF(mappingMd.routing().path());
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     public static MappingMetaData readFrom(StreamInput in) throws IOException {
         String type = in.readUTF();
         CompressedString source = CompressedString.readCompressedString(in);
         // routing
-        Routing routing = new Routing(in.readBoolean());
+        Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readUTF() : null);
         return new MappingMetaData(type, source, routing);
     }
 }

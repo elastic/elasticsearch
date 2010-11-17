@@ -20,13 +20,17 @@
 package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import javax.annotation.Nullable;
@@ -251,7 +256,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * The source of the document to index.
+     * The source of the document to index, recopied to a new array if it has an offset or unsafe.
      */
     public byte[] source() {
         if (sourceUnsafe || sourceOffset > 0) {
@@ -260,6 +265,18 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             sourceUnsafe = false;
         }
         return source;
+    }
+
+    public byte[] unsafeSource() {
+        return this.source;
+    }
+
+    public int unsafeSourceOffset() {
+        return this.sourceOffset;
+    }
+
+    public int unsafeSourceLength() {
+        return this.sourceLength;
     }
 
     /**
@@ -483,6 +500,27 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     public boolean refresh() {
         return this.refresh;
+    }
+
+    public void processRouting(MappingMetaData mappingMd) throws ElasticSearchException {
+        if (routing == null && mappingMd.routing().hasPath()) {
+            XContentParser parser = null;
+            try {
+                parser = XContentFactory.xContent(source, sourceOffset, sourceLength)
+                        .createParser(source, sourceOffset, sourceLength);
+                routing = mappingMd.parseRouting(parser);
+            } catch (Exception e) {
+                throw new ElasticSearchParseException("failed to parse doc to extract routing", e);
+            } finally {
+                if (parser != null) {
+                    parser.close();
+                }
+            }
+        }
+        // might as well check for routing here
+        if (mappingMd.routing().required() && routing == null) {
+            throw new RoutingMissingException(index, type, id);
+        }
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

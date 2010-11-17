@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -152,6 +153,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
             }
         }
+        final BulkItemResponse[] responses = new BulkItemResponse[bulkRequest.requests.size()];
+
 
         // first, go over all the requests and create a ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = Maps.newHashMap();
@@ -159,6 +162,18 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
+                // handle routing
+                MappingMetaData mappingMd = clusterState.metaData().index(indexRequest.index()).mapping(indexRequest.type());
+                if (mappingMd != null) {
+                    try {
+                        indexRequest.processRouting(mappingMd);
+                    } catch (ElasticSearchException e) {
+                        responses[i] = new BulkItemResponse(i, indexRequest.opType().toString().toLowerCase(),
+                                new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e.getDetailedMessage()));
+                        continue;
+                    }
+                }
+
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
@@ -193,7 +208,6 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         }
 
         final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
-        final BulkItemResponse[] responses = new BulkItemResponse[bulkRequest.requests.size()];
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();

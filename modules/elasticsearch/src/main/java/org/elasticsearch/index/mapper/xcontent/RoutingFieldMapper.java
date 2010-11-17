@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
@@ -42,11 +43,14 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
         public static final boolean REQUIRED = false;
+        public static final String PATH = null;
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, RoutingFieldMapper> {
 
         private boolean required = Defaults.REQUIRED;
+
+        private String path = Defaults.PATH;
 
         public Builder() {
             super(Defaults.NAME);
@@ -59,25 +63,37 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
             return builder;
         }
 
+        public Builder path(String path) {
+            this.path = path;
+            return builder;
+        }
+
         @Override public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(store, index, required);
+            return new RoutingFieldMapper(store, index, required, path);
         }
     }
 
     private final boolean required;
 
+    private final String path;
+
     protected RoutingFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.REQUIRED);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.REQUIRED, Defaults.PATH);
     }
 
-    protected RoutingFieldMapper(Field.Store store, Field.Index index, boolean required) {
+    protected RoutingFieldMapper(Field.Store store, Field.Index index, boolean required, String path) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), index, store, Defaults.TERM_VECTOR, 1.0f, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.required = required;
+        this.path = path;
     }
 
     @Override public boolean required() {
         return this.required;
+    }
+
+    @Override public String path() {
+        return this.path;
     }
 
     @Override public String value(Document document) {
@@ -101,6 +117,19 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         return value;
     }
 
+    public void validate(ParseContext context, String routing) throws MapperParsingException {
+        if (path != null && routing != null) {
+            // we have a path, check if we can validate we have the same routing value as the one in the doc...
+            String value = context.doc().get(path);
+            if (value == null) {
+                value = context.ignoredValue(path);
+            }
+            if (!routing.equals(value)) {
+                throw new MapperParsingException("External routing [" + routing + "] and document path routing [" + value + "] mismatch");
+            }
+        }
+    }
+
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             String routing = (String) context.externalValue();
@@ -122,7 +151,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (index == Defaults.INDEX && store == Defaults.STORE && required == Defaults.REQUIRED) {
+        if (index == Defaults.INDEX && store == Defaults.STORE && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return;
         }
         builder.startObject(CONTENT_TYPE);
@@ -134,6 +163,9 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         }
         if (required != Defaults.REQUIRED) {
             builder.field("required", required);
+        }
+        if (path != Defaults.PATH) {
+            builder.field("path", path);
         }
         builder.endObject();
     }

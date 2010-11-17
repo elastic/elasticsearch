@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
@@ -82,32 +83,44 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
     }
 
-    @Override protected void doExecute(final IndexRequest indexRequest, final ActionListener<IndexResponse> listener) {
+    @Override protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         if (allowIdGeneration) {
-            if (indexRequest.id() == null) {
-                indexRequest.id(UUID.randomBase64UUID());
+            if (request.id() == null) {
+                request.id(UUID.randomBase64UUID());
                 // since we generate the id, change it to CREATE
-                indexRequest.opType(IndexRequest.OpType.CREATE);
+                request.opType(IndexRequest.OpType.CREATE);
             }
         }
-        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(indexRequest.index())) {
-            createIndexAction.execute(new CreateIndexRequest(indexRequest.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
+        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
+            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
                 @Override public void onResponse(CreateIndexResponse result) {
-                    TransportIndexAction.super.doExecute(indexRequest, listener);
+                    innerExecute(request, listener);
                 }
 
                 @Override public void onFailure(Throwable e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
-                        TransportIndexAction.super.doExecute(indexRequest, listener);
+                        innerExecute(request, listener);
                     } else {
                         listener.onFailure(e);
                     }
                 }
             });
         } else {
-            super.doExecute(indexRequest, listener);
+            innerExecute(request, listener);
         }
+    }
+
+    private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        MetaData metaData = clusterService.state().metaData();
+        request.index(metaData.concreteIndex(request.index()));
+        if (metaData.hasIndex(request.index())) {
+            MappingMetaData mappingMd = metaData.index(request.index()).mapping(request.type());
+            if (mappingMd != null) {
+                request.processRouting(mappingMd);
+            }
+        }
+        super.doExecute(request, listener);
     }
 
     @Override protected boolean checkWriteConsistency() {

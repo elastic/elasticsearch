@@ -223,6 +223,8 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
             Object fieldNode = entry.getValue();
             if (fieldName.equals("required")) {
                 builder.required(nodeBooleanValue(fieldNode));
+            } else if (fieldName.equals("path")) {
+                builder.path(fieldNode.toString());
             }
         }
         return builder;

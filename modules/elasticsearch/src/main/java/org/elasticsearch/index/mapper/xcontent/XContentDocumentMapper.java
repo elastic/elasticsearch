@@ -408,6 +408,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             }
             analyzerMapper.parse(context);
             allFieldMapper.parse(context);
+            // validate aggregated mappers (TODO: need to be added as a phase to any field mapper)
+            routingFieldMapper.validate(context, source.routing());
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse", e);
         } finally {

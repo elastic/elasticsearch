@@ -8,15 +8,15 @@
     </CLASSES>
     <JAVADOC />
     <SOURCES>
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/spellchecker/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/analyzers/common/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/queries/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/highlighter/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/snowball/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/analyzers/smartcn/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/fast-vector-highlighter/src/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.2.src/contrib/spatial/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/spellchecker/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/analyzers/common/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/queries/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/highlighter/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/snowball/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/analyzers/smartcn/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/fast-vector-highlighter/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.2.src/contrib/spatial/src/java" />
     </SOURCES>
   </library>
 </component>

@@ -19,21 +19,21 @@
         </CLASSES>
         <JAVADOC />
         <SOURCES>
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/charset/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/localespi/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/translit/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/langdata/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/collate/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/charset/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/collate/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/translit/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/core/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/core/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/regiondata/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/packaging/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/framework/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/currdata/src" />
-          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/localespi/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/charset/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/localespi/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/translit/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/langdata/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/collate/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/charset/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/collate/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/translit/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/core/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/core/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/regiondata/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/packaging/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/framework/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/currdata/src" />
+          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/localespi/src" />
         </SOURCES>
       </library>
     </orderEntry>

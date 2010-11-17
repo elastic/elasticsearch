@@ -6,7 +6,6 @@
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>
-    <extension name="snapshooter" />
     <option name="MAIN_CLASS_NAME" value="org.elasticsearch.bootstrap.Bootstrap" />
     <option name="VM_PARAMETERS" value="-server -Xmx1g -Des-foreground=yes -XX:+AggressiveOpts -XX:+UseParNewGC -XX:+UseConcMarkSweepGC" />
     <option name="PROGRAM_PARAMETERS" value="" />

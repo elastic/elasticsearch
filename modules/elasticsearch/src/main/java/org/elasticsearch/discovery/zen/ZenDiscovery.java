@@ -454,9 +454,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-receive(from node[" + node + "])", new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
                     if (currentState.nodes().nodeExists(node.id())) {
-                        // no change, the node already exists in the cluster
+                        // the node already exists in the cluster
                         logger.warn("received a join request for an existing node [{}]", node);
-                        return currentState;
+                        // still send a new cluster state, so it will be re published and possibly update the other node
+                        return ClusterState.builder().state(currentState).build();
                     }
                     return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(node)).build();
                 }

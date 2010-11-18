@@ -55,34 +55,39 @@ public class HighlightPhase implements SearchPhase {
             return;
         }
 
-        for (SearchHit hit : context.fetchResult().hits().hits()) {
-            InternalSearchHit internalHit = (InternalSearchHit) hit;
+        try {
+            for (SearchHit hit : context.fetchResult().hits().hits()) {
+                InternalSearchHit internalHit = (InternalSearchHit) hit;
 
-            DocumentMapper documentMapper = context.mapperService().type(internalHit.type());
-            int docId = internalHit.docId();
+                DocumentMapper documentMapper = context.mapperService().type(internalHit.type());
+                int docId = internalHit.docId();
 
-            Map<String, HighlightField> highlightFields = newHashMap();
-            for (SearchContextHighlight.Field field : context.highlight().fields()) {
-                String fieldName = field.field();
-                FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
-                if (mapper != null) {
-                    fieldName = mapper.names().indexName();
+                Map<String, HighlightField> highlightFields = newHashMap();
+                for (SearchContextHighlight.Field field : context.highlight().fields()) {
+                    String fieldName = field.field();
+                    FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
+                    if (mapper != null) {
+                        fieldName = mapper.names().indexName();
+                    }
+
+                    FastVectorHighlighter highlighter = buildHighlighter(field);
+                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), context.searcher().getIndexReader(), field);
+
+                    String[] fragments;
+                    try {
+                        fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), field.numberOfFragments());
+                    } catch (IOException e) {
+                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    }
+                    HighlightField highlightField = new HighlightField(field.field(), fragments);
+                    highlightFields.put(highlightField.name(), highlightField);
                 }
 
-                FastVectorHighlighter highlighter = buildHighlighter(field);
-                FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), context.searcher().getIndexReader(), field);
-
-                String[] fragments;
-                try {
-                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), field.numberOfFragments());
-                } catch (IOException e) {
-                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
-                }
-                HighlightField highlightField = new HighlightField(field.field(), fragments);
-                highlightFields.put(highlightField.name(), highlightField);
+                internalHit.highlightFields(highlightFields);
             }
-
-            internalHit.highlightFields(highlightFields);
+        } finally {
+            CustomFieldQuery.reader.remove();
+            CustomFieldQuery.highlightFilters.remove();
         }
     }
 

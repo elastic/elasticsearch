@@ -75,7 +75,9 @@ public class HighlightPhase implements SearchPhase {
 
                     String[] fragments;
                     try {
-                        fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), field.numberOfFragments());
+                        // a HACK to make highlighter do highlighting, even though its using the single frag list builder
+                        int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
+                        fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), numberOfFragments);
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }
@@ -103,8 +105,6 @@ public class HighlightPhase implements SearchPhase {
         if (field.numberOfFragments() == 0) {
             fragListBuilder = new SingleFragListBuilder();
             fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
-            // a HACK to make highlighter do highlighting, even though its using the single frag list builder
-            field.numberOfFragments(1);
         } else {
             fragListBuilder = new SimpleFragListBuilder();
             if (field.scoreOrdered()) {

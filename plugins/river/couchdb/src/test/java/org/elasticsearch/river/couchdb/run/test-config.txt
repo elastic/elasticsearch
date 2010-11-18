@@ -1,0 +1,14 @@
+[couchdb]
+database_dir = $DIR$
+view_index_dir = $DIR$
+uri_file = $DIR$/couch.uri
+
+[httpd]
+port = 0
+bind_address = 127.0.0.1
+
+[log]
+file = $DIR$/couch.log
+level = info
+include_sasl = true
+

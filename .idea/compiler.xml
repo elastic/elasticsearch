@@ -22,6 +22,7 @@
       <entry name="?*.txt" />
       <entry name="?*.pdf" />
       <entry name="?*.nrm" />
+      <entry name="?*.txt" />
     </wildcardResourcePatterns>
     <annotationProcessing enabled="false" useClasspath="true" />
   </component>

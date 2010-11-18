@@ -16,14 +16,14 @@ public class CouchTests {
         URI uri = couch.uri();
 
         try {
-            assertCanConnectToPort(uri);
+            assertCanConnectTo(uri);
         }
         finally {
             couch.stop();
         }
     }
 
-    private void assertCanConnectToPort(URI uri) throws IOException {
+    private void assertCanConnectTo(URI uri) throws IOException {
         Socket socket = new Socket();
         SocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
         try {

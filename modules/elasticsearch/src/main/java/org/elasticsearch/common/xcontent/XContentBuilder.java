@@ -364,7 +364,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(String name, List<Object> value) throws IOException {
+    public XContentBuilder field(String name, List value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -373,7 +373,7 @@ public final class XContentBuilder {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, List<Object> value) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, List value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -515,6 +515,7 @@ public final class XContentBuilder {
         } else if (value instanceof ReadableInstant) {
             field(name, (ReadableInstant) value);
         } else if (value instanceof Map) {
+            //noinspection unchecked
             field(name, (Map<String, Object>) value);
         } else if (value instanceof List) {
             field(name, (List) value);
@@ -559,6 +560,7 @@ public final class XContentBuilder {
         } else if (value instanceof ReadableInstant) {
             field(name, (ReadableInstant) value);
         } else if (value instanceof Map) {
+            //noinspection unchecked
             field(name, (Map<String, Object>) value);
         } else if (value instanceof List) {
             field(name, (List) value);
@@ -602,6 +604,7 @@ public final class XContentBuilder {
         } else if (value instanceof ReadableInstant) {
             value((ReadableInstant) value);
         } else if (value instanceof Map) {
+            //noinspection unchecked
             value((Map<String, Object>) value);
         } else {
             throw new IOException("Type not allowed [" + type + "]");

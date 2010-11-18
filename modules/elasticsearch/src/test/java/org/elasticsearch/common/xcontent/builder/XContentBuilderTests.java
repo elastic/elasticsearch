@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,6 +66,12 @@ public class XContentBuilderTests {
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
+    }
+
+    @Test public void testOverloadedList() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject().field("test", Lists.newArrayList("1", "2")).endObject();
+        assertThat(builder.string(), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 
     @Test public void testWritingBinaryToStream() throws Exception {

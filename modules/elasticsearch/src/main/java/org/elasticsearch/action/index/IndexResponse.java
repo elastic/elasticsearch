@@ -104,4 +104,12 @@ public class IndexResponse implements ActionResponse, Streamable {
         out.writeUTF(id);
         out.writeUTF(type);
     }
+
+    @Override public String toString() {
+        return "IndexResponse{" +
+                "index='" + index + '\'' +
+                ", id='" + id + '\'' +
+                ", type='" + type + '\'' +
+                '}';
+    }
 }

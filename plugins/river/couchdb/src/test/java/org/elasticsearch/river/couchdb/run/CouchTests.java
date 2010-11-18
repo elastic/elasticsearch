@@ -1,5 +1,6 @@
 package org.elasticsearch.river.couchdb.run;
 
+import org.elasticsearch.river.couchdb.http.Http;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -8,9 +9,11 @@ import java.net.*;
 @Test
 public class CouchTests {
 
+    Http http = new Http();
+
     @Test
     public void canStartACouchDBAndDetermineAPort() throws Exception {
-        Couch couch = new Couch();
+        Couch couch = new Couch(http);
         couch.start();
 
         URI uri = couch.uri();

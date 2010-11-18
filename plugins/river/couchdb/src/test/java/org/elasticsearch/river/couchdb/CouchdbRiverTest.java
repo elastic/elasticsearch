@@ -21,9 +21,10 @@ package org.elasticsearch.river.couchdb;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.node.NodeBuilder.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -31,7 +32,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.*;
 public class CouchdbRiverTest {
 
     public static void main(String[] args) throws Exception {
-        Node node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put("gateway.type", "local")).node();
+        ImmutableSettings.Builder builder = settingsBuilder().put("gateway.type", "local");
+
+        Node node = nodeBuilder().settings(builder).node();
         Thread.sleep(1000);
         node.client().prepareIndex("_river", "db", "_meta").setSource(jsonBuilder().startObject().field("type", "couchdb").endObject()).execute().actionGet();
 

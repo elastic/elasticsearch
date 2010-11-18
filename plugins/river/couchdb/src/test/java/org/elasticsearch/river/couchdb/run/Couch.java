@@ -1,6 +1,9 @@
 package org.elasticsearch.river.couchdb.run;
 
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.river.couchdb.CouchDatabase;
+import org.elasticsearch.river.couchdb.http.Http;
+import org.elasticsearch.river.couchdb.http.UriBuilder;
 
 import java.io.*;
 import java.net.URI;
@@ -14,6 +17,11 @@ public class Couch {
     private TemporaryDirectory directory = null;
     private Process process;
     private URI couchUri;
+    private Http http;
+
+    public Couch(Http http) {
+        this.http = http;
+    }
 
     public void start() throws Exception {
 
@@ -34,7 +42,6 @@ public class Couch {
         File uriFile = directory.waitFor("couch.uri");
         String str = loadText(new FileInputStream(uriFile)).trim();
         couchUri = new URI(str);
-        System.out.println("str = " + str);
     }
 
     public URI uri() {
@@ -45,6 +52,19 @@ public class Couch {
         process.destroy();
         process.waitFor();
         directory.remove();
+    }
+
+    public CouchDatabase createDatabase(String name) throws IOException {
+
+        URI uri = new UriBuilder(couchUri).addPath(name).url();
+
+        Http.HttpResult result = http.put(uri);
+
+        if ( ! result.ok() ) {
+            throw new IOException("Cannot create " + name + ", because " + result);
+        }
+
+        return new CouchDatabase(http, name, uri);
     }
 
     public static class ResourceLoader {

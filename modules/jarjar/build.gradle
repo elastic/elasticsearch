@@ -13,7 +13,7 @@ dependencies {
     runtime 'org.elasticsearch:es-jsr166y:20100615'
 
     runtime 'joda-time:joda-time:1.6.1'
-    runtime 'org.mvel:mvel2:2.0.18'
+    runtime 'org.mvel:mvel2:2.0.19'
 
     runtime 'org.codehaus.jackson:jackson-core-asl:1.6.1'
     runtime 'org.codehaus.jackson:jackson-smile:1.6.1'

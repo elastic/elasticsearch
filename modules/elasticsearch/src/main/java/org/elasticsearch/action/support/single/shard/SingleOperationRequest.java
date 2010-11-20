@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.single;
+package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;

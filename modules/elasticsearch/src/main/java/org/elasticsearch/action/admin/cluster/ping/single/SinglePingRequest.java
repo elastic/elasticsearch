@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.ping.single;
 
-import org.elasticsearch.action.support.single.SingleOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

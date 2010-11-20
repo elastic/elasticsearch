@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.single;
+package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -49,16 +48,13 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
     protected final TransportService transportService;
 
-    protected final IndicesService indicesService;
-
     protected final ThreadPool threadPool;
 
-    protected TransportSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    protected TransportSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.indicesService = indicesService;
 
         transportService.registerHandler(transportAction(), new TransportHandler());
         transportService.registerHandler(transportShardAction(), new ShardTransportHandler());

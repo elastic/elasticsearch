@@ -37,7 +37,7 @@ public class IndexException extends ElasticSearchException {
     }
 
     protected IndexException(Index index, boolean withSpace, String msg, Throwable cause) {
-        super("[" + index.name() + "]" + (withSpace ? " " : "") + msg, cause);
+        super("[" + (index == null ? "_na" : index.name()) + "]" + (withSpace ? " " : "") + msg, cause);
         this.index = index;
     }
 

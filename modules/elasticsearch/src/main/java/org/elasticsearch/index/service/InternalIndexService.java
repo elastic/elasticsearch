@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.*;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
@@ -89,6 +90,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
+    private final AnalysisService analysisService;
+
     private final MapperService mapperService;
 
     private final IndexQueryParserService queryParserService;
@@ -110,13 +113,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final CleanCacheOnIndicesLifecycleListener cleanCacheOnIndicesLifecycleListener = new CleanCacheOnIndicesLifecycleListener();
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                        MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
+                                        AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
                                         IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
         super(index, indexSettings);
         this.injector = injector;
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indexSettings = indexSettings;
+        this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.similarityService = similarityService;
@@ -173,6 +177,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override public IndexCache cache() {
         return indexCache;
+    }
+
+    @Override public AnalysisService analysisService() {
+        return this.analysisService;
     }
 
     @Override public MapperService mapperService() {

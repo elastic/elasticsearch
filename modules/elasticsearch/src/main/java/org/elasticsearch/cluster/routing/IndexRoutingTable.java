@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.collect.Lists.*;
 
@@ -45,9 +47,20 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     // shards with state set to UNASSIGNED
     private final ImmutableMap<Integer, IndexShardRoutingTable> shards;
 
+    private final ImmutableList<ShardRouting> allShards;
+
+    private final AtomicInteger counter = new AtomicInteger();
+
     IndexRoutingTable(String index, Map<Integer, IndexShardRoutingTable> shards) {
         this.index = index;
         this.shards = ImmutableMap.copyOf(shards);
+        ImmutableList.Builder<ShardRouting> allShards = ImmutableList.builder();
+        for (IndexShardRoutingTable indexShardRoutingTable : shards.values()) {
+            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                allShards.add(shardRouting);
+            }
+        }
+        this.allShards = allShards.build();
     }
 
     public String index() {
@@ -135,6 +148,13 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             shards.addAll(shardRoutingTable.shardsWithState(states));
         }
         return shards;
+    }
+
+    /**
+     * An iterator over all shards (including replicas).
+     */
+    public ShardsIterator allShardsIt() {
+        return new PlainShardsIterator(allShards, Math.abs(counter.incrementAndGet()));
     }
 
     /**

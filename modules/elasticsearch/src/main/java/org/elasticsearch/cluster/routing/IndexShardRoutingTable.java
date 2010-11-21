@@ -95,7 +95,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public ShardIterator shardsRandomIt() {
-        return new IndexShardIterator(nextCounter());
+        return new IndexShardIterator(Math.abs(nextCounter()));
     }
 
     public ShardRouting primaryShard() {
@@ -133,8 +133,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return counter.getAndIncrement();
     }
 
-    ShardRouting shardModulo(int shardId) {
-        return shards.get((Math.abs(shardId) % size()));
+    ShardRouting shardModulo(int counter) {
+        return shards.get((counter % size()));
     }
 
     /**

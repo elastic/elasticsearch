@@ -24,9 +24,6 @@ package org.elasticsearch.cluster.routing;
  */
 public class MutableShardRouting extends ImmutableShardRouting {
 
-    public MutableShardRouting() {
-    }
-
     public MutableShardRouting(ShardRouting copy) {
         super(copy);
     }

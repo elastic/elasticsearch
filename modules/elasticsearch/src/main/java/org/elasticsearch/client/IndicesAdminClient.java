@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -50,6 +52,7 @@ import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -399,4 +402,16 @@ public interface IndicesAdminClient {
      * Update indices settings.
      */
     UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices);
+
+    ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request);
+
+    void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener);
+
+    /**
+     * Analyze text under the provided index.
+     *
+     * @param index The index name
+     * @param text  The text to analyze
+     */
+    AnalyzeRequestBuilder prepareAnalyzer(String index, String text);
 }

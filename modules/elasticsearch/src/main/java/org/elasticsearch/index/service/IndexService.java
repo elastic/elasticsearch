@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -44,6 +45,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
     IndexGateway gateway();
 
     IndexCache cache();
+
+    AnalysisService analysisService();
 
     MapperService mapperService();
 

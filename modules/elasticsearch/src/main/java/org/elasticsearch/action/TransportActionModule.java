@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.ping.replication.TransportShardRep
 import org.elasticsearch.action.admin.cluster.ping.single.TransportSinglePingAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -90,6 +91,7 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportDeleteMappingAction.class).asEagerSingleton();
         bind(TransportIndicesAliasesAction.class).asEagerSingleton();
         bind(TransportUpdateSettingsAction.class).asEagerSingleton();
+        bind(TransportAnalyzeAction.class).asEagerSingleton();
 
         bind(TransportGatewaySnapshotAction.class).asEagerSingleton();
 

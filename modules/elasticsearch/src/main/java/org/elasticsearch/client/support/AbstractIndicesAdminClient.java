@@ -20,6 +20,7 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -94,5 +95,9 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
 
     @Override public UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {
         return new UpdateSettingsRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public AnalyzeRequestBuilder prepareAnalyzer(String index, String text) {
+        return new AnalyzeRequestBuilder(this, index, text);
     }
 }

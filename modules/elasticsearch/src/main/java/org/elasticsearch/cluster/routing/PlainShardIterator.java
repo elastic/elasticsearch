@@ -35,6 +35,11 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
         this.shardId = shardId;
     }
 
+    public PlainShardIterator(ShardId shardId, List<ShardRouting> shards, int index) {
+        super(shards, index);
+        this.shardId = shardId;
+    }
+
     @Override public ShardIterator reset() {
         super.reset();
         return this;

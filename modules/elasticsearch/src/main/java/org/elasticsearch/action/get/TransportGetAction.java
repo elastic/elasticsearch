@@ -24,7 +24,7 @@ import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.support.single.shard.TransportSingleOperationAction;
+import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -50,7 +50,7 @@ import static org.elasticsearch.common.collect.Maps.*;
  *
  * @author kimchy (shay.banon)
  */
-public class TransportGetAction extends TransportSingleOperationAction<GetRequest, GetResponse> {
+public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
     private final IndicesService indicesService;
 

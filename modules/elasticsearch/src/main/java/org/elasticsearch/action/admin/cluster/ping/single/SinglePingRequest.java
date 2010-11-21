@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.ping.single;
 
-import org.elasticsearch.action.support.single.shard.SingleOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SinglePingRequest extends SingleOperationRequest {
+public class SinglePingRequest extends SingleShardOperationRequest {
 
     public SinglePingRequest(String index) {
         super(index, null, null);

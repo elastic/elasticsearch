@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -123,7 +123,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         public void start() {
             // count the local operations, and perform the non local ones
             int localOperations = 0;
-            for (final ShardsIterator shardIt : shardsIts) {
+            for (final ShardIterator shardIt : shardsIts) {
                 final ShardRouting shard = shardIt.nextActiveOrNull();
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -143,7 +143,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     request.beforeLocalFork();
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            for (final ShardsIterator shardIt : shardsIts) {
+                            for (final ShardIterator shardIt : shardsIts) {
                                 final ShardRouting shard = shardIt.reset().nextActiveOrNull();
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -158,7 +158,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     if (localAsync) {
                         request.beforeLocalFork();
                     }
-                    for (final ShardsIterator shardIt : shardsIts) {
+                    for (final ShardIterator shardIt : shardsIts) {
                         final ShardRouting shard = shardIt.reset().nextActiveOrNull();
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -178,7 +178,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void performFirstPhase(final ShardsIterator shardIt) {
+        private void performFirstPhase(final ShardIterator shardIt) {
             final ShardRouting shard = shardIt.nextActiveOrNull();
             if (shard == null) {
                 // no more active shards... (we should not really get here, but just for safety)
@@ -201,7 +201,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardsIterator shardIt) {
+        private void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardIterator shardIt) {
             result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
             processFirstPhaseResult(shard, result);
             // increment all the "future" shards to update the total ops since we some may work and some may not...
@@ -227,7 +227,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, final ShardsIterator shardIt, Throwable t) {
+        private void onFirstPhaseResult(ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {

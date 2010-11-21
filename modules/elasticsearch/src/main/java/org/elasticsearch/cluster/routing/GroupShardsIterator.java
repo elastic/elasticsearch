@@ -25,17 +25,17 @@ import java.util.Iterator;
 /**
  * @author kimchy (shay.banon)
  */
-public class GroupShardsIterator implements Iterable<ShardsIterator> {
+public class GroupShardsIterator implements Iterable<ShardIterator> {
 
-    private final Collection<ShardsIterator> iterators;
+    private final Collection<ShardIterator> iterators;
 
-    public GroupShardsIterator(Collection<ShardsIterator> iterators) {
+    public GroupShardsIterator(Collection<ShardIterator> iterators) {
         this.iterators = iterators;
     }
 
     public int totalSize() {
         int size = 0;
-        for (ShardsIterator shard : iterators) {
+        for (ShardIterator shard : iterators) {
             size += shard.size();
         }
         return size;
@@ -43,7 +43,7 @@ public class GroupShardsIterator implements Iterable<ShardsIterator> {
 
     public int totalSizeActive() {
         int size = 0;
-        for (ShardsIterator shard : iterators) {
+        for (ShardIterator shard : iterators) {
             size += shard.sizeActive();
         }
         return size;
@@ -53,11 +53,11 @@ public class GroupShardsIterator implements Iterable<ShardsIterator> {
         return iterators.size();
     }
 
-    public Collection<ShardsIterator> iterators() {
+    public Collection<ShardIterator> iterators() {
         return iterators;
     }
 
-    @Override public Iterator<ShardsIterator> iterator() {
+    @Override public Iterator<ShardIterator> iterator() {
         return iterators.iterator();
     }
 }

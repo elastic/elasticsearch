@@ -29,8 +29,8 @@ import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAct
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -93,14 +93,14 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     /**
      * We want to go over all assigned nodes (to get recovery status) and not just active ones.
      */
-    @Override protected ShardRouting nextShardOrNull(ShardsIterator shardIt) {
+    @Override protected ShardRouting nextShardOrNull(ShardIterator shardIt) {
         return shardIt.nextAssignedOrNull();
     }
 
     /**
      * We want to go over all assigned nodes (to get recovery status) and not just active ones.
      */
-    @Override protected boolean hasNextShard(ShardsIterator shardIt) {
+    @Override protected boolean hasNextShard(ShardIterator shardIt) {
         return shardIt.hasNextAssigned();
     }
 

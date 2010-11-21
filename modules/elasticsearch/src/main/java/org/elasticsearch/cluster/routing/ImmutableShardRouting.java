@@ -133,8 +133,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return shardIdentifier;
     }
 
-    @Override public ShardsIterator shardsIt() {
-        return new PlainShardsIterator(shardId(), ImmutableList.of((ShardRouting) this));
+    @Override public ShardIterator shardsIt() {
+        return new PlainShardIterator(shardId(), ImmutableList.of((ShardRouting) this));
     }
 
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in) throws IOException {

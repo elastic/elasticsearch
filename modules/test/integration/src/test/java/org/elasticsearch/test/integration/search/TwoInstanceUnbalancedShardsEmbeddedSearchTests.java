@@ -22,8 +22,8 @@ package org.elasticsearch.test.integration.search;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -118,8 +118,8 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
                 .from(0).size(60).explain(true);
 
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
-            for (ShardRouting shardRouting : shardsIt) {
+        for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
+            for (ShardRouting shardRouting : shardIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
@@ -185,8 +185,8 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
-            for (ShardRouting shardRouting : shardsIt) {
+        for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
+            for (ShardRouting shardRouting : shardIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
@@ -275,8 +275,8 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 
         // do this with dfs, since we have uneven distribution of docs between shards
         List<DfsSearchResult> dfsResults = newArrayList();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
-            for (ShardRouting shardRouting : shardsIt) {
+        for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
+            for (ShardRouting shardRouting : shardIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
@@ -330,8 +330,8 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
                 .facet(queryFacet("test1").query(termQuery("name", "test1")));
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
-        for (ShardsIterator shardsIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
-            for (ShardRouting shardRouting : shardsIt) {
+        for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
+            for (ShardRouting shardRouting : shardIt) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 QuerySearchResult queryResult = nodeToSearchService.get(shardRouting.currentNodeId()).executeQueryPhase(searchRequest);

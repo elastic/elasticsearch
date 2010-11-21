@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.operation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.indices.IndexMissingException;
 
@@ -32,13 +32,13 @@ import javax.annotation.Nullable;
  */
 public interface OperationRouting {
 
-    ShardsIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException;
+    ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException;
 
-    ShardsIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException;
+    ShardIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException;
 
     GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException, IndexShardMissingException;
 
-    ShardsIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException;
+    ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException;
 
     GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable String routing) throws IndexMissingException;
 

@@ -118,7 +118,7 @@ public interface ShardRouting extends Streamable, Serializable {
     /**
      * A shard iterator with just this shard in it.
      */
-    ShardsIterator shardsIt();
+    ShardIterator shardsIt();
 
     /**
      * Does not write index name and shard id

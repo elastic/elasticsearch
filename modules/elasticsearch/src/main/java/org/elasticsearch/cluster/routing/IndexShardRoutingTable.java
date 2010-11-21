@@ -90,12 +90,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return count;
     }
 
-    public ShardsIterator shardsIt() {
-        return new IndexShardsIterator(0);
+    public ShardIterator shardsIt() {
+        return new IndexShardIterator(0);
     }
 
-    public ShardsIterator shardsRandomIt() {
-        return new IndexShardsIterator(nextCounter());
+    public ShardIterator shardsRandomIt() {
+        return new IndexShardIterator(nextCounter());
     }
 
     public ShardRouting primaryShard() {
@@ -141,7 +141,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * <p>The class can be used from different threads, though not designed to be used concurrently
      * from different threads.
      */
-    class IndexShardsIterator implements ShardsIterator, Iterator<ShardRouting> {
+    class IndexShardIterator implements ShardIterator, Iterator<ShardRouting> {
 
         private final int origIndex;
 
@@ -149,7 +149,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         private volatile int counter = 0;
 
-        private IndexShardsIterator(int index) {
+        private IndexShardIterator(int index) {
             this.origIndex = index;
             this.index = index;
         }
@@ -158,7 +158,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return this;
         }
 
-        @Override public ShardsIterator reset() {
+        @Override public ShardIterator reset() {
             counter = 0;
             index = origIndex;
             return this;
@@ -283,7 +283,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         @Override public boolean equals(Object o) {
             if (this == o) return true;
 
-            ShardsIterator that = (ShardsIterator) o;
+            ShardIterator that = (ShardIterator) o;
 
             if (shardId != null ? !shardId.equals(that.shardId()) : that.shardId() != null) return false;
 

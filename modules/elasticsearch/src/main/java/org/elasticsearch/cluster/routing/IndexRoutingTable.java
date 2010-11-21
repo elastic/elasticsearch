@@ -138,12 +138,12 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     }
 
     /**
-     * A group shards iterator where each group ({@link ShardsIterator}
+     * A group shards iterator where each group ({@link ShardIterator}
      * is an iterator across shard replication group.
      */
     public GroupShardsIterator groupByShardsIt() {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>(shards.size());
         for (IndexShardRoutingTable indexShard : this) {
             set.add(indexShard.shardsIt());
         }
@@ -159,7 +159,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      */
     public GroupShardsIterator groupByAllIt() {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
         for (IndexShardRoutingTable indexShard : this) {
             for (ShardRouting shardRouting : indexShard) {
                 set.add(shardRouting.shardsIt());

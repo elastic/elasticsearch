@@ -21,15 +21,12 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-
 /**
  * Allows to iterate over a set of shard instances (routing) within a shard id group.
  *
  * @author kimchy (shay.banon)
  */
-public interface ShardIterator extends Iterable<ShardRouting>, Iterator<ShardRouting> {
+public interface ShardIterator extends ShardsIterator {
 
     /**
      * The shard id this group relates to.
@@ -40,69 +37,4 @@ public interface ShardIterator extends Iterable<ShardRouting>, Iterator<ShardRou
      * Resets the iterator.
      */
     ShardIterator reset();
-
-    /**
-     * The number of shard routing instances.
-     */
-    int size();
-
-    /**
-     * The number of active shard routing instances.
-     *
-     * @see ShardRouting#active()
-     */
-    int sizeActive();
-
-    /**
-     * Is there an active shard we can iterate to.
-     *
-     * @see ShardRouting#active()
-     */
-    boolean hasNextActive();
-
-    /**
-     * Returns the next active shard, or throws {@link NoSuchElementException}.
-     *
-     * @see ShardRouting#active()
-     */
-    ShardRouting nextActive() throws NoSuchElementException;
-
-    /**
-     * Returns the next active shard, or <tt>null</tt>.
-     *
-     * @see ShardRouting#active()
-     */
-    ShardRouting nextActiveOrNull();
-
-    /**
-     * The number of assigned shard routing instances.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    int sizeAssigned();
-
-    /**
-     * Is there an assigned shard we can iterate to.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    boolean hasNextAssigned();
-
-    /**
-     * Returns the next assigned shard, or throws {@link NoSuchElementException}.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    ShardRouting nextAssigned() throws NoSuchElementException;
-
-    /**
-     * Returns the next assigned shard, or <tt>null</tt>.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    ShardRouting nextAssignedOrNull();
-
-    int hashCode();
-
-    boolean equals(Object other);
 }

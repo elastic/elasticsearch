@@ -47,12 +47,21 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     private transient ShardId shardIdentifier;
 
-    public ImmutableShardRouting() {
+    private final transient ImmutableList<ShardRouting> asList;
+
+    ImmutableShardRouting() {
+        this.asList = ImmutableList.of((ShardRouting) this);
     }
 
     public ImmutableShardRouting(ShardRouting copy) {
         this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state());
         this.relocatingNodeId = copy.relocatingNodeId();
+    }
+
+    public ImmutableShardRouting(String index, int shardId, String currentNodeId,
+                                 String relocatingNodeId, boolean primary, ShardRoutingState state) {
+        this(index, shardId, currentNodeId, primary, state);
+        this.relocatingNodeId = relocatingNodeId;
     }
 
     public ImmutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
@@ -61,12 +70,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         this.currentNodeId = currentNodeId;
         this.primary = primary;
         this.state = state;
-    }
-
-    public ImmutableShardRouting(String index, int shardId, String currentNodeId,
-                                 String relocatingNodeId, boolean primary, ShardRoutingState state) {
-        this(index, shardId, currentNodeId, primary, state);
-        this.relocatingNodeId = relocatingNodeId;
+        this.asList = ImmutableList.of((ShardRouting) this);
     }
 
     @Override public String index() {
@@ -134,7 +138,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     @Override public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId(), ImmutableList.of((ShardRouting) this));
+        return new PlainShardIterator(shardId(), asList);
     }
 
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in) throws IOException {

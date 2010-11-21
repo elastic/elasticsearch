@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class SingleOperationRequest implements ActionRequest {
+public abstract class SingleShardOperationRequest implements ActionRequest {
 
     protected String index;
     protected String type;
@@ -40,10 +40,10 @@ public abstract class SingleOperationRequest implements ActionRequest {
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
 
-    protected SingleOperationRequest() {
+    protected SingleShardOperationRequest() {
     }
 
-    public SingleOperationRequest(String index, String type, String id) {
+    public SingleShardOperationRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -67,7 +67,7 @@ public abstract class SingleOperationRequest implements ActionRequest {
         return index;
     }
 
-    SingleOperationRequest index(String index) {
+    SingleShardOperationRequest index(String index) {
         this.index = index;
         return this;
     }
@@ -91,7 +91,7 @@ public abstract class SingleOperationRequest implements ActionRequest {
         return threadedListener;
     }
 
-    @Override public SingleOperationRequest listenerThreaded(boolean threadedListener) {
+    @Override public SingleShardOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;
     }
@@ -106,7 +106,7 @@ public abstract class SingleOperationRequest implements ActionRequest {
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public SingleOperationRequest operationThreaded(boolean threadedOperation) {
+    public SingleShardOperationRequest operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
         return this;
     }

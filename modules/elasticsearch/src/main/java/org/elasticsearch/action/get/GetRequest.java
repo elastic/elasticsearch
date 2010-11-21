@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.support.single.shard.SingleOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +38,7 @@ import java.io.IOException;
  * @see org.elasticsearch.client.Requests#getRequest(String)
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetRequest extends SingleOperationRequest {
+public class GetRequest extends SingleShardOperationRequest {
 
     private String[] fields;
 

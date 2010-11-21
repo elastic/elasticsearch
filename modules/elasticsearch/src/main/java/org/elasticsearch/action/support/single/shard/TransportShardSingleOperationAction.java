@@ -42,7 +42,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class TransportSingleOperationAction<Request extends SingleOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
+public abstract class TransportShardSingleOperationAction<Request extends SingleShardOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
@@ -50,7 +50,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
     protected final ThreadPool threadPool;
 
-    protected TransportSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+    protected TransportShardSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;

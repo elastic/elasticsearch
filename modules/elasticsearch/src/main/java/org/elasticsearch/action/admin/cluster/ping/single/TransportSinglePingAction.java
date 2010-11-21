@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.ping.single;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.support.single.shard.TransportSingleOperationAction;
+import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +31,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportSinglePingAction extends TransportSingleOperationAction<SinglePingRequest, SinglePingResponse> {
+public class TransportSinglePingAction extends TransportShardSingleOperationAction<SinglePingRequest, SinglePingResponse> {
 
     @Inject public TransportSinglePingAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, threadPool, clusterService, transportService);

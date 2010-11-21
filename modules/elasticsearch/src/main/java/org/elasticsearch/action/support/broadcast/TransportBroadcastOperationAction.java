@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
@@ -93,21 +93,21 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     /**
      * Allows to override how shard routing is iterated over. Default implementation uses
-     * {@link ShardsIterator#nextActiveOrNull()}.
+     * {@link org.elasticsearch.cluster.routing.ShardIterator#nextActiveOrNull()}.
      *
-     * <p>Note, if overriding this method, make sure to also override {@link #hasNextShard(org.elasticsearch.cluster.routing.ShardsIterator)}.
+     * <p>Note, if overriding this method, make sure to also override {@link #hasNextShard(org.elasticsearch.cluster.routing.ShardIterator)}.
      */
-    protected ShardRouting nextShardOrNull(ShardsIterator shardIt) {
+    protected ShardRouting nextShardOrNull(ShardIterator shardIt) {
         return shardIt.nextActiveOrNull();
     }
 
     /**
      * Allows to override how shard routing is iterated over. Default implementation uses
-     * {@link ShardsIterator#hasNextActive()}.
+     * {@link org.elasticsearch.cluster.routing.ShardIterator#hasNextActive()}.
      *
-     * <p>Note, if overriding this method, make sure to also override {@link #nextShardOrNull(org.elasticsearch.cluster.routing.ShardsIterator)}.
+     * <p>Note, if overriding this method, make sure to also override {@link #nextShardOrNull(org.elasticsearch.cluster.routing.ShardIterator)}.
      */
-    protected boolean hasNextShard(ShardsIterator shardIt) {
+    protected boolean hasNextShard(ShardIterator shardIt) {
         return shardIt.hasNextActive();
     }
 
@@ -168,7 +168,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
             // count the local operations, and perform the non local ones
             int localOperations = 0;
-            for (final ShardsIterator shardIt : shardsIts) {
+            for (final ShardIterator shardIt : shardsIts) {
                 final ShardRouting shard = nextShardOrNull(shardIt);
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -188,7 +188,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     request.beforeLocalFork();
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            for (final ShardsIterator shardIt : shardsIts) {
+                            for (final ShardIterator shardIt : shardsIts) {
                                 final ShardRouting shard = nextShardOrNull(shardIt.reset());
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -203,7 +203,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     if (localAsync) {
                         request.beforeLocalFork();
                     }
-                    for (final ShardsIterator shardIt : shardsIts) {
+                    for (final ShardIterator shardIt : shardsIts) {
                         final ShardRouting shard = nextShardOrNull(shardIt.reset());
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -215,7 +215,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        private void performOperation(final ShardsIterator shardIt, boolean localAsync) {
+        private void performOperation(final ShardIterator shardIt, boolean localAsync) {
             final ShardRouting shard = nextShardOrNull(shardIt);
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
@@ -278,7 +278,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         @SuppressWarnings({"unchecked"})
-        private void onOperation(ShardRouting shard, final ShardsIterator shardIt, Throwable t, boolean alreadyThreaded) {
+        private void onOperation(ShardRouting shard, final ShardIterator shardIt, Throwable t, boolean alreadyThreaded) {
             if (!hasNextShard(shardIt)) {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {

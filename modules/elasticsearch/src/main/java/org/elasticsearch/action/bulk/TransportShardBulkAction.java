@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -93,7 +93,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected ShardsIterator shards(ClusterState clusterState, BulkShardRequest request) {
+    @Override protected ShardIterator shards(ClusterState clusterState, BulkShardRequest request) {
         return clusterState.routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 

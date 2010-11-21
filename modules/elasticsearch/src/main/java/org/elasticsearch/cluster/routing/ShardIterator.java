@@ -29,7 +29,7 @@ import java.util.NoSuchElementException;
  *
  * @author kimchy (shay.banon)
  */
-public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRouting> {
+public interface ShardIterator extends Iterable<ShardRouting>, Iterator<ShardRouting> {
 
     /**
      * The shard id this group relates to.
@@ -39,7 +39,7 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRo
     /**
      * Resets the iterator.
      */
-    ShardsIterator reset();
+    ShardIterator reset();
 
     /**
      * The number of shard routing instances.

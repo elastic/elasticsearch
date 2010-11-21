@@ -33,8 +33,8 @@ import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -107,7 +107,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract void shardOperationOnReplica(ShardOperationRequest shardRequest);
 
-    protected abstract ShardsIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
 
     protected abstract boolean checkWriteConsistency();
 
@@ -223,7 +223,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private DiscoveryNodes nodes;
 
-        private ShardsIterator shards;
+        private ShardIterator shardIt;
 
         private final AtomicBoolean primaryOperationStarted = new AtomicBoolean();
 
@@ -261,21 +261,21 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return false;
             }
             try {
-                shards = shards(clusterState, request);
+                shardIt = shards(clusterState, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return true;
             }
 
-            // no shards, might be in the case between index gateway recovery and shards initialization
-            if (shards.size() == 0) {
-                retry(fromClusterEvent, shards.shardId());
+            // no shardIt, might be in the case between index gateway recovery and shardIt initialization
+            if (shardIt.size() == 0) {
+                retry(fromClusterEvent, shardIt.shardId());
                 return false;
             }
 
             boolean foundPrimary = false;
-            for (final ShardRouting shard : shards) {
-                // we only deal with primary shards here...
+            for (final ShardRouting shard : shardIt) {
+                // we only deal with primary shardIt here...
                 if (!shard.primary()) {
                     continue;
                 }
@@ -291,13 +291,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         consistencyLevel = request.consistencyLevel();
                     }
                     int requiredNumber = 1;
-                    if (consistencyLevel == WriteConsistencyLevel.QUORUM && shards.size() > 2) {
-                        // only for more than 2 in the number of shards it makes sense, otherwise its 1 shard with 1 replica, quorum is 1 (which is what it is initialized to)
-                        requiredNumber = (shards.size() / 2) + 1;
+                    if (consistencyLevel == WriteConsistencyLevel.QUORUM && shardIt.size() > 2) {
+                        // only for more than 2 in the number of shardIt it makes sense, otherwise its 1 shard with 1 replica, quorum is 1 (which is what it is initialized to)
+                        requiredNumber = (shardIt.size() / 2) + 1;
                     } else if (consistencyLevel == WriteConsistencyLevel.ALL) {
-                        requiredNumber = shards.size();
+                        requiredNumber = shardIt.size();
                     }
-                    if (shards.sizeActive() < requiredNumber) {
+                    if (shardIt.sizeActive() < requiredNumber) {
                         retry(fromClusterEvent, shard.shardId());
                         return false;
                     }
@@ -353,7 +353,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             // we should never get here, but here we go
             if (!foundPrimary) {
-                final UnavailableShardsException failure = new UnavailableShardsException(shards.shardId(), request.toString());
+                final UnavailableShardsException failure = new UnavailableShardsException(shardIt.shardId(), request.toString());
                 if (request.listenerThreaded()) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
@@ -398,7 +398,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             return;
                         }
                         clusterService.remove(this);
-                        final UnavailableShardsException failure = new UnavailableShardsException(shardId, "[" + shards.size() + "] shards, [" + shards.sizeActive() + "] active : Timeout waiting for [" + timeValue + "], request: " + request.toString());
+                        final UnavailableShardsException failure = new UnavailableShardsException(shardId, "[" + shardIt.size() + "] shardIt, [" + shardIt.sizeActive() + "] active : Timeout waiting for [" + timeValue + "], request: " + request.toString());
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
@@ -426,12 +426,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (logger.isDebugEnabled()) {
                     logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
                 }
-                listener.onFailure(new ReplicationShardOperationFailedException(shards.shardId(), e));
+                listener.onFailure(new ReplicationShardOperationFailedException(shardIt.shardId(), e));
             }
         }
 
         private void performReplicas(final Response response, boolean alreadyThreaded) {
-            if (ignoreReplicas() || shards.size() == 1 /* no replicas */) {
+            if (ignoreReplicas() || shardIt.size() == 1 /* no replicas */) {
                 if (alreadyThreaded || !request.listenerThreaded()) {
                     listener.onResponse(response);
                 } else {
@@ -447,7 +447,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             // initialize the counter
             int replicaCounter = 0;
 
-            for (final ShardRouting shard : shards.reset()) {
+            for (final ShardRouting shard : shardIt.reset()) {
                 // if its unassigned, nothing to do here...
                 if (shard.unassigned()) {
                     continue;
@@ -499,7 +499,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             AtomicInteger counter = new AtomicInteger(replicaCounter);
-            for (final ShardRouting shard : shards.reset()) {
+            for (final ShardRouting shard : shardIt.reset()) {
                 // if its unassigned, nothing to do here...
                 if (shard.unassigned()) {
                     continue;
@@ -545,7 +545,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
 
-            final ShardOperationRequest shardRequest = new ShardOperationRequest(shards.shardId().id(), request);
+            final ShardOperationRequest shardRequest = new ShardOperationRequest(shardIt.shardId().id(), request);
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
                 transportService.sendRequest(node, transportReplicaAction(), shardRequest, transportOptions(), new VoidTransportResponseHandler() {
@@ -555,7 +555,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override public void handleException(TransportException exp) {
                         if (!ignoreReplicaException(exp.unwrapCause())) {
-                            logger.warn("Failed to perform " + transportAction() + " on replica " + shards.shardId(), exp);
+                            logger.warn("Failed to perform " + transportAction() + " on replica " + shardIt.shardId(), exp);
                             shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on replica, message [" + detailedMessage(exp) + "]");
                         }
                         finishIfPossible();
@@ -589,7 +589,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 shardOperationOnReplica(shardRequest);
                             } catch (Exception e) {
                                 if (!ignoreReplicaException(e)) {
-                                    logger.warn("Failed to perform " + transportAction() + " on replica " + shards.shardId(), e);
+                                    logger.warn("Failed to perform " + transportAction() + " on replica " + shardIt.shardId(), e);
                                     shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on replica, message [" + detailedMessage(e) + "]");
                                 }
                             }
@@ -603,7 +603,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         shardOperationOnReplica(shardRequest);
                     } catch (Exception e) {
                         if (!ignoreReplicaException(e)) {
-                            logger.warn("Failed to perform " + transportAction() + " on replica" + shards.shardId(), e);
+                            logger.warn("Failed to perform " + transportAction() + " on replica" + shardIt.shardId(), e);
                             shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on replica, message [" + detailedMessage(e) + "]");
                         }
                     }

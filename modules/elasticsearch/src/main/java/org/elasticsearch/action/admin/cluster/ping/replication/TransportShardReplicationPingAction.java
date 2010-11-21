@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.replication.TransportShardReplicationOpe
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
@@ -64,7 +64,7 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
     }
 
-    @Override protected ShardsIterator shards(ClusterState clusterState, ShardReplicationPingRequest request) {
+    @Override protected ShardIterator shards(ClusterState clusterState, ShardReplicationPingRequest request) {
         return clusterService.state().routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 }

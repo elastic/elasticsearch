@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -57,15 +57,15 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         this.useType = indexSettings.getAsBoolean("cluster.routing.operation.use_type", false);
     }
 
-    @Override public ShardsIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+    @Override public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override public ShardsIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+    @Override public ShardIterator deleteShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsIt();
     }
 
-    @Override public ShardsIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
+    @Override public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
         return shards(clusterState, index, type, id, routing).shardsRandomIt();
     }
 
@@ -84,7 +84,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         }
 
         // we use set here and not identity set since we might get duplicates
-        HashSet<ShardsIterator> set = new HashSet<ShardsIterator>();
+        HashSet<ShardIterator> set = new HashSet<ShardIterator>();
         IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
         for (String r : routings) {
             int shardId = shardId(clusterState, index, null, null, r);
@@ -109,7 +109,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
         if (routings != null && routings.length > 0) {
             // we use set here and not list since we might get duplicates
-            HashSet<ShardsIterator> set = new HashSet<ShardsIterator>();
+            HashSet<ShardIterator> set = new HashSet<ShardIterator>();
             for (String index : indices) {
                 IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
                 for (String r : routings) {
@@ -125,7 +125,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             return new GroupShardsIterator(set);
         } else {
             // we use list here since we know we are not going to create duplicates
-            ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
+            ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
             for (String index : indices) {
                 IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
                 for (IndexShardRoutingTable indexShard : indexRouting) {

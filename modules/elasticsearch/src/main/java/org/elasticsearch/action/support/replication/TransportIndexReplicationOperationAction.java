@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,10 +78,10 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         final AtomicInteger completionCounter = new AtomicInteger(groups.size());
         final AtomicReferenceArray<Object> shardsResponses = new AtomicReferenceArray<Object>(groups.size());
 
-        for (final ShardsIterator shards : groups) {
-            ShardRequest shardRequest = newShardRequestInstance(request, shards.shardId().id());
+        for (final ShardIterator shardIt : groups) {
+            ShardRequest shardRequest = newShardRequestInstance(request, shardIt.shardId().id());
 
-            // TODO for now, we fork operations on shards of the index
+            // TODO for now, we fork operations on shardIt of the index
             shardRequest.beforeLocalFork(); // optimize for local fork
             shardRequest.operationThreaded(true);
 

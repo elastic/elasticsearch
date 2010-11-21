@@ -28,7 +28,7 @@ import java.util.NoSuchElementException;
 /**
  * @author kimchy (shay.banon)
  */
-public class PlainShardsIterator implements ShardsIterator {
+public class PlainShardIterator implements ShardIterator {
 
     private final ShardId shardId;
 
@@ -36,12 +36,12 @@ public class PlainShardsIterator implements ShardsIterator {
 
     private volatile int counter = 0;
 
-    public PlainShardsIterator(ShardId shardId, List<ShardRouting> shards) {
+    public PlainShardIterator(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shards = shards;
     }
 
-    @Override public ShardsIterator reset() {
+    @Override public ShardIterator reset() {
         this.counter = 0;
         return this;
     }
@@ -152,7 +152,7 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override public boolean equals(Object o) {
         if (this == o) return true;
 
-        ShardsIterator that = (ShardsIterator) o;
+        ShardIterator that = (ShardIterator) o;
 
         if (shardId != null ? !shardId.equals(that.shardId()) : that.shardId() != null) return false;
 

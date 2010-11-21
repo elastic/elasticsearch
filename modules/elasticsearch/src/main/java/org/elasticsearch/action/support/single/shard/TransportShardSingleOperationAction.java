@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -82,7 +82,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         private final ActionListener<Response> listener;
 
-        private final ShardsIterator shardsIt;
+        private final ShardIterator shardIt;
 
         private final Request request;
 
@@ -101,7 +101,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
             checkBlock(request, clusterState);
 
-            this.shardsIt = clusterService.operationRouting()
+            this.shardIt = clusterService.operationRouting()
                     .getShards(clusterState, request.index(), request.type(), request.id(), request.routing());
         }
 
@@ -120,8 +120,8 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
          * First get should try and use a shard that exists on a local node for better performance
          */
         private void performFirst() {
-            while (shardsIt.hasNextActive()) {
-                final ShardRouting shard = shardsIt.nextActive();
+            while (shardIt.hasNextActive()) {
+                final ShardRouting shard = shardIt.nextActive();
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     if (request.operationThreaded()) {
                         threadPool.execute(new Runnable() {
@@ -154,16 +154,16 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     }
                 }
             }
-            if (!shardsIt.hasNextActive()) {
+            if (!shardIt.hasNextActive()) {
                 // no local node get, go remote
-                shardsIt.reset();
+                shardIt.reset();
                 perform(null);
             }
         }
 
         private void perform(final Exception lastException) {
-            while (shardsIt.hasNextActive()) {
-                final ShardRouting shard = shardsIt.nextActive();
+            while (shardIt.hasNextActive()) {
+                final ShardRouting shard = shardIt.nextActive();
                 // no need to check for local nodes, we tried them already in performFirstGet
                 if (!shard.currentNodeId().equals(nodes.localNodeId())) {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
@@ -196,13 +196,13 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     return;
                 }
             }
-            if (!shardsIt.hasNextActive()) {
+            if (!shardIt.hasNextActive()) {
                 Exception failure = lastException;
                 if (failure == null) {
-                    failure = new NoShardAvailableActionException(shardsIt.shardId(), "No shard available for [" + request.type() + "#" + request.id() + "]");
+                    failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request.type() + "#" + request.id() + "]");
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(shardsIt.shardId() + ": Failed to get [" + request.type() + "#" + request.id() + "]", failure);
+                        logger.debug(shardIt.shardId() + ": Failed to get [" + request.type() + "#" + request.id() + "]", failure);
                     }
                 }
                 if (request.listenerThreaded()) {

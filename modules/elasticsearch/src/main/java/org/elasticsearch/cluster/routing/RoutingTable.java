@@ -145,7 +145,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      */
     public GroupShardsIterator allShardsGrouped(String... indices) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }
@@ -177,7 +177,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      */
     public GroupShardsIterator primaryShardsGrouped(String... indices) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardsIterator> set = new ArrayList<ShardsIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }

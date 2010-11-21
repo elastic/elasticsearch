@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
@@ -75,11 +75,11 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.types());
     }
 
-    @Override protected ShardsIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {
+    @Override protected ShardIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {
         GroupShardsIterator group = clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.routing());
-        for (ShardsIterator shards : group) {
-            if (shards.shardId().id() == request.shardId()) {
-                return shards;
+        for (ShardIterator shardIt : group) {
+            if (shardIt.shardId().id() == request.shardId()) {
+                return shardIt;
             }
         }
         throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");

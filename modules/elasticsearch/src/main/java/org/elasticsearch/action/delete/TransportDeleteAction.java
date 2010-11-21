@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -149,7 +149,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         indexShard.delete(delete);
     }
 
-    @Override protected ShardsIterator shards(ClusterState clusterState, DeleteRequest request) {
+    @Override protected ShardIterator shards(ClusterState clusterState, DeleteRequest request) {
         return clusterService.operationRouting()
                 .deleteShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }

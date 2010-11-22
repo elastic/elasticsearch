@@ -29,6 +29,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
@@ -141,6 +142,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     @Override public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
     @Override public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+
+    /**
+     * A range filter based on the field data cache.
+     */
+    public abstract Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).

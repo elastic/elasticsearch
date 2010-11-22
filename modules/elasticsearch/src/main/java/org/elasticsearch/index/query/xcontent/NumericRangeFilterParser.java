@@ -25,11 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.xcontent.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -105,7 +104,6 @@ public class NumericRangeFilterParser extends AbstractIndexComponent implements 
             }
         }
 
-        Filter filter;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
 
         if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
@@ -113,29 +111,10 @@ public class NumericRangeFilterParser extends AbstractIndexComponent implements 
         }
 
         FieldMapper mapper = smartNameFieldMappers.mapper();
-        if (mapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
-            filter = NumericRangeFieldDataFilter.newIntRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
-                    from == null ? null : Integer.parseInt(from),
-                    to == null ? null : Integer.parseInt(to),
-                    includeLower, includeUpper);
-        } else if (mapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
-            filter = NumericRangeFieldDataFilter.newLongRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
-                    from == null ? null : Long.parseLong(from),
-                    to == null ? null : Long.parseLong(to),
-                    includeLower, includeUpper);
-        } else if (mapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
-            filter = NumericRangeFieldDataFilter.newFloatRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
-                    from == null ? null : Float.parseFloat(from),
-                    to == null ? null : Float.parseFloat(to),
-                    includeLower, includeUpper);
-        } else if (mapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
-            filter = NumericRangeFieldDataFilter.newDoubleRange(parseContext.indexCache().fieldData(), mapper.names().indexName(),
-                    from == null ? null : Double.parseDouble(from),
-                    to == null ? null : Double.parseDouble(to),
-                    includeLower, includeUpper);
-        } else {
-            throw new QueryParsingException(index, "field [" + fieldName + "] is not numeric");
+        if (!(mapper instanceof NumberFieldMapper)) {
+            throw new QueryParsingException(index, "Field [" + fieldName + "] is not a numeric type");
         }
+        Filter filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.indexCache().fieldData(), from, to, includeLower, includeUpper);
 
         if (cache) {
             filter = parseContext.cacheFilter(filter);

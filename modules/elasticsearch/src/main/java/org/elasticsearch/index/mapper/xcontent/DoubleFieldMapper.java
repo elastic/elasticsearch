@@ -31,9 +31,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -135,6 +137,13 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : Double.parseDouble(lowerTerm),
+                upperTerm == null ? null : Double.parseDouble(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+        return NumericRangeFieldDataFilter.newDoubleRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),
                 includeLower, includeUpper);

@@ -32,9 +32,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -136,6 +138,13 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+        return NumericRangeFieldDataFilter.newShortRange(fieldDataCache, names.indexName(),
+                lowerTerm == null ? null : Short.parseShort(lowerTerm),
+                upperTerm == null ? null : Short.parseShort(upperTerm),
                 includeLower, includeUpper);
     }
 

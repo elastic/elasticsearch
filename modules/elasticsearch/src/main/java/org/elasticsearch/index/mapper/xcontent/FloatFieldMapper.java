@@ -32,9 +32,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -134,6 +136,13 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
+                upperTerm == null ? null : Float.parseFloat(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
+        return NumericRangeFieldDataFilter.newFloatRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);

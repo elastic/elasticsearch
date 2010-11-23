@@ -21,33 +21,36 @@ package org.elasticsearch.cache;
 
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.cache.query.parser.QueryParserCache;
-import org.elasticsearch.cache.query.parser.none.NoneQueryParserCache;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeCache extends AbstractComponent {
+public class NodeCache extends AbstractComponent implements ClusterStateListener {
+
+    private final ClusterService clusterService;
 
     private final ByteBufferCache byteBufferCache;
 
     private final QueryParserCache queryParserCache;
 
-    public NodeCache() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, new ByteBufferCache(ImmutableSettings.Builder.EMPTY_SETTINGS), new NoneQueryParserCache());
-    }
-
-    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache, QueryParserCache queryParserCache) {
+    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache, QueryParserCache queryParserCache, ClusterService clusterService) {
         super(settings);
+        this.clusterService = clusterService;
         this.byteBufferCache = byteBufferCache;
         this.queryParserCache = queryParserCache;
+        clusterService.add(this);
     }
 
     public void close() {
+        clusterService.remove(this);
         byteBufferCache.close();
+        queryParserCache.clear();
     }
 
     public ByteBufferCache byteBuffer() {
@@ -56,5 +59,13 @@ public class NodeCache extends AbstractComponent {
 
     public QueryParserCache queryParser() {
         return queryParserCache;
+    }
+
+    // listen on cluster change events to invalidate the query parser cache
+    @Override public void clusterChanged(ClusterChangedEvent event) {
+        // TODO we can do better by detecting just mappings changes
+        if (event.metaDataChanged()) {
+            queryParserCache.clear();
+        }
     }
 }

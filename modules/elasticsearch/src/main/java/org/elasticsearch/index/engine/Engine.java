@@ -252,6 +252,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Bulk {
         private final Operation[] ops;
+        private boolean refresh;
 
         public Bulk(Operation[] ops) {
             this.ops = ops;
@@ -259,6 +260,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Operation[] ops() {
             return this.ops;
+        }
+
+        public boolean refresh() {
+            return refresh;
+        }
+
+        public Bulk refresh(boolean refresh) {
+            this.refresh = refresh;
+            return this;
         }
     }
 

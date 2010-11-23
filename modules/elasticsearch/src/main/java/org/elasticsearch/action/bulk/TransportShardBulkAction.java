@@ -137,7 +137,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
-        EngineException[] failures = indexShard.bulk(new Engine.Bulk(ops));
+        EngineException[] failures = indexShard.bulk(new Engine.Bulk(ops).refresh(request.refresh()));
         // process failures and mappings
         Set<String> processedTypes = Sets.newHashSet();
         for (int i = 0; i < ops.length; i++) {

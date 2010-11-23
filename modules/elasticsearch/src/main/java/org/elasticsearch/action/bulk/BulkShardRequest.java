@@ -34,13 +34,20 @@ public class BulkShardRequest extends ShardReplicationOperationRequest {
 
     private BulkItemRequest[] items;
 
+    private boolean refresh;
+
     BulkShardRequest() {
     }
 
-    BulkShardRequest(String index, int shardId, BulkItemRequest[] items) {
+    BulkShardRequest(String index, int shardId, boolean refresh, BulkItemRequest[] items) {
         this.index = index;
         this.shardId = shardId;
         this.items = items;
+        this.refresh = refresh;
+    }
+
+    boolean refresh() {
+        return this.refresh;
     }
 
     int shardId() {
@@ -67,6 +74,7 @@ public class BulkShardRequest extends ShardReplicationOperationRequest {
         for (BulkItemRequest item : items) {
             item.writeTo(out);
         }
+        out.writeBoolean(refresh);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
@@ -76,5 +84,6 @@ public class BulkShardRequest extends ShardReplicationOperationRequest {
         for (int i = 0; i < items.length; i++) {
             items[i] = BulkItemRequest.readBulkItem(in);
         }
+        refresh = in.readBoolean();
     }
 }

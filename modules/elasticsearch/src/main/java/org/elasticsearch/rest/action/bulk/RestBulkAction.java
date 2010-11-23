@@ -70,6 +70,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             bulkRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         try {
             bulkRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
         } catch (Exception e) {

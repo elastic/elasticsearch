@@ -102,6 +102,16 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
     }
 
     /**
+     * Should a refresh be executed post this bulk operation causing the operations to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public BulkRequestBuilder setRefresh(boolean refresh) {
+        request.refresh(refresh);
+        return this;
+    }
+
+    /**
      * The number of actions currently in the bulk.
      */
     public int numberOfActions() {

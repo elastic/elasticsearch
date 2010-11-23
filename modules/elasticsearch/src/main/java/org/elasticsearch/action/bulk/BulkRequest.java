@@ -52,6 +52,7 @@ public class BulkRequest implements ActionRequest {
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private boolean refresh = false;
 
     /**
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
@@ -171,6 +172,20 @@ public class BulkRequest implements ActionRequest {
     }
 
     /**
+     * Should a refresh be executed post this bulk operation causing the operations to
+     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
+     * to <tt>false</tt>.
+     */
+    public BulkRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
+    public boolean refresh() {
+        return this.refresh;
+    }
+
+    /**
      * Set the replication type for this operation.
      */
     public BulkRequest replicationType(ReplicationType replicationType) {
@@ -238,6 +253,7 @@ public class BulkRequest implements ActionRequest {
                 requests.add(request);
             }
         }
+        refresh = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -252,5 +268,6 @@ public class BulkRequest implements ActionRequest {
             }
             request.writeTo(out);
         }
+        out.writeBoolean(refresh);
     }
 }

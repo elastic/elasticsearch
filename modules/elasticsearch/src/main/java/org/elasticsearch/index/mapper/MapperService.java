@@ -188,23 +188,23 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     }
                 }
 
-                mappers = indexNameFieldMappers.get(mapper.names().name());
+                mappers = indexNameFieldMappers.get(mapper.names().indexName());
                 if (mappers != null) {
                     mappers = mappers.remove(mapper);
                     if (mappers.isEmpty()) {
-                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().name()).immutableMap();
+                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().indexName()).immutableMap();
                     } else {
-                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
+                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().indexName(), mappers).immutableMap();
                     }
                 }
 
-                mappers = fullNameFieldMappers.get(mapper.names().name());
+                mappers = fullNameFieldMappers.get(mapper.names().fullName());
                 if (mappers != null) {
                     mappers = mappers.remove(mapper);
                     if (mappers.isEmpty()) {
-                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().name()).immutableMap();
+                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().fullName()).immutableMap();
                     } else {
-                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
+                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().fullName(), mappers).immutableMap();
                     }
                 }
             }
@@ -555,7 +555,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
                 indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(fieldMapper.names().indexName(), mappers).immutableMap();
 
-                mappers = fullNameFieldMappers.get(fieldMapper.names().indexName());
+                mappers = fullNameFieldMappers.get(fieldMapper.names().fullName());
                 if (mappers == null) {
                     mappers = new FieldMappers(fieldMapper);
                 } else {

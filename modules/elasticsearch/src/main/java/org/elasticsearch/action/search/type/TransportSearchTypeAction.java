@@ -96,6 +96,8 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected volatile ShardDoc[] sortedShardList;
 
+        protected final long startTime = System.currentTimeMillis();
+
         protected BaseAsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             this.request = request;
             this.listener = listener;
@@ -292,9 +294,16 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         }
 
         /**
+         * Builds how long it took to execute the search.
+         */
+        protected final long buildTookInMillis() {
+            return System.currentTimeMillis() - startTime;
+        }
+
+        /**
          * Builds the shard failures, and releases the cache (meaning this should only be called once!).
          */
-        protected ShardSearchFailure[] buildShardFailures() {
+        protected final ShardSearchFailure[] buildShardFailures() {
             return TransportSearchHelper.buildShardFailures(shardFailures, searchCache);
         }
 

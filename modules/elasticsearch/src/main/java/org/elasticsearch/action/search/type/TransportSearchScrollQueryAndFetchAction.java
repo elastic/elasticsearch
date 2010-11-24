@@ -91,6 +91,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private final AtomicInteger counter;
 
+        private final long startTime = System.currentTimeMillis();
+
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
             this.listener = listener;
@@ -209,7 +211,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 scrollId = request.scrollId();
             }
             searchCache.releaseQueryFetchResults(queryFetchResults);
-            invokeListener(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(), buildShardFailures(shardFailures, searchCache)));
+            invokeListener(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(),
+                    System.currentTimeMillis() - startTime, buildShardFailures(shardFailures, searchCache)));
         }
 
         protected void invokeListener(final SearchResponse response) {

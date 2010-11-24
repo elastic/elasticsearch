@@ -170,7 +170,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), dfsResults);
             }
-            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
+            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

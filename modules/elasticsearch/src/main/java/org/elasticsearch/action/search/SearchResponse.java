@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -51,14 +52,17 @@ public class SearchResponse implements ActionResponse, ToXContent {
 
     private ShardSearchFailure[] shardFailures;
 
+    private long tookInMillis;
+
     SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, ShardSearchFailure[] shardFailures) {
+    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
+        this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
     }
 
@@ -88,6 +92,34 @@ public class SearchResponse implements ActionResponse, ToXContent {
      */
     public Facets getFacets() {
         return facets();
+    }
+
+    /**
+     * How long the search took.
+     */
+    public TimeValue took() {
+        return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * How long the search took.
+     */
+    public TimeValue getTook() {
+        return took();
+    }
+
+    /**
+     * How long the search took in milliseconds.
+     */
+    public long tookInMillis() {
+        return tookInMillis;
+    }
+
+    /**
+     * How long the search took in milliseconds.
+     */
+    public long getTookInMillis() {
+        return tookInMillis();
     }
 
     /**
@@ -172,12 +204,14 @@ public class SearchResponse implements ActionResponse, ToXContent {
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString SHARD = new XContentBuilderString("shard");
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
+        static final XContentBuilderString TOOK = new XContentBuilderString("took");
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field(Fields._SCROLL_ID, scrollId);
         }
+        builder.field(Fields.TOOK, tookInMillis);
         builder.startObject(Fields._SHARDS);
         builder.field(Fields.TOTAL, totalShards());
         builder.field(Fields.SUCCESSFUL, successfulShards());
@@ -223,6 +257,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
         if (in.readBoolean()) {
             scrollId = in.readUTF();
         }
+        tookInMillis = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -241,5 +276,6 @@ public class SearchResponse implements ActionResponse, ToXContent {
             out.writeBoolean(true);
             out.writeUTF(scrollId);
         }
+        out.writeVLong(tookInMillis);
     }
 }

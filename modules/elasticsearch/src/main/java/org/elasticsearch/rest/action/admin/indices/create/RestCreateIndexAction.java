@@ -23,18 +23,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -51,23 +52,49 @@ public class RestCreateIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String bodySettings = request.contentAsString();
-        Settings indexSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-        if (Strings.hasText(bodySettings)) {
-            try {
-                indexSettings = ImmutableSettings.settingsBuilder().loadFromSource(bodySettings).build();
-            } catch (Exception e) {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
+        if (request.hasContent()) {
+            XContentType xContentType = XContentFactory.xContentType(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            if (xContentType != null) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                    return;
+                    Map<String, Object> source = XContentFactory.xContent(xContentType)
+                            .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
+                    if (source.containsKey("settings")) {
+                        createIndexRequest.settings((Map<String, Object>) source.get("settings"));
+                    }
+                    if (source.containsKey("mappings")) {
+                        Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
+                        for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+                            createIndexRequest.mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
+                        }
+                    }
+                } catch (Exception e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.warn("Failed to send response", e1);
+                        return;
+                    }
+                }
+            } else {
+                // its plain settings, parse and set them
+                try {
+                    createIndexRequest.settings(request.contentAsString());
+                } catch (Exception e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
+                    } catch (IOException e1) {
+                        logger.warn("Failed to send response", e1);
+                        return;
+                    }
                 }
             }
         }
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"), indexSettings);
+
         createIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+
         client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override public void onResponse(CreateIndexResponse response) {
                 try {

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -44,20 +44,19 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
- * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
- *
- * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
- *
  * @author kimchy (shay.banon)
- * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.elasticsearch.client.Requests#createIndexRequest(String)
- * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends MasterNodeOperationRequest {
+public class PutIndexTemplateRequest extends MasterNodeOperationRequest {
+
+    private String name;
 
     private String cause = "";
 
-    private String index;
+    private String template;
+
+    private int order;
+
+    private boolean create;
 
     private Settings settings = EMPTY_SETTINGS;
 
@@ -65,81 +64,101 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
-    CreateIndexRequest() {
+    PutIndexTemplateRequest() {
     }
 
     /**
-     * Constructs a new request to create an index with the specified name.
+     * Constructs a new put index template request with the provided name.
      */
-    public CreateIndexRequest(String index) {
-        this(index, EMPTY_SETTINGS);
-    }
-
-    /**
-     * Constructs a new request to create an index with the specified name and settings.
-     */
-    public CreateIndexRequest(String index, Settings settings) {
-        this.index = index;
-        this.settings = settings;
+    public PutIndexTemplateRequest(String name) {
+        this.name = name;
     }
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (index == null) {
-            validationException = addValidationError("index is missing", validationException);
+        if (name == null) {
+            validationException = addValidationError("name is missing", validationException);
+        }
+        if (template == null) {
+            validationException = addValidationError("template is missing", validationException);
         }
         return validationException;
     }
 
     /**
-     * The index name to create.
+     * Sets the name of the index template.
      */
-    String index() {
-        return index;
+    public PutIndexTemplateRequest name(String name) {
+        this.name = name;
+        return this;
     }
 
     /**
-     * The settings to created the index with.
+     * The name of the index template.
      */
-    Settings settings() {
-        return settings;
+    public String name() {
+        return this.name;
+    }
+
+    public PutIndexTemplateRequest template(String template) {
+        this.template = template;
+        return this;
+    }
+
+    public String template() {
+        return this.template;
+    }
+
+    public PutIndexTemplateRequest order(int order) {
+        this.order = order;
+        return this;
+    }
+
+    public int order() {
+        return this.order;
     }
 
     /**
-     * The cause for this index creation.
+     * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
+     * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
      */
-    String cause() {
-        return cause;
+    public PutIndexTemplateRequest create(boolean create) {
+        this.create = create;
+        return this;
+    }
+
+    public boolean create() {
+        return create;
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to created the index template with.
      */
-    public CreateIndexRequest settings(Settings settings) {
+    public PutIndexTemplateRequest settings(Settings settings) {
         this.settings = settings;
         return this;
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to created the index template with.
      */
-    public CreateIndexRequest settings(Settings.Builder settings) {
+    public PutIndexTemplateRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
         return this;
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * The settings to crete the index template with (either json/yaml/properties format)
      */
-    public CreateIndexRequest settings(String source) {
+    public PutIndexTemplateRequest settings(String source) {
         this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * The settings to crete the index template with (either json/yaml/properties format)
      */
-    public CreateIndexRequest settings(Map source) {
+    public PutIndexTemplateRequest settings(Map<String, Object> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
@@ -150,23 +169,31 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    Settings settings() {
+        return this.settings;
+    }
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
      * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, String source) {
+    public PutIndexTemplateRequest mapping(String type, String source) {
         mappings.put(type, source);
         return this;
     }
 
     /**
-     * The cause for this index creation.
+     * The cause for this index template creation.
      */
-    public CreateIndexRequest cause(String cause) {
+    public PutIndexTemplateRequest cause(String cause) {
         this.cause = cause;
         return this;
+    }
+
+    public String cause() {
+        return this.cause;
     }
 
     /**
@@ -175,7 +202,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, XContentBuilder source) {
+    public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
@@ -190,9 +217,9 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, Map source) {
+    public PutIndexTemplateRequest mapping(String type, Map<String, Object> source) {
         // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type)) {
+        if (source.size() != 1 || !source.containsKey(type)) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {
@@ -208,35 +235,39 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return this.mappings;
     }
 
+
     /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
      */
     TimeValue timeout() {
         return timeout;
     }
 
     /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
      */
-    public CreateIndexRequest timeout(TimeValue timeout) {
+    public PutIndexTemplateRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
 
     /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
      */
-    public CreateIndexRequest timeout(String timeout) {
+    public PutIndexTemplateRequest timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cause = in.readUTF();
-        index = in.readUTF();
+        name = in.readUTF();
+        template = in.readUTF();
+        order = in.readInt();
+        create = in.readBoolean();
         settings = readSettingsFromStream(in);
         timeout = readTimeValue(in);
         int size = in.readVInt();
@@ -248,7 +279,10 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(cause);
-        out.writeUTF(index);
+        out.writeUTF(name);
+        out.writeUTF(template);
+        out.writeInt(order);
+        out.writeBoolean(create);
         writeSettingsToStream(settings, out);
         timeout.writeTo(out);
         out.writeVInt(mappings.size());

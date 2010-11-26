@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,15 +19,21 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexAlreadyExistsException extends IndexException {
+public class IndexTemplateMissingException extends ElasticSearchException {
 
-    public IndexAlreadyExistsException(Index index) {
-        super(index, "Already exists");
+    private final String name;
+
+    public IndexTemplateMissingException(String name) {
+        super("index_template [" + name + "] missing");
+        this.name = name;
+    }
+
+    public String name() {
+        return this.name;
     }
 }

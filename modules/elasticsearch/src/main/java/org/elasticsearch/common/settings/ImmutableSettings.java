@@ -368,7 +368,12 @@ public class ImmutableSettings implements Settings {
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
-            return map.get(key);
+            String retVal = map.get(key);
+            if (retVal != null) {
+                return retVal;
+            }
+            // try camel case version
+            return map.get(toCamelCase(key));
         }
 
         /**

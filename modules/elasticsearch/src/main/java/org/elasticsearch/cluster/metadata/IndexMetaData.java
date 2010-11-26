@@ -261,7 +261,7 @@ public class IndexMetaData {
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.index());
+            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("state", indexMetaData.state().toString().toLowerCase());
 

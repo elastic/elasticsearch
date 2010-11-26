@@ -20,6 +20,9 @@
 package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,6 +43,12 @@ public class XContentHelper {
                 // in the content and in the default, only merge compound ones (maps)
                 if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
                     mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
+                } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
+                    // if both are lists, simply combine them, first the defaults, then the content
+                    List mergedList = new ArrayList();
+                    mergedList.addAll((Collection) defaultEntry.getValue());
+                    mergedList.addAll((Collection) content.get(defaultEntry.getKey()));
+                    content.put(defaultEntry.getKey(), mergedList);
                 }
             }
         }

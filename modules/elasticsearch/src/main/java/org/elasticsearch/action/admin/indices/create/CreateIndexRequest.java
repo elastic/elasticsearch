@@ -192,7 +192,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     public CreateIndexRequest mapping(String type, Map source) {
         // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type)) {
+        if (source.size() != 1 || !source.containsKey(type)) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {

@@ -68,6 +68,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     private volatile ConnectionFactory connectionFactory;
 
+    @SuppressWarnings({"unchecked"})
     @Inject public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client) {
         super(riverName, settings);
         this.client = client;

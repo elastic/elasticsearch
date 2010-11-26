@@ -82,7 +82,7 @@ public class PythonScriptSearchTests {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("python")))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("python")))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "python", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -95,7 +95,7 @@ public class PythonScriptSearchTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("python").addParam("param1", 2)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("python").addParam("param1", 2)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "python", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -106,7 +106,7 @@ public class PythonScriptSearchTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("python").addParam("param1", -1)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("python").addParam("param1", -1)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "python", "doc['num1'].value", null)
                 .execute().actionGet();

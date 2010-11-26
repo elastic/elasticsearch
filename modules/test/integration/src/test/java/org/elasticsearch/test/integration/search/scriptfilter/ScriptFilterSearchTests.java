@@ -74,7 +74,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > 1")))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > 1")))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
@@ -87,7 +87,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").addParam("param1", 2)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").addParam("param1", 2)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
@@ -98,7 +98,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").addParam("param1", -1)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").addParam("param1", -1)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();

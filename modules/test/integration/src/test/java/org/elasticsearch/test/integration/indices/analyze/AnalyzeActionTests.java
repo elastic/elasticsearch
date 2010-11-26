@@ -62,7 +62,7 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyzer("test", "this is a test").execute().actionGet();
+            AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
             assertThat(analyzeResponse.tokens().size(), equalTo(1));
             AnalyzeResponse.AnalyzeToken token = analyzeResponse.tokens().get(0);
             assertThat(token.term(), equalTo("test"));

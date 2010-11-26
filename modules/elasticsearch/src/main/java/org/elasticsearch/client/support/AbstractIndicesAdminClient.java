@@ -99,7 +99,7 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
         return new UpdateSettingsRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public AnalyzeRequestBuilder prepareAnalyzer(String index, String text) {
+    @Override public AnalyzeRequestBuilder prepareAnalyze(String index, String text) {
         return new AnalyzeRequestBuilder(this, index, text);
     }
 

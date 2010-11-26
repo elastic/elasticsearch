@@ -80,6 +80,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
     private final TransferQueue<String> stream = new LinkedTransferQueue<String>();
 
+    @SuppressWarnings({"unchecked"})
     @Inject public CouchdbRiver(RiverName riverName, RiverSettings settings, @RiverIndexName String riverIndexName, Client client, ScriptService scriptService) {
         super(riverName, settings);
         this.riverIndexName = riverIndexName;
@@ -178,6 +179,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
         closed = true;
     }
 
+    @SuppressWarnings({"unchecked"})
     private String processLine(String s, BulkRequestBuilder bulk) {
         Map<String, Object> ctx;
         try {
@@ -234,7 +236,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 if (closed) {
                     return;
                 }
-                String s = null;
+                String s;
                 try {
                     s = stream.take();
                 } catch (InterruptedException e) {
@@ -295,6 +297,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
 
     private class Slurper implements Runnable {
+        @SuppressWarnings({"unchecked"})
         @Override public void run() {
 
             while (true) {

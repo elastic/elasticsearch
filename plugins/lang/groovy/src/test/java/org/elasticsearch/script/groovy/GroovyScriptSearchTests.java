@@ -81,7 +81,7 @@ public class GroovyScriptSearchTests {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("groovy")))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("groovy")))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "groovy", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -94,7 +94,7 @@ public class GroovyScriptSearchTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("groovy").addParam("param1", 2)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("groovy").addParam("param1", 2)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "groovy", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -105,7 +105,7 @@ public class GroovyScriptSearchTests {
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("groovy").addParam("param1", -1)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("groovy").addParam("param1", -1)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "groovy", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -119,6 +119,7 @@ public class GroovyScriptSearchTests {
         assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
     }
 
+    @SuppressWarnings({"unchecked"})
     @Test public void testScriptFieldUsingSource() throws Exception {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.prepareIndex("test", "type1", "1")

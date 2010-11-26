@@ -84,7 +84,7 @@ public class MatchedFiltersTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(filtered(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2"))))
+                .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2"))))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(3l));

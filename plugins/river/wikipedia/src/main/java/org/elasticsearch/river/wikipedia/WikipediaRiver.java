@@ -74,6 +74,7 @@ public class WikipediaRiver extends AbstractRiverComponent implements River {
 
     private volatile BulkRequestBuilder currentRequest;
 
+    @SuppressWarnings({"unchecked"})
     @Inject public WikipediaRiver(RiverName riverName, RiverSettings settings, Client client) throws MalformedURLException {
         super(riverName, settings);
         this.client = client;

@@ -62,6 +62,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return loader.parseClass(script, generateScriptName());
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
         try {
             Class scriptClass = (Class) compiledScript;
@@ -109,6 +110,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return script.run();
         }
 
+        @SuppressWarnings({"unchecked"})
         @Override public Object run(Map<String, Object> vars) {
             script.getBinding().getVariables().putAll(vars);
             return script.run();

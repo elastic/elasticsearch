@@ -425,7 +425,7 @@ public interface IndicesAdminClient {
      * @param index The index name
      * @param text  The text to analyze
      */
-    AnalyzeRequestBuilder prepareAnalyzer(String index, String text);
+    AnalyzeRequestBuilder prepareAnalyze(String index, String text);
 
     /**
      * Puts an index template.

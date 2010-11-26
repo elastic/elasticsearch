@@ -22,6 +22,8 @@ package org.elasticsearch.groovy.client
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest
@@ -42,8 +44,13 @@ import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse
 import org.elasticsearch.client.IndicesAdminClient
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder
+import org.elasticsearch.client.action.admin.indices.analyze.AnalyzeRequestBuilder
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder
@@ -54,6 +61,8 @@ import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBui
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder
+import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder
+import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
 import org.elasticsearch.groovy.common.xcontent.GXContentBuilder
@@ -382,6 +391,66 @@ class GIndicesAdminClient {
     GActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request) {
         GActionFuture<UpdateSettingsResponse> future = new GActionFuture<UpdateSettingsResponse>(internalClient.threadPool(), request);
         indicesAdminClient.updateSettings(request, future)
+        return future
+    }
+
+    // ANALYZE
+
+    AnalyzeRequestBuilder prepareAnalyze(String index, String text) {
+        indicesAdminClient.prepareAnalyze(index, text);
+    }
+
+    GActionFuture<AnalyzeResponse> analyze(Closure c) {
+        AnalyzeRequest request = new AnalyzeRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy;
+        c.call();
+        analyze(request)
+    }
+
+    GActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request) {
+        GActionFuture<AnalyzeResponse> future = new GActionFuture<AnalyzeResponse>(internalClient.threadPool(), request)
+        indicesAdminClient.analyze(request, future)
+        return future
+    }
+
+    // PUT INDEX TEMPLATE
+
+    PutIndexTemplateRequestBuilder preparePutTemplate(String name) {
+        indicesAdminClient.preparePutTemplate(name);
+    }
+
+    GActionFuture<PutIndexTemplateResponse> putTemplate(Closure c) {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy;
+        c.call();
+        putTemplate(request)
+    }
+
+    GActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request) {
+        GActionFuture<PutIndexTemplateResponse> future = new GActionFuture<PutIndexTemplateResponse>(internalClient.threadPool(), request)
+        indicesAdminClient.putTemplate(request, future)
+        return future
+    }
+
+    // DELETE INDEX TEMPLATE
+
+    DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name) {
+        indicesAdminClient.prepareDeleteTemplate(name);
+    }
+
+    GActionFuture<DeleteIndexTemplateResponse> deleteTemplate(Closure c) {
+        DeleteIndexTemplateRequest request = new DeleteIndexTemplateRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy;
+        c.call();
+        deleteTemplate(request)
+    }
+
+    GActionFuture<DeleteIndexTemplateResponse> deleteTemplate(DeleteIndexTemplateRequest request) {
+        GActionFuture<DeleteIndexTemplateResponse> future = new GActionFuture<DeleteIndexTemplateResponse>(internalClient.threadPool(), request)
+        indicesAdminClient.deleteTemplate(request, future)
         return future
     }
 }

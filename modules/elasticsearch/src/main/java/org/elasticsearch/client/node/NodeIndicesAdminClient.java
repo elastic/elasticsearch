@@ -66,6 +66,12 @@ import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.common.inject.Inject;
@@ -109,13 +115,18 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportAnalyzeAction analyzeAction;
 
+    private final TransportPutIndexTemplateAction putIndexTemplateAction;
+
+    private final TransportDeleteIndexTemplateAction deleteIndexTemplateAction;
+
     @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesStatusAction indicesStatusAction,
                                           TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                           TransportCloseIndexAction closeIndexAction, TransportOpenIndexAction openIndexAction,
                                           TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
                                           TransportPutMappingAction putMappingAction, TransportDeleteMappingAction deleteMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
                                           TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
-                                          TransportUpdateSettingsAction updateSettingsAction, TransportAnalyzeAction analyzeAction) {
+                                          TransportUpdateSettingsAction updateSettingsAction, TransportAnalyzeAction analyzeAction,
+                                          TransportPutIndexTemplateAction putIndexTemplateAction, TransportDeleteIndexTemplateAction deleteIndexTemplateAction) {
         this.threadPool = threadPool;
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
@@ -132,6 +143,8 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
         this.clearIndicesCacheAction = clearIndicesCacheAction;
         this.updateSettingsAction = updateSettingsAction;
         this.analyzeAction = analyzeAction;
+        this.putIndexTemplateAction = putIndexTemplateAction;
+        this.deleteIndexTemplateAction = deleteIndexTemplateAction;
     }
 
     @Override public ThreadPool threadPool() {
@@ -256,5 +269,21 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @Override public void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener) {
         analyzeAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request) {
+        return putIndexTemplateAction.execute(request);
+    }
+
+    @Override public void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener) {
+        putIndexTemplateAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(DeleteIndexTemplateRequest request) {
+        return deleteIndexTemplateAction.execute(request);
+    }
+
+    @Override public void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<DeleteIndexTemplateResponse> listener) {
+        deleteIndexTemplateAction.execute(request, listener);
     }
 }

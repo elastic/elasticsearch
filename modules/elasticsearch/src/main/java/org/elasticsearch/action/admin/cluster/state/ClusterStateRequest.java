@@ -42,6 +42,8 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
 
     private String[] filteredIndices = Strings.EMPTY_ARRAY;
 
+    private String[] filteredIndexTemplates = Strings.EMPTY_ARRAY;
+
     private boolean local = false;
 
     public ClusterStateRequest() {
@@ -96,6 +98,15 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public String[] filteredIndexTemplates() {
+        return this.filteredIndexTemplates;
+    }
+
+    public ClusterStateRequest filteredIndexTemplates(String... filteredIndexTemplates) {
+        this.filteredIndexTemplates = filteredIndexTemplates;
+        return this;
+    }
+
     public ClusterStateRequest local(boolean local) {
         this.local = local;
         return this;
@@ -118,6 +129,13 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
                 filteredIndices[i] = in.readUTF();
             }
         }
+        size = in.readVInt();
+        if (size > 0) {
+            filteredIndexTemplates = new String[size];
+            for (int i = 0; i < filteredIndexTemplates.length; i++) {
+                filteredIndexTemplates[i] = in.readUTF();
+            }
+        }
         local = in.readBoolean();
     }
 
@@ -130,6 +148,10 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         out.writeVInt(filteredIndices.length);
         for (String filteredIndex : filteredIndices) {
             out.writeUTF(filteredIndex);
+        }
+        out.writeVInt(filteredIndexTemplates.length);
+        for (String filteredIndexTemplate : filteredIndexTemplates) {
+            out.writeUTF(filteredIndexTemplate);
         }
         out.writeBoolean(local);
     }

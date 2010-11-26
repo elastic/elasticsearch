@@ -119,7 +119,7 @@ public class FetchPhase implements SearchPhase {
                     }
                 }
 
-                if (searchHit.fields() == null) {
+                if (searchHit.fieldsOrNull() == null) {
                     searchHit.fields(new HashMap<String, SearchHitField>(2));
                 }
 
@@ -140,7 +140,7 @@ public class FetchPhase implements SearchPhase {
 
                     Object value = scriptField.script().execute(subDoc);
 
-                    if (searchHit.fields() == null) {
+                    if (searchHit.fieldsOrNull() == null) {
                         searchHit.fields(new HashMap<String, SearchHitField>(2));
                     }
 

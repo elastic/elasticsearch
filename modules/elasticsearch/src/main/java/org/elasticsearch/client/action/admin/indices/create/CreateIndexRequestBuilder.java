@@ -107,7 +107,7 @@ public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateI
      * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequestBuilder mapping(String type, Map<String, Object> source) {
+    public CreateIndexRequestBuilder addMapping(String type, Map<String, Object> source) {
         request.mapping(type, source);
         return this;
     }

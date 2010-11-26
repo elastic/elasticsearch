@@ -22,6 +22,7 @@ package org.elasticsearch.gateway.shared;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.StopWatch;
@@ -33,6 +34,7 @@ import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -139,6 +141,12 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                         .metaData(currentState.metaData());
                 // mark the metadata as read from gateway
                 metaDataBuilder.markAsRecoveredFromGateway();
+
+                // add the index templates
+                for (Map.Entry<String, IndexTemplateMetaData> entry : fMetaData.templates().entrySet()) {
+                    metaDataBuilder.put(entry.getValue());
+                }
+
                 return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).build();
             }
 
@@ -147,7 +155,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
                     try {
-                        createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index())
+                        createIndexService.createIndex(new MetaDataCreateIndexService.Request(MetaDataCreateIndexService.Request.Origin.GATEWAY, "gateway", indexMetaData.index())
                                 .settings(indexMetaData.settings())
                                 .mappingsMetaData(indexMetaData.mappings())
                                 .state(indexMetaData.state())

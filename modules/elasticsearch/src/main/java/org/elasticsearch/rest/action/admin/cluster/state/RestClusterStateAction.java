@@ -27,6 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -34,7 +35,9 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -72,6 +75,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
         clusterStateRequest.filterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.filterBlocks()));
         clusterStateRequest.filteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
+        clusterStateRequest.filteredIndexTemplates(request.paramAsStringArray("filter_index_templates", Strings.EMPTY_ARRAY));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override public void onResponse(ClusterStateResponse response) {
@@ -135,6 +139,39 @@ public class RestClusterStateAction extends BaseRestHandler {
                     // meta data
                     if (!clusterStateRequest.filterMetaData()) {
                         builder.startObject("metadata");
+
+                        builder.startObject("templates");
+                        for (IndexTemplateMetaData templateMetaData : state.metaData().templates().values()) {
+                            builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+
+                            builder.field("template", templateMetaData.template());
+                            builder.field("order", templateMetaData.order());
+
+                            builder.startObject("settings");
+                            Settings settings = settingsFilter.filterSettings(templateMetaData.settings());
+                            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                                builder.field(entry.getKey(), entry.getValue());
+                            }
+                            builder.endObject();
+
+                            builder.startObject("mappings");
+                            for (Map.Entry<String, CompressedString> entry : templateMetaData.mappings().entrySet()) {
+                                byte[] mappingSource = entry.getValue().uncompressed();
+                                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                                Map<String, Object> mapping = parser.map();
+                                if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                                    // the type name is the root value, reduce it
+                                    mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                                }
+                                builder.field(entry.getKey());
+                                builder.map(mapping);
+                            }
+                            builder.endObject();
+
+
+                            builder.endObject();
+                        }
+                        builder.endObject();
 
                         builder.startObject("indices");
                         for (IndexMetaData indexMetaData : state.metaData()) {

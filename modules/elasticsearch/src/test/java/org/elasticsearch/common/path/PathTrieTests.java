@@ -64,4 +64,18 @@ public class PathTrieTests {
         trie.insert("/", "walla");
         assertThat(trie.retrieve(""), equalTo("walla"));
     }
+
+    @Test public void testDifferentNamesOnDifferentPath() {
+        PathTrie<String> trie = new PathTrie<String>();
+        trie.insert("/a/{type}", "test1");
+        trie.insert("/b/{name}", "test2");
+
+        Map<String, String> params = newHashMap();
+        assertThat(trie.retrieve("/a/test", params), equalTo("test1"));
+        assertThat(params.get("type"), equalTo("test"));
+
+        params.clear();
+        assertThat(trie.retrieve("/b/testX", params), equalTo("test2"));
+        assertThat(params.get("name"), equalTo("testX"));
+    }
 }

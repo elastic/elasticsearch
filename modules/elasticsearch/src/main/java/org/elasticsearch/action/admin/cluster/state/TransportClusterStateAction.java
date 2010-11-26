@@ -26,11 +26,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -80,20 +79,31 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
             builder.blocks(currentState.blocks());
         }
         if (!request.filterMetaData()) {
+            MetaData.Builder mdBuilder = newMetaDataBuilder();
+            if (request.filteredIndices().length == 0 && request.filteredIndexTemplates().length == 0) {
+                mdBuilder.metaData(currentState.metaData());
+            }
+
             if (request.filteredIndices().length > 0) {
-                MetaData.Builder mdBuilder = newMetaDataBuilder();
-                String[] indices = currentState.metaData().concreteIndices(request.filteredIndices());
+                String[] indices = currentState.metaData().concreteIndices(request.filteredIndices(), true);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(filteredIndex));
+                    if (indexMetaData != null) {
+                        mdBuilder.put(indexMetaData);
                     }
-                    mdBuilder.put(indexMetaData);
                 }
-                builder.metaData(mdBuilder);
-            } else {
-                builder.metaData(currentState.metaData());
             }
+
+            if (request.filteredIndexTemplates().length > 0) {
+                for (String templateName : request.filteredIndexTemplates()) {
+                    IndexTemplateMetaData indexTemplateMetaData = currentState.metaData().templates().get(templateName);
+                    if (indexTemplateMetaData != null) {
+                        mdBuilder.put(indexTemplateMetaData);
+                    }
+                }
+            }
+
+            builder.metaData(mdBuilder);
         }
         return new ClusterStateResponse(clusterName, builder.build());
     }

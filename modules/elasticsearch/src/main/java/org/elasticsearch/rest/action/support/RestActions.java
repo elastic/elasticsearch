@@ -39,6 +39,7 @@ public class RestActions {
     public final static Pattern indicesPattern = Pattern.compile(",");
     public final static Pattern typesPattern = Pattern.compile(",");
     public final static Pattern nodesIdsPattern = Pattern.compile(",");
+    public final static Pattern genericPattern = Pattern.compile(",");
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
         builder.startObject("_shards");

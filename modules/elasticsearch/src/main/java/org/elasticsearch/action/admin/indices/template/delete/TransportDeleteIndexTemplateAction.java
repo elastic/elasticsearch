@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,48 +35,44 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Create index action.
+ * Delete index action.
  *
  * @author kimchy (shay.banon)
  */
-public class TransportCreateIndexAction extends TransportMasterNodeOperationAction<CreateIndexRequest, CreateIndexResponse> {
+public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOperationAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
-    private final MetaDataCreateIndexService createIndexService;
+    private final MetaDataIndexTemplateService indexTemplateService;
 
-    @Inject public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, MetaDataCreateIndexService createIndexService) {
+    @Inject public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                                      ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
         super(settings, transportService, clusterService, threadPool);
-        this.createIndexService = createIndexService;
+        this.indexTemplateService = indexTemplateService;
     }
 
     @Override protected String transportAction() {
-        return TransportActions.Admin.Indices.CREATE;
+        return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
     }
 
-    @Override protected CreateIndexRequest newRequest() {
-        return new CreateIndexRequest();
+    @Override protected DeleteIndexTemplateRequest newRequest() {
+        return new DeleteIndexTemplateRequest();
     }
 
-    @Override protected CreateIndexResponse newResponse() {
-        return new CreateIndexResponse();
+    @Override protected DeleteIndexTemplateResponse newResponse() {
+        return new DeleteIndexTemplateResponse();
     }
 
-    @Override protected void checkBlock(CreateIndexRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, request.index());
+    @Override protected void checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, "");
     }
 
-    @Override protected CreateIndexResponse masterOperation(CreateIndexRequest request, ClusterState state) throws ElasticSearchException {
-        String cause = request.cause();
-        if (cause.length() == 0) {
-            cause = "api";
-        }
-
-        final AtomicReference<CreateIndexResponse> responseRef = new AtomicReference<CreateIndexResponse>();
+    @Override protected DeleteIndexTemplateResponse masterOperation(DeleteIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {
+        final AtomicReference<DeleteIndexTemplateResponse> responseRef = new AtomicReference<DeleteIndexTemplateResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        createIndexService.createIndex(new MetaDataCreateIndexService.Request(MetaDataCreateIndexService.Request.Origin.API, cause, request.index()).settings(request.settings()).mappings(request.mappings()).timeout(request.timeout()), new MetaDataCreateIndexService.Listener() {
-            @Override public void onResponse(MetaDataCreateIndexService.Response response) {
-                responseRef.set(new CreateIndexResponse(response.acknowledged()));
+
+        indexTemplateService.removeTemplate(new MetaDataIndexTemplateService.RemoveRequest(request.name()), new MetaDataIndexTemplateService.RemoveListener() {
+            @Override public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
+                responseRef.set(new DeleteIndexTemplateResponse(response.acknowledged()));
                 latch.countDown();
             }
 

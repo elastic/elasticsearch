@@ -196,7 +196,15 @@ public class InternalSearchHit implements SearchHit {
     }
 
     @Override public Map<String, SearchHitField> fields() {
+        if (fields == null) {
+            return ImmutableMap.of();
+        }
         return fields;
+    }
+
+    // returns the fields without handling null cases
+    public Map<String, SearchHitField> fieldsOrNull() {
+        return this.fields;
     }
 
     @Override public Map<String, SearchHitField> getFields() {

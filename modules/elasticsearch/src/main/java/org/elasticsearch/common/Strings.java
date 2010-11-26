@@ -517,6 +517,16 @@ public class Strings {
         return true;
     }
 
+    public static boolean validFileNameExcludingAstrix(String fileName) {
+        for (int i = 0; i < fileName.length(); i++) {
+            char c = fileName.charAt(i);
+            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Extract the filename from the given path,
      * e.g. "mypath/myfile.txt" -> "myfile.txt".

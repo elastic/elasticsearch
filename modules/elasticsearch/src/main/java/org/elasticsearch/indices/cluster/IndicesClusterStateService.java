@@ -218,35 +218,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             String index = indexMetaData.index();
             IndexService indexService = indicesService.indexServiceSafe(index);
             MapperService mapperService = indexService.mapperService();
+            // first, go over and update the _default_ mapping (if exists)
+            if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                processMapping(event, index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+            }
+
             // go over and add the relevant mappings (or update them)
             for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
                 String mappingType = mappingMd.type();
                 CompressedString mappingSource = mappingMd.source();
-                if (!seenMappings.containsKey(new Tuple<String, String>(index, mappingType))) {
-                    seenMappings.put(new Tuple<String, String>(index, mappingType), true);
+                if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
+                    continue;
                 }
-
-                try {
-                    if (!mapperService.hasMapping(mappingType)) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
-                        }
-                        mapperService.add(mappingType, mappingSource.string());
-                        nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
-                    } else {
-                        DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
-                        if (!mappingSource.equals(existingMapper.mappingSource())) {
-                            // mapping changed, update it
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
-                            }
-                            mapperService.add(mappingType, mappingSource.string());
-                            nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
-                }
+                processMapping(event, index, mapperService, mappingType, mappingSource);
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {
@@ -256,6 +240,34 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     seenMappings.remove(new Tuple<String, String>(index, documentMapper.type()));
                 }
             }
+        }
+    }
+
+    private void processMapping(ClusterChangedEvent event, String index, MapperService mapperService, String mappingType, CompressedString mappingSource) {
+        if (!seenMappings.containsKey(new Tuple<String, String>(index, mappingType))) {
+            seenMappings.put(new Tuple<String, String>(index, mappingType), true);
+        }
+
+        try {
+            if (!mapperService.hasMapping(mappingType)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                }
+                mapperService.add(mappingType, mappingSource.string());
+                nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
+            } else {
+                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (!mappingSource.equals(existingMapper.mappingSource())) {
+                    // mapping changed, update it
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                    }
+                    mapperService.add(mappingType, mappingSource.string());
+                    nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
         }
     }
 

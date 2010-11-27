@@ -63,7 +63,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public static final String DEFAULT_MAPPING = "_default_";
 
     /**
-     * Will create types automatically if they do not exists in the repo yet
+     * Will create types automatically if they do not exists in the mapping definition yet
      */
     private final boolean dynamic;
 
@@ -151,7 +151,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public void add(String type, String mappingSource) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
-            documentParser.parse(type, mappingSource);
+            DocumentMapper mapper = documentParser.parse(type, mappingSource);
+            // still add it as a document mapper so we have it registered and, for example, persisted back into
+            // the cluster meta data if needed, or checked for existence
+            synchronized (mutex) {
+                mappers = newMapBuilder(mappers).put(type, mapper).immutableMap();
+            }
             defaultMappingSource = mappingSource;
         } else {
             add(parse(type, mappingSource));

@@ -186,7 +186,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index);
                     MapperService mapperService = indexService.mapperService();
+                    // first, add the default mapping
+                    if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
+                        try {
+                            mapperService.add(MapperService.DEFAULT_MAPPING, XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string());
+                        } catch (Exception e) {
+                            indicesService.deleteIndex(request.index);
+                            throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
+                        }
+                    }
                     for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
+                        if (entry.getKey().equals(MapperService.DEFAULT_MAPPING)) {
+                            continue;
+                        }
                         try {
                             mapperService.add(entry.getKey(), XContentFactory.jsonBuilder().map(entry.getValue()).string());
                         } catch (Exception e) {

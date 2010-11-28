@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetsPhase;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 
@@ -74,6 +75,7 @@ public class QueryPhase implements SearchPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        searchContext.searcher().processingScope(ContextIndexSearcher.Scopes.MAIN);
         try {
             searchContext.queryResult().from(searchContext.from());
             searchContext.queryResult().size(searchContext.size());
@@ -112,6 +114,8 @@ public class QueryPhase implements SearchPhase {
             searchContext.queryResult().topDocs(topDocs);
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
+        } finally {
+            searchContext.searcher().processedScope();
         }
 
         facetsPhase.execute(searchContext);

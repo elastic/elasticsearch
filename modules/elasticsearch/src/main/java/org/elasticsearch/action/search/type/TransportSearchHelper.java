@@ -79,7 +79,7 @@ public abstract class TransportSearchHelper {
         return internalRequest;
     }
 
-    public static String buildScrollId(SearchType searchType, Iterable<? extends SearchPhaseResult> searchPhaseResults) {
+    public static String buildScrollId(SearchType searchType, Iterable<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
         if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
@@ -89,17 +89,17 @@ public abstract class TransportSearchHelper {
         }
     }
 
-    public static String buildScrollId(String type, Iterable<? extends SearchPhaseResult> searchPhaseResults) {
+    public static String buildScrollId(String type, Iterable<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
         StringBuilder sb = new StringBuilder().append(type).append(';');
         for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
             sb.append(searchPhaseResult.id()).append(':').append(searchPhaseResult.shardTarget().nodeId()).append(';');
         }
-        return Base64.encodeBytes(Unicode.fromStringAsBytes(sb.toString()));
+        return Base64.encodeBytes(Unicode.fromStringAsBytes(sb.toString()), Base64.URL_SAFE);
     }
 
     public static ParsedScrollId parseScrollId(String scrollId) {
         try {
-            scrollId = Unicode.fromBytes(Base64.decode(scrollId));
+            scrollId = Unicode.fromBytes(Base64.decode(scrollId, Base64.URL_SAFE));
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to decode scrollId", e);
         }

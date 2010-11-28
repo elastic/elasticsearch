@@ -44,7 +44,7 @@ import java.util.Map;
  */
 public class Lucene {
 
-    public static Version VERSION = Version.LUCENE_CURRENT;
+    @SuppressWarnings({"deprecation"}) public static Version VERSION = Version.LUCENE_CURRENT;
     public static Version ANALYZER_VERSION = VERSION;
     public static Version QUERYPARSER_VERSION = VERSION;
 
@@ -280,6 +280,7 @@ public class Lucene {
         }
     }
 
+    @SuppressWarnings({"unchecked"})
     public static Object readFieldValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == -1) {
@@ -327,6 +328,7 @@ public class Lucene {
         }
     }
 
+    @SuppressWarnings({"unchecked"})
     public static void writeFieldValue(StreamOutput out, Object value) throws IOException {
         if (value == null) {
             out.writeByte((byte) -1);

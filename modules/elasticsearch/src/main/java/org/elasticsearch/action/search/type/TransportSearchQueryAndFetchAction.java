@@ -75,7 +75,7 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
             queryFetchResults.put(result.shardTarget(), result);
         }
 
-        @Override protected void moveToSecondPhase() {
+        @Override protected void moveToSecondPhase() throws Exception {
             sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;

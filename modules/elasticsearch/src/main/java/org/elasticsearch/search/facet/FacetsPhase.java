@@ -30,6 +30,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.collector.FacetCollector;
 import org.elasticsearch.search.facet.internal.InternalFacets;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -59,22 +60,21 @@ public class FacetsPhase implements SearchPhase {
         }
 
         // run global facets ...
-        if (context.searcher().globalCollectors() != null) {
+        if (context.searcher().hasCollectors(ContextIndexSearcher.Scopes.GLOBAL)) {
             Query query = Queries.MATCH_ALL_QUERY;
             if (context.types().length > 0) {
                 query = new FilteredQuery(query, context.filterCache().cache(context.mapperService().typesFilter(context.types())));
             }
 
-            context.searcher().useGlobalCollectors(true);
+            context.searcher().processingScope(ContextIndexSearcher.Scopes.GLOBAL);
             try {
                 context.searcher().search(query, NoopCollector.NOOP_COLLECTOR);
             } catch (IOException e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global facets", e);
             } finally {
-                context.searcher().useGlobalCollectors(false);
+                context.searcher().processedScope();
             }
         }
-
         SearchContextFacets contextFacets = context.facets();
 
         List<Facet> facets = Lists.newArrayListWithCapacity(2);

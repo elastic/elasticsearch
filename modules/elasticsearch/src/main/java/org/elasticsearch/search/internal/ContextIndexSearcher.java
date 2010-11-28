@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.index.engine.Engine;
@@ -28,21 +29,26 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ContextIndexSearcher extends ExtendedIndexSearcher {
 
+    public static final class Scopes {
+        public static final String MAIN = "_main_";
+        public static final String GLOBAL = "_global_";
+        public static final String NA = "_na_";
+    }
+
     private SearchContext searchContext;
 
     private CachedDfSource dfSource;
 
-    private List<Collector> collectors;
+    private Map<String, List<Collector>> scopeCollectors;
 
-    private List<Collector> globalCollectors;
-
-    private boolean useGlobalCollectors = false;
+    private String processingScope;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.searcher());
@@ -53,30 +59,34 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         this.dfSource = dfSource;
     }
 
-    public void addCollector(Collector collector) {
+    public void addCollector(String scope, Collector collector) {
+        if (scopeCollectors == null) {
+            scopeCollectors = Maps.newHashMap();
+        }
+        List<Collector> collectors = scopeCollectors.get(scope);
         if (collectors == null) {
             collectors = Lists.newArrayList();
+            scopeCollectors.put(scope, collectors);
         }
         collectors.add(collector);
     }
 
-    public List<Collector> collectors() {
-        return collectors;
-    }
-
-    public void addGlobalCollector(Collector collector) {
-        if (globalCollectors == null) {
-            globalCollectors = Lists.newArrayList();
+    public boolean hasCollectors(String scope) {
+        if (scopeCollectors == null) {
+            return false;
         }
-        globalCollectors.add(collector);
+        if (!scopeCollectors.containsKey(scope)) {
+            return false;
+        }
+        return !scopeCollectors.get(scope).isEmpty();
     }
 
-    public List<Collector> globalCollectors() {
-        return globalCollectors;
+    public void processingScope(String scope) {
+        this.processingScope = scope;
     }
 
-    public void useGlobalCollectors(boolean useGlobalCollectors) {
-        this.useGlobalCollectors = useGlobalCollectors;
+    public void processedScope() {
+        this.processingScope = Scopes.NA;
     }
 
     @Override public Query rewrite(Query original) throws IOException {
@@ -104,12 +114,9 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         if (searchContext.timeout() != null) {
             collector = new TimeLimitingCollector(collector, searchContext.timeout().millis());
         }
-        if (useGlobalCollectors) {
-            if (globalCollectors != null) {
-                collector = new MultiCollector(collector, globalCollectors.toArray(new Collector[globalCollectors.size()]));
-            }
-        } else {
-            if (collectors != null) {
+        if (scopeCollectors != null) {
+            List<Collector> collectors = scopeCollectors.get(processingScope);
+            if (collectors != null && !collectors.isEmpty()) {
                 collector = new MultiCollector(collector, collectors.toArray(new Collector[collectors.size()]));
             }
         }

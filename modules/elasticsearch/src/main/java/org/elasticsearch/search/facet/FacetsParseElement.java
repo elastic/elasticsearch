@@ -36,6 +36,7 @@ import org.elasticsearch.search.facet.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.facet.range.RangeFacetCollectorParser;
 import org.elasticsearch.search.facet.statistical.StatisticalFacetCollectorParser;
 import org.elasticsearch.search.facet.terms.TermsFacetCollectorParser;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
@@ -94,7 +95,7 @@ public class FacetsParseElement implements SearchParseElement {
                 topLevelFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 FacetCollector facet = null;
-                boolean global = false;
+                String scope = ContextIndexSearcher.Scopes.MAIN;
                 String facetFieldName = null;
                 Filter filter = null;
                 boolean cacheFilter = true;
@@ -114,7 +115,11 @@ public class FacetsParseElement implements SearchParseElement {
                         }
                     } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {
-                            global = parser.booleanValue();
+                            if (parser.booleanValue()) {
+                                scope = ContextIndexSearcher.Scopes.GLOBAL;
+                            }
+                        } else if ("scope".equals(facetFieldName)) {
+                            scope = parser.text();
                         } else if ("cache_filter".equals(facetFieldName) || "cacheFilter".equals(facetFieldName)) {
                             cacheFilter = parser.booleanValue();
                         }
@@ -131,11 +136,7 @@ public class FacetsParseElement implements SearchParseElement {
                     facetCollectors = Lists.newArrayList();
                 }
                 facetCollectors.add(facet);
-                if (global) {
-                    context.searcher().addGlobalCollector(facet);
-                } else {
-                    context.searcher().addCollector(facet);
-                }
+                context.searcher().addCollector(scope, facet);
             }
         }
 

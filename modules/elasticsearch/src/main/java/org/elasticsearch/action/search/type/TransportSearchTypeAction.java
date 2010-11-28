@@ -353,7 +353,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected abstract void processFirstPhaseResult(ShardRouting shard, FirstResult result);
 
-        protected abstract void moveToSecondPhase();
+        protected abstract void moveToSecondPhase() throws Exception;
 
         protected abstract String firstPhaseName();
     }

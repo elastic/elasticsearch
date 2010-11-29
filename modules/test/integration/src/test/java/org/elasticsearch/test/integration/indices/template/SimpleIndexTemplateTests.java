@@ -78,6 +78,8 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
         // index something into test_index, will match on both templates
         client.prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
         SearchResponse searchResponse = client.prepareSearch("test_index")
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")

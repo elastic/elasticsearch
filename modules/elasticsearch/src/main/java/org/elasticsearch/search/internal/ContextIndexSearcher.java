@@ -86,6 +86,11 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     }
 
     public void processedScope() {
+        // clean the current scope (we processed it, also handles scrolling since we don't want to
+        // do it again)
+        if (scopeCollectors != null) {
+            scopeCollectors.remove(processingScope);
+        }
         this.processingScope = Scopes.NA;
     }
 

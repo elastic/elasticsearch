@@ -315,11 +315,14 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             if (docIdsToLoad == null) {
                 return;
             }
-            for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
-                if (!docIdsToLoad.containsKey(entry.getKey())) {
-                    DiscoveryNode node = nodes.get(entry.getKey().nodeId());
-                    if (node != null) { // should not happen (==null) but safeguard anyhow
-                        searchService.sendFreeContext(node, entry.getValue().id());
+            // we only release search context that we did not fetch from if we are not scrolling
+            if (request.scroll() == null) {
+                for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
+                    if (!docIdsToLoad.containsKey(entry.getKey())) {
+                        DiscoveryNode node = nodes.get(entry.getKey().nodeId());
+                        if (node != null) { // should not happen (==null) but safeguard anyhow
+                            searchService.sendFreeContext(node, entry.getValue().id());
+                        }
                     }
                 }
             }

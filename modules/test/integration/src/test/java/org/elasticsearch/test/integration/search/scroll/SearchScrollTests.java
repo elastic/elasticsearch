@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.scroll;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -105,6 +106,80 @@ public class SearchScrollTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(30));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+        }
+    }
+
+    @Test public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 0; i < 100; i++) {
+            String routing = "0";
+            if (i > 90) {
+                routing = "1";
+            } else if (i > 60) {
+                routing = "2";
+            }
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field", i).setRouting(routing).execute().actionGet();
+        }
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(matchAllQuery())
+                .setSize(3)
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .addSort("field", SortOrder.ASC)
+                .execute().actionGet();
+
+        long counter = 0;
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(3));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+        }
+
+        for (int i = 0; i < 32; i++) {
+            searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+                    .setScroll(TimeValue.timeValueMinutes(2))
+                    .execute().actionGet();
+
+            assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.hits().hits().length, equalTo(3));
+            for (SearchHit hit : searchResponse.hits()) {
+                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            }
+        }
+
+        // and now, the last one is one
+        searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+        }
+
+        // a the last is zero
+        searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(0));
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }

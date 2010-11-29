@@ -78,9 +78,11 @@ public class RecoverySource extends AbstractComponent {
         this.transportService = transportService;
         this.indicesService = indicesService;
 
-        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(100, ByteSizeUnit.KB));
+        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(500, ByteSizeUnit.KB));
         this.translogBatchSize = componentSettings.getAsInt("translog_batch_size", 100);
         this.compress = componentSettings.getAsBoolean("compress", true);
+
+        logger.debug("using file_chunk_size [{}], translog_batch_size [{}], and compress [{}]", fileChunkSize, translogBatchSize, compress);
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
     }

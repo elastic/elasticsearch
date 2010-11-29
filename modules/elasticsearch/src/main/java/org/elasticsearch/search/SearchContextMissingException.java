@@ -29,7 +29,7 @@ public class SearchContextMissingException extends ElasticSearchException {
     private final long id;
 
     public SearchContextMissingException(long id) {
-        super("No search context found for id [" + id + "], timed out");
+        super("No search context found for id [" + id + "]");
         this.id = id;
     }
 

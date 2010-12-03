@@ -37,10 +37,10 @@ dependencies {
 
     compile('net.java.dev.jna:jna:3.2.7') { transitive = false }
 
-    compile 'org.apache.lucene:lucene-core:3.0.2'
-    compile 'org.apache.lucene:lucene-analyzers:3.0.2'
-    compile 'org.apache.lucene:lucene-queries:3.0.2'
-    compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.2'
+    compile 'org.apache.lucene:lucene-core:3.0.3'
+    compile 'org.apache.lucene:lucene-analyzers:3.0.3'
+    compile 'org.apache.lucene:lucene-queries:3.0.3'
+    compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.3'
 
     testCompile project(':test-testng')
     testCompile('org.testng:testng:5.10:jdk15') { transitive = false }

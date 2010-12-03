@@ -296,13 +296,11 @@ class FieldCacheImpl implements FieldCache {
     }
 
     // inherit javadocs
-
     public byte[] getBytes(IndexReader reader, String field) throws IOException {
         return getBytes(reader, field, null);
     }
 
     // inherit javadocs
-
     public byte[] getBytes(IndexReader reader, String field, ByteParser parser)
             throws IOException {
         return (byte[]) caches.get(Byte.TYPE).get(reader, new Entry(field, parser));
@@ -347,13 +345,11 @@ class FieldCacheImpl implements FieldCache {
     ;
 
     // inherit javadocs
-
     public short[] getShorts(IndexReader reader, String field) throws IOException {
         return getShorts(reader, field, null);
     }
 
     // inherit javadocs
-
     public short[] getShorts(IndexReader reader, String field, ShortParser parser)
             throws IOException {
         return (short[]) caches.get(Short.TYPE).get(reader, new Entry(field, parser));
@@ -398,13 +394,11 @@ class FieldCacheImpl implements FieldCache {
     ;
 
     // inherit javadocs
-
     public int[] getInts(IndexReader reader, String field) throws IOException {
         return getInts(reader, field, null);
     }
 
     // inherit javadocs
-
     public int[] getInts(IndexReader reader, String field, IntParser parser)
             throws IOException {
         return (int[]) caches.get(Integer.TYPE).get(reader, new Entry(field, parser));
@@ -458,14 +452,12 @@ class FieldCacheImpl implements FieldCache {
 
 
     // inherit javadocs
-
     public float[] getFloats(IndexReader reader, String field)
             throws IOException {
         return getFloats(reader, field, null);
     }
 
     // inherit javadocs
-
     public float[] getFloats(IndexReader reader, String field, FloatParser parser)
             throws IOException {
 
@@ -524,7 +516,6 @@ class FieldCacheImpl implements FieldCache {
     }
 
     // inherit javadocs
-
     public long[] getLongs(IndexReader reader, String field, FieldCache.LongParser parser)
             throws IOException {
         return (long[]) caches.get(Long.TYPE).get(reader, new Entry(field, parser));
@@ -576,14 +567,12 @@ class FieldCacheImpl implements FieldCache {
     ;
 
     // inherit javadocs
-
     public double[] getDoubles(IndexReader reader, String field)
             throws IOException {
         return getDoubles(reader, field, null);
     }
 
     // inherit javadocs
-
     public double[] getDoubles(IndexReader reader, String field, FieldCache.DoubleParser parser)
             throws IOException {
         return (double[]) caches.get(Double.TYPE).get(reader, new Entry(field, parser));
@@ -636,7 +625,6 @@ class FieldCacheImpl implements FieldCache {
     ;
 
     // inherit javadocs
-
     public String[] getStrings(IndexReader reader, String field)
             throws IOException {
         return (String[]) caches.get(String.class).get(reader, new Entry(field, (Parser) null));
@@ -675,7 +663,6 @@ class FieldCacheImpl implements FieldCache {
     ;
 
     // inherit javadocs
-
     public StringIndex getStringIndex(IndexReader reader, String field)
             throws IOException {
         return (StringIndex) caches.get(StringIndex.class).get(reader, new Entry(field, (Parser) null));
@@ -705,7 +692,7 @@ class FieldCacheImpl implements FieldCache {
             try {
                 do {
                     Term term = termEnum.term();
-                    if (term == null || term.field() != field) break;
+                    if (term == null || term.field() != field || t >= mterms.length) break;
 
                     // store term text
                     mterms[t] = term.text();

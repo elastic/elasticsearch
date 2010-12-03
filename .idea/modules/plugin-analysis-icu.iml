@@ -43,7 +43,7 @@
     <orderEntry type="module-library">
       <library name="lucene-collation">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-collation/jars/lucene-collation-3.0.1.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-collation/jars/lucene-collation-3.0.3.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

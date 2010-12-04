@@ -95,6 +95,8 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
 
         client.prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
         // now only match on one template (template_1)
         searchResponse = client.prepareSearch("text_index")
                 .setQuery(termQuery("field1", "value1"))

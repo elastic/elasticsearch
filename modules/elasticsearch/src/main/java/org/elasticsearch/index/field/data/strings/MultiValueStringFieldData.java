@@ -40,11 +40,11 @@ public class MultiValueStringFieldData extends StringFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[][] order;
+    private final int[][] ordinals;
 
-    public MultiValueStringFieldData(String fieldName, int[][] order, String[] values) {
+    public MultiValueStringFieldData(String fieldName, int[][] ordinals, String[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -52,11 +52,11 @@ public class MultiValueStringFieldData extends StringFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != null;
+        return ordinals[docId] != null;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -66,7 +66,7 @@ public class MultiValueStringFieldData extends StringFieldData {
     }
 
     @Override public String value(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return null;
         }
@@ -74,7 +74,7 @@ public class MultiValueStringFieldData extends StringFieldData {
     }
 
     @Override public String[] values(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return Strings.EMPTY_ARRAY;
         }

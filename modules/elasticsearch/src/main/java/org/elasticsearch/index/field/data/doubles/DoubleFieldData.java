@@ -121,12 +121,12 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
             terms.add(FieldCache.NUMERIC_UTILS_DOUBLE_PARSER.parseDouble(term));
         }
 
-        @Override public DoubleFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueDoubleFieldData(field, order, terms.toNativeArray());
+        @Override public DoubleFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueDoubleFieldData(field, ordinals, terms.toNativeArray());
         }
 
-        @Override public DoubleFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueDoubleFieldData(field, order, terms.toNativeArray());
+        @Override public DoubleFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueDoubleFieldData(field, ordinals, terms.toNativeArray());
         }
     }
 }

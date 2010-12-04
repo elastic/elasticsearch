@@ -121,12 +121,12 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
             terms.add((short) FieldCache.NUMERIC_UTILS_INT_PARSER.parseInt(term));
         }
 
-        @Override public ShortFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueShortFieldData(field, order, terms.toNativeArray());
+        @Override public ShortFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueShortFieldData(field, ordinals, terms.toNativeArray());
         }
 
-        @Override public ShortFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueShortFieldData(field, order, terms.toNativeArray());
+        @Override public ShortFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueShortFieldData(field, ordinals, terms.toNativeArray());
         }
     }
 }

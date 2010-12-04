@@ -121,12 +121,12 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
             terms.add(FieldCache.NUMERIC_UTILS_INT_PARSER.parseInt(term));
         }
 
-        @Override public IntFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueIntFieldData(field, order, terms.toNativeArray());
+        @Override public IntFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueIntFieldData(field, ordinals, terms.toNativeArray());
         }
 
-        @Override public IntFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueIntFieldData(field, order, terms.toNativeArray());
+        @Override public IntFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueIntFieldData(field, ordinals, terms.toNativeArray());
         }
     }
 }

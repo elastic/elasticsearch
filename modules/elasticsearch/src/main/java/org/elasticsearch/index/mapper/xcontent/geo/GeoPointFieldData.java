@@ -130,12 +130,12 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
 
         }
 
-        @Override public GeoPointFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueGeoPointFieldData(field, order, lat.toNativeArray(), lon.toNativeArray());
+        @Override public GeoPointFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueGeoPointFieldData(field, ordinals, lat.toNativeArray(), lon.toNativeArray());
         }
 
-        @Override public GeoPointFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueGeoPointFieldData(field, order, lat.toNativeArray(), lon.toNativeArray());
+        @Override public GeoPointFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueGeoPointFieldData(field, ordinals, lat.toNativeArray(), lon.toNativeArray());
         }
     }
 }

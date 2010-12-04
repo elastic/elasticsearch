@@ -50,11 +50,11 @@ public class MultiValueIntFieldData extends IntFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[][] order;
+    private final int[][] ordinals;
 
-    public MultiValueIntFieldData(String fieldName, int[][] order, int[] values) {
+    public MultiValueIntFieldData(String fieldName, int[][] ordinals, int[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -62,11 +62,11 @@ public class MultiValueIntFieldData extends IntFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != null;
+        return ordinals[docId] != null;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -76,7 +76,7 @@ public class MultiValueIntFieldData extends IntFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -86,7 +86,7 @@ public class MultiValueIntFieldData extends IntFieldData {
     }
 
     @Override public double[] doubleValues(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -103,7 +103,7 @@ public class MultiValueIntFieldData extends IntFieldData {
     }
 
     @Override public int value(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return 0;
         }
@@ -111,7 +111,7 @@ public class MultiValueIntFieldData extends IntFieldData {
     }
 
     @Override public int[] values(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return EMPTY_INT_ARRAY;
         }

@@ -40,11 +40,11 @@ public class SingleValueFloatFieldData extends FloatFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[] order;
+    private final int[] ordinals;
 
-    public SingleValueFloatFieldData(String fieldName, int[] order, float[] values) {
+    public SingleValueFloatFieldData(String fieldName, int[] ordinals, float[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -52,11 +52,11 @@ public class SingleValueFloatFieldData extends FloatFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != 0;
+        return ordinals[docId] != 0;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -64,7 +64,7 @@ public class SingleValueFloatFieldData extends FloatFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -72,7 +72,7 @@ public class SingleValueFloatFieldData extends FloatFieldData {
     }
 
     @Override public double[] doubleValues(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -82,11 +82,11 @@ public class SingleValueFloatFieldData extends FloatFieldData {
     }
 
     @Override public float value(int docId) {
-        return values[order[docId]];
+        return values[ordinals[docId]];
     }
 
     @Override public float[] values(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_FLOAT_ARRAY;
         }

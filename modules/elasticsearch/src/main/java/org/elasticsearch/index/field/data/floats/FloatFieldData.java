@@ -121,12 +121,12 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
             terms.add(FieldCache.NUMERIC_UTILS_FLOAT_PARSER.parseFloat(term));
         }
 
-        @Override public FloatFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueFloatFieldData(field, order, terms.toNativeArray());
+        @Override public FloatFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueFloatFieldData(field, ordinals, terms.toNativeArray());
         }
 
-        @Override public FloatFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueFloatFieldData(field, order, terms.toNativeArray());
+        @Override public FloatFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueFloatFieldData(field, ordinals, terms.toNativeArray());
         }
     }
 }

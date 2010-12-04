@@ -138,12 +138,12 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
             terms.add(FieldCache.NUMERIC_UTILS_LONG_PARSER.parseLong(term));
         }
 
-        @Override public LongFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueLongFieldData(field, order, terms.toNativeArray());
+        @Override public LongFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueLongFieldData(field, ordinals, terms.toNativeArray());
         }
 
-        @Override public LongFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueLongFieldData(field, order, terms.toNativeArray());
+        @Override public LongFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueLongFieldData(field, ordinals, terms.toNativeArray());
         }
     }
 }

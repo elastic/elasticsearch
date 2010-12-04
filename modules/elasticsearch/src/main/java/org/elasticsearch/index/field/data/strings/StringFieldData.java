@@ -83,12 +83,12 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
             terms.add(term);
         }
 
-        @Override public StringFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueStringFieldData(field, order, terms.toArray(new String[terms.size()]));
+        @Override public StringFieldData buildSingleValue(String field, int[] ordinals) {
+            return new SingleValueStringFieldData(field, ordinals, terms.toArray(new String[terms.size()]));
         }
 
-        @Override public StringFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueStringFieldData(field, order, terms.toArray(new String[terms.size()]));
+        @Override public StringFieldData buildMultiValue(String field, int[][] ordinals) {
+            return new MultiValueStringFieldData(field, ordinals, terms.toArray(new String[terms.size()]));
         }
     }
 }

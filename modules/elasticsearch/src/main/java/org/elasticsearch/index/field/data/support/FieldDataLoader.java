@@ -40,7 +40,7 @@ public class FieldDataLoader {
         loader.init();
 
         field = StringHelper.intern(field);
-        int[][] orders = new int[reader.maxDoc()][];
+        int[][] ordinals = new int[reader.maxDoc()][];
 
         int t = 1;  // current term number
 
@@ -55,16 +55,16 @@ public class FieldDataLoader {
                 termDocs.seek(termEnum);
                 while (termDocs.next()) {
                     int doc = termDocs.doc();
-                    int[] orderPerDoc = orders[doc];
-                    if (orderPerDoc == null) {
-                        orderPerDoc = new int[1];
-                        orderPerDoc[0] = t;
-                        orders[doc] = orderPerDoc;
+                    int[] ordinalPerDoc = ordinals[doc];
+                    if (ordinalPerDoc == null) {
+                        ordinalPerDoc = new int[1];
+                        ordinalPerDoc[0] = t;
+                        ordinals[doc] = ordinalPerDoc;
                     } else {
                         multiValued = true;
-                        orderPerDoc = Arrays.copyOf(orderPerDoc, orderPerDoc.length + 1);
-                        orderPerDoc[orderPerDoc.length - 1] = t;
-                        orders[doc] = orderPerDoc;
+                        ordinalPerDoc = Arrays.copyOf(ordinalPerDoc, ordinalPerDoc.length + 1);
+                        ordinalPerDoc[ordinalPerDoc.length - 1] = t;
+                        ordinals[doc] = ordinalPerDoc;
                     }
                 }
 
@@ -82,13 +82,13 @@ public class FieldDataLoader {
         }
 
         if (multiValued) {
-            return loader.buildMultiValue(field, orders);
+            return loader.buildMultiValue(field, ordinals);
         } else {
             // optimize for a single valued
             int[] sOrders = new int[reader.maxDoc()];
-            for (int i = 0; i < orders.length; i++) {
-                if (orders[i] != null) {
-                    sOrders[i] = orders[i][0];
+            for (int i = 0; i < ordinals.length; i++) {
+                if (ordinals[i] != null) {
+                    sOrders[i] = ordinals[i][0];
                 }
             }
             return loader.buildSingleValue(field, sOrders);
@@ -101,9 +101,9 @@ public class FieldDataLoader {
 
         void collectTerm(String term);
 
-        T buildSingleValue(String fieldName, int[] order);
+        T buildSingleValue(String fieldName, int[] ordinals);
 
-        T buildMultiValue(String fieldName, int[][] order);
+        T buildMultiValue(String fieldName, int[][] ordinals);
     }
 
     public static abstract class FreqsTypeLoader<T extends FieldData> implements TypeLoader<T> {

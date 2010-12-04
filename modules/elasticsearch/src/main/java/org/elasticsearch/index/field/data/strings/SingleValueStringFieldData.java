@@ -34,15 +34,15 @@ public class SingleValueStringFieldData extends StringFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[] order;
+    private final int[] ordinals;
 
-    public SingleValueStringFieldData(String fieldName, int[] order, String[] values) {
+    public SingleValueStringFieldData(String fieldName, int[] ordinals, String[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
-    int[] order() {
-        return order;
+    int[] ordinals() {
+        return ordinals;
     }
 
     String[] values() {
@@ -54,11 +54,11 @@ public class SingleValueStringFieldData extends StringFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != 0;
+        return ordinals[docId] != 0;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -66,11 +66,11 @@ public class SingleValueStringFieldData extends StringFieldData {
     }
 
     @Override public String value(int docId) {
-        return values[order[docId]];
+        return values[ordinals[docId]];
     }
 
     @Override public String[] values(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return Strings.EMPTY_ARRAY;
         }

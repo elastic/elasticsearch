@@ -39,11 +39,11 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[][] order;
+    private final int[][] ordinals;
 
-    public MultiValueDoubleFieldData(String fieldName, int[][] order, double[] values) {
+    public MultiValueDoubleFieldData(String fieldName, int[][] ordinals, double[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -51,11 +51,11 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != null;
+        return ordinals[docId] != null;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -65,7 +65,7 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -79,7 +79,7 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public double value(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return 0;
         }
@@ -87,7 +87,7 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public double[] values(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return EMPTY_DOUBLE_ARRAY;
         }

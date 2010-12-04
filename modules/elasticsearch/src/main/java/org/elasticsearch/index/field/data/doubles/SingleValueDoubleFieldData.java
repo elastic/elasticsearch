@@ -33,11 +33,11 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[] order;
+    private final int[] ordinals;
 
-    public SingleValueDoubleFieldData(String fieldName, int[] order, double[] values) {
+    public SingleValueDoubleFieldData(String fieldName, int[] ordinals, double[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -45,11 +45,11 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != 0;
+        return ordinals[docId] != 0;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -57,7 +57,7 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -69,11 +69,11 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public double value(int docId) {
-        return values[order[docId]];
+        return values[ordinals[docId]];
     }
 
     @Override public double[] values(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_DOUBLE_ARRAY;
         }

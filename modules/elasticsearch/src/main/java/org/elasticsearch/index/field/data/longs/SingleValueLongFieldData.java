@@ -49,11 +49,11 @@ public class SingleValueLongFieldData extends LongFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[] order;
+    private final int[] ordinals;
 
-    public SingleValueLongFieldData(String fieldName, int[] order, long[] values) {
+    public SingleValueLongFieldData(String fieldName, int[] ordinals, long[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -61,11 +61,11 @@ public class SingleValueLongFieldData extends LongFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != 0;
+        return ordinals[docId] != 0;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -73,7 +73,7 @@ public class SingleValueLongFieldData extends LongFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return;
         }
@@ -81,7 +81,7 @@ public class SingleValueLongFieldData extends LongFieldData {
     }
 
     @Override public MutableDateTime[] dates(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_DATETIME_ARRAY;
         }
@@ -91,7 +91,7 @@ public class SingleValueLongFieldData extends LongFieldData {
     }
 
     @Override public double[] doubleValues(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -101,11 +101,11 @@ public class SingleValueLongFieldData extends LongFieldData {
     }
 
     @Override public long value(int docId) {
-        return values[order[docId]];
+        return values[ordinals[docId]];
     }
 
     @Override public long[] values(int docId) {
-        int loc = order[docId];
+        int loc = ordinals[docId];
         if (loc == 0) {
             return EMPTY_LONG_ARRAY;
         }

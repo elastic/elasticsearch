@@ -50,11 +50,11 @@ public class MultiValueShortFieldData extends ShortFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[][] order;
+    private final int[][] ordinals;
 
-    public MultiValueShortFieldData(String fieldName, int[][] order, short[] values) {
+    public MultiValueShortFieldData(String fieldName, int[][] ordinals, short[] values) {
         super(fieldName, values);
-        this.order = order;
+        this.ordinals = ordinals;
     }
 
     @Override public boolean multiValued() {
@@ -62,11 +62,11 @@ public class MultiValueShortFieldData extends ShortFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != null;
+        return ordinals[docId] != null;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -76,7 +76,7 @@ public class MultiValueShortFieldData extends ShortFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -86,7 +86,7 @@ public class MultiValueShortFieldData extends ShortFieldData {
     }
 
     @Override public double[] doubleValues(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -103,7 +103,7 @@ public class MultiValueShortFieldData extends ShortFieldData {
     }
 
     @Override public short value(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return 0;
         }
@@ -111,7 +111,7 @@ public class MultiValueShortFieldData extends ShortFieldData {
     }
 
     @Override public short[] values(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return EMPTY_SHORT_ARRAY;
         }

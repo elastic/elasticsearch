@@ -147,7 +147,7 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
         }
         SingleValueStringFieldData fieldData = (SingleValueStringFieldData) cleanFieldData;
         currentReaderGen++;
-        order = fieldData.order();
+        order = fieldData.ordinals();
         lookup = fieldData.values();
         assert lookup.length > 0;
         if (bottomSlot != -1) {

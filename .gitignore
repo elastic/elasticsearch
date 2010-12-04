@@ -2,7 +2,7 @@
 elasticsearch.iws
 .idea/workspace.xml
 work/
-data/
+/data/
 logs/
 .DS_Store
 build/

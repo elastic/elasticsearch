@@ -15,7 +15,7 @@
     <orderEntry type="module-library">
       <library name="twitter4j">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.twitter4j/twitter4j-core/jars/twitter4j-core-2.1.6.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.twitter4j/twitter4j-core/jars/twitter4j-core-2.1.7.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

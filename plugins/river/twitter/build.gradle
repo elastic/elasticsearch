@@ -32,8 +32,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.twitter4j:twitter4j-core:2.1.6') { transitive = false }
-    distLib('org.twitter4j:twitter4j-core:2.1.6') { transitive = false }
+    compile('org.twitter4j:twitter4j-core:2.1.7') { transitive = false }
+    distLib('org.twitter4j:twitter4j-core:2.1.7') { transitive = false }
 
 
     testCompile project(':test-testng')

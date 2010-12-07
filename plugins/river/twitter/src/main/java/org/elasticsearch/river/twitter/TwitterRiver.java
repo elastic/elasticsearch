@@ -226,7 +226,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
     @Override public void close() {
         logger.info("closing twitter stream river");
         if (stream != null) {
-            stream.cleanup();
+            stream.cleanUp();
             stream.shutdown();
         }
     }

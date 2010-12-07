@@ -116,7 +116,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         }
                     }
 
-                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id()).routing(indexRequest.routing());
+                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
+                            .routing(indexRequest.routing()).parent(indexRequest.parent());
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
                         ops[i] = indexShard.prepareIndex(sourceToParse);
                     } else {
@@ -198,7 +199,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
-                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id()).routing(indexRequest.routing());
+                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
+                            .routing(indexRequest.routing()).parent(indexRequest.parent());
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
                         ops[i] = indexShard.prepareIndex(sourceToParse);
                     } else {

@@ -101,7 +101,15 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
      * the search query). Defaults to <tt>false</tt>.
      */
     public HistogramFacetBuilder global(boolean global) {
-        this.global = global;
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public HistogramFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

@@ -38,8 +38,19 @@ public class QueryFacetBuilder extends AbstractFacetBuilder {
         super(name);
     }
 
-    public QueryFacetBuilder global(boolean global) {
-        this.global = global;
+    /**
+     * Marks the facet to run in a global scope, not bounded by any query.
+     */
+    @Override public QueryFacetBuilder global(boolean global) {
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public QueryFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ public abstract class AbstractFacetBuilder implements ToXContent {
 
     protected final String name;
 
-    protected Boolean global;
+    protected String scope;
 
     protected XContentFilterBuilder facetFilter;
 
@@ -45,8 +46,19 @@ public abstract class AbstractFacetBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Marks the facet to run in a global scope, not bounded by any query.
+     */
     public AbstractFacetBuilder global(boolean global) {
-        this.global = global;
+        this.scope = ContextIndexSearcher.Scopes.GLOBAL;
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    public AbstractFacetBuilder scope(String scope) {
+        this.scope = scope;
         return this;
     }
 
@@ -56,8 +68,8 @@ public abstract class AbstractFacetBuilder implements ToXContent {
             facetFilter.toXContent(builder, params);
         }
 
-        if (global != null) {
-            builder.field("global", global);
+        if (scope != null) {
+            builder.field("scope", scope);
         }
     }
 }

@@ -103,8 +103,20 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
     }
 
 
+    /**
+     * Should the facet run in global mode (not bounded by the search query) or not (bounded by
+     * the search query). Defaults to <tt>false</tt>.
+     */
     public RangeScriptFacetBuilder global(boolean global) {
-        this.global = global;
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public RangeScriptFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

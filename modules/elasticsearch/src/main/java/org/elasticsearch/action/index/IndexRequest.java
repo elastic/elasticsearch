@@ -113,6 +113,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private String type;
     private String id;
     @Nullable private String routing;
+    @Nullable private String parent;
 
     private byte[] source;
     private int sourceOffset;
@@ -253,6 +254,22 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * Sets the parent id of this document. If routing is not set, automatically set it as the
+     * routing as well.
+     */
+    public IndexRequest parent(String parent) {
+        this.parent = parent;
+        if (routing == null) {
+            routing = parent;
+        }
+        return this;
+    }
+
+    public String parent() {
+        return this.parent;
     }
 
     /**
@@ -532,6 +549,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
+        if (in.readBoolean()) {
+            parent = in.readUTF();
+        }
 
         sourceUnsafe = false;
         sourceOffset = 0;
@@ -557,6 +577,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if (parent == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(parent);
         }
         out.writeVInt(sourceLength);
         out.writeBytes(source, sourceOffset, sourceLength);

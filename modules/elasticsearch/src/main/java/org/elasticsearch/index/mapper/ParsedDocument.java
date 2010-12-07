@@ -45,6 +45,8 @@ public class ParsedDocument {
 
     private boolean mappersAdded;
 
+    private String parent;
+
     public ParsedDocument(String uid, String id, String type, String routing, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
@@ -82,6 +84,15 @@ public class ParsedDocument {
 
     public byte[] source() {
         return this.source;
+    }
+
+    public ParsedDocument parent(String parent) {
+        this.parent = parent;
+        return this;
+    }
+
+    public String parent() {
+        return this.parent;
     }
 
     /**

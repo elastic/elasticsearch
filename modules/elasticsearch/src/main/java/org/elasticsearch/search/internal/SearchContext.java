@@ -28,6 +28,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
@@ -151,6 +152,12 @@ public class SearchContext implements Releasable {
     }
 
     @Override public boolean release() throws ElasticSearchException {
+        // clear and scope phase we  have
+        if (parsedQuery() != null) {
+            for (ScopePhase scopePhase : parsedQuery().scopePhases()) {
+                scopePhase.clear();
+            }
+        }
         // we should close this searcher, since its a new one we create each time, and we use the IndexReader
         try {
             searcher.close();
@@ -260,6 +267,10 @@ public class SearchContext implements Releasable {
 
     public FieldDataCache fieldDataCache() {
         return indexService.cache().fieldData();
+    }
+
+    public IdCache idCache() {
+        return indexService.cache().idCache();
     }
 
     public TimeValue timeout() {

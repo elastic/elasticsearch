@@ -1,0 +1,147 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.mapper.xcontent;
+
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.Term;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.Uid;
+
+import java.io.IOException;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements org.elasticsearch.index.mapper.ParentFieldMapper {
+
+    public static final String CONTENT_TYPE = "_parent";
+
+    public static class Defaults extends AbstractFieldMapper.Defaults {
+        public static final String NAME = org.elasticsearch.index.mapper.ParentFieldMapper.NAME;
+        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
+        public static final boolean OMIT_NORMS = true;
+        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+    }
+
+    public static class Builder extends XContentMapper.Builder<Builder, ParentFieldMapper> {
+
+        protected String indexName;
+
+        private String type;
+
+        public Builder() {
+            super(Defaults.NAME);
+            this.indexName = name;
+        }
+
+        public Builder type(String type) {
+            this.type = type;
+            return builder;
+        }
+
+        @Override public ParentFieldMapper build(BuilderContext context) {
+            if (type == null) {
+                throw new MapperParsingException("Parent mapping must contain the parent type");
+            }
+            return new ParentFieldMapper(name, indexName, type);
+        }
+    }
+
+    private final String type;
+
+    protected ParentFieldMapper(String name, String indexName, String type) {
+        super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
+                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        this.type = type;
+    }
+
+    @Override public String type() {
+        return type;
+    }
+
+    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+        if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
+            // we are in the parsing of _parent phase
+            String parentId = context.parser().text();
+            return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), store, index);
+        }
+        // otherwise, we are running it post processing of the xcontent
+        String parsedParentId = context.doc().get(Defaults.NAME);
+        if (context.externalValueSet()) {
+            String parentId = (String) context.externalValue();
+            if (parsedParentId == null) {
+                if (parentId == null) {
+                    throw new MapperParsingException("No parent id provided, not within the document, and not externally");
+                }
+                // we did not add it in the parsing phase, add it now
+                return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), store, index);
+            } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
+                throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
+            }
+        }
+        // we have parent mapping, yet no value was set, ignore it...
+        return null;
+    }
+
+    @Override public Uid value(Fieldable field) {
+        return Uid.createUid(field.stringValue());
+    }
+
+    @Override public Uid valueFromString(String value) {
+        return Uid.createUid(value);
+    }
+
+    @Override public String valueAsString(Fieldable field) {
+        return field.stringValue();
+    }
+
+    @Override public String indexedValue(String value) {
+        if (value.indexOf(Uid.DELIMITER) == -1) {
+            return Uid.createUid(type, value);
+        }
+        return value;
+    }
+
+    @Override public Term term(String type, String id) {
+        return term(Uid.createUid(type, id));
+    }
+
+    @Override public Term term(String uid) {
+        return new Term(names.indexName(), uid);
+    }
+
+    @Override protected String contentType() {
+        return CONTENT_TYPE;
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(CONTENT_TYPE);
+        builder.field("type", type);
+        builder.endObject();
+    }
+
+    @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        // do nothing here, no merging, but also no exception
+    }
+}

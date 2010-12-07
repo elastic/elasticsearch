@@ -25,12 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.cache.field.data.none.NoneFieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.settings.IndexSettings;
-
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -41,14 +38,14 @@ public class IndexCache extends AbstractIndexComponent {
 
     private final FieldDataCache fieldDataCache;
 
-    public IndexCache(Index index) {
-        this(index, EMPTY_SETTINGS, new NoneFilterCache(index, EMPTY_SETTINGS), new NoneFieldDataCache(index, EMPTY_SETTINGS));
-    }
+    private final IdCache idCache;
 
-    @Inject public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache) {
+    @Inject public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache,
+                              IdCache idCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.fieldDataCache = fieldDataCache;
+        this.idCache = idCache;
     }
 
     public FilterCache filter() {
@@ -59,18 +56,25 @@ public class IndexCache extends AbstractIndexComponent {
         return fieldDataCache;
     }
 
+    public IdCache idCache() {
+        return this.idCache;
+    }
+
     public void clear(IndexReader reader) {
         filterCache.clear(reader);
         fieldDataCache.clear(reader);
+        idCache.clear(reader);
     }
 
     public void clear() {
         filterCache.clear();
         fieldDataCache.clear();
+        idCache.clear();
     }
 
     public void clearUnreferenced() {
         filterCache.clearUnreferenced();
         fieldDataCache.clearUnreferenced();
+        idCache.clearUnreferenced();
     }
 }

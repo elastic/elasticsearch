@@ -233,7 +233,7 @@ public abstract class FilterBuilders {
      *
      * @param name The name of the field
      */
-    public static ExistsFilterBuilder exists(String name) {
+    public static ExistsFilterBuilder existsFilter(String name) {
         return new ExistsFilterBuilder(name);
     }
 
@@ -242,8 +242,19 @@ public abstract class FilterBuilders {
      *
      * @param name The name of the field
      */
-    public static MissingFilterBuilder missing(String name) {
+    public static MissingFilterBuilder missingFilter(String name) {
         return new MissingFilterBuilder(name);
+    }
+
+    /**
+     * Constructs a child filter, with the child type and the query to run against child documents, with
+     * the result of the filter being the *parent* documents.
+     *
+     * @param type  The child type
+     * @param query The query to run against the child type
+     */
+    public static HasChildFilterBuilder hasChildFilter(String type, XContentQueryBuilder query) {
+        return new HasChildFilterBuilder(type, query);
     }
 
     public static BoolFilterBuilder boolFilter() {

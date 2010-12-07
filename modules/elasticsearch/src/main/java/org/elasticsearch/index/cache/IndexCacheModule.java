@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.field.data.FieldDataCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.id.IdCacheModule;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,6 +39,7 @@ public class IndexCacheModule extends AbstractModule {
     @Override protected void configure() {
         new FilterCacheModule(settings).configure(binder());
         new FieldDataCacheModule(settings).configure(binder());
+        new IdCacheModule(settings).configure(binder());
 
         bind(IndexCache.class).asEagerSingleton();
     }

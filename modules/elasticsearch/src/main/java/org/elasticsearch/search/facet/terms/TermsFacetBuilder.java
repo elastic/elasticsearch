@@ -60,7 +60,15 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
      * to <tt>false</tt>.
      */
     public TermsFacetBuilder global(boolean global) {
-        this.global = global;
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public TermsFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

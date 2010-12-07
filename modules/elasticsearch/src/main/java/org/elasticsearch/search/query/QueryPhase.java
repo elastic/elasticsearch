@@ -19,10 +19,7 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -33,6 +30,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetsPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 
@@ -75,6 +73,79 @@ public class QueryPhase implements SearchPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.parsedQuery().scopePhases().length > 0) {
+            // we have scoped queries, refresh the id cache
+            try {
+                searchContext.idCache().refresh(searchContext.searcher().subReaders());
+            } catch (Exception e) {
+                throw new QueryPhaseExecutionException(searchContext, "Failed to refresh id cache for child queries", e);
+            }
+
+            // process scoped queries (from the last to the first, working with the parsing option here)
+            for (int i = searchContext.parsedQuery().scopePhases().length - 1; i >= 0; i--) {
+                ScopePhase scopePhase = searchContext.parsedQuery().scopePhases()[i];
+
+                if (scopePhase instanceof ScopePhase.TopDocsPhase) {
+                    ScopePhase.TopDocsPhase topDocsPhase = (ScopePhase.TopDocsPhase) scopePhase;
+                    topDocsPhase.clear();
+                    int numDocs = (searchContext.from() + searchContext.size());
+                    if (numDocs == 0) {
+                        numDocs = 1;
+                    }
+                    try {
+                        numDocs *= topDocsPhase.factor();
+                        while (true) {
+                            if (topDocsPhase.scope() != null) {
+                                searchContext.searcher().processingScope(topDocsPhase.scope());
+                            }
+                            TopDocs topDocs = searchContext.searcher().search(topDocsPhase.query(), numDocs);
+                            if (topDocsPhase.scope() != null) {
+                                // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
+                                searchContext.searcher().processedScope();
+                            }
+                            topDocsPhase.processResults(topDocs, searchContext);
+
+                            // check if we found enough docs, if so, break
+                            if (topDocsPhase.numHits() >= (searchContext.from() + searchContext.size())) {
+                                break;
+                            }
+                            // if we did not find enough docs, check if it make sense to search further
+                            if (topDocs.totalHits <= numDocs) {
+                                break;
+                            }
+                            // if not, update numDocs, and search again
+                            numDocs *= topDocsPhase.incrementalFactor();
+                            if (numDocs > topDocs.totalHits) {
+                                numDocs = topDocs.totalHits;
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new QueryPhaseExecutionException(searchContext, "Failed to execute child query [" + scopePhase.query() + "]", e);
+                    }
+                } else if (scopePhase instanceof ScopePhase.CollectorPhase) {
+                    try {
+                        ScopePhase.CollectorPhase collectorPhase = (ScopePhase.CollectorPhase) scopePhase;
+                        // collector phase might not require extra processing, for example, when scrolling
+                        if (!collectorPhase.requiresProcessing()) {
+                            continue;
+                        }
+                        if (scopePhase.scope() != null) {
+                            searchContext.searcher().processingScope(scopePhase.scope());
+                        }
+                        Collector collector = collectorPhase.collector();
+                        searchContext.searcher().search(collectorPhase.query(), collector);
+                        collectorPhase.processCollector(collector);
+                        if (collectorPhase.scope() != null) {
+                            // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
+                            searchContext.searcher().processedScope();
+                        }
+                    } catch (Exception e) {
+                        throw new QueryPhaseExecutionException(searchContext, "Failed to execute child query [" + scopePhase.query() + "]", e);
+                    }
+                }
+            }
+        }
+
         searchContext.searcher().processingScope(ContextIndexSearcher.Scopes.MAIN);
         try {
             searchContext.queryResult().from(searchContext.from());

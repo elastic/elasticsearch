@@ -37,8 +37,19 @@ public class FilterFacetBuilder extends AbstractFacetBuilder {
         super(name);
     }
 
-    public FilterFacetBuilder global(boolean global) {
-        this.global = global;
+    /**
+     * Marks the facet to run in a global scope, not bounded by any query.
+     */
+    @Override public FilterFacetBuilder global(boolean global) {
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public FilterFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 
@@ -60,14 +71,8 @@ public class FilterFacetBuilder extends AbstractFacetBuilder {
         builder.field(FilterFacetCollectorParser.NAME);
         filter.toXContent(builder, params);
 
-        if (facetFilter != null) {
-            builder.field("filter");
-            facetFilter.toXContent(builder, params);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
-        if (global != null) {
-            builder.field("global", global);
-        }
         builder.endObject();
     }
 }

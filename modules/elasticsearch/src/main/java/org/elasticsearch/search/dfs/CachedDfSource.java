@@ -48,7 +48,8 @@ public class CachedDfSource extends Searcher {
     public int docFreq(Term term) {
         int df = dfs.dfMap().get(term);
         if (df == -1) {
-            throw new IllegalArgumentException("df for term " + term + " not available");
+            return 1;
+//            throw new IllegalArgumentException("df for term " + term + " not available");
         }
         return df;
     }

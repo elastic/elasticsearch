@@ -69,12 +69,12 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), exists("field1"))).execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
 
-        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(exists("field1"))).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(existsFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
@@ -84,27 +84,27 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
 
-        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), exists("field2"))).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));
 
-        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), exists("field3"))).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), existsFilter("field3"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("4"));
 
-        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), missing("field1"))).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
 
         // double check for cache
-        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), missing("field1"))).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
 
-        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(missing("field1"))).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(missingFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));

@@ -422,7 +422,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     private class SearchQueryQueryFetchTransportHandler extends BaseTransportRequestHandler<QuerySearchRequest> {
 
-        static final String ACTION = "search/phase/queyr/query+fetch";
+        static final String ACTION = "search/phase/query/query+fetch";
 
         @Override public QuerySearchRequest newInstance() {
             return new QuerySearchRequest();

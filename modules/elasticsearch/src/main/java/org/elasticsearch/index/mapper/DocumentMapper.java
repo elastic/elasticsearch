@@ -68,6 +68,8 @@ public interface DocumentMapper {
 
     RoutingFieldMapper routingFieldMapper();
 
+    ParentFieldMapper parentFieldMapper();
+
     DocumentFieldMappers mappers();
 
     /**

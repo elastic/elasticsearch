@@ -36,6 +36,8 @@ public class SourceToParse {
 
     private String routing;
 
+    private String parentId;
+
     public SourceToParse(byte[] source) {
         this.source = source;
     }
@@ -59,6 +61,15 @@ public class SourceToParse {
 
     public SourceToParse id(String id) {
         this.id = id;
+        return this;
+    }
+
+    public String parent() {
+        return this.parentId;
+    }
+
+    public SourceToParse parent(String parentId) {
+        this.parentId = parentId;
         return this;
     }
 

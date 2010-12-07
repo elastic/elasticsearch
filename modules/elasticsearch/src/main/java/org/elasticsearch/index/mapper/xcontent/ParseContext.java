@@ -85,6 +85,8 @@ public class ParseContext {
         this.parser = parser;
         this.document = document;
         this.analyzer = null;
+        this.uid = null;
+        this.id = null;
         this.type = type;
         this.source = source;
         this.path.reset();

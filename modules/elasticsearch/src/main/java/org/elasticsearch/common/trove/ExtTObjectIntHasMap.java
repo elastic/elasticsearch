@@ -54,6 +54,14 @@ public class ExtTObjectIntHasMap<T> extends TObjectIntHashMap<T> {
         return this;
     }
 
+    /**
+     * Returns an already existing key, or <tt>null</tt> if it does not exists.
+     */
+    public T key(T key) {
+        int index = index(key);
+        return index < 0 ? null : (T) _set[index];
+    }
+
     @Override public final int get(T key) {
         int index = index(key);
         return index < 0 ? defaultReturnValue : _values[index];

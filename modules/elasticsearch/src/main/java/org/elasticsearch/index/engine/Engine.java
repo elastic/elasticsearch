@@ -300,6 +300,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.routing();
         }
 
+        public String parent() {
+            return this.doc.parent();
+        }
+
         public Document doc() {
             return this.doc.doc();
         }
@@ -361,6 +365,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public String routing() {
             return this.doc.routing();
+        }
+
+        public String parent() {
+            return this.doc.parent();
         }
 
         public byte[] source() {

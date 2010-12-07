@@ -106,6 +106,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         return parse(type, source, null);
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override public XContentDocumentMapper parse(@Nullable String type, String source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
@@ -148,6 +149,8 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
                 docBuilder.uidField(parseUidField((Map<String, Object>) fieldNode, parserContext));
             } else if (RoutingFieldMapper.CONTENT_TYPE.equals(fieldName)) {
                 docBuilder.routingField(parseRoutingField((Map<String, Object>) fieldNode, parserContext));
+            } else if (ParentFieldMapper.CONTENT_TYPE.equals(fieldName)) {
+                docBuilder.parentFiled(parseParentField((Map<String, Object>) fieldNode, parserContext));
             } else if (BoostFieldMapper.CONTENT_TYPE.equals(fieldName) || "boostField".equals(fieldName)) {
                 docBuilder.boostField(parseBoostField((Map<String, Object>) fieldNode, parserContext));
             } else if (AllFieldMapper.CONTENT_TYPE.equals(fieldName) || "allField".equals(fieldName)) {
@@ -230,6 +233,18 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         return builder;
     }
 
+    private ParentFieldMapper.Builder parseParentField(Map<String, Object> parentNode, XContentMapper.TypeParser.ParserContext parserContext) {
+        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder();
+        for (Map.Entry<String, Object> entry : parentNode.entrySet()) {
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            Object fieldNode = entry.getValue();
+            if (fieldName.equals("type")) {
+                builder.type(fieldNode.toString());
+            }
+        }
+        return builder;
+    }
+
     private AnalyzerMapper.Builder parseAnalyzerField(Map<String, Object> analyzerNode, XContentMapper.TypeParser.ParserContext parserContext) {
         AnalyzerMapper.Builder builder = analyzer();
         for (Map.Entry<String, Object> entry : analyzerNode.entrySet()) {
@@ -292,6 +307,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         return builder;
     }
 
+    @SuppressWarnings({"unchecked"})
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
         XContentParser xContentParser = null;

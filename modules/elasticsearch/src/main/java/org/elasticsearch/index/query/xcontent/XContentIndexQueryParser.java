@@ -232,7 +232,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
     private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
         Query query = parseContext.parseInnerQuery();
-        return new ParsedQuery(query, parseContext.copyNamedFilters());
+        return new ParsedQuery(query, parseContext.copyNamedFilters(), parseContext.copyScopePhases());
     }
 
     private void add(Map<String, XContentFilterParser> map, XContentFilterParser filterParser) {

@@ -194,6 +194,7 @@ public interface Translog extends IndexShardComponent {
         private String type;
         private byte[] source;
         private String routing;
+        private String parent;
 
         public Create() {
         }
@@ -201,6 +202,7 @@ public interface Translog extends IndexShardComponent {
         public Create(Engine.Create create) {
             this(create.type(), create.id(), create.source());
             this.routing = create.routing();
+            this.parent = create.parent();
         }
 
         public Create(String type, String id, byte[] source) {
@@ -233,21 +235,30 @@ public interface Translog extends IndexShardComponent {
             return this.routing;
         }
 
+        public String parent() {
+            return this.parent;
+        }
+
         @Override public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
             source = new byte[in.readVInt()];
             in.readFully(source);
-            if (version == 1) {
+            if (version >= 1) {
                 if (in.readBoolean()) {
                     routing = in.readUTF();
+                }
+            }
+            if (version >= 2) {
+                if (in.readBoolean()) {
+                    parent = in.readUTF();
                 }
             }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(1); // version
+            out.writeVInt(2); // version
             out.writeUTF(id);
             out.writeUTF(type);
             out.writeVInt(source.length);
@@ -258,6 +269,12 @@ public interface Translog extends IndexShardComponent {
                 out.writeBoolean(true);
                 out.writeUTF(routing);
             }
+            if (parent == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(parent);
+            }
         }
     }
 
@@ -266,6 +283,7 @@ public interface Translog extends IndexShardComponent {
         private String type;
         private byte[] source;
         private String routing;
+        private String parent;
 
         public Index() {
         }
@@ -273,6 +291,7 @@ public interface Translog extends IndexShardComponent {
         public Index(Engine.Index index) {
             this(index.type(), index.id(), index.source());
             this.routing = index.routing();
+            this.parent = index.parent();
         }
 
         public Index(String type, String id, byte[] source) {
@@ -301,6 +320,10 @@ public interface Translog extends IndexShardComponent {
             return this.routing;
         }
 
+        public String parent() {
+            return this.parent;
+        }
+
         public byte[] source() {
             return this.source;
         }
@@ -311,15 +334,20 @@ public interface Translog extends IndexShardComponent {
             type = in.readUTF();
             source = new byte[in.readVInt()];
             in.readFully(source);
-            if (version == 1) {
+            if (version >= 1) {
                 if (in.readBoolean()) {
                     routing = in.readUTF();
+                }
+            }
+            if (version >= 2) {
+                if (in.readBoolean()) {
+                    parent = in.readUTF();
                 }
             }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(1); // version
+            out.writeVInt(2); // version
             out.writeUTF(id);
             out.writeUTF(type);
             out.writeVInt(source.length);
@@ -329,6 +357,12 @@ public interface Translog extends IndexShardComponent {
             } else {
                 out.writeBoolean(true);
                 out.writeUTF(routing);
+            }
+            if (parent == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(parent);
             }
         }
     }

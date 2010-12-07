@@ -40,8 +40,19 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         super(name);
     }
 
+    /**
+     * Marks the facet to run in a global scope, not bounded by any query.
+     */
     public StatisticalScriptFacetBuilder global(boolean global) {
-        this.global = global;
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public AbstractFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

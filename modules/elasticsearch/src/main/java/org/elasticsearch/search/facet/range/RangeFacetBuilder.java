@@ -129,7 +129,15 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
      * the search query). Defaults to <tt>false</tt>.
      */
     public RangeFacetBuilder global(boolean global) {
-        this.global = global;
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public RangeFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

@@ -400,6 +400,28 @@ public abstract class QueryBuilders {
         return new MoreLikeThisFieldQueryBuilder(name);
     }
 
+    /**
+     * Constructs a new scoring child query, with the child type and the query to run on the child documents. The
+     * results of this query are the parent docs that those child docs matched.
+     *
+     * @param type  The child type.
+     * @param query The query.
+     */
+    public static TopChildrenQueryBuilder topChildrenQuery(String type, XContentQueryBuilder query) {
+        return new TopChildrenQueryBuilder(type, query);
+    }
+
+    /**
+     * Constructs a new NON scoring child query, with the child type and the query to run on the child documents. The
+     * results of this query are the parent docs that those child docs matched.
+     *
+     * @param type  The child type.
+     * @param query The query.
+     */
+    public static HasChildQueryBuilder hasChildQuery(String type, XContentQueryBuilder query) {
+        return new HasChildQueryBuilder(type, query);
+    }
+
     private QueryBuilders() {
 
     }

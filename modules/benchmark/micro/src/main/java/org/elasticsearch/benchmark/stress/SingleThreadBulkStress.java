@@ -85,7 +85,7 @@ public class SingleThreadBulkStress {
                 System.err.println("failures...");
             }
             if (((i * BATCH) % 10000) == 0) {
-                System.out.println("Indexed " + (i * 100) + " took " + stopWatch.stop().lastTaskTime());
+                System.out.println("Indexed " + (i * BATCH) + " took " + stopWatch.stop().lastTaskTime());
                 stopWatch.start();
             }
         }

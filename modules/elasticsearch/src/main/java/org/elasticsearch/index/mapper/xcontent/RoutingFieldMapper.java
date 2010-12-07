@@ -73,7 +73,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         }
     }
 
-    private final boolean required;
+    private boolean required;
 
     private final String path;
 
@@ -86,6 +86,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.required = required;
         this.path = path;
+    }
+
+    public void markAsRequired() {
+        this.required = required;
     }
 
     @Override public boolean required() {

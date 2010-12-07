@@ -110,6 +110,7 @@ public class BulkRequest implements ActionRequest {
             String type = null;
             String id = null;
             String routing = null;
+            String parent = null;
             String opType = null;
 
             String currentFieldName = null;
@@ -125,6 +126,8 @@ public class BulkRequest implements ActionRequest {
                         id = parser.text();
                     } else if ("_routing".equals(currentFieldName)) {
                         routing = parser.text();
+                    } else if ("_parent".equals(currentFieldName)) {
+                        parent = parser.text();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
                     }
@@ -138,17 +141,18 @@ public class BulkRequest implements ActionRequest {
                 if (nextMarker == -1) {
                     break;
                 }
+                // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        add(new IndexRequest(index, type, id).routing(routing)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent)
                                 .source(data, from, nextMarker - from, contentUnsafe));
                     } else {
-                        add(new IndexRequest(index, type, id).routing(routing)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe));
                     }
                 } else if ("create".equals(action)) {
-                    add(new IndexRequest(index, type, id).routing(routing)
+                    add(new IndexRequest(index, type, id).routing(routing).parent(parent)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe));
                 }

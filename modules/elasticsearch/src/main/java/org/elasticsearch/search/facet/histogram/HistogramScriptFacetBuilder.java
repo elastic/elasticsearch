@@ -85,8 +85,19 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public HistogramScriptFacetBuilder global(boolean global) {
-        this.global = global;
+    /**
+     * Marks the facet to run in a global scope, not bounded by any query.
+     */
+    @Override public HistogramScriptFacetBuilder global(boolean global) {
+        super.global(global);
+        return this;
+    }
+
+    /**
+     * Marks the facet to run in a specific scope.
+     */
+    @Override public HistogramScriptFacetBuilder scope(String scope) {
+        super.scope(scope);
         return this;
     }
 

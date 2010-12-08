@@ -31,6 +31,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.util.Map;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -183,5 +185,52 @@ public class SearchScrollTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
+    }
+
+    @Test public void testScrollAndUpdateIndex() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 0; i < 500; i++) {
+            client.prepareIndex("test", "tweet", Integer.toString(i)).setSource(
+                    jsonBuilder().startObject().field("user", "kimchy").field("postDate", System.currentTimeMillis()).field("message", "test").endObject()).execute().actionGet();
+        }
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        assertThat(client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(0l));
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(queryString("user:kimchy"))
+                .setSize(35)
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .addSort("postDate", SortOrder.ASC)
+                .execute().actionGet();
+
+
+        do {
+            for (SearchHit searchHit : searchResponse.hits().hits()) {
+                Map<String, Object> map = searchHit.sourceAsMap();
+                map.put("message", "update");
+                client.prepareIndex("test", "tweet", searchHit.id()).setSource(map).execute().actionGet();
+            }
+            searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+        } while (searchResponse.hits().hits().length > 0);
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(500l));
     }
 }

@@ -160,7 +160,14 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     public void close() {
         for (NamedAnalyzer analyzer : analyzers.values()) {
             if (analyzer.scope() == AnalyzerScope.INDEX) {
-                analyzer.close();
+                try {
+                    analyzer.close();
+                } catch (NullPointerException e) {
+                    // because analyzers are aliased, they might be closed several times
+                    // an NPE is thrown in this case, so ignore....
+                } catch (Exception e) {
+                    logger.debug("failed to close analyzer " + analyzer);
+                }
             }
         }
     }

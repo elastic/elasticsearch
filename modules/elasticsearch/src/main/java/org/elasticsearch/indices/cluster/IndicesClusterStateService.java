@@ -134,7 +134,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] cleaning index (no shards allocated)", index);
                 }
                 // clean the index
-                indicesService.cleanIndex(index);
+                try {
+                    indicesService.cleanIndex(index);
+                } catch (Exception e) {
+                    logger.warn("failed to clean index (no shards of that index are allocated on this node)", e);
+                }
             }
         }
     }
@@ -145,12 +149,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] deleting index", index);
                 }
-                indicesService.deleteIndex(index);
-                threadPool.execute(new Runnable() {
-                    @Override public void run() {
-                        nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
-                    }
-                });
+                try {
+                    indicesService.deleteIndex(index);
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("failed to delete index", e);
+                }
             }
         }
     }

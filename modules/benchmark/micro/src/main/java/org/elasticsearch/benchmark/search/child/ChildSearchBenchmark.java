@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
@@ -64,7 +65,8 @@ public class ChildSearchBenchmark {
         long COUNT = SizeValue.parseSizeValue("1m").singles();
         int CHILD_COUNT = 5;
         int BATCH = 100;
-        int QUERY_COUNT = 500;
+        int QUERY_WARMUP = 20;
+        int QUERY_COUNT = 50;
 
         Thread.sleep(10000);
         try {
@@ -114,7 +116,7 @@ public class ChildSearchBenchmark {
 
         System.out.println("--> Running just child query");
         // run just the child query, warm up first
-        for (int j = 0; j < 100; j++) {
+        for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(termQuery("child.tag", "tag1")).execute().actionGet();
             if (j == 0) {
                 System.out.println("--> Warmup took: " + searchResponse.took());
@@ -136,18 +138,24 @@ public class ChildSearchBenchmark {
 
         System.out.println("--> Running has_child query");
         // run parent child constant query
-        for (int j = 0; j < 100; j++) {
+        for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(hasChildQuery("child", termQuery("tag", "tag1"))).execute().actionGet();
+            if (searchResponse.failedShards() > 0) {
+                System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+            }
             if (searchResponse.hits().totalHits() != COUNT) {
-                System.err.println("--> mismatch on hits");
+                System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + COUNT + "]");
             }
         }
 
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(hasChildQuery("child", termQuery("tag", "tag1"))).execute().actionGet();
+            if (searchResponse.failedShards() > 0) {
+                System.err.println("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+            }
             if (searchResponse.hits().totalHits() != COUNT) {
-                System.err.println("--> mismatch on hits");
+                System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.hits().totalHits() + "], expected [" + COUNT + "]");
             }
             totalQueryTime += searchResponse.tookInMillis();
         }
@@ -155,7 +163,7 @@ public class ChildSearchBenchmark {
 
         System.out.println("--> Running top_children query");
         // run parent child score query
-        for (int j = 0; j < 100; j++) {
+        for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(topChildrenQuery("child", termQuery("tag", "tag1"))).execute().actionGet();
             // we expect to have mismatch on hits here
 //            if (searchResponse.hits().totalHits() != COUNT) {

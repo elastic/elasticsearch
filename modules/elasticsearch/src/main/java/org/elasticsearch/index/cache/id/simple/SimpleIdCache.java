@@ -217,14 +217,12 @@ public class SimpleIdCache implements IdCache {
     }
 
     private boolean refreshNeeded(IndexReader[] readers) {
-        boolean refreshNeeded = false;
         for (IndexReader reader : readers) {
             if (!idReaders.containsKey(reader.getFieldCacheKey())) {
-                refreshNeeded = true;
-                break;
+                return true;
             }
         }
-        return refreshNeeded;
+        return false;
     }
 
     static class TypeBuilder {

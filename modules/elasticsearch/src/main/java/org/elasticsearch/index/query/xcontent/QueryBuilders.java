@@ -422,6 +422,137 @@ public abstract class QueryBuilders {
         return new HasChildQueryBuilder(type, query);
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder termsQuery(String name, String... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder termsQuery(String name, int... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder termsQuery(String name, long... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder termsQuery(String name, float... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder termsQuery(String name, double... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder termsQuery(String name, Object... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, String... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, int... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, long... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, float... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, double... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, Object... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filter that restricts search results to values that have a matching prefix in a given
+     * field.
+     *
+     * @param name   The field name
+     * @param prefix The prefix
+     */
+    public static PrefixFilterBuilder inQuery(String name, String prefix) {
+        return new PrefixFilterBuilder(name, prefix);
+    }
+
     private QueryBuilders() {
 
     }

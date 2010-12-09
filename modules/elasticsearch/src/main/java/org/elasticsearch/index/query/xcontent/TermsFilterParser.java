@@ -49,7 +49,7 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
     }
 
     @Override public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NAME, "in"};
     }
 
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {

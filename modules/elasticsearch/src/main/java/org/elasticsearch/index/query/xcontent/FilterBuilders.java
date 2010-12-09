@@ -154,6 +154,66 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsFilterBuilder inFilter(String name, String... values) {
+        return new TermsFilterBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsFilterBuilder inFilter(String name, int... values) {
+        return new TermsFilterBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsFilterBuilder inFilter(String name, long... values) {
+        return new TermsFilterBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsFilterBuilder inFilter(String name, float... values) {
+        return new TermsFilterBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsFilterBuilder inFilter(String name, double... values) {
+        return new TermsFilterBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsFilterBuilder inFilter(String name, Object... values) {
+        return new TermsFilterBuilder(name, values);
+    }
+
+    /**
      * A filter that restricts search results to values that have a matching prefix in a given
      * field.
      *

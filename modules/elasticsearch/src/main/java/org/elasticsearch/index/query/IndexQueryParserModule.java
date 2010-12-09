@@ -227,6 +227,7 @@ public class IndexQueryParserModule extends AbstractModule {
             bindings.processXContentQueryParser(QueryStringQueryParser.NAME, QueryStringQueryParser.class);
             bindings.processXContentQueryParser(BoolQueryParser.NAME, BoolQueryParser.class);
             bindings.processXContentQueryParser(TermQueryParser.NAME, TermQueryParser.class);
+            bindings.processXContentQueryParser(TermsQueryParser.NAME, TermsQueryParser.class);
             bindings.processXContentQueryParser(FuzzyQueryParser.NAME, FuzzyQueryParser.class);
             bindings.processXContentQueryParser(FieldQueryParser.NAME, FieldQueryParser.class);
             bindings.processXContentQueryParser(RangeQueryParser.NAME, RangeQueryParser.class);

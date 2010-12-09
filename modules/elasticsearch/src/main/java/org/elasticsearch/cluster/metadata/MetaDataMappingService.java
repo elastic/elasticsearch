@@ -61,18 +61,23 @@ public class MetaDataMappingService extends AbstractComponent {
         this.indicesService = indicesService;
     }
 
-    public void updateMapping(final String index, final String type, final CompressedString mappingSource) throws IOException {
-        updateMapping(index, type, mappingSource.string());
-    }
-
-    public void updateMapping(final String index, final String type, final String mappingSource) {
+    public void updateMapping(final String index, final String type, final CompressedString mappingSource) {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
+                    // first, check if it really needs to be updated
+                    final IndexMetaData indexMetaData = currentState.metaData().index(index);
+                    if (indexMetaData == null) {
+                        // index got delete on us, ignore...
+                        return currentState;
+                    }
+                    if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(mappingSource)) {
+                        return currentState;
+                    }
+
                     IndexService indexService = indicesService.indexService(index);
                     if (indexService == null) {
                         // we need to create the index here, and add the current mapping to it, so we can merge
-                        final IndexMetaData indexMetaData = currentState.metaData().index(index);
                         indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(type)) {
@@ -83,13 +88,19 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     DocumentMapper existingMapper = mapperService.documentMapper(type);
                     // parse the updated one
-                    DocumentMapper updatedMapper = mapperService.parse(type, mappingSource);
+                    DocumentMapper updatedMapper = mapperService.parse(type, mappingSource.string());
                     if (existingMapper == null) {
                         existingMapper = updatedMapper;
                     } else {
                         // merge from the updated into the existing, ignore conflicts (we know we have them, we just want the new ones)
                         existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
                     }
+
+                    // if we end up with the same mapping as the original once, ignore
+                    if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(existingMapper.mappingSource())) {
+                        return currentState;
+                    }
+
                     // build the updated mapping source
                     if (logger.isDebugEnabled()) {
                         try {
@@ -102,7 +113,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                    IndexMetaData indexMetaData = currentState.metaData().index(index);
                     builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(existingMapper)));
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
                 } catch (Exception e) {

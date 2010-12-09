@@ -69,7 +69,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     @Override protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
         try {
             metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource());
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse mapping form compressed string", e);
         }
         return new MappingUpdatedResponse();

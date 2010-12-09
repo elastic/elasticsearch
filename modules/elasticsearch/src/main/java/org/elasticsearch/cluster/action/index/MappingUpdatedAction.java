@@ -70,7 +70,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         try {
             metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource());
         } catch (Exception e) {
-            throw new ElasticSearchParseException("failed to parse mapping form compressed string", e);
+            throw new ElasticSearchParseException("failed to update mapping", e);
         }
         return new MappingUpdatedResponse();
     }

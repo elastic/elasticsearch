@@ -169,7 +169,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             return;
         }
         for (final String index : indicesService.indices()) {
-            if (event.state().metaData().hasIndex(index)) {
+            IndexMetaData indexMetaData = event.state().metaData().index(index);
+            if (indexMetaData != null) {
                 // now, go over and delete shards that needs to get deleted
                 Set<Integer> newShardIds = newHashSet();
                 for (final ShardRouting shardRouting : routingNodes) {
@@ -183,10 +184,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 for (Integer existingShardId : indexService.shardIds()) {
                     if (!newShardIds.contains(existingShardId)) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}][{}] deleting shard", index, existingShardId);
+                        if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("[{}][{}] removing shard (index is closed)", index, existingShardId);
+                            }
+                            indexService.removeShard(existingShardId);
+                        } else {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("[{}][{}] cleaning shard locally (not allocated)", index, existingShardId);
+                            }
+                            indexService.cleanShard(existingShardId);
                         }
-                        indexService.cleanShard(existingShardId);
                     }
                 }
             }

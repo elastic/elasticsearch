@@ -285,7 +285,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                         builder.state(currentStartedShards);
                     }
                     builder.version(event.state().version());
-                    // remove from the current state all the shards that are primary and started, we won't need them anymore
+                    // remove from the current state all the shards that are primary and started somewhere, we won't need them anymore
+                    // and if they are still here, we will add them in the next phase
+
+                    // Also note, this works well when closing an index, since a closed index will have no routing shards entries
+                    // so they won't get removed (we want to keep the fact that those shards are allocated on this node if needed)
                     for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
                         for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                             if (indexShardRoutingTable.primaryShard().active()) {

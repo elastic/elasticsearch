@@ -148,6 +148,36 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
             // all is well
         }
 
+        logger.info("--> creating another index (test2) by indexing into it");
+        client("node1").prepareIndex("test2", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        logger.info("--> verifying that the state is green");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> opening the first index again...");
+        client("node1").admin().indices().prepareOpen("test").execute().actionGet();
+
+        logger.info("--> verifying that the state is green");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
+        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+
+        logger.info("--> trying to get the indexed document on the first index");
+        GetResponse getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+
+        logger.info("--> closing test index...");
+        client("node1").admin().indices().prepareClose("test").execute().actionGet();
+        stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
+        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+
         logger.info("--> closing nodes...");
         closeNode("node2");
         closeNode("node1");
@@ -156,8 +186,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("gateway.type", "local").build());
         startNode("node2", settingsBuilder().put("gateway.type", "local").build());
 
-        logger.info("--> waiting for two nodes");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        logger.info("--> waiting for two nodes and green status");
+        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.timedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
@@ -185,7 +215,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
-        GetResponse getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
+        getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
 
         logger.info("--> indexing a simple document");

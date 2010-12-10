@@ -86,31 +86,18 @@ public class GeoBoundingBoxFilter extends Filter {
                         for (int i = 0; i < lats.length; i++) {
                             double lat = lats[i];
                             double lon = lons[i];
-                            if (lon < 0) {
-                                if (-180.0 <= lon && bottomRight.lon >= lon
-                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
-                                    return true;
-                                }
-                            } else {
-                                if (topLeft.lon <= lon && 180 >= lon
-                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
-                                    return true;
-                                }
+                            if (((topLeft.lon <= lon && 180 >= lon) || (-180 <= lon && bottomRight.lon >= lon)) &&
+                                    (topLeft.lat >= lat && bottomRight.lat <= lat)) {
+                                return true;
                             }
                         }
                     } else {
                         double lat = fieldData.latValue(doc);
                         double lon = fieldData.lonValue(doc);
-                        if (lon < 0) {
-                            if (-180.0 <= lon && bottomRight.lon >= lon
-                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
-                                return true;
-                            }
-                        } else {
-                            if (topLeft.lon <= lon && 180 >= lon
-                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
-                                return true;
-                            }
+
+                        if (((topLeft.lon <= lon && 180 >= lon) || (-180 <= lon && bottomRight.lon >= lon)) &&
+                                (topLeft.lat >= lat && bottomRight.lat <= lat)) {
+                            return true;
                         }
                     }
                     return false;

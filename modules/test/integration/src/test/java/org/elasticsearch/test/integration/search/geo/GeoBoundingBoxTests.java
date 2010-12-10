@@ -205,5 +205,48 @@ public class GeoBoundingBoxTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().hits().length, equalTo(1));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("9"));
     }
+
+    @Test public void limit2BoundingBoxTest() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(settingsBuilder().put("number_of_shards", "1")).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("userid", 880)
+                .field("title", "Place in Stockholm")
+                .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
+                .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("userid", 534)
+                .field("title", "Place in Montreal")
+                .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
+                .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(
+                        filteredQuery(termQuery("userid", 880),
+                                geoBoundingBoxFilter("location").topLeft(74.579421999999994, 143.5).bottomRight(-66.668903999999998, 113.96875))
+                ).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(
+                        filteredQuery(termQuery("userid", 534),
+                                geoBoundingBoxFilter("location").topLeft(74.579421999999994, 143.5).bottomRight(-66.668903999999998, 113.96875))
+                ).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
 }
 

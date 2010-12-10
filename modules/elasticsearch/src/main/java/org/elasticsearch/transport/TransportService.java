@@ -313,7 +313,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (holder != null) {
                 // add it to the timeout information holder, in case we are going to get a response later
                 timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action()));
-                holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
+                holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action(), "request_id [" + requestId + "]"));
             }
         }
     }

@@ -30,6 +30,10 @@ public class ReceiveTimeoutTransportException extends ActionTransportException {
         super(node.name(), node.address(), action, null);
     }
 
+    public ReceiveTimeoutTransportException(DiscoveryNode node, String action, String msg) {
+        super(node.name(), node.address(), action, msg, null);
+    }
+
 //    @Override public Throwable fillInStackTrace() {
 //        return fillStack();
 //    }

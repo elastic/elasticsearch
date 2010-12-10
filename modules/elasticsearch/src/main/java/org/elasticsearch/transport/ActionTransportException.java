@@ -37,7 +37,13 @@ public class ActionTransportException extends TransportException {
     }
 
     public ActionTransportException(String name, TransportAddress address, String action, Throwable cause) {
-        super(buildMessage(name, address, action), cause);
+        super(buildMessage(name, address, action, null), cause);
+        this.address = address;
+        this.action = action;
+    }
+
+    public ActionTransportException(String name, TransportAddress address, String action, String msg, Throwable cause) {
+        super(buildMessage(name, address, action, msg), cause);
         this.address = address;
         this.action = action;
     }
@@ -56,7 +62,7 @@ public class ActionTransportException extends TransportException {
         return action;
     }
 
-    private static String buildMessage(String name, TransportAddress address, String action) {
+    private static String buildMessage(String name, TransportAddress address, String action, String msg) {
         StringBuilder sb = new StringBuilder();
         if (name != null) {
             sb.append('[').append(name).append(']');
@@ -66,6 +72,9 @@ public class ActionTransportException extends TransportException {
         }
         if (action != null) {
             sb.append('[').append(action).append(']');
+        }
+        if (msg != null) {
+            sb.append(" ").append(msg);
         }
         return sb.toString();
     }

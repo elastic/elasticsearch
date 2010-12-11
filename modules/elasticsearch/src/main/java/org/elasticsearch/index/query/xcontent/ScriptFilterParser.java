@@ -121,7 +121,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
                 throw new ElasticSearchIllegalStateException("No search context on going...");
             }
 
-            this.searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, scriptService);
+            this.searchScript = new SearchScript(context.lookup(), scriptLang, script, params, scriptService);
         }
 
         @Override public String toString() {

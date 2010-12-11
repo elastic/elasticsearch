@@ -94,7 +94,7 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
+            this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
         } else {
             this.script = null;
         }

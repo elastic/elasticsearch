@@ -41,8 +41,8 @@ public class ScriptRangeFacetCollector extends AbstractFacetCollector {
 
     public ScriptRangeFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.keyScript = new SearchScript(context.scriptSearchLookup(), scriptLang, keyScript, params, context.scriptService());
-        this.valueScript = new SearchScript(context.scriptSearchLookup(), scriptLang, valueScript, params, context.scriptService());
+        this.keyScript = new SearchScript(context.lookup(), scriptLang, keyScript, params, context.scriptService());
+        this.valueScript = new SearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
         this.entries = entries;
     }
 

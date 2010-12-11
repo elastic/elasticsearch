@@ -65,7 +65,7 @@ public class TermsScriptFieldFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
         this.sScript = script;
-        this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
+        this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
 
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;

@@ -41,7 +41,7 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                                            String scriptLang, String script, Map<String, Object> params) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
 
-        this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
+        this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

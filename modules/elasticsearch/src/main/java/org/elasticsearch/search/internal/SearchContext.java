@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.search.ScriptSearchLookup;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -46,6 +45,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
@@ -126,7 +126,7 @@ public class SearchContext implements Releasable {
 
     private ScriptFieldsContext scriptFields;
 
-    private ScriptSearchLookup scriptSearchLookup;
+    private SearchLookup searchLookup;
 
     private boolean queryRewritten;
 
@@ -405,11 +405,11 @@ public class SearchContext implements Releasable {
         this.keepAlive = keepAlive;
     }
 
-    public ScriptSearchLookup scriptSearchLookup() {
-        if (scriptSearchLookup == null) {
-            scriptSearchLookup = new ScriptSearchLookup(mapperService(), fieldDataCache());
+    public SearchLookup lookup() {
+        if (searchLookup == null) {
+            searchLookup = new SearchLookup(mapperService(), fieldDataCache());
         }
-        return scriptSearchLookup;
+        return searchLookup;
     }
 
     public DfsSearchResult dfsResult() {

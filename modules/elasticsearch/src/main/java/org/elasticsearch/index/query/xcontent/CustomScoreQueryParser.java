@@ -96,7 +96,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         if (context == null) {
             throw new ElasticSearchIllegalStateException("No search context on going...");
         }
-        SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, vars, parseContext.scriptService());
+        SearchScript searchScript = new SearchScript(context.lookup(), scriptLang, script, vars, parseContext.scriptService());
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;

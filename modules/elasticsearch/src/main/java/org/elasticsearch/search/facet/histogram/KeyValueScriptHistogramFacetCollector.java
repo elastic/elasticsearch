@@ -79,7 +79,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
-        this.valueScript = new SearchScript(context.scriptSearchLookup(), scriptLang, valueScript, params, context.scriptService());
+        this.valueScript = new SearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
 
         FieldMapper mapper = smartMappers.mapper();
 

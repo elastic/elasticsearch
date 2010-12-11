@@ -74,7 +74,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
+        SearchScript searchScript = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
         FieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
             fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(searchScript);

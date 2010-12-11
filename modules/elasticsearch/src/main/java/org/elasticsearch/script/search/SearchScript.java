@@ -24,6 +24,7 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -33,23 +34,23 @@ import java.util.Map;
  */
 public class SearchScript {
 
-    private final ScriptSearchLookup searchLookup;
+    private final SearchLookup searchLookup;
 
     private final ExecutableScript script;
 
-    public SearchScript(ScriptSearchLookup searchLookup, ExecutableScript script) {
+    public SearchScript(SearchLookup searchLookup, ExecutableScript script) {
         this.searchLookup = searchLookup;
         this.script = script;
     }
 
-    public SearchScript(ScriptSearchLookup searchLookup, String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService) {
+    public SearchScript(SearchLookup searchLookup, String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService) {
         this.searchLookup = searchLookup;
-        this.script = scriptService.executable(lang, script, searchLookup.processScriptParams(params));
+        this.script = scriptService.executable(lang, script, searchLookup.processAsMap(params));
     }
 
     public SearchScript(String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
-        this.searchLookup = new ScriptSearchLookup(mapperService, fieldDataCache);
-        this.script = scriptService.executable(lang, script, searchLookup.processScriptParams(params));
+        this.searchLookup = new SearchLookup(mapperService, fieldDataCache);
+        this.script = scriptService.executable(lang, script, searchLookup.processAsMap(params));
     }
 
     public void setNextReader(IndexReader reader) {

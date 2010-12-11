@@ -47,7 +47,7 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {
         super(facetName);
-        this.script = new SearchScript(context.scriptSearchLookup(), scriptLang, script, params, context.scriptService());
+        this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
     }
 
     @Override protected void doCollect(int doc) throws IOException {

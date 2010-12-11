@@ -39,7 +39,7 @@ public class FieldsParseElement implements SearchParseElement {
                 String name = parser.text();
                 if (name.contains("_source.") || name.contains("doc[")) {
                     // script field to load from source
-                    SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), null, name, null, context.scriptService());
+                    SearchScript searchScript = new SearchScript(context.lookup(), null, name, null, context.scriptService());
                     context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
                 } else {
                     context.fieldNames().add(name);
@@ -52,7 +52,7 @@ public class FieldsParseElement implements SearchParseElement {
             String name = parser.text();
             if (name.contains("_source.") || name.contains("doc[")) {
                 // script field to load from source
-                SearchScript searchScript = new SearchScript(context.scriptSearchLookup(), null, name, null, context.scriptService());
+                SearchScript searchScript = new SearchScript(context.lookup(), null, name, null, context.scriptService());
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
             } else {
                 context.fieldNames().add(name);

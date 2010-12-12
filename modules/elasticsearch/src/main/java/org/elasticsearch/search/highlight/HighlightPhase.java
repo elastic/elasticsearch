@@ -27,9 +27,12 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.SearchHitPhase;
+import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragmentsBuilder;
+import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -57,20 +60,19 @@ public class HighlightPhase implements SearchHitPhase {
 
             Map<String, HighlightField> highlightFields = newHashMap();
             for (SearchContextHighlight.Field field : context.highlight().fields()) {
-                String fieldName = field.field();
                 FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
-                if (mapper != null) {
-                    fieldName = mapper.names().indexName();
+                if (mapper == null) {
+                    throw new SearchException(context.shardTarget(), "No mapping found for [" + field.field() + "]");
                 }
 
-                FastVectorHighlighter highlighter = buildHighlighter(field);
+                FastVectorHighlighter highlighter = buildHighlighter(context, mapper, field);
                 FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), reader, field);
 
                 String[] fragments;
                 try {
                     // a HACK to make highlighter do highlighting, even though its using the single frag list builder
                     int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
-                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), numberOfFragments);
+                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
                 } catch (IOException e) {
                     throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                 }
@@ -91,18 +93,30 @@ public class HighlightPhase implements SearchHitPhase {
         return new CustomFieldQuery(query, highlighter);
     }
 
-    private FastVectorHighlighter buildHighlighter(SearchContextHighlight.Field field) {
+    private FastVectorHighlighter buildHighlighter(SearchContext searchContext, FieldMapper fieldMapper, SearchContextHighlight.Field field) {
         FragListBuilder fragListBuilder;
         FragmentsBuilder fragmentsBuilder;
         if (field.numberOfFragments() == 0) {
             fragListBuilder = new SingleFragListBuilder();
-            fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+            if (fieldMapper.stored()) {
+                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+            } else {
+                fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldMapper, searchContext, field.preTags(), field.postTags());
+            }
         } else {
             fragListBuilder = new SimpleFragListBuilder();
             if (field.scoreOrdered()) {
-                fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags());
+                if (fieldMapper.stored()) {
+                    fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags());
+                } else {
+                    fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldMapper, searchContext, field.preTags(), field.postTags());
+                }
             } else {
-                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+                if (fieldMapper.stored()) {
+                    fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+                } else {
+                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldMapper, searchContext, field.preTags(), field.postTags());
+                }
             }
         }
 

@@ -1,0 +1,61 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.search.highlight.vectorhighlight;
+
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
+
+    private final FieldMapper mapper;
+
+    private final SearchContext searchContext;
+
+    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
+                                            String[] preTags, String[] postTags) {
+        super(preTags, postTags);
+        this.mapper = mapper;
+        this.searchContext = searchContext;
+    }
+
+    @Override protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
+        // we know its low level reader, and matching docId, since that's how we call the highlighter with
+        SearchLookup lookup = searchContext.lookup();
+        lookup.setNextReader(reader);
+        lookup.setNextDocId(docId);
+
+        List<Object> values = lookup.source().getValues(mapper.names().fullName());
+        Field[] fields = new Field[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), Field.Store.NO, Field.Index.ANALYZED);
+        }
+        return fields;
+    }
+}

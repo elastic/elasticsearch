@@ -253,7 +253,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     @Override public ClusterState execute(ClusterState currentState) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                         IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
-                                .initializeEmpty(currentState.metaData().index(request.index));
+                                .initializeEmpty(currentState.metaData().index(request.index), request.origin == Request.Origin.API);
                         routingTableBuilder.add(indexRoutingBuilder);
                         RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
                         return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();

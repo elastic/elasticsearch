@@ -26,12 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
-import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -159,7 +157,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                                 .settings(indexMetaData.settings())
                                 .mappingsMetaData(indexMetaData.mappings())
                                 .state(indexMetaData.state())
-                                .blocks(ImmutableSet.of(GatewayService.INDEX_NOT_RECOVERED_BLOCK))
                                 .timeout(timeValueSeconds(30)),
 
                                 new MetaDataCreateIndexService.Listener() {

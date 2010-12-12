@@ -277,7 +277,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                         indexBuilder = new IndexRoutingTable.Builder(index);
                         indexRoutingTableBuilders.put(index, indexBuilder);
                     }
-                    indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry));
+
+                    boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
+                    indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
                 }
             }
             for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
@@ -287,7 +289,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     indexBuilder = new IndexRoutingTable.Builder(index);
                     indexRoutingTableBuilders.put(index, indexBuilder);
                 }
-                indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry));
+                boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
+                indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
             }
             for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
                 add(indexBuilder);

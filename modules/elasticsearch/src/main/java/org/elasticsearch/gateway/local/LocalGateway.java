@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -43,7 +42,6 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
 
 import java.io.*;
@@ -189,7 +187,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                                 .settings(indexMetaData.settings())
                                 .mappingsMetaData(indexMetaData.mappings())
                                 .state(indexMetaData.state())
-                                .blocks(ImmutableSet.of(GatewayService.INDEX_NOT_RECOVERED_BLOCK))
                                 .timeout(timeValueSeconds(30)),
 
                                 new MetaDataCreateIndexService.Listener() {

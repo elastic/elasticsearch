@@ -29,6 +29,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DynamicExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -45,6 +48,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -72,11 +76,16 @@ public class RecoverySource extends AbstractComponent {
 
     private final int translogBatchSize;
 
+    private final ExecutorService concurrentStreamPool;
+
     @Inject public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.indicesService = indicesService;
+
+        int concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
+        this.concurrentStreamPool = DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
         this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(500, ByteSizeUnit.KB));
         this.translogBatchSize = componentSettings.getAsInt("translog_batch_size", 100);
@@ -85,6 +94,10 @@ public class RecoverySource extends AbstractComponent {
         logger.debug("using file_chunk_size [{}], translog_batch_size [{}], and compress [{}]", fileChunkSize, translogBatchSize, compress);
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
+    }
+
+    public void close() {
+        concurrentStreamPool.shutdown();
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
@@ -136,7 +149,7 @@ public class RecoverySource extends AbstractComponent {
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
                     final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
                     for (final String name : response.phase1FileNames) {
-                        threadPool.cached().execute(new Runnable() {
+                        concurrentStreamPool.execute(new Runnable() {
                             @Override public void run() {
                                 IndexInput indexInput = null;
                                 try {

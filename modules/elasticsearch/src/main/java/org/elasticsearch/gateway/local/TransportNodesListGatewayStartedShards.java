@@ -203,7 +203,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
-                state = LocalGatewayStartedShards.Builder.readFrom(in, null);
+                state = LocalGatewayStartedShards.Builder.readFrom(in);
             }
         }
 

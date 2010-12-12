@@ -32,16 +32,11 @@ import java.util.Map;
  * <p>Using {@link ImmutableSettings#settingsBuilder()} in order to create a builder
  * which in turn can create an immutable implementation of settings.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  * @see ImmutableSettings
  */
 @ThreadSafe
 public interface Settings {
-
-    /**
-     * The global settings if these settings are group settings.
-     */
-    Settings getGlobalSettings();
 
     /**
      * Component settings for a specific component. Returns all the settings for the given class, where the

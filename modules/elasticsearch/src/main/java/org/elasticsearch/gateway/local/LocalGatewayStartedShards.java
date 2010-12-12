@@ -23,13 +23,11 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 
@@ -126,7 +124,7 @@ public class LocalGatewayStartedShards {
             builder.endObject();
         }
 
-        public static LocalGatewayStartedShards fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
+        public static LocalGatewayStartedShards fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
             String currentFieldName = null;
@@ -172,7 +170,7 @@ public class LocalGatewayStartedShards {
             return builder.build();
         }
 
-        public static LocalGatewayStartedShards readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
+        public static LocalGatewayStartedShards readFrom(StreamInput in) throws IOException {
             LocalGatewayStartedShards.Builder builder = new Builder();
             builder.version = in.readLong();
             int size = in.readVInt();

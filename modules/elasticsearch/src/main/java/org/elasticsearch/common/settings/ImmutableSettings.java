@@ -59,18 +59,11 @@ public class ImmutableSettings implements Settings {
 
     private Map<String, String> settings;
 
-    private Settings globalSettings;
-
     private transient ClassLoader classLoader;
 
-    private ImmutableSettings(Map<String, String> settings, Settings globalSettings, ClassLoader classLoader) {
+    private ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = settings;
-        this.globalSettings = globalSettings == null ? this : globalSettings;
         this.classLoader = classLoader == null ? buildClassLoader() : classLoader;
-    }
-
-    @Override public Settings getGlobalSettings() {
-        return this.globalSettings;
     }
 
     @Override public ClassLoader getClassLoader() {
@@ -106,7 +99,6 @@ public class ImmutableSettings implements Settings {
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
             }
         }
-        builder.globalSettings(this);
         builder.classLoader(classLoader);
         return builder.build();
     }
@@ -277,7 +269,7 @@ public class ImmutableSettings implements Settings {
         }
         Map<String, Settings> retVal = new LinkedHashMap<String, Settings>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new ImmutableSettings(Collections.unmodifiableMap(entry.getValue()), globalSettings, classLoader));
+            retVal.put(entry.getKey(), new ImmutableSettings(Collections.unmodifiableMap(entry.getValue()), classLoader));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -290,8 +282,6 @@ public class ImmutableSettings implements Settings {
         ImmutableSettings that = (ImmutableSettings) o;
 
         if (classLoader != null ? !classLoader.equals(that.classLoader) : that.classLoader != null) return false;
-        if (globalSettings != null ? !globalSettings.equals(that.globalSettings) : that.globalSettings != null)
-            return false;
         if (settings != null ? !settings.equals(that.settings) : that.settings != null) return false;
 
         return true;
@@ -300,7 +290,6 @@ public class ImmutableSettings implements Settings {
     @Override
     public int hashCode() {
         int result = settings != null ? settings.hashCode() : 0;
-        result = 31 * result + (globalSettings != null ? globalSettings.hashCode() : 0);
         result = 31 * result + (classLoader != null ? classLoader.hashCode() : 0);
         return result;
     }
@@ -310,16 +299,11 @@ public class ImmutableSettings implements Settings {
     }
 
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
-        return readSettingsFromStream(in, null);
-    }
-
-    public static Settings readSettingsFromStream(StreamInput in, Settings globalSettings) throws IOException {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
         for (int i = 0; i < numberOfSettings; i++) {
             builder.put(in.readUTF(), in.readUTF());
         }
-        builder.globalSettings(globalSettings);
         return builder.build();
     }
 
@@ -350,8 +334,6 @@ public class ImmutableSettings implements Settings {
         private final Map<String, String> map = new LinkedHashMap<String, String>();
 
         private ClassLoader classLoader;
-
-        private Settings globalSettings;
 
         private Builder() {
 
@@ -615,14 +597,6 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
-         * Sets the global settings associated with the settings built.
-         */
-        public Builder globalSettings(Settings globalSettings) {
-            this.globalSettings = globalSettings;
-            return this;
-        }
-
-        /**
          * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
          *
          * @param prefix     The prefix to filter proeprty key by
@@ -674,9 +648,7 @@ public class ImmutableSettings implements Settings {
          * set on this builder.
          */
         public Settings build() {
-            return new ImmutableSettings(
-                    Collections.unmodifiableMap(map),
-                    globalSettings, classLoader);
+            return new ImmutableSettings(Collections.unmodifiableMap(map), classLoader);
         }
     }
 }

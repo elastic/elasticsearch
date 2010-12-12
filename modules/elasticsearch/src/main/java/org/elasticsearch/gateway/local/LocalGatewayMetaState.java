@@ -22,12 +22,10 @@ package org.elasticsearch.gateway.local;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -91,7 +89,7 @@ public class LocalGatewayMetaState {
             builder.endObject();
         }
 
-        public static LocalGatewayMetaState fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
+        public static LocalGatewayMetaState fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
             String currentFieldName = null;
@@ -105,7 +103,7 @@ public class LocalGatewayMetaState {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("meta-data".equals(currentFieldName)) {
-                        builder.metaData = MetaData.Builder.fromXContent(parser, globalSettings);
+                        builder.metaData = MetaData.Builder.fromXContent(parser);
                     }
                 } else if (token.isValue()) {
                     if ("version".equals(currentFieldName)) {
@@ -117,10 +115,10 @@ public class LocalGatewayMetaState {
             return builder.build();
         }
 
-        public static LocalGatewayMetaState readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
+        public static LocalGatewayMetaState readFrom(StreamInput in) throws IOException {
             LocalGatewayMetaState.Builder builder = new Builder();
             builder.version = in.readLong();
-            builder.metaData = MetaData.Builder.readFrom(in, globalSettings);
+            builder.metaData = MetaData.Builder.readFrom(in);
             return builder.build();
         }
 

@@ -192,7 +192,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            return MetaData.Builder.fromXContent(parser, settings);
+            return MetaData.Builder.fromXContent(parser);
         } finally {
             if (parser != null) {
                 parser.close();

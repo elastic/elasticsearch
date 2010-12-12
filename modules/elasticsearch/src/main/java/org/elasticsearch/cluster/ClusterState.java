@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.common.settings.Settings;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -228,8 +227,8 @@ public class ClusterState {
             return os.copiedByteArray();
         }
 
-        public static ClusterState fromBytes(byte[] data, Settings globalSettings, DiscoveryNode localNode) throws IOException {
-            return readFrom(new BytesStreamInput(data), globalSettings, localNode);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
+            return readFrom(new BytesStreamInput(data), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
@@ -241,10 +240,10 @@ public class ClusterState {
             state.allocationExplanation().writeTo(out);
         }
 
-        public static ClusterState readFrom(StreamInput in, @Nullable Settings globalSettings, @Nullable DiscoveryNode localNode) throws IOException {
+        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             Builder builder = new Builder();
             builder.version = in.readLong();
-            builder.metaData = MetaData.Builder.readFrom(in, globalSettings);
+            builder.metaData = MetaData.Builder.readFrom(in);
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);

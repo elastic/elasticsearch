@@ -214,7 +214,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 .put(this.settings)
                 .put(settings)
                 .classLoader(settings.getClassLoader())
-                .globalSettings(settings.getGlobalSettings())
                 .build();
 
         ModulesBuilder modules = new ModulesBuilder();

@@ -442,7 +442,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            return LocalGatewayMetaState.Builder.fromXContent(parser, settings);
+            return LocalGatewayMetaState.Builder.fromXContent(parser);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -454,7 +454,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-            return LocalGatewayStartedShards.Builder.fromXContent(parser, settings);
+            return LocalGatewayStartedShards.Builder.fromXContent(parser);
         } finally {
             if (parser != null) {
                 parser.close();

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
@@ -59,7 +58,7 @@ public class ClusterSerializationTests {
         ShardsAllocation strategy = new ShardsAllocation();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
-        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), ImmutableSettings.settingsBuilder().build(), newNode("node1"));
+        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
 
         assertThat(serializedClusterState.routingTable().prettyPrint(), equalTo(clusterState.routingTable().prettyPrint()));
     }

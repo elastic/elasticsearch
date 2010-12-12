@@ -62,7 +62,7 @@ public class ClusterStateResponse implements ActionResponse {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         clusterName = ClusterName.readClusterName(in);
-        clusterState = ClusterState.Builder.readFrom(in, null, null);
+        clusterState = ClusterState.Builder.readFrom(in, null);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {

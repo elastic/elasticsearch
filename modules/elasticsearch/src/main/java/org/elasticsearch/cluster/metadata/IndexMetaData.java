@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 
@@ -284,7 +283,7 @@ public class IndexMetaData {
             builder.endObject();
         }
 
-        public static IndexMetaData fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
+        public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder(parser.currentName());
 
             String currentFieldName = null;
@@ -294,7 +293,7 @@ public class IndexMetaData {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        ImmutableSettings.Builder settingsBuilder = settingsBuilder().globalSettings(globalSettings);
+                        ImmutableSettings.Builder settingsBuilder = settingsBuilder();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             String key = parser.currentName();
                             token = parser.nextToken();
@@ -326,10 +325,10 @@ public class IndexMetaData {
             return builder.build();
         }
 
-        public static IndexMetaData readFrom(StreamInput in, Settings globalSettings) throws IOException {
+        public static IndexMetaData readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder(in.readUTF());
             builder.state(State.fromId(in.readByte()));
-            builder.settings(readSettingsFromStream(in, globalSettings));
+            builder.settings(readSettingsFromStream(in));
             int mappingsSize = in.readVInt();
             for (int i = 0; i < mappingsSize; i++) {
                 MappingMetaData mappingMd = MappingMetaData.readFrom(in);

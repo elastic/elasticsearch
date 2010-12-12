@@ -124,7 +124,7 @@ public class MembershipAction extends AbstractComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            clusterState = ClusterState.Builder.readFrom(in, settings, nodesProvider.nodes().localNode());
+            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {

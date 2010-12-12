@@ -203,7 +203,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
-                state = LocalGatewayMetaState.Builder.readFrom(in, null);
+                state = LocalGatewayMetaState.Builder.readFrom(in);
             }
         }
 

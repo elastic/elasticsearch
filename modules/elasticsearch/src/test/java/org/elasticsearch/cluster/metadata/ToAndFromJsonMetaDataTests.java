@@ -62,7 +62,7 @@ public class ToAndFromJsonMetaDataTests {
         String metaDataSource = MetaData.Builder.toXContent(metaData);
         System.out.println("ToJson: " + metaDataSource);
 
-        MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource), null);
+        MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource));
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));

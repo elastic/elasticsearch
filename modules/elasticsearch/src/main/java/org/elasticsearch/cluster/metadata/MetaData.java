@@ -23,13 +23,11 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 
@@ -340,7 +338,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             builder.endObject();
         }
 
-        public static MetaData fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
+        public static MetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
             XContentParser.Token token = parser.currentToken();
@@ -360,7 +358,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetaData.Builder.fromXContent(parser, globalSettings));
+                            builder.put(IndexMetaData.Builder.fromXContent(parser));
                         }
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -372,13 +370,13 @@ public class MetaData implements Iterable<IndexMetaData> {
             return builder.build();
         }
 
-        public static MetaData readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
+        public static MetaData readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
             // we only serialize it using readFrom, not in to/from XContent
             builder.recoveredFromGateway = in.readBoolean();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(IndexMetaData.Builder.readFrom(in, globalSettings));
+                builder.put(IndexMetaData.Builder.readFrom(in));
             }
             size = in.readVInt();
             for (int i = 0; i < size; i++) {

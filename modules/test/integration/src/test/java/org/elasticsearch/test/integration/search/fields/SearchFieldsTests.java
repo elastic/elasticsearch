@@ -82,9 +82,12 @@ public class SearchFieldsTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(1));
         assertThat(searchResponse.hits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
 
+        // field2 is not stored, check that it gets extracted from source
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("field2").execute().actionGet();
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).fields().get("field2").value().toString(), equalTo("value2"));
 
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("field3").execute().actionGet();
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));

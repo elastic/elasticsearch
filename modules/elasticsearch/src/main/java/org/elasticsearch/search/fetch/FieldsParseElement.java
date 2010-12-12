@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
@@ -42,7 +43,14 @@ public class FieldsParseElement implements SearchParseElement {
                     SearchScript searchScript = new SearchScript(context.lookup(), null, name, null, context.scriptService());
                     context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
                 } else {
-                    context.fieldNames().add(name);
+                    FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(name);
+                    if (!"*".equals(name) && (fieldMapper == null || !fieldMapper.stored())) {
+                        // script field to load from source
+                        SearchScript searchScript = new SearchScript(context.lookup(), null, "_source." + name, null, context.scriptService());
+                        context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
+                    } else {
+                        context.fieldNames().add(name);
+                    }
                 }
             }
             if (!added) {
@@ -55,7 +63,14 @@ public class FieldsParseElement implements SearchParseElement {
                 SearchScript searchScript = new SearchScript(context.lookup(), null, name, null, context.scriptService());
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
             } else {
-                context.fieldNames().add(name);
+                FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(name);
+                if (!"*".equals(name) && (fieldMapper == null || !fieldMapper.stored())) {
+                    // script field to load from source
+                    SearchScript searchScript = new SearchScript(context.lookup(), null, "_source." + name, null, context.scriptService());
+                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript));
+                } else {
+                    context.fieldNames().add(name);
+                }
             }
         }
     }

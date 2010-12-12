@@ -26,10 +26,10 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
+import org.elasticsearch.search.fetch.SearchHitPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -41,52 +41,44 @@ import static org.elasticsearch.common.collect.Maps.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class HighlightPhase implements SearchPhase {
+public class HighlightPhase implements SearchHitPhase {
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("highlight", new HighlighterParseElement());
     }
 
-    @Override public void preProcess(SearchContext context) {
+    @Override public boolean executionNeeded(SearchContext context) {
+        return context.highlight() != null;
     }
 
-    @Override public void execute(SearchContext context) throws ElasticSearchException {
-        if (context.highlight() == null) {
-            return;
-        }
-
+    @Override public void execute(SearchContext context, InternalSearchHit hit, Uid uid, IndexReader reader, int docId) throws ElasticSearchException {
         try {
-            for (SearchHit hit : context.fetchResult().hits().hits()) {
-                InternalSearchHit internalHit = (InternalSearchHit) hit;
+            DocumentMapper documentMapper = context.mapperService().type(hit.type());
 
-                DocumentMapper documentMapper = context.mapperService().type(internalHit.type());
-                int docId = internalHit.docId();
-
-                Map<String, HighlightField> highlightFields = newHashMap();
-                for (SearchContextHighlight.Field field : context.highlight().fields()) {
-                    String fieldName = field.field();
-                    FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
-                    if (mapper != null) {
-                        fieldName = mapper.names().indexName();
-                    }
-
-                    FastVectorHighlighter highlighter = buildHighlighter(field);
-                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), context.searcher().getIndexReader(), field);
-
-                    String[] fragments;
-                    try {
-                        // a HACK to make highlighter do highlighting, even though its using the single frag list builder
-                        int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
-                        fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), numberOfFragments);
-                    } catch (IOException e) {
-                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
-                    }
-                    HighlightField highlightField = new HighlightField(field.field(), fragments);
-                    highlightFields.put(highlightField.name(), highlightField);
+            Map<String, HighlightField> highlightFields = newHashMap();
+            for (SearchContextHighlight.Field field : context.highlight().fields()) {
+                String fieldName = field.field();
+                FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
+                if (mapper != null) {
+                    fieldName = mapper.names().indexName();
                 }
 
-                internalHit.highlightFields(highlightFields);
+                FastVectorHighlighter highlighter = buildHighlighter(field);
+                FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), reader, field);
+
+                String[] fragments;
+                try {
+                    // a HACK to make highlighter do highlighting, even though its using the single frag list builder
+                    int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
+                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), numberOfFragments);
+                } catch (IOException e) {
+                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                }
+                HighlightField highlightField = new HighlightField(field.field(), fragments);
+                highlightFields.put(highlightField.name(), highlightField);
             }
+
+            hit.highlightFields(highlightFields);
         } finally {
             CustomFieldQuery.reader.remove();
             CustomFieldQuery.highlightFilters.remove();

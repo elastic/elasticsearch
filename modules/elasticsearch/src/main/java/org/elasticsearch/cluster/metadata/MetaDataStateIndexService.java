@@ -31,7 +31,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
@@ -109,12 +108,11 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
-                        .initializeEmpty(currentState.metaData().index(request.index));
+                        .initializeEmpty(currentState.metaData().index(request.index), false);
                 rtBuilder.add(indexRoutingBuilder);
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                        .removeIndexBlock(request.index, INDEX_CLOSED_BLOCK)
-                        .addIndexBlock(request.index, GatewayService.INDEX_NOT_RECOVERED_BLOCK);
+                        .removeIndexBlock(request.index, INDEX_CLOSED_BLOCK);
 
                 return ClusterState.builder().state(currentState).metaData(mdBuilder).routingTable(rtBuilder).blocks(blocks).build();
             }

@@ -27,8 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +35,6 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,7 +48,6 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
     public static final ClusterBlock NOT_RECOVERED_FROM_GATEWAY_BLOCK = new ClusterBlock(1, "not recovered from gateway", ClusterBlockLevel.ALL);
-    public static final ClusterBlock INDEX_NOT_RECOVERED_BLOCK = new ClusterBlock(3, "index not recovered", ClusterBlockLevel.READ_WRITE);
 
     private final Gateway gateway;
 
@@ -171,27 +167,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             performStateRecovery(null, fIgnoreTimeout);
                         }
                     });
-                }
-            } else {
-                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : event.state().blocks().indices().entrySet()) {
-                    final String index = entry.getKey();
-                    ImmutableSet<ClusterBlock> indexBlocks = entry.getValue();
-                    if (indexBlocks.contains(GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
-                        IndexRoutingTable indexRoutingTable = event.state().routingTable().index(index);
-                        if (indexRoutingTable != null && indexRoutingTable.allPrimaryShardsActive()) {
-                            clusterService.submitStateUpdateTask("remove-index-block (all primary shards active for [" + index + "])", new ClusterStateUpdateTask() {
-                                @Override public ClusterState execute(ClusterState currentState) {
-                                    // check if the block was removed...
-                                    if (!currentState.blocks().hasIndexBlock(index, GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
-                                        return currentState;
-                                    }
-                                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                                    blocks.removeIndexBlock(index, GatewayService.INDEX_NOT_RECOVERED_BLOCK);
-                                    return ClusterState.builder().state(currentState).blocks(blocks).build();
-                                }
-                            });
-                        }
-                    }
                 }
             }
         }

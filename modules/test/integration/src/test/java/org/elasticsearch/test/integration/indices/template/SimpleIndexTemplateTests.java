@@ -91,7 +91,7 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
         assertThat(searchResponse.hits().getAt(0).field("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.hits().getAt(0).field("field2"), nullValue());
+        assertThat(searchResponse.hits().getAt(0).field("field2").value().toString(), equalTo("value 2")); // this will still be loaded because of the source feature
 
         client.prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 

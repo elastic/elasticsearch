@@ -219,8 +219,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             indexHealth.status = ClusterHealthStatus.GREEN;
             if (!indexHealth.validationFailures().isEmpty()) {
                 indexHealth.status = ClusterHealthStatus.RED;
-            } else if (clusterState.blocks().hasIndexBlock(indexHealth.index(), GatewayService.INDEX_NOT_RECOVERED_BLOCK)) {
-                indexHealth.status = ClusterHealthStatus.RED;
             } else if (indexHealth.shards().isEmpty()) { // might be since none has been created yet (two phase index creation)
                 indexHealth.status = ClusterHealthStatus.RED;
             } else {

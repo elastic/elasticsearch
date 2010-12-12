@@ -91,7 +91,7 @@ public class RecoverySource extends AbstractComponent {
         this.translogBatchSize = componentSettings.getAsInt("translog_batch_size", 100);
         this.compress = componentSettings.getAsBoolean("compress", true);
 
-        logger.debug("using file_chunk_size [{}], translog_batch_size [{}], and compress [{}]", fileChunkSize, translogBatchSize, compress);
+        logger.debug("using concurrent_streams [{}], file_chunk_size [{}], translog_batch_size [{}], and compress [{}]", concurrentStreams, fileChunkSize, translogBatchSize, compress);
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
     }

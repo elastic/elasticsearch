@@ -23,18 +23,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
+import org.elasticsearch.search.fetch.explain.ExplainSearchHitPhase;
+import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersSearchHitPhase;
+import org.elasticsearch.search.fetch.script.ScriptFieldsSearchHitPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -44,7 +41,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,24 +48,26 @@ import java.util.Map;
  */
 public class FetchPhase implements SearchPhase {
 
+    private final SearchHitPhase[] hitPhases;
+
     private final HighlightPhase highlightPhase;
 
-    @Inject public FetchPhase(HighlightPhase highlightPhase) {
+    @Inject public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsSearchHitPhase scriptFieldsPhase,
+                              MatchedFiltersSearchHitPhase matchFiltersPhase, ExplainSearchHitPhase explainPhase) {
         this.highlightPhase = highlightPhase;
+        this.hitPhases = new SearchHitPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase};
     }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("explain", new ExplainParseElement())
-                .put("fields", new FieldsParseElement())
-                .put("script_fields", new ScriptFieldsParseElement())
-                .put("scriptFields", new ScriptFieldsParseElement())
-                .putAll(highlightPhase.parseElements());
+        parseElements.put("fields", new FieldsParseElement());
+        for (SearchHitPhase hitPhase : hitPhases) {
+            parseElements.putAll(hitPhase.parseElements());
+        }
         return parseElements.build();
     }
 
     @Override public void preProcess(SearchContext context) {
-        highlightPhase.preProcess(context);
     }
 
     public void execute(SearchContext context) {
@@ -131,64 +129,26 @@ public class FetchPhase implements SearchPhase {
                 hitField.values().add(value);
             }
 
-            if (context.hasScriptFields()) {
-                int readerIndex = context.searcher().readerIndex(docId);
-                IndexReader subReader = context.searcher().subReaders()[readerIndex];
-                int subDoc = docId - context.searcher().docStarts()[readerIndex];
-                for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
-                    scriptField.script().setNextReader(subReader);
-
-                    Object value = scriptField.script().execute(subDoc);
-
-                    if (searchHit.fieldsOrNull() == null) {
-                        searchHit.fields(new HashMap<String, SearchHitField>(2));
-                    }
-
-                    SearchHitField hitField = searchHit.fields().get(scriptField.name());
-                    if (hitField == null) {
-                        hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<Object>(2));
-                        searchHit.fields().put(scriptField.name(), hitField);
-                    }
-                    hitField.values().add(value);
+            boolean hitPhaseExecutionRequired = false;
+            for (SearchHitPhase hitPhase : hitPhases) {
+                if (hitPhase.executionNeeded(context)) {
+                    hitPhaseExecutionRequired = true;
+                    break;
                 }
             }
 
-            if (!context.parsedQuery().namedFilters().isEmpty()) {
+            if (hitPhaseExecutionRequired) {
                 int readerIndex = context.searcher().readerIndex(docId);
                 IndexReader subReader = context.searcher().subReaders()[readerIndex];
                 int subDoc = docId - context.searcher().docStarts()[readerIndex];
-                List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
-                for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
-                    String name = entry.getKey();
-                    Filter filter = entry.getValue();
-                    filter = context.filterCache().cache(filter);
-                    try {
-                        DocIdSet docIdSet = filter.getDocIdSet(subReader);
-                        if (docIdSet instanceof DocSet && ((DocSet) docIdSet).get(subDoc)) {
-                            matchedFilters.add(name);
-                        }
-                    } catch (IOException e) {
-                        // ignore
+                for (SearchHitPhase hitPhase : hitPhases) {
+                    if (hitPhase.executionNeeded(context)) {
+                        hitPhase.execute(context, searchHit, uid, subReader, subDoc);
                     }
                 }
-                searchHit.matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
             }
-
-            doExplanation(context, docId, searchHit);
         }
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
-
-        highlightPhase.execute(context);
-    }
-
-    private void doExplanation(SearchContext context, int docId, InternalSearchHit searchHit) {
-        if (context.explain()) {
-            try {
-                searchHit.explanation(context.searcher().explain(context.query(), docId));
-            } catch (IOException e) {
-                throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + docId + "]", e);
-            }
-        }
     }
 
     private byte[] extractSource(Document doc, DocumentMapper documentMapper) {

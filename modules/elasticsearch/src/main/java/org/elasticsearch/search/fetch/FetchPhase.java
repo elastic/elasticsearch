@@ -50,11 +50,8 @@ public class FetchPhase implements SearchPhase {
 
     private final SearchHitPhase[] hitPhases;
 
-    private final HighlightPhase highlightPhase;
-
     @Inject public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsSearchHitPhase scriptFieldsPhase,
                               MatchedFiltersSearchHitPhase matchFiltersPhase, ExplainSearchHitPhase explainPhase) {
-        this.highlightPhase = highlightPhase;
         this.hitPhases = new SearchHitPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase};
     }
 

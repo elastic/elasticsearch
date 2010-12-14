@@ -87,7 +87,7 @@ public class RecoverySource extends AbstractComponent {
         int concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
         this.concurrentStreamPool = DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
-        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(500, ByteSizeUnit.KB));
+        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(100, ByteSizeUnit.KB));
         this.translogBatchSize = componentSettings.getAsInt("translog_batch_size", 100);
         this.compress = componentSettings.getAsBoolean("compress", true);
 

@@ -93,7 +93,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
         this.restController = restController;
         this.networkService = networkService;
 
-        this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
+        this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors() * 2);
         this.blockingServer = componentSettings.getAsBoolean("memcached.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("memcached.port", "11211-11311"));
         this.bindHost = componentSettings.get("bind_host");

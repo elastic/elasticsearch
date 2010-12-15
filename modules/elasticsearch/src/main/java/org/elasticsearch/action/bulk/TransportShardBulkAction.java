@@ -74,7 +74,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     @Override protected TransportRequestOptions transportOptions() {
-        return TransportRequestOptions.options().withCompress(true);
+        // low type since we don't want the large bulk requests to cause high latency on typical requests
+        return TransportRequestOptions.options().withCompress(true).withLowType();
     }
 
     @Override protected BulkShardRequest newRequestInstance() {

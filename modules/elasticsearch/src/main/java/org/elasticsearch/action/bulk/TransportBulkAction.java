@@ -291,8 +291,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         }
 
         @Override public boolean spawn() {
-            // no need to spawn, since in the doExecute we always execute with threaded operation set to true
-            return false;
+            return true; // spawn, we do some work here...
         }
     }
 }

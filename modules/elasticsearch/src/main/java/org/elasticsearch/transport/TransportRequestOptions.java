@@ -32,9 +32,17 @@ public class TransportRequestOptions {
         return new TransportRequestOptions();
     }
 
+    public static enum Type {
+        LOW,
+        MED,
+        HIGH
+    }
+
     private TimeValue timeout;
 
     private boolean compress;
+
+    private Type type = Type.MED;
 
     public TransportRequestOptions withTimeout(long timeout) {
         return withTimeout(TimeValue.timeValueMillis(timeout));
@@ -50,11 +58,44 @@ public class TransportRequestOptions {
         return this;
     }
 
+    public TransportRequestOptions withType(Type type) {
+        this.type = type;
+        return this;
+    }
+
+    /**
+     * A request that requires very low latency. Usually reserved for ping requests with very small payload.
+     */
+    public TransportRequestOptions withHighType() {
+        this.type = Type.HIGH;
+        return this;
+    }
+
+    /**
+     * The typical requests flows go through this one.
+     */
+    public TransportRequestOptions withMedType() {
+        this.type = Type.MED;
+        return this;
+    }
+
+    /**
+     * Batch oriented (big payload) based requests use this one.
+     */
+    public TransportRequestOptions withLowType() {
+        this.type = Type.LOW;
+        return this;
+    }
+
     public TimeValue timeout() {
         return this.timeout;
     }
 
     public boolean compress() {
         return this.compress;
+    }
+
+    public Type type() {
+        return this.type;
     }
 }

@@ -42,6 +42,6 @@ public class ClientTransportBulkAction extends BaseClientTransportAction<BulkReq
     }
 
     @Override protected TransportRequestOptions options() {
-        return TransportRequestOptions.options().withCompress(true);
+        return TransportRequestOptions.options().withLowType().withCompress(true);
     }
 }

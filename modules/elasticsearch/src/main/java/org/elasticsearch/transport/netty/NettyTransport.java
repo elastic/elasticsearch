@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
@@ -72,6 +73,10 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 
 /**
+ * There are 3 types of connections per node, low/med/high. Low if for batch oriented APIs (like recovery or
+ * batch) with high payload that will cause regular request. (like search or single index) to take
+ * longer. Med is for the typical search / single doc index. And High is for ping type requests (like FD).
+ *
  * @author kimchy (shay.banon)
  */
 public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
@@ -112,6 +117,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     final ByteSizeValue tcpReceiveBufferSize;
 
+    final int connectionsPerNodeLow;
+    final int connectionsPerNodeMed;
+    final int connectionsPerNodeHigh;
+
     private final ThreadPool threadPool;
 
     private volatile OpenChannelsHandler serverOpenChannels;
@@ -121,7 +130,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private volatile ServerBootstrap serverBootstrap;
 
     // node id to actual channel
-    final ConcurrentMap<DiscoveryNode, Channel> connectedNodes = newConcurrentMap();
+    final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
 
 
     private volatile Channel serverChannel;
@@ -156,6 +165,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        this.connectionsPerNodeLow = componentSettings.getAsInt("connections_per_node.low", 2);
+        this.connectionsPerNodeMed = componentSettings.getAsInt("connections_per_node.low", 7);
+        this.connectionsPerNodeHigh = componentSettings.getAsInt("connections_per_node.low", 1);
     }
 
     public Settings settings() {
@@ -309,10 +321,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             serverBootstrap = null;
         }
 
-        for (Iterator<Channel> it = connectedNodes.values().iterator(); it.hasNext();) {
-            Channel channel = it.next();
+        for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
+            NodeChannels nodeChannels = it.next();
             it.remove();
-            closeChannel(channel);
+            nodeChannels.close();
         }
 
         if (clientBootstrap != null) {
@@ -369,8 +381,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (isCloseConnectionException(e.getCause())) {
             // disconnect the node
             Channel channel = ctx.getChannel();
-            for (Map.Entry<DiscoveryNode, Channel> entry : connectedNodes.entrySet()) {
-                if (entry.getValue().equals(channel)) {
+            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
+                if (entry.getValue().hasChannel(channel)) {
                     disconnectFromNode(entry.getKey());
                 }
             }
@@ -388,7 +400,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
-        Channel targetChannel = nodeChannel(node);
+        Channel targetChannel = nodeChannel(node, options);
 
         if (compress) {
             options.withCompress(true);
@@ -420,30 +432,32 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (!lifecycle.started()) {
             throw new ElasticSearchIllegalStateException("Can't add nodes to a stopped transport");
         }
+        if (node == null) {
+            throw new ConnectTransportException(node, "Can't connect to a null node");
+        }
         try {
-            if (node == null) {
-                throw new ConnectTransportException(node, "Can't connect to a null node");
-            }
-            Channel channel = connectedNodes.get(node);
-            if (channel != null) {
+            NodeChannels nodeChannels = connectedNodes.get(node);
+            if (nodeChannels != null) {
                 return;
             }
             synchronized (this) {
                 // recheck here, within the sync block (we cache connections, so we don't care about this single sync block)
-                channel = connectedNodes.get(node);
-                if (channel != null) {
+                nodeChannels = connectedNodes.get(node);
+                if (nodeChannels != null) {
                     return;
                 }
 
-                InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
-                ChannelFuture connectFuture = clientBootstrap.connect(address);
-                connectFuture.awaitUninterruptibly((long) (connectTimeout.millis() * 1.25));
-                if (!connectFuture.isSuccess()) {
-                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectFuture.getCause());
+                nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
+                try {
+                    connectToChannels(nodeChannels.high, node);
+                    connectToChannels(nodeChannels.med, node);
+                    connectToChannels(nodeChannels.low, node);
+                } catch (Exception e) {
+                    nodeChannels.close();
+                    throw e;
                 }
-                channel = connectFuture.getChannel();
-                channel.getCloseFuture().addListener(new ChannelCloseListener(node));
-                connectedNodes.put(node, channel);
+
+                connectedNodes.put(node, nodeChannels);
 
                 if (logger.isDebugEnabled()) {
                     logger.debug("Connected to node [{}]", node);
@@ -455,11 +469,24 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
+    private void connectToChannels(Channel[] channels, DiscoveryNode node) {
+        for (int i = 0; i < channels.length; i++) {
+            InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+            ChannelFuture connectFuture = clientBootstrap.connect(address);
+            connectFuture.awaitUninterruptibly((long) (connectTimeout.millis() * 1.25));
+            if (!connectFuture.isSuccess()) {
+                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectFuture.getCause());
+            }
+            channels[i] = connectFuture.getChannel();
+            channels[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+        }
+    }
+
     @Override public void disconnectFromNode(DiscoveryNode node) {
-        Channel channel = connectedNodes.remove(node);
-        if (channel != null) {
+        NodeChannels nodeChannels = connectedNodes.remove(node);
+        if (nodeChannels != null) {
             try {
-                closeChannel(channel);
+                nodeChannels.close();
             } finally {
                 logger.debug("Disconnected from [{}]", node);
                 transportServiceAdapter.raiseNodeDisconnected(node);
@@ -467,18 +494,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    private Channel nodeChannel(DiscoveryNode node) throws ConnectTransportException {
-        Channel channel = connectedNodes.get(node);
-        if (channel == null) {
+    private Channel nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
+        NodeChannels nodeChannels = connectedNodes.get(node);
+        if (nodeChannels == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
         }
-        return channel;
-    }
-
-    private void closeChannel(Channel channel) {
-        if (channel.isOpen()) {
-            channel.close().awaitUninterruptibly();
-        }
+        return nodeChannels.channel(options.type());
     }
 
     private class ChannelCloseListener implements ChannelFutureListener {
@@ -491,6 +512,63 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         @Override public void operationComplete(ChannelFuture future) throws Exception {
             disconnectFromNode(node);
+        }
+    }
+
+    public static class NodeChannels {
+
+        private Channel[] low;
+        private final AtomicInteger lowCounter = new AtomicInteger();
+        private Channel[] med;
+        private final AtomicInteger medCounter = new AtomicInteger();
+        private Channel[] high;
+        private final AtomicInteger highCounter = new AtomicInteger();
+
+        public NodeChannels(Channel[] low, Channel[] med, Channel[] high) {
+            this.low = low;
+            this.med = med;
+            this.high = high;
+        }
+
+        public boolean hasChannel(Channel channel) {
+            return hasChannel(channel, low) || hasChannel(channel, med) || hasChannel(channel, high);
+        }
+
+        private boolean hasChannel(Channel channel, Channel[] channels) {
+            for (Channel channel1 : channels) {
+                if (channel.equals(channel1)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public Channel channel(TransportRequestOptions.Type type) {
+            if (type == TransportRequestOptions.Type.MED) {
+                return med[Math.abs(medCounter.incrementAndGet()) % med.length];
+            } else if (type == TransportRequestOptions.Type.HIGH) {
+                return high[Math.abs(highCounter.incrementAndGet()) % high.length];
+            } else {
+                return low[Math.abs(lowCounter.incrementAndGet()) % low.length];
+            }
+        }
+
+        public void close() {
+            closeChannels(low);
+            closeChannels(med);
+            closeChannels(high);
+        }
+
+        private void closeChannels(Channel[] channels) {
+            for (Channel channel : channels) {
+                try {
+                    if (channel != null && channel.isOpen()) {
+                        channel.close();
+                    }
+                } catch (Exception e) {
+                    //ignore
+                }
+            }
         }
     }
 }

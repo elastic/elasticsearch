@@ -24,6 +24,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -51,6 +53,9 @@ public class NetworkService extends AbstractComponent {
         public static final String TCP_BLOCKING = "network.tcp.blocking";
         public static final String TCP_BLOCKING_SERVER = "network.tcp.blocking_server";
         public static final String TCP_BLOCKING_CLIENT = "network.tcp.blocking_client";
+
+        public static ByteSizeValue TCP_DEFAULT_SEND_BUFFER_SIZE = new ByteSizeValue(32, ByteSizeUnit.KB);
+        public static ByteSizeValue TCP_DEFAULT_RECEIVE_BUFFER_SIZE = new ByteSizeValue(32, ByteSizeUnit.KB);
     }
 
     public static interface CustomNameResolver {

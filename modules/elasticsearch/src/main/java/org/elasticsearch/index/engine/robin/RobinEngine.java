@@ -67,6 +67,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private final int termIndexInterval;
 
+    private final int termIndexDivisor;
+
     private final TimeValue refreshInterval;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -111,6 +113,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
         this.indexingBufferSize = componentSettings.getAsBytesSize("index_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB)); // not really important, as it is set by the IndexingMemory manager
         this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
+        this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
         this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", indexSettings.getAsBoolean("index.merge.policy.use_compound_file", store == null ? false : store.suggestUseCompoundFile()));
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", indexSettings.getAsTime("index.refresh_interval", timeValueSeconds(1)));
 
@@ -615,6 +618,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             indexWriter.setSimilarity(similarityService.defaultIndexSimilarity());
             indexWriter.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
             indexWriter.setTermIndexInterval(termIndexInterval);
+            indexWriter.setReaderTermsIndexDivisor(termIndexDivisor);
             indexWriter.setUseCompoundFile(compoundFormat);
         } catch (IOException e) {
             safeClose(indexWriter);

@@ -22,6 +22,8 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +45,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.Strings.*;
-import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.unit.ByteSizeValue.*;
 import static org.elasticsearch.common.unit.SizeValue.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -51,18 +52,18 @@ import static org.elasticsearch.common.unit.TimeValue.*;
 /**
  * An immutable implementation of {@link Settings}.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 @Immutable
 public class ImmutableSettings implements Settings {
 
-    private Map<String, String> settings;
+    private ImmutableMap<String, String> settings;
 
     private transient ClassLoader classLoader;
 
     private ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
-        this.settings = settings;
+        this.settings = ImmutableMap.copyOf(settings);
         this.classLoader = classLoader == null ? buildClassLoader() : classLoader;
     }
 
@@ -70,8 +71,8 @@ public class ImmutableSettings implements Settings {
         return this.classLoader;
     }
 
-    @Override public Map<String, String> getAsMap() {
-        return Collections.unmodifiableMap(this.settings);
+    @Override public ImmutableMap<String, String> getAsMap() {
+        return this.settings;
     }
 
     @Override public Settings getComponentSettings(Class component) {
@@ -228,7 +229,12 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
-        List<String> result = newArrayList();
+        List<String> result = Lists.newArrayList();
+
+        if (get(settingPrefix) != null) {
+            Collections.addAll(result, Strings.commaDelimitedListToStringArray(get(settingPrefix)));
+        }
+
         int counter = 0;
         while (true) {
             String value = get(settingPrefix + '.' + (counter++));

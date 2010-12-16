@@ -23,6 +23,7 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
@@ -35,6 +36,7 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -57,6 +59,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final ImmutableSet<String> groups;
 
+    private final ImmutableMap<String, String> tags;
+
     private final ImmutableSet<String> availabilityZones;
 
     private final HostType hostType;
@@ -70,6 +74,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
         this.bindAnyGroup = componentSettings.getAsBoolean("any_group", true);
         this.groups = ImmutableSet.copyOf(componentSettings.getAsArray("groups"));
+
+        this.tags = componentSettings.getByPrefix("tag.").getAsMap();
 
         Set<String> availabilityZones = Sets.newHashSet(componentSettings.getAsArray("availability_zones"));
         if (componentSettings.get("availability_zones") != null) {
@@ -110,6 +116,33 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         continue;
                     }
                 }
+                // see if we need to filter by tags
+                boolean filterByTag = false;
+                if (!tags.isEmpty()) {
+                    if (instance.getTags() == null) {
+                        filterByTag = true;
+                    } else {
+                        // check that all tags listed are there on the instance
+                        for (Map.Entry<String, String> entry : tags.entrySet()) {
+                            boolean found = false;
+                            for (Tag tag : instance.getTags()) {
+                                if (entry.getKey().equals(tag.getKey()) && entry.getValue().equals(tag.getValue())) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                filterByTag = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (filterByTag) {
+                    logger.trace("filtering out instance {} based tags {}, not part of {}", instance.getInstanceId(), tags, instance.getTags());
+                    continue;
+                }
+
                 InstanceState state = instance.getState();
                 if (state.getName().equalsIgnoreCase("pending") || state.getName().equalsIgnoreCase("running")) {
                     String address = null;

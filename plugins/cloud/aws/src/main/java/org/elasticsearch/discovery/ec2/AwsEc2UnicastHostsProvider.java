@@ -69,11 +69,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.ports = componentSettings.get("ports", "9300-9302");
 
         this.bindAnyGroup = componentSettings.getAsBoolean("any_group", true);
-        Set<String> groups = Sets.newHashSet(componentSettings.getAsArray("groups"));
-        if (componentSettings.get("groups") != null) {
-            groups.addAll(Strings.commaDelimitedListToSet(componentSettings.get("groups")));
-        }
-        this.groups = ImmutableSet.copyOf(groups);
+        this.groups = ImmutableSet.copyOf(componentSettings.getAsArray("groups"));
 
         Set<String> availabilityZones = Sets.newHashSet(componentSettings.getAsArray("availability_zones"));
         if (componentSettings.get("availability_zones") != null) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -63,7 +64,7 @@ public interface Settings {
     /**
      * The settings as a {@link java.util.Map}.
      */
-    Map<String, String> getAsMap();
+    ImmutableMap<String, String> getAsMap();
 
     /**
      * Returns the setting value associated with the setting key.
@@ -210,6 +211,9 @@ public interface Settings {
      * The values associated with a setting prefix as an array. The settings array is in the format of:
      * <tt>settingPrefix.[index]</tt>.
      *
+     * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
+     * the numbered format.
+     *
      * @param settingPrefix The setting prefix to load the array by
      * @return The setting array values
      * @throws SettingsException
@@ -219,6 +223,9 @@ public interface Settings {
     /**
      * The values associated with a setting prefix as an array. The settings array is in the format of:
      * <tt>settingPrefix.[index]</tt>.
+     *
+     * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
+     * the numbered format.
      *
      * @param settingPrefix The setting prefix to load the array by
      * @return The setting array values

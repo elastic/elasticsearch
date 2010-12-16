@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -89,10 +88,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         this.clusterName = clusterName;
 
         List<String> hosts = Lists.newArrayList(componentSettings.getAsArray("hosts"));
-        if (componentSettings.get("hosts") != null) {
-            hosts.addAll(Strings.commaDelimitedListToSet(componentSettings.get("hosts")));
-        }
-
         logger.debug("using initial hosts {}", hosts);
 
         List<DiscoveryNode> nodes = Lists.newArrayList();

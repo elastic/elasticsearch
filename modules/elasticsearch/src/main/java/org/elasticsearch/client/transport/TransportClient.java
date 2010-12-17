@@ -144,11 +144,6 @@ public class TransportClient extends AbstractClient {
         injector = modules.createInjector();
 
         injector.getInstance(TransportService.class).start();
-        try {
-            injector.getInstance(TransportClientClusterService.class).start();
-        } catch (Exception e) {
-            // ignore
-        }
 
         nodesService = injector.getInstance(TransportClientNodesService.class);
         internalClient = injector.getInstance(InternalTransportClient.class);
@@ -197,11 +192,6 @@ public class TransportClient extends AbstractClient {
      * Closes the client.
      */
     @Override public void close() {
-        try {
-            injector.getInstance(TransportClientClusterService.class).close();
-        } catch (Exception e) {
-            // ignore
-        }
         injector.getInstance(TransportClientNodesService.class).close();
         injector.getInstance(TransportService.class).close();
         try {

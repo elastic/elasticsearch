@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -31,18 +31,18 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportClientDocumentActionsTests extends DocumentActionsTests {
+public class TransportClientSniffDocumentActionsTests extends DocumentActionsTests {
 
     @Override protected Client getClient1() {
         TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-        TransportClient client = new TransportClient(settingsBuilder().put("client.transport.sniff", false).build());
+        TransportClient client = new TransportClient(settingsBuilder().put("client.transport.sniff", true).build());
         client.addTransportAddress(server1Address);
         return client;
     }
 
     @Override protected Client getClient2() {
         TransportAddress server2Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-        TransportClient client = new TransportClient(settingsBuilder().put("client.transport.sniff", false).build());
+        TransportClient client = new TransportClient(settingsBuilder().put("client.transport.sniff", true).build());
         client.addTransportAddress(server2Address);
         return client;
     }

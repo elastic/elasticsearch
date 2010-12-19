@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.longs;
 
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
@@ -46,7 +47,7 @@ public class MultiValueLongFieldData extends LongFieldData {
             for (int i = 0; i < value.length; i++) {
                 value[i] = new MutableDateTime[i];
                 for (int j = 0; j < i; j++) {
-                    value[i][j] = new MutableDateTime();
+                    value[i][j] = new MutableDateTime(DateTimeZone.UTC);
                 }
             }
             return new ThreadLocals.CleanableValue<MutableDateTime[][]>(value);

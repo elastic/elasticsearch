@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.longs;
 
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
@@ -37,7 +38,7 @@ public class SingleValueLongFieldData extends LongFieldData {
     private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[]>> datesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[]>>() {
         @Override protected ThreadLocals.CleanableValue<MutableDateTime[]> initialValue() {
             MutableDateTime[] date = new MutableDateTime[1];
-            date[0] = new MutableDateTime();
+            date[0] = new MutableDateTime(DateTimeZone.UTC);
             return new ThreadLocals.CleanableValue<MutableDateTime[]>(date);
         }
     };

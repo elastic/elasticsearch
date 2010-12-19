@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.longs;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TLongArrayList;
@@ -40,7 +41,7 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
 
     private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>> dateTimeCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>>() {
         @Override protected ThreadLocals.CleanableValue<MutableDateTime> initialValue() {
-            return new ThreadLocals.CleanableValue<MutableDateTime>(new MutableDateTime());
+            return new ThreadLocals.CleanableValue<MutableDateTime>(new MutableDateTime(DateTimeZone.UTC));
         }
     };
 

@@ -60,7 +60,7 @@ public class Bootstrap {
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
 //        Loggers.getLogger(Bootstrap.class, tuple.v1().get("name")).info("heap_size {}/{}", JvmStats.jvmStats().mem().heapCommitted(), JvmInfo.jvmInfo().mem().heapMax());
-        if (tuple.v1().getAsBoolean("bootstrap.mlockall", true)) {
+        if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
             Natives.tryMlockall();
         }
         tuple = setupJmx(tuple);

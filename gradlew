@@ -63,8 +63,8 @@ if $cygwin ; then
 fi
 
 STARTER_MAIN_CLASS=org.gradle.wrapper.GradleWrapperMain
-CLASSPATH=`dirname "$0"`/gradle/gradle-wrapper.jar
-WRAPPER_PROPERTIES=`dirname "$0"`/gradle/gradle-wrapper.properties
+CLASSPATH=`dirname "$0"`/gradle/wrapper/gradle-wrapper.jar
+WRAPPER_PROPERTIES=`dirname "$0"`/gradle/wrapper/gradle-wrapper.properties
 # Determine the Java command to use to start the JVM.
 if [ -z "$JAVACMD" ] ; then
     if [ -n "$JAVA_HOME" ] ; then

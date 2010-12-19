@@ -101,8 +101,8 @@ set CMD_LINE_ARGS=%$
 @rem Setup the command line
 
 set STARTER_MAIN_CLASS=org.gradle.wrapper.GradleWrapperMain
-set CLASSPATH=%DIRNAME%\gradle\gradle-wrapper.jar
-set WRAPPER_PROPERTIES=%DIRNAME%\gradle\gradle-wrapper.properties
+set CLASSPATH=%DIRNAME%\gradle\wrapper\gradle-wrapper.jar
+set WRAPPER_PROPERTIES=%DIRNAME%\gradle\wrapper\gradle-wrapper.properties
 set JAVA_EXE=%JAVA_HOME%\bin\java.exe
 
 set GRADLE_OPTS=%JAVA_OPTS% %GRADLE_OPTS% -Dorg.gradle.wrapper.properties="%WRAPPER_PROPERTIES%"

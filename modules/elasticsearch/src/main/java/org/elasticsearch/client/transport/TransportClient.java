@@ -136,11 +136,6 @@ public class TransportClient extends AbstractClient {
         modules.add(new ClientTransportActionModule());
         modules.add(new ClientTransportModule());
 
-        // disabled, still having problems with jgroups acting just as client
-        if (settings.getAsBoolean("discovery.enabled", true) && false) {
-            modules.add(new TransportClientClusterModule(settings));
-        }
-
         injector = modules.createInjector();
 
         injector.getInstance(TransportService.class).start();

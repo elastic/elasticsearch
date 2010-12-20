@@ -237,7 +237,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 }
             } catch (IOException e) {
                 receivedResponses.remove(id);
-                throw new ZenPingException("Failed to send ping request over multicast", e);
+                throw new ZenPingException("Failed to send ping request over multicast on " + multicastSocket, e);
             }
         }
     }

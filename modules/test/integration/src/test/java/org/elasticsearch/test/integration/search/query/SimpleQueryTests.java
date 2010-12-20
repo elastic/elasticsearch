@@ -53,6 +53,21 @@ public class SimpleQueryTests extends AbstractNodesTests {
         return client("node1");
     }
 
+    @Test public void passQueryAsStringTest() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+
     @Test public void filterExistsMissingTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

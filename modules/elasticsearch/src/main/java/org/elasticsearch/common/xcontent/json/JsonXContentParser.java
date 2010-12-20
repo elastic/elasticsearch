@@ -165,6 +165,8 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return Token.START_ARRAY;
             case END_ARRAY:
                 return Token.END_ARRAY;
+            case VALUE_EMBEDDED_OBJECT:
+                return Token.VALUE_EMBEDDED_OBJECT;
         }
         throw new ElasticSearchIllegalStateException("No matching token for json_token [" + token + "]");
     }

@@ -31,47 +31,63 @@ public interface XContentParser {
         START_OBJECT {
             @Override public boolean isValue() {
                 return false;
-            }},
+            }
+        },
 
         END_OBJECT {
             @Override public boolean isValue() {
                 return false;
-            }},
+            }
+        },
 
         START_ARRAY {
             @Override public boolean isValue() {
                 return false;
-            }},
+            }
+        },
 
         END_ARRAY {
             @Override public boolean isValue() {
                 return false;
-            }},
+            }
+        },
 
         FIELD_NAME {
             @Override public boolean isValue() {
                 return false;
-            }},
+            }
+        },
 
         VALUE_STRING {
             @Override public boolean isValue() {
                 return true;
-            }},
+            }
+        },
 
         VALUE_NUMBER {
             @Override public boolean isValue() {
                 return true;
-            }},
+            }
+        },
 
         VALUE_BOOLEAN {
             @Override public boolean isValue() {
                 return true;
-            }},
+            }
+        },
+
+        // usually a binary value
+        VALUE_EMBEDDED_OBJECT {
+            @Override public boolean isValue() {
+                return true;
+            }
+        },
 
         VALUE_NULL {
             @Override public boolean isValue() {
                 return false;
-            }};
+            }
+        };
 
         public abstract boolean isValue();
     }

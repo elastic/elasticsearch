@@ -142,5 +142,6 @@ task release(dependsOn: [zip, tar]) << {
 }
 
 task wrapper(type: Wrapper) {
+    urlRoot = "http://gradle.artifactoryonline.com/gradle/distributions"
     gradleVersion = '0.9'
 }

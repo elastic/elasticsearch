@@ -246,6 +246,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Sets no fields to be loaded, resulting in only id and type to be returned per field.
+     */
+    public SearchRequestBuilder setNoFields() {
+        sourceBuilder().noFields();
+        return this;
+    }
+
+    /**
      * Adds a field to load and return (note, it must be stored) as part of the search request.
      * If none are specified, the source of the document will be return.
      */

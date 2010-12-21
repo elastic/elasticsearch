@@ -179,10 +179,14 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sField = request.param("fields");
         if (sField != null) {
-            String[] sFields = fieldsPattern.split(sField);
-            if (sFields != null) {
-                for (String field : sFields) {
-                    searchSourceBuilder.field(field);
+            if (sField.length() == 0) {
+                searchSourceBuilder.noFields();
+            } else {
+                String[] sFields = fieldsPattern.split(sField);
+                if (sFields != null) {
+                    for (String field : sFields) {
+                        searchSourceBuilder.field(field);
+                    }
                 }
             }
         }

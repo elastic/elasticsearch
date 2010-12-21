@@ -32,10 +32,12 @@ public class ScriptFieldsContext {
     public static class ScriptField {
         private final String name;
         private final SearchScript script;
+        private final boolean ignoreException;
 
-        public ScriptField(String name, SearchScript script) {
+        public ScriptField(String name, SearchScript script, boolean ignoreException) {
             this.name = name;
             this.script = script;
+            this.ignoreException = ignoreException;
         }
 
         public String name() {
@@ -44,6 +46,10 @@ public class ScriptFieldsContext {
 
         public SearchScript script() {
             return this.script;
+        }
+
+        public boolean ignoreException() {
+            return ignoreException;
         }
     }
 

@@ -58,7 +58,15 @@ public class ScriptFieldsSearchHitPhase implements SearchHitPhase {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             scriptField.script().setNextReader(reader);
 
-            Object value = scriptField.script().execute(docId);
+            Object value;
+            try {
+                value = scriptField.script().execute(docId);
+            } catch (RuntimeException e) {
+                if (scriptField.ignoreException()) {
+                    continue;
+                }
+                throw e;
+            }
 
             if (hit.fieldsOrNull() == null) {
                 hit.fields(new HashMap<String, SearchHitField>(2));

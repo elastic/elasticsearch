@@ -53,6 +53,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                 String script = null;
                 String scriptLang = null;
                 Map<String, Object> params = null;
+                boolean ignoreException = false;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -63,11 +64,13 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                             script = parser.text();
                         } else if ("lang".equals(currentFieldName)) {
                             scriptLang = parser.text();
+                        } else if ("ignore_failure".equals(currentFieldName)) {
+                            ignoreException = parser.booleanValue();
                         }
                     }
                 }
                 SearchScript searchScript = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript));
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }
     }

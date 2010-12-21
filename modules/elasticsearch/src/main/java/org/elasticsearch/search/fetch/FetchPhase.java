@@ -189,8 +189,9 @@ public class FetchPhase implements SearchPhase {
         }
 
         // asked for all stored fields, just return null so all of them will be loaded
+        // don't load the source field in this case, makes little sense to get it with all stored fields
         if (context.fieldNames().get(0).equals("*")) {
-            return null;
+            return AllButSourceFieldSelector.INSTANCE;
         }
 
         FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();

@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.TermsFilter;
+import org.apache.lucene.search.PublicTermsFilter;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -238,7 +238,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (types.length == 1) {
             return documentMapper(types[0]).typeFilter();
         }
-        TermsFilter termsFilter = new TermsFilter();
+        PublicTermsFilter termsFilter = new PublicTermsFilter();
         for (String type : types) {
             termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
         }

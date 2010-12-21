@@ -56,7 +56,6 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.common.io.Streams.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
@@ -865,13 +864,10 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
-        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
-        Field field = TermsFilter.class.getDeclaredField("terms");
-        field.setAccessible(true);
-        Set<Term> terms = (Set<Term>) field.get(termsFilter);
-        assertThat(terms.size(), equalTo(2));
-        assertThat(terms.iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
+        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().size(), equalTo(2));
+        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
     }
 
 
@@ -881,13 +877,10 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
-        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
-        Field field = TermsFilter.class.getDeclaredField("terms");
-        field.setAccessible(true);
-        Set<Term> terms = (Set<Term>) field.get(termsFilter);
-        assertThat(terms.size(), equalTo(2));
-        assertThat(terms.iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
+        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().size(), equalTo(2));
+        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
     }
 
     @Test public void testTermsWithNameFilterQuery() throws Exception {
@@ -897,13 +890,10 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
-        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
-        Field field = TermsFilter.class.getDeclaredField("terms");
-        field.setAccessible(true);
-        Set<Term> terms = (Set<Term>) field.get(termsFilter);
-        assertThat(terms.size(), equalTo(2));
-        assertThat(terms.iterator().next().text(), equalTo("banon"));
+        assertThat(filteredQuery.getFilter(), instanceOf(PublicTermsFilter.class));
+        PublicTermsFilter termsFilter = (PublicTermsFilter) filteredQuery.getFilter();
+        assertThat(termsFilter.getTerms().size(), equalTo(2));
+        assertThat(termsFilter.getTerms().iterator().next().text(), equalTo("banon"));
     }
 
     @Test public void testConstantScoreQueryBuilder() throws IOException {

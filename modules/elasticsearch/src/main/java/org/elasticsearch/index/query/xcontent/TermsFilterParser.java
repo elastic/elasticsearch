@@ -22,7 +22,6 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PublicTermsFilter;
-import org.apache.lucene.search.TermsFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,7 +56,7 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = null;
         boolean cache = true;
-        TermsFilter termsFilter = new PublicTermsFilter();
+        PublicTermsFilter termsFilter = new PublicTermsFilter();
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;

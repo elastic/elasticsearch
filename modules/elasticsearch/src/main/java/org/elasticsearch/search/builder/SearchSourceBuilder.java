@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.trove.TObjectFloatHashMap;
@@ -207,6 +208,14 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder highlight(HighlightBuilder highlightBuilder) {
         this.highlightBuilder = highlightBuilder;
+        return this;
+    }
+
+    /**
+     * Sets no fields to be loaded, resulting in only id and type to be returned per field.
+     */
+    public SearchSourceBuilder noFields() {
+        this.fieldNames = ImmutableList.of();
         return this;
     }
 

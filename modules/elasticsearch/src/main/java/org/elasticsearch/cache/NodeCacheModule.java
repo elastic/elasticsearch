@@ -20,7 +20,6 @@
 package org.elasticsearch.cache;
 
 import org.elasticsearch.cache.memory.ByteBufferCache;
-import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
@@ -38,7 +37,5 @@ public class NodeCacheModule extends AbstractModule {
     @Override protected void configure() {
         bind(NodeCache.class).asEagerSingleton();
         bind(ByteBufferCache.class).asEagerSingleton();
-
-        new QueryParserCacheModule(settings).configure(binder());
     }
 }

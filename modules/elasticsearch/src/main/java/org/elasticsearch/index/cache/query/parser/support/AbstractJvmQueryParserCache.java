@@ -17,26 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.query.parser.support;
+package org.elasticsearch.index.cache.query.parser.support;
 
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cache.query.parser.QueryParserCache;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.query.parser.QueryParserCache;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class AbstractJvmQueryParserCache extends AbstractComponent implements QueryParserCache {
+public class AbstractJvmQueryParserCache extends AbstractIndexComponent implements QueryParserCache {
 
     final ConcurrentMap<QueryParserSettings, Query> cache;
 
-    protected AbstractJvmQueryParserCache(Settings settings, ConcurrentMap<QueryParserSettings, Query> cache) {
-        super(settings);
+    protected AbstractJvmQueryParserCache(Index index, @IndexSettings Settings indexSettings, ConcurrentMap<QueryParserSettings, Query> cache) {
+        super(index, indexSettings);
         this.cache = cache;
+    }
+
+    @Override public void close() throws ElasticSearchException {
+        clear();
     }
 
     @Override public void clear() {

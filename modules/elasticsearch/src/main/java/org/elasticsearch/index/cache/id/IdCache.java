@@ -20,11 +20,12 @@
 package org.elasticsearch.index.cache.id;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.component.CloseableComponent;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface IdCache extends Iterable<IdReaderCache> {
+public interface IdCache extends CloseableComponent, Iterable<IdReaderCache> {
 
     void clear();
 

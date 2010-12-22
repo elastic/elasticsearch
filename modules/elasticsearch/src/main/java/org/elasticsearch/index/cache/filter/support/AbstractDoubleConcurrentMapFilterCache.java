@@ -55,11 +55,12 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
     }
 
     @Override public void close() {
-        cache.clear();
+        clear();
     }
 
     @Override public void clear() {
         cache.clear();
+        weakCache.clear();
     }
 
     @Override public void clear(IndexReader reader) {

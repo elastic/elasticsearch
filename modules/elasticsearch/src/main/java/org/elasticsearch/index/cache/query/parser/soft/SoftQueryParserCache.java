@@ -17,21 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.query.parser.soft;
+package org.elasticsearch.index.cache.query.parser.soft;
 
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cache.query.parser.support.AbstractJvmQueryParserCache;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.query.parser.support.AbstractJvmQueryParserCache;
+import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SoftQueryParserCache extends AbstractJvmQueryParserCache {
 
-    @Inject public SoftQueryParserCache(Settings settings) {
-        super(settings, new MapMaker().softValues().<QueryParserSettings, Query>makeMap());
+    @Inject public SoftQueryParserCache(Index index, @IndexSettings Settings indexSettings) {
+        super(index, indexSettings, new MapMaker().softValues().<QueryParserSettings, Query>makeMap());
     }
 }

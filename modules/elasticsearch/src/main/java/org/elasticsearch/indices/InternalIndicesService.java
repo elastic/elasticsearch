@@ -40,8 +40,8 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -280,7 +280,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         indexService.close(delete);
 
-        indexInjector.getInstance(FilterCache.class).close();
+        indexInjector.getInstance(IndexCache.class).close();
         indexInjector.getInstance(AnalysisService.class).close();
         indexInjector.getInstance(IndexEngine.class).close();
         indexInjector.getInstance(IndexServiceManagement.class).close();

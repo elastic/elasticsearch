@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * @author kimchy (shay.banon)
@@ -106,9 +105,9 @@ public interface XContentGenerator {
 
     void writeObjectFieldStart(XContentString fieldName) throws IOException;
 
-    void writeRawField(String fieldName, byte[] content, FastByteArrayOutputStream bos) throws IOException;
+    void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException;
 
-    void writeRawField(String fieldName, InputStream content, FastByteArrayOutputStream bos) throws IOException;
+    void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

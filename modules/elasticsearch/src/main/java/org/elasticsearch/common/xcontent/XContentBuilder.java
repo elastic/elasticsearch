@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapConverter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -64,21 +65,31 @@ public final class XContentBuilder {
 
     private XContentGenerator generator;
 
-    private final FastByteArrayOutputStream bos;
+    private final OutputStream bos;
 
     private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
     private StringBuilder cachedStringBuilder;
 
+    /**
+     * Constructs a new cached builder over a cached (thread local) {@link FastByteArrayOutputStream}.
+     */
     public static XContentBuilder cachedBuilder(XContent xContent) throws IOException {
-        return new XContentBuilder(FastByteArrayOutputStream.Cached.cached(), xContent);
+        return new XContentBuilder(xContent, FastByteArrayOutputStream.Cached.cached());
     }
 
+    /**
+     * Constructs a new builder using a fresh {@link FastByteArrayOutputStream}.
+     */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(new FastByteArrayOutputStream(), xContent);
+        return new XContentBuilder(xContent, new FastByteArrayOutputStream());
     }
 
-    public XContentBuilder(FastByteArrayOutputStream bos, XContent xContent) throws IOException {
+    /**
+     * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
+     * to call {@link #close()} when the builder is done with.
+     */
+    public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos);
     }
@@ -801,28 +812,53 @@ public final class XContentBuilder {
         }
     }
 
+    /**
+     * Returns the unsafe bytes (thread local bound). Make sure to use it with
+     * {@link #unsafeBytesLength()}.
+     *
+     * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
+     */
     public byte[] unsafeBytes() throws IOException {
         close();
-        return bos.unsafeByteArray();
+        return ((FastByteArrayOutputStream) bos).unsafeByteArray();
     }
 
+    /**
+     * Returns the unsafe bytes length (thread local bound). Make sure to use it with
+     * {@link #unsafeBytes()}.
+     *
+     * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
+     */
     public int unsafeBytesLength() throws IOException {
         close();
-        return bos.size();
+        return ((FastByteArrayOutputStream) bos).size();
     }
 
+    /**
+     * Returns the actual stream used.
+     */
     public FastByteArrayOutputStream unsafeStream() throws IOException {
         close();
-        return bos;
+        return (FastByteArrayOutputStream) bos;
     }
 
+    /**
+     * Returns a copy of the bytes this builder generated.
+     *
+     * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
+     */
     public byte[] copiedBytes() throws IOException {
         close();
-        return bos.copiedByteArray();
+        return ((FastByteArrayOutputStream) bos).copiedByteArray();
     }
 
+    /**
+     * Returns a string representation of the builder (only applicable for text based xcontent).
+     *
+     * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
+     */
     public String string() throws IOException {
         close();
-        return Unicode.fromBytes(bos.unsafeByteArray(), 0, bos.size());
+        return Unicode.fromBytes(unsafeBytes(), 0, unsafeBytesLength());
     }
 }

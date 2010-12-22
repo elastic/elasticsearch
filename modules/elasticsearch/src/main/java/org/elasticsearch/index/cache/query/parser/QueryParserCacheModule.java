@@ -17,21 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.query.parser.weak;
+package org.elasticsearch.index.cache.query.parser;
 
-import org.apache.lucene.queryParser.QueryParserSettings;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.cache.query.parser.support.AbstractJvmQueryParserCache;
-import org.elasticsearch.common.collect.MapMaker;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.query.parser.weak.WeakQueryParserCache;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class WeakQueryParserCache extends AbstractJvmQueryParserCache {
+public class QueryParserCacheModule extends AbstractModule {
 
-    @Inject public WeakQueryParserCache(Settings settings) {
-        super(settings, new MapMaker().weakValues().<QueryParserSettings, Query>makeMap());
+    private final Settings settings;
+
+    public QueryParserCacheModule(Settings settings) {
+        this.settings = settings;
+    }
+
+    @Override protected void configure() {
+        bind(QueryParserCache.class)
+                .to(settings.getAsClass("index.cache.query.parser.type", WeakQueryParserCache.class, "org.elasticsearch.index.cache.query.parser.", "QueryParserCache"))
+                .in(Scopes.SINGLETON);
     }
 }

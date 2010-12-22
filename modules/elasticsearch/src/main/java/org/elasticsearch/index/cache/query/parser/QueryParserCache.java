@@ -17,28 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.query.parser.none;
+package org.elasticsearch.index.cache.query.parser;
 
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cache.query.parser.QueryParserCache;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.component.CloseableComponent;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NoneQueryParserCache implements QueryParserCache {
+public interface QueryParserCache extends CloseableComponent {
 
-    @Inject public NoneQueryParserCache() {
-    }
+    Query get(QueryParserSettings queryString);
 
-    @Override public Query get(QueryParserSettings queryString) {
-        return null;
-    }
+    void put(QueryParserSettings queryString, Query query);
 
-    @Override public void put(QueryParserSettings queryString, Query query) {
-    }
-
-    @Override public void clear() {
-    }
+    void clear();
 }

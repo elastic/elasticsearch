@@ -20,7 +20,6 @@
 package org.elasticsearch.cache;
 
 import org.elasticsearch.cache.memory.ByteBufferCache;
-import org.elasticsearch.cache.query.parser.QueryParserCache;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -37,35 +36,22 @@ public class NodeCache extends AbstractComponent implements ClusterStateListener
 
     private final ByteBufferCache byteBufferCache;
 
-    private final QueryParserCache queryParserCache;
-
-    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache, QueryParserCache queryParserCache, ClusterService clusterService) {
+    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
         this.byteBufferCache = byteBufferCache;
-        this.queryParserCache = queryParserCache;
         clusterService.add(this);
     }
 
     public void close() {
         clusterService.remove(this);
         byteBufferCache.close();
-        queryParserCache.clear();
     }
 
     public ByteBufferCache byteBuffer() {
         return byteBufferCache;
     }
 
-    public QueryParserCache queryParser() {
-        return queryParserCache;
-    }
-
-    // listen on cluster change events to invalidate the query parser cache
     @Override public void clusterChanged(ClusterChangedEvent event) {
-        // TODO we can do better by detecting just mappings changes
-        if (event.metaDataChanged()) {
-            queryParserCache.clear();
-        }
     }
 }

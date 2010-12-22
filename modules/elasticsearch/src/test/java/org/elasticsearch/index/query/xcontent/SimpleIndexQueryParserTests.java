@@ -23,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.search.*;
@@ -78,7 +77,6 @@ public class SimpleIndexQueryParserTests {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
-                new QueryParserCacheModule(settings),
                 new ScriptModule(),
                 new MapperServiceModule(),
                 new IndexSettingsModule(settings),

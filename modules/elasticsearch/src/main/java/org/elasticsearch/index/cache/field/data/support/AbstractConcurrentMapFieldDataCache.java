@@ -51,7 +51,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     }
 
     @Override public void close() throws ElasticSearchException {
-        cache.clear();
+        clear();
     }
 
     @Override public void clear() {

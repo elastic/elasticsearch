@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.MapMaker;
@@ -50,6 +51,10 @@ public class SimpleIdCache implements IdCache {
 
     @Inject public SimpleIdCache() {
         idReaders = new MapMaker().weakKeys().makeMap();
+    }
+
+    @Override public void close() throws ElasticSearchException {
+        clear();
     }
 
     @Override public void clear() {

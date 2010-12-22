@@ -22,11 +22,12 @@ package org.elasticsearch.index.cache.query.parser;
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.component.CloseableComponent;
+import org.elasticsearch.index.IndexComponent;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface QueryParserCache extends CloseableComponent {
+public interface QueryParserCache extends IndexComponent, CloseableComponent {
 
     Query get(QueryParserSettings queryString);
 

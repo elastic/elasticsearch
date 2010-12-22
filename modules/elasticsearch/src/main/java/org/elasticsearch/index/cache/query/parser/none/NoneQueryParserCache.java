@@ -23,14 +23,19 @@ import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
+import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NoneQueryParserCache implements QueryParserCache {
+public class NoneQueryParserCache extends AbstractIndexComponent implements QueryParserCache {
 
-    @Inject public NoneQueryParserCache() {
+    @Inject public NoneQueryParserCache(Index index, @IndexSettings Settings indexSettings) {
+        super(index, indexSettings);
     }
 
     @Override public Query get(QueryParserSettings queryString) {

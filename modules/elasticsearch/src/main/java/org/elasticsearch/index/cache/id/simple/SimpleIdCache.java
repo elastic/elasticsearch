@@ -29,12 +29,16 @@ import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,11 +49,12 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * @author kimchy (shay.banon)
  */
-public class SimpleIdCache implements IdCache {
+public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
 
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
 
-    @Inject public SimpleIdCache() {
+    @Inject public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
+        super(index, indexSettings);
         idReaders = new MapMaker().weakKeys().makeMap();
     }
 

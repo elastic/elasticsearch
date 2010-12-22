@@ -127,28 +127,23 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
             ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
             if (cachedFilters == null) {
                 cachedFilters = cache.buildCacheMap();
-                cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                if (prev != null) {
+                    cachedFilters = prev;
+                }
             }
             DocSet docSet = cachedFilters.get(filter);
             if (docSet != null) {
                 return docSet;
             }
 
-            // check if its in the weak cache, if so, move it from weak to soft
-            ConcurrentMap<Filter, DocSet> weakCachedFilters = cache.weakCache.get(reader.getFieldCacheKey());
-            if (weakCachedFilters != null) {
-                docSet = weakCachedFilters.get(filter);
-                if (docSet != null) {
-                    cachedFilters.put(filter, docSet);
-                    weakCachedFilters.remove(filter);
-                    return docSet;
-                }
-            }
-
             DocIdSet docIdSet = filter.getDocIdSet(reader);
             docSet = cacheable(reader, docIdSet);
-            cachedFilters.putIfAbsent(filter, docSet);
-            return docIdSet;
+            DocSet prev = cachedFilters.putIfAbsent(filter, docSet);
+            if (prev != null) {
+                docSet = prev;
+            }
+            return docSet;
         }
 
         public String toString() {
@@ -191,7 +186,10 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
             ConcurrentMap<Filter, DocSet> weakCacheFilters = cache.weakCache.get(reader.getFieldCacheKey());
             if (weakCacheFilters == null) {
                 weakCacheFilters = cache.buildWeakCacheMap();
-                cache.weakCache.putIfAbsent(reader.getFieldCacheKey(), weakCacheFilters);
+                ConcurrentMap<Filter, DocSet> prev = cache.weakCache.putIfAbsent(reader.getFieldCacheKey(), weakCacheFilters);
+                if (prev != null) {
+                    weakCacheFilters = prev;
+                }
             }
 
             docSet = weakCacheFilters.get(filter);
@@ -201,8 +199,11 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
 
             DocIdSet docIdSet = filter.getDocIdSet(reader);
             docSet = cacheable(reader, docIdSet);
-            weakCacheFilters.putIfAbsent(filter, docSet);
-            return docIdSet;
+            DocSet prev = weakCacheFilters.putIfAbsent(filter, docSet);
+            if (prev != null) {
+                docSet = prev;
+            }
+            return docSet;
         }
 
         public String toString() {

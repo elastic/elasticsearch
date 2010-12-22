@@ -126,7 +126,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
             ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
             if (cachedFilters == null) {
                 cachedFilters = cache.buildFilterMap();
-                cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                if (prev != null) {
+                    cachedFilters = prev;
+                }
             }
             DocSet docSet = cachedFilters.get(filter);
             if (docSet != null) {
@@ -134,8 +137,11 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
             }
             DocIdSet docIdSet = filter.getDocIdSet(reader);
             docSet = cacheable(reader, docIdSet);
-            cachedFilters.putIfAbsent(filter, docSet);
-            return docIdSet;
+            DocSet prev = cachedFilters.putIfAbsent(filter, docSet);
+            if (prev != null) {
+                docSet = prev;
+            }
+            return docSet;
         }
 
         public String toString() {

@@ -92,7 +92,7 @@ public class MasterFaultDetection extends AbstractComponent {
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
 
-        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
+        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", true);
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
@@ -196,6 +196,12 @@ public class MasterFaultDetection extends AbstractComponent {
             if (connectOnNetworkDisconnect) {
                 try {
                     transportService.connectToNode(node);
+                    // if all is well, make sure we restart the pinger
+                    if (masterPinger != null) {
+                        masterPinger.stop();
+                    }
+                    this.masterPinger = new MasterPinger();
+                    threadPool.schedule(masterPinger, pingInterval);
                 } catch (Exception e) {
                     logger.trace("[master] [{}] transport disconnected (with verified connect)", masterNode);
                     notifyMasterFailure(masterNode, "transport disconnected (with verified connect)");
@@ -283,6 +289,10 @@ public class MasterFaultDetection extends AbstractComponent {
 
                         @Override public void handleException(TransportException exp) {
                             if (!running) {
+                                return;
+                            }
+                            if (exp instanceof ConnectTransportException) {
+                                // ignore this one, we already handle it by registering a connection listener
                                 return;
                             }
                             synchronized (masterNodeMutex) {

@@ -52,5 +52,14 @@ public interface IndexStore extends IndexComponent {
      */
     ByteSizeValue backingStoreFreeSpace();
 
+    /**
+     * Returns <tt>true</tt> if this shard is allocated on this node. Allocated means
+     * that it has storage files that can be deleted using {@link #deleteUnallocated(org.elasticsearch.index.shard.ShardId)}.
+     */
+    boolean canDeleteUnallocated(ShardId shardId);
+
+    /**
+     * Deletes this shard store since its no longer allocated.
+     */
     void deleteUnallocated(ShardId shardId) throws IOException;
 }

@@ -74,6 +74,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 if (indexService.hasShard(indexShardRoutingTable.shardId().id())) {
                     continue;
                 }
+                if (!indexService.store().canDeleteUnallocated(indexShardRoutingTable.shardId())) {
+                    continue;
+                }
                 // only delete an unallocated shard if all (other shards) are started
                 if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
                     if (logger.isDebugEnabled()) {

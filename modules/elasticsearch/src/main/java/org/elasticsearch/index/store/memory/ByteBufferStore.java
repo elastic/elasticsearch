@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.memory;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;

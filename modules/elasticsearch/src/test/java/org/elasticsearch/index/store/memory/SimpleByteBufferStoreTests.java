@@ -23,6 +23,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.testng.annotations.Test;
 
@@ -37,61 +38,61 @@ import static org.hamcrest.Matchers.*;
 public class SimpleByteBufferStoreTests {
 
     @Test public void test1BufferNoCache() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(1, 0, true, false);
+        ByteBufferCache cache = new ByteBufferCache(1, 0, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
-        insertData(dir);
+        insertData(dir, 1);
         verifyData(dir);
         dir.close();
         cache.close();
     }
 
     @Test public void test1Buffer() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(1, 10, true, false);
+        ByteBufferCache cache = new ByteBufferCache(1, 10, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
-        insertData(dir);
+        insertData(dir, 1);
         verifyData(dir);
         dir.close();
         cache.close();
     }
 
     @Test public void test3Buffer() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(3, 10, true, false);
+        ByteBufferCache cache = new ByteBufferCache(3, 10, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
-        insertData(dir);
+        insertData(dir, 3);
         verifyData(dir);
         dir.close();
         cache.close();
     }
 
     @Test public void test10Buffer() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(10, 20, true, false);
+        ByteBufferCache cache = new ByteBufferCache(10, 20, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
-        insertData(dir);
+        insertData(dir, 10);
         verifyData(dir);
         dir.close();
         cache.close();
     }
 
     @Test public void test15Buffer() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(15, 30, true, false);
+        ByteBufferCache cache = new ByteBufferCache(15, 30, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
-        insertData(dir);
+        insertData(dir, 15);
         verifyData(dir);
         dir.close();
         cache.close();
     }
 
     @Test public void test40Buffer() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(40, 80, true, false);
+        ByteBufferCache cache = new ByteBufferCache(40, 80, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
-        insertData(dir);
+        insertData(dir, 40);
         verifyData(dir);
         dir.close();
         cache.close();
     }
 
     @Test public void testSimpleLocking() throws Exception {
-        ByteBufferCache cache = new ByteBufferCache(40, 80, true, false);
+        ByteBufferCache cache = new ByteBufferCache(40, 80, true);
         ByteBufferDirectory dir = new ByteBufferDirectory(cache);
 
         Lock lock = dir.makeLock("testlock");
@@ -111,7 +112,7 @@ public class SimpleByteBufferStoreTests {
         cache.close();
     }
 
-    private void insertData(ByteBufferDirectory dir) throws IOException {
+    private void insertData(ByteBufferDirectory dir, int bufferSizeInBytes) throws IOException {
         byte[] test = new byte[]{1, 2, 3, 4, 5, 6, 7, 8};
         IndexOutput indexOutput = dir.createOutput("value1");
         indexOutput.writeBytes(new byte[]{2, 4, 6, 7, 8}, 5);
@@ -124,7 +125,7 @@ public class SimpleByteBufferStoreTests {
 
         indexOutput.seek(0);
         indexOutput.writeByte((byte) 8);
-        if (dir.bufferSizeInBytes() > 4) {
+        if (bufferSizeInBytes > 4) {
             indexOutput.seek(2);
             indexOutput.writeBytes(new byte[]{1, 2}, 2);
         }

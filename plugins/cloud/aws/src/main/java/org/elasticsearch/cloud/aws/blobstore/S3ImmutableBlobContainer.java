@@ -31,7 +31,7 @@ import java.io.InputStream;
 /**
  * @author kimchy (shay.banon)
  */
-public class S3ImmutableBlobContainer extends AbstarctS3BlobContainer implements ImmutableBlobContainer {
+public class S3ImmutableBlobContainer extends AbstractS3BlobContainer implements ImmutableBlobContainer {
 
     public S3ImmutableBlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path, blobStore);

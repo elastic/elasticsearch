@@ -70,8 +70,31 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
 
         this.client = new AmazonS3Client(new BasicAWSCredentials(account, key), clientConfiguration);
 
-        if (componentSettings.get("endpoint") != null) {
-            client.setEndpoint(componentSettings.get("endpoint"));
+        if (componentSettings.get("s3.endpoint") != null) {
+            client.setEndpoint(componentSettings.get("s3.endpoint"));
+        } else if (componentSettings.get("region") != null) {
+            String endpoint;
+            String region = componentSettings.get("region");
+            if ("us-east".equals(region.toLowerCase())) {
+                endpoint = "s3.amazonaws.com";
+            } else if ("us-east-1".equals(region.toLowerCase())) {
+                endpoint = "s3.amazonaws.com";
+            } else if ("us-west".equals(region.toLowerCase())) {
+                endpoint = "s3-us-west-1.amazonaws.com";
+            } else if ("us-west-1".equals(region.toLowerCase())) {
+                endpoint = "s3-us-west-1.amazonaws.com";
+            } else if ("ap-southeast".equals(region.toLowerCase())) {
+                endpoint = "s3-ap-southeast-1.amazonaws.com";
+            } else if ("ap-southeast-1".equals(region.toLowerCase())) {
+                endpoint = "s3-ap-southeast-1.amazonaws.com";
+            } else if ("eu-west".equals(region.toLowerCase())) {
+                endpoint = null; // no specific endpoint for EU (still can be used for region)
+            } else if ("eu-west-1".equals(region.toLowerCase())) {
+                endpoint = null; // no specific endpoint for EU (still can be used for region)
+            } else {
+                throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
+            }
+            client.setEndpoint(endpoint);
         }
 
         return this.client;

@@ -99,7 +99,7 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         if (!executorService.isTerminated()) {
             executorService.shutdownNow();
         }
-        if (!executorService.isTerminated()) {
+        if (!scheduledExecutorService.isTerminated()) {
             scheduledExecutorService.shutdownNow();
         }
         if (!cached.isTerminated()) {

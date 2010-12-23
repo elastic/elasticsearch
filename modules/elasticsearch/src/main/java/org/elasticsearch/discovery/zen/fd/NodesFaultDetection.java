@@ -84,7 +84,7 @@ public class NodesFaultDetection extends AbstractComponent {
         this.threadPool = threadPool;
         this.transportService = transportService;
 
-        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
+        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", true);
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
@@ -163,9 +163,12 @@ public class NodesFaultDetection extends AbstractComponent {
         if (!running) {
             return;
         }
+        nodeFD.running = false;
         if (connectOnNetworkDisconnect) {
             try {
                 transportService.connectToNode(node);
+                nodesFD.put(node, new NodeFD());
+                threadPool.schedule(new SendPingRequest(node), pingInterval);
             } catch (Exception e) {
                 logger.trace("[node  ] [{}] transport disconnected (with verified connect)", node);
                 notifyNodeFailure(node, "transport disconnected (with verified connect)");
@@ -210,6 +213,9 @@ public class NodesFaultDetection extends AbstractComponent {
                             }
                             NodeFD nodeFD = nodesFD.get(node);
                             if (nodeFD != null) {
+                                if (!nodeFD.running) {
+                                    return;
+                                }
                                 nodeFD.retryCount = 0;
                                 threadPool.schedule(SendPingRequest.this, pingInterval);
                             }
@@ -220,8 +226,15 @@ public class NodesFaultDetection extends AbstractComponent {
                             if (!running) {
                                 return;
                             }
+                            if (exp instanceof ConnectTransportException) {
+                                // ignore this one, we already handle it by registering a connection listener
+                                return;
+                            }
                             NodeFD nodeFD = nodesFD.get(node);
                             if (nodeFD != null) {
+                                if (!nodeFD.running) {
+                                    return;
+                                }
                                 int retryCount = ++nodeFD.retryCount;
                                 logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                                 if (retryCount >= pingRetryCount) {
@@ -247,6 +260,7 @@ public class NodesFaultDetection extends AbstractComponent {
 
     static class NodeFD {
         volatile int retryCount;
+        volatile boolean running = true;
     }
 
     private class FDConnectionListener implements TransportConnectionListener {

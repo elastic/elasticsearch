@@ -271,7 +271,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override public void raiseNodeDisconnected(final DiscoveryNode node) {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     for (TransportConnectionListener connectionListener : connectionListeners) {
                         connectionListener.onNodeDisconnected(node);
@@ -284,7 +284,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                             if (holderToNotify != null) {
                                 // callback that an exception happened, but on a different thread since we don't
                                 // want handlers to worry about stack overflows
-                                threadPool.execute(new Runnable() {
+                                threadPool.cached().execute(new Runnable() {
                                     @Override public void run() {
                                         holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
                                     }

@@ -51,7 +51,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
 
         private boolean enabled = Defaults.ENABLED;
 
-        private long compressThreshold = -1;
+        private long compressThreshold = Defaults.COMPRESS_THRESHOLD;
 
         private Boolean compress = null;
 
@@ -95,17 +95,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
-        this.compress = compress;
+        this.compress = true;
         this.compressThreshold = compressThreshold;
         this.fieldSelector = new SourceFieldSelector(names.indexName());
     }
 
     public boolean enabled() {
         return this.enabled;
-    }
-
-    @Override public boolean compressed() {
-        return compress != null && compress;
     }
 
     public FieldSelector fieldSelector() {
@@ -117,9 +113,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
             return null;
         }
         byte[] data = context.source();
-        if (compress != null && compress) {
+        if (compress != null && compress && !LZFDecoder.isCompressed(data)) {
             if (compressThreshold == -1 || data.length > compressThreshold) {
                 data = LZFEncoder.encodeWithCache(data, data.length);
+                context.source(data);
             }
         }
         return new Field(names.indexName(), data, store);

@@ -25,6 +25,10 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.*;
@@ -374,7 +378,15 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(source.source()).createParser(source.source());
+            if (LZFDecoder.isCompressed(source.source())) {
+                BytesStreamInput siBytes = new BytesStreamInput(source.source());
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                XContentType contentType = XContentFactory.xContentType(siLzf);
+                siLzf.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(siLzf);
+            } else {
+                parser = XContentFactory.xContent(source.source()).createParser(source.source());
+            }
             context.reset(parser, new Document(), type, source.source(), listener);
 
             // will result in START_OBJECT
@@ -442,7 +454,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             }
         }
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), context.doc(), context.analyzer(),
-                source.source(), context.mappersAdded()).parent(source.parent());
+                context.source(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null, null);
         return doc;

@@ -40,11 +40,6 @@ public interface SourceFieldMapper extends FieldMapper<byte[]>, InternalMapper {
     boolean enabled();
 
     /**
-     * Is the source field compressed or not?
-     */
-    boolean compressed();
-
-    /**
      * Returns the native source value, if its compressed, then the compressed value is returned.
      */
     byte[] nativeValue(Fieldable field);

@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.collect.ImmutableMap.*;
 import static org.elasticsearch.common.collect.Lists.*;
@@ -575,8 +576,11 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
         doXContent(builder, params);
 
+        // sort the mappers so we get consistent serialization format
+        TreeMap<String, XContentMapper> sortedMappers = new TreeMap<String, XContentMapper>(mappers);
+
         // check internal mappers first (this is only relevant for root object)
-        for (XContentMapper mapper : mappers.values()) {
+        for (XContentMapper mapper : sortedMappers.values()) {
             if (mapper instanceof InternalMapper) {
                 mapper.toXContent(builder, params);
             }
@@ -589,7 +593,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
         if (!mappers.isEmpty()) {
             builder.startObject("properties");
-            for (XContentMapper mapper : mappers.values()) {
+            for (XContentMapper mapper : sortedMappers.values()) {
                 if (!(mapper instanceof InternalMapper)) {
                     mapper.toXContent(builder, params);
                 }

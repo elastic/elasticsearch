@@ -276,9 +276,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
                 }
                 mapperService.add(mappingType, mappingSource.string());
-//                if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-//                    logger.warn("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
-//                }
+                if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
+                    logger.warn("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
+                }
                 nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
             } else {
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
@@ -288,9 +288,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
                     }
                     mapperService.add(mappingType, mappingSource.string());
-//                    if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-//                        logger.warn("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
-//                    }
+                    if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
+                        logger.warn("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
+                    }
                     nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                 }
             }

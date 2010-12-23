@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cache.memory;
 
+import org.apache.lucene.store.bytebuffer.ByteBufferAllocator;
+import org.apache.lucene.store.bytebuffer.CachingByteBufferAllocator;
+import org.apache.lucene.store.bytebuffer.PlainByteBufferAllocator;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -26,156 +29,76 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import java.lang.reflect.Method;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ByteBufferCache extends AbstractComponent {
-
-    public static final boolean CLEAN_SUPPORTED;
-
-    private static final Method directBufferCleaner;
-    private static final Method directBufferCleanerClean;
-
-    static {
-        Method directBufferCleanerX = null;
-        Method directBufferCleanerCleanX = null;
-        boolean v;
-        try {
-            directBufferCleanerX = Class.forName("java.nio.DirectByteBuffer").getMethod("cleaner");
-            directBufferCleanerX.setAccessible(true);
-            directBufferCleanerCleanX = Class.forName("sun.misc.Cleaner").getMethod("clean");
-            directBufferCleanerCleanX.setAccessible(true);
-            v = true;
-        } catch (Exception e) {
-            v = false;
-        }
-        CLEAN_SUPPORTED = v;
-        directBufferCleaner = directBufferCleanerX;
-        directBufferCleanerClean = directBufferCleanerCleanX;
-    }
-
-
-    private final Queue<ByteBuffer> cache;
-
-    private final boolean disableCache;
-
-    private final int bufferSizeInBytes;
-
-    private final long cacheSizeInBytes;
+public class ByteBufferCache extends AbstractComponent implements ByteBufferAllocator {
 
     private final boolean direct;
 
-    private final AtomicLong acquiredBuffers = new AtomicLong();
+    private final ByteSizeValue smallBufferSize;
+    private final ByteSizeValue largeBufferSize;
+
+    private final ByteSizeValue smallCacheSize;
+    private final ByteSizeValue largeCacheSize;
+
+    private final ByteBufferAllocator allocator;
 
     public ByteBufferCache() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    public ByteBufferCache(int bufferSizeInBytes, int cacheSizeInBytes, boolean direct, boolean warmCache) {
-        this(ImmutableSettings.settingsBuilder().put("buffer_size", bufferSizeInBytes).put("cache_size", cacheSizeInBytes).put("direct", direct).put("warm_cache", warmCache).build());
+    // really, for testing...
+    public ByteBufferCache(int bufferSizeInBytes, int cacheSizeInBytes, boolean direct) {
+        this(ImmutableSettings.settingsBuilder()
+                .put("cache.memory.small_buffer_size", bufferSizeInBytes)
+                .put("cache.memory.small_cache_size", cacheSizeInBytes)
+                .put("cache.memory.large_buffer_size", bufferSizeInBytes)
+                .put("cache.memory.large_cache_size", cacheSizeInBytes)
+                .put("cache.memory.direct", direct).build());
     }
 
     @Inject public ByteBufferCache(Settings settings) {
         super(settings);
 
-        this.bufferSizeInBytes = (int) componentSettings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        long cacheSizeInBytes = componentSettings.getAsBytesSize("cache_size", new ByteSizeValue(200, ByteSizeUnit.MB)).bytes();
         this.direct = componentSettings.getAsBoolean("direct", true);
-        boolean warmCache = componentSettings.getAsBoolean("warm_cache", false);
+        this.smallBufferSize = componentSettings.getAsBytesSize("small_buffer_size", new ByteSizeValue(1, ByteSizeUnit.KB));
+        this.largeBufferSize = componentSettings.getAsBytesSize("large_buffer_size", new ByteSizeValue(1, ByteSizeUnit.MB));
+        this.smallCacheSize = componentSettings.getAsBytesSize("small_cache_size", new ByteSizeValue(10, ByteSizeUnit.MB));
+        this.largeCacheSize = componentSettings.getAsBytesSize("large_cache_size", new ByteSizeValue(500, ByteSizeUnit.MB));
 
-        disableCache = cacheSizeInBytes == 0;
-        if (!disableCache && cacheSizeInBytes < bufferSizeInBytes) {
-            throw new IllegalArgumentException("Cache size [" + cacheSizeInBytes + "] is smaller than buffer size [" + bufferSizeInBytes + "]");
+        if (smallCacheSize.bytes() == 0 || largeCacheSize.bytes() == 0) {
+            this.allocator = new PlainByteBufferAllocator(direct, (int) smallBufferSize.bytes(), (int) largeBufferSize.bytes());
+        } else {
+            this.allocator = new CachingByteBufferAllocator(direct, (int) smallBufferSize.bytes(), (int) largeBufferSize.bytes(), (int) smallCacheSize.bytes(), (int) largeCacheSize.bytes());
         }
-        int numberOfCacheEntries = (int) (cacheSizeInBytes / bufferSizeInBytes);
-        this.cache = disableCache ? null : new ArrayBlockingQueue<ByteBuffer>(numberOfCacheEntries);
-        this.cacheSizeInBytes = disableCache ? 0 : numberOfCacheEntries * bufferSizeInBytes;
 
         if (logger.isDebugEnabled()) {
-            logger.debug("using bytebuffer cache with buffer_size [{}], cache_size [{}], direct [{}], warm_cache [{}]",
-                    new ByteSizeValue(bufferSizeInBytes), new ByteSizeValue(cacheSizeInBytes), direct, warmCache);
+            logger.debug("using bytebuffer cache with small_buffer_size [{}], large_buffer_size [{}], small_cache_size [{}], large_cache_size [{}], direct [{}]",
+                    smallBufferSize, largeBufferSize, smallCacheSize, largeCacheSize, direct);
         }
-    }
-
-    public ByteSizeValue bufferSize() {
-        return new ByteSizeValue(bufferSizeInBytes);
-    }
-
-    public ByteSizeValue cacheSize() {
-        return new ByteSizeValue(cacheSizeInBytes);
-    }
-
-    public ByteSizeValue allocatedMemory() {
-        return new ByteSizeValue(acquiredBuffers.get() * bufferSizeInBytes);
-    }
-
-    public int bufferSizeInBytes() {
-        return bufferSizeInBytes;
     }
 
     public boolean direct() {
-        return direct;
+        return this.direct;
     }
 
     public void close() {
-        if (!disableCache) {
-            ByteBuffer buffer = cache.poll();
-            while (buffer != null) {
-                closeBuffer(buffer);
-                buffer = cache.poll();
-            }
-        }
-        acquiredBuffers.set(0);
+        allocator.close();
     }
 
-    public ByteBuffer acquireBuffer() {
-        acquiredBuffers.incrementAndGet();
-        if (disableCache) {
-            return createBuffer();
-        }
-        ByteBuffer byteBuffer = cache.poll();
-        if (byteBuffer == null) {
-            // everything is taken, return a new one
-            return createBuffer();
-        }
-        byteBuffer.position(0);
-        return byteBuffer;
+    @Override public int sizeInBytes(Type type) {
+        return allocator.sizeInBytes(type);
     }
 
-    public void releaseBuffer(ByteBuffer byteBuffer) {
-        acquiredBuffers.decrementAndGet();
-        if (disableCache) {
-            closeBuffer(byteBuffer);
-            return;
-        }
-        boolean success = cache.offer(byteBuffer);
-        if (!success) {
-            closeBuffer(byteBuffer);
-        }
+    @Override public ByteBuffer allocate(Type type) throws IOException {
+        return allocator.allocate(type);
     }
 
-    private ByteBuffer createBuffer() {
-        if (direct) {
-            return ByteBuffer.allocateDirect(bufferSizeInBytes);
-        }
-        return ByteBuffer.allocate(bufferSizeInBytes);
-    }
-
-    private void closeBuffer(ByteBuffer byteBuffer) {
-        if (direct && CLEAN_SUPPORTED) {
-            try {
-                Object cleaner = directBufferCleaner.invoke(byteBuffer);
-                directBufferCleanerClean.invoke(cleaner);
-            } catch (Exception e) {
-                logger.debug("Failed to clean memory");
-                // ignore
-            }
-        }
+    @Override public void release(ByteBuffer buffer) {
+        allocator.release(buffer);
     }
 }

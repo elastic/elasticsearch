@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
+import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.memory.ByteBufferDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.File;

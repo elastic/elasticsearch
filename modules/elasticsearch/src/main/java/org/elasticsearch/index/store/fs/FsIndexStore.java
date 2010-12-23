@@ -78,6 +78,16 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         return new ByteSizeValue(usableSpace);
     }
 
+    @Override public boolean canDeleteUnallocated(ShardId shardId) {
+        if (location == null) {
+            return false;
+        }
+        if (indexService.hasShard(shardId.id())) {
+            return false;
+        }
+        return shardLocation(shardId).exists();
+    }
+
     @Override public void deleteUnallocated(ShardId shardId) throws IOException {
         if (location == null) {
             return;

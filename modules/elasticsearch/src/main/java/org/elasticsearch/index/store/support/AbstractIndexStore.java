@@ -41,6 +41,10 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         this.indexService = indexService;
     }
 
+    @Override public boolean canDeleteUnallocated(ShardId shardId) {
+        return false;
+    }
+
     @Override public void deleteUnallocated(ShardId shardId) throws IOException {
         // do nothing here...
     }

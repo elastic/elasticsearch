@@ -114,7 +114,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             logger.trace("eager reader based cache eviction enabled");
         } catch (NoSuchMethodException e) {
             // no method
-            logger.debug("lucene default FieldCache is used, not enabling eager reader based cache eviction");
+            logger.warn("lucene default FieldCache is used, not enabling eager reader based cache eviction");
         }
     }
 

@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.Executors.*;
@@ -63,6 +64,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final TransportService transportService;
 
+    private final TimeValue reconnectInterval;
+
     private volatile ExecutorService updateTasksExecutor;
 
     private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
@@ -70,6 +73,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final Queue<Tuple<Timeout, NotifyTimeout>> onGoingTimeouts = new LinkedTransferQueue<Tuple<Timeout, NotifyTimeout>>();
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
+
+    private volatile ScheduledFuture reconnectToNodes;
 
     @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService, ThreadPool threadPool,
                                           TimerService timerService) {
@@ -79,14 +84,18 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         this.timerService = timerService;
+
+        this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(30));
     }
 
     @Override protected void doStart() throws ElasticSearchException {
         this.clusterState = newClusterStateBuilder().build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
+        this.reconnectToNodes = threadPool.scheduleWithFixedDelay(new ReconnectToNodes(), reconnectInterval);
     }
 
     @Override protected void doStop() throws ElasticSearchException {
+        this.reconnectToNodes.cancel(true);
         for (Tuple<Timeout, NotifyTimeout> onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.v1().cancel();
             onGoingTimeout.v2().listener.onClose();
@@ -260,6 +269,32 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 listener.onTimeout(this.timeout);
             }
             // note, we rely on the listener to remove itself in case of timeout if needed
+        }
+    }
+
+    private class ReconnectToNodes implements Runnable {
+        @Override public void run() {
+            // master node will check against all nodes if its alive with certain discoveries implementations,
+            // but we can't rely on that, so we check on it as well
+            for (DiscoveryNode node : clusterState.nodes()) {
+                if (lifecycle.stoppedOrClosed()) {
+                    return;
+                }
+                if (clusterState.nodes().nodeExists(node.id())) { // we double check existence of node since connectToNode might take time...
+                    if (!transportService.nodeConnected(node)) {
+                        try {
+                            transportService.connectToNode(node);
+                        } catch (Exception e) {
+                            if (lifecycle.stoppedOrClosed()) {
+                                return;
+                            }
+                            if (clusterState.nodes().nodeExists(node.id())) { // double check here as well, maybe its gone?
+                                logger.warn("failed to reconnect to node {}", e, node);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

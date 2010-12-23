@@ -96,7 +96,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
-                .listenerThreaded(false)
+                .listenerThreaded(true)
                 .operationThreaded(true);
 
         request.beforeLocalFork();

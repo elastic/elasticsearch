@@ -149,6 +149,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
+            remove(mapper.type()); // first remove it (in case its an update, we need to remove the aggregated mappers)
             mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
             mapper.addFieldMapperListener(fieldMapperListener, true);
         }

@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.IndexShardManagement;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -199,7 +200,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexEngine;
     }
 
-    @Override public void close(final boolean delete) {
+    public void close(final boolean delete, final String reason) {
         try {
             Set<Integer> shardIds = shardIds();
             final CountDownLatch latch = new CountDownLatch(shardIds.size());
@@ -207,7 +208,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         try {
-                            deleteShard(shardId, delete, !delete, delete);
+                            deleteShard(shardId, delete, !delete, delete, reason);
                         } catch (Exception e) {
                             logger.warn("failed to close shard, delete [{}]", e, delete);
                         } finally {
@@ -272,15 +273,15 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexShard;
     }
 
-    @Override public synchronized void cleanShard(int shardId) throws ElasticSearchException {
-        deleteShard(shardId, true, false, false);
+    @Override public synchronized void cleanShard(int shardId, String reason) throws ElasticSearchException {
+        deleteShard(shardId, true, false, false, reason);
     }
 
-    @Override public synchronized void removeShard(int shardId) throws ElasticSearchException {
-        deleteShard(shardId, false, false, false);
+    @Override public synchronized void removeShard(int shardId, String reason) throws ElasticSearchException {
+        deleteShard(shardId, false, false, false, reason);
     }
 
-    private void deleteShard(int shardId, boolean delete, boolean snapshotGateway, boolean deleteGateway) throws ElasticSearchException {
+    private void deleteShard(int shardId, boolean delete, boolean snapshotGateway, boolean deleteGateway, String reason) throws ElasticSearchException {
         Injector shardInjector;
         IndexShard indexShard;
         synchronized (this) {
@@ -329,7 +330,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // this logic is tricky, we want to close the engine so we rollback the changes done to it
         // and close the shard so no operations are allowed to it
         if (indexShard != null) {
-            indexShard.close();
+            ((InternalIndexShard) indexShard).close(reason);
         }
         try {
             shardInjector.getInstance(Engine.class).close();

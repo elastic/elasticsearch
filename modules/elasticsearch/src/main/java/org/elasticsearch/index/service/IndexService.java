@@ -22,7 +22,6 @@ package org.elasticsearch.index.service;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -38,7 +37,7 @@ import org.elasticsearch.index.store.IndexStore;
 /**
  * @author kimchy (shay.banon)
  */
-public interface IndexService extends IndexComponent, Iterable<IndexShard>, CloseableIndexComponent {
+public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     Injector injector();
 
@@ -63,12 +62,12 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
     /**
      * Cleans the shard locally, does not touch the gateway!.
      */
-    void cleanShard(int shardId) throws ElasticSearchException;
+    void cleanShard(int shardId, String reason) throws ElasticSearchException;
 
     /**
      * Removes the shard, does not delete local data or the gateway.
      */
-    void removeShard(int shardId) throws ElasticSearchException;
+    void removeShard(int shardId, String reason) throws ElasticSearchException;
 
     int numberOfShards();
 

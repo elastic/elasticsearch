@@ -22,7 +22,6 @@ package org.elasticsearch.index.shard.service;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
@@ -38,7 +37,7 @@ import javax.annotation.Nullable;
  * @author kimchy (shay.banon)
  */
 @ThreadSafe
-public interface IndexShard extends IndexShardComponent, CloseableComponent {
+public interface IndexShard extends IndexShardComponent {
 
     ShardRouting routingEntry();
 

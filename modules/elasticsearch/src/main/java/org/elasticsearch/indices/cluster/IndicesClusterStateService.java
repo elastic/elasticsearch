@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -141,7 +142,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 // clean the index
                 try {
-                    indicesService.cleanIndex(index);
+                    indicesService.cleanIndex(index, "cleaning index (no shards allocated)");
                 } catch (Exception e) {
                     logger.warn("failed to clean index (no shards of that index are allocated on this node)", e);
                 }
@@ -156,7 +157,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] deleting index", index);
                 }
                 try {
-                    indicesService.deleteIndex(index);
+                    indicesService.deleteIndex(index, "deleting index");
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
@@ -194,12 +195,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                             if (logger.isDebugEnabled()) {
                                 logger.debug("[{}][{}] removing shard (index is closed)", index, existingShardId);
                             }
-                            indexService.removeShard(existingShardId);
+                            indexService.removeShard(existingShardId, "removing shard (index is closed)");
                         } else {
                             if (logger.isDebugEnabled()) {
                                 logger.debug("[{}][{}] cleaning shard locally (not allocated)", index, existingShardId);
                             }
-                            indexService.cleanShard(existingShardId);
+                            indexService.cleanShard(existingShardId, "cleaning shard locally (not allocated)");
                         }
                     }
                 }
@@ -370,7 +371,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } catch (Exception e) {
                 logger.warn("[{}][{}] failed to create shard", e, shardRouting.index(), shardRouting.id());
                 try {
-                    indexService.cleanShard(shardId);
+                    indexService.cleanShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
                 } catch (IndexShardMissingException e1) {
                     // ignore
                 } catch (Exception e1) {
@@ -470,8 +471,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             synchronized (mutex) {
                 if (indexService.hasShard(shardRouting.shardId().id())) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}][{}] removing shard on ignored recovery, reason [{}]", shardRouting.index(), shardRouting.shardId().id(), reason);
+                    }
                     try {
-                        indexService.removeShard(shardRouting.shardId().id());
+                        indexService.removeShard(shardRouting.shardId().id(), "ignore recovery: " + reason);
                     } catch (IndexShardMissingException e) {
                         // the node got closed on us, ignore it
                     } catch (Exception e1) {
@@ -491,7 +495,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         synchronized (mutex) {
             if (indexService.hasShard(shardRouting.shardId().id())) {
                 try {
-                    indexService.cleanShard(shardRouting.shardId().id());
+                    indexService.cleanShard(shardRouting.shardId().id(), "recovery failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
                 } catch (IndexShardMissingException e) {
                     // the node got closed on us, ignore it
                 } catch (Exception e1) {

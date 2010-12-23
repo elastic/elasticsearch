@@ -233,7 +233,7 @@ public class RecoverySource extends AbstractComponent {
                 if (request.markAsRelocated()) {
                     // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
                     try {
-                        shard.relocated();
+                        shard.relocated("to " + request.targetNode());
                     } catch (IllegalIndexShardStateException e) {
                         // we can ignore this exception since, on the other node, when it moved to phase3
                         // it will also send shard started, which might cause the index shard we work against

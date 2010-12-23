@@ -20,7 +20,9 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.transport.AbstractSimpleTransportTests;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.testng.annotations.Test;
 
@@ -35,5 +37,15 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
         serviceB = new TransportService(settingsBuilder().put("name", "B").build(), new NettyTransport(settingsBuilder().put("name", "B").build(), threadPool), threadPool, timerService).start();
         serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
+    }
+
+    @Test public void testConnectException() {
+        try {
+            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress("localhost", 9876)));
+            assert false;
+        } catch (ConnectTransportException e) {
+//            e.printStackTrace();
+            // all is well
+        }
     }
 }

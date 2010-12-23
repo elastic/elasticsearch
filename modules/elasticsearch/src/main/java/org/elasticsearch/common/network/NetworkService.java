@@ -26,12 +26,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author kimchy (shay.banon)
@@ -53,9 +55,11 @@ public class NetworkService extends AbstractComponent {
         public static final String TCP_BLOCKING = "network.tcp.blocking";
         public static final String TCP_BLOCKING_SERVER = "network.tcp.blocking_server";
         public static final String TCP_BLOCKING_CLIENT = "network.tcp.blocking_client";
+        public static final String TCP_CONNECT_TIMEOUT = "network.tcp.connect_timeout";
 
         public static ByteSizeValue TCP_DEFAULT_SEND_BUFFER_SIZE = new ByteSizeValue(32, ByteSizeUnit.KB);
         public static ByteSizeValue TCP_DEFAULT_RECEIVE_BUFFER_SIZE = new ByteSizeValue(32, ByteSizeUnit.KB);
+        public static TimeValue TCP_DEFAULT_CONNECT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     }
 
     public static interface CustomNameResolver {

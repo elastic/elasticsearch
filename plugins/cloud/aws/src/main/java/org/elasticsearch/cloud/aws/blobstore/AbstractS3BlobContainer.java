@@ -35,13 +35,13 @@ import java.io.InputStream;
 /**
  * @author kimchy (shay.banon)
  */
-public class AbstarctS3BlobContainer extends AbstractBlobContainer {
+public class AbstractS3BlobContainer extends AbstractBlobContainer {
 
     protected final S3BlobStore blobStore;
 
     protected final String keyPath;
 
-    public AbstarctS3BlobContainer(BlobPath path, S3BlobStore blobStore) {
+    public AbstractS3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         this.keyPath = path.buildAsString("/") + "/";

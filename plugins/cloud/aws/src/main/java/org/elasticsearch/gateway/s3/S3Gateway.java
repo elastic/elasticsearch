@@ -52,6 +52,28 @@ public class S3Gateway extends BlobStoreGateway {
         }
 
         String region = componentSettings.get("region");
+        if (region == null) {
+            if (settings.get("cloud.aws.region") != null) {
+                String regionSetting = settings.get("cloud.aws.region");
+                if ("us-east".equals(regionSetting.toLowerCase())) {
+                    region = null;
+                } else if ("us-east-1".equals(regionSetting.toLowerCase())) {
+                    region = null;
+                } else if ("us-west".equals(regionSetting.toLowerCase())) {
+                    region = "us-west-1";
+                } else if ("us-west-1".equals(regionSetting.toLowerCase())) {
+                    region = "us-west-1";
+                } else if ("ap-southeast".equals(regionSetting.toLowerCase())) {
+                    region = "ap-southeast-1";
+                } else if ("ap-southeast-1".equals(regionSetting.toLowerCase())) {
+                    region = "ap-southeast-1";
+                } else if ("eu-west".equals(regionSetting.toLowerCase())) {
+                    region = "EU";
+                } else if ("eu-west-1".equals(regionSetting.toLowerCase())) {
+                    region = "EU";
+                }
+            }
+        }
         ByteSizeValue chunkSize = componentSettings.getAsBytesSize("chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB));
 
         logger.debug("using bucket [{}], region [{}], chunk_size [{}]", bucket, region, chunkSize);

@@ -70,8 +70,31 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
 
         this.client = new AmazonEC2Client(new BasicAWSCredentials(account, key), clientConfiguration);
 
-        if (componentSettings.get("endpoint") != null) {
-            client.setEndpoint(componentSettings.get("endpoint"));
+        if (componentSettings.get("ec2.endpoint") != null) {
+            client.setEndpoint(componentSettings.get("ec2.endpoint"));
+        } else if (componentSettings.get("region") != null) {
+            String endpoint;
+            String region = componentSettings.get("region");
+            if ("us-east".equals(region.toLowerCase())) {
+                endpoint = "ec2.us-east-1.amazonaws.com";
+            } else if ("us-east-1".equals(region.toLowerCase())) {
+                endpoint = "ec2.us-east-1.amazonaws.com";
+            } else if ("us-west".equals(region.toLowerCase())) {
+                endpoint = "ec2.us-west-1.amazonaws.com";
+            } else if ("us-west-1".equals(region.toLowerCase())) {
+                endpoint = "ec2.us-west-1.amazonaws.com";
+            } else if ("ap-southeast".equals(region.toLowerCase())) {
+                endpoint = "ec2.ap-southeast-1.amazonaws.com";
+            } else if ("ap-southeast-1".equals(region.toLowerCase())) {
+                endpoint = "ec2.ap-southeast-1.amazonaws.com";
+            } else if ("eu-west".equals(region.toLowerCase())) {
+                endpoint = "ec2.eu-west-1.amazonaws.com";
+            } else if ("eu-west-1".equals(region.toLowerCase())) {
+                endpoint = "ec2.eu-west-1.amazonaws.com";
+            } else {
+                throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
+            }
+            client.setEndpoint(endpoint);
         }
 
         return this.client;

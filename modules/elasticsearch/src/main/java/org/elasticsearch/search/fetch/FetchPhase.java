@@ -76,7 +76,7 @@ public class FetchPhase implements SearchPhase {
             Document doc = loadDocument(context, fieldSelector, docId);
             Uid uid = extractUid(context, doc);
 
-            DocumentMapper documentMapper = context.mapperService().type(uid.type());
+            DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
 
             byte[] source = extractSource(doc, documentMapper);
 

@@ -125,25 +125,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return mappers.values().iterator();
     }
 
-    public DocumentMapper type(String type) {
-        DocumentMapper mapper = mappers.get(type);
-        if (mapper != null) {
-            return mapper;
-        }
-        if (!dynamic) {
-            return null;
-        }
-        // go ahead and dynamically create it
-        synchronized (mutex) {
-            mapper = mappers.get(type);
-            if (mapper != null) {
-                return mapper;
-            }
-            add(type, null);
-            return mappers.get(type);
-        }
-    }
-
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
     }
@@ -229,6 +210,25 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public DocumentMapper documentMapper(String type) {
         return mappers.get(type);
+    }
+
+    public DocumentMapper documentMapperWithAutoCreate(String type) {
+        DocumentMapper mapper = mappers.get(type);
+        if (mapper != null) {
+            return mapper;
+        }
+        if (!dynamic) {
+            return null;
+        }
+        // go ahead and dynamically create it
+        synchronized (mutex) {
+            mapper = mappers.get(type);
+            if (mapper != null) {
+                return mapper;
+            }
+            add(type, null);
+            return mappers.get(type);
+        }
     }
 
     /**

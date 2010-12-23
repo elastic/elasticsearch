@@ -121,6 +121,11 @@ public class ParseContext {
         return this.source;
     }
 
+    // only should be used by SourceFieldMapper to update with a compressed source
+    public void source(byte[] source) {
+        this.source = source;
+    }
+
     public ContentPath path() {
         return this.path;
     }

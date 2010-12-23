@@ -20,7 +20,9 @@
           <root url="jar://$GRADLE_REPOSITORY$/com.amazonaws/aws-java-sdk/jars/aws-java-sdk-1.1.1.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES />
+        <SOURCES>
+          <root url="jar://$USER_HOME$/opt/aws-java-sdk/1.1.1/lib/aws-java-sdk-1.1.1-sources.jar!/" />
+        </SOURCES>
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

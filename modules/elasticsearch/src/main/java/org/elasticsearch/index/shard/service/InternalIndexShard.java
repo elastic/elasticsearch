@@ -40,7 +40,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -208,10 +211,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override public Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException {
-        DocumentMapper docMapper = mapperService.type(source.type());
-        if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + source.type() + "]");
-        }
+        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
         return new Engine.Create(doc);
     }
@@ -226,10 +226,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override public Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException {
-        DocumentMapper docMapper = mapperService.type(source.type());
-        if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + source.type() + "]");
-        }
+        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
         return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc);
     }
@@ -244,10 +241,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override public Engine.Delete prepareDelete(String type, String id) throws ElasticSearchException {
-        DocumentMapper docMapper = mapperService.type(type);
-        if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
-        }
+        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
         return new Engine.Delete(docMapper.uidMapper().term(type, id));
     }
 
@@ -299,10 +293,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public byte[] get(String type, String id) throws ElasticSearchException {
         readAllowed();
-        DocumentMapper docMapper = mapperService.type(type);
-        if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
-        }
+        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
         Engine.Searcher searcher = engine.searcher();
         try {
             int docId = Lucene.docId(searcher.reader(), docMapper.uidMapper().term(type, id));

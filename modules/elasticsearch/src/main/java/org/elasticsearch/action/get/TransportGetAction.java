@@ -76,7 +76,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
-        DocumentMapper docMapper = indexService.mapperService().type(request.type());
+        DocumentMapper docMapper = indexService.mapperService().documentMapper(request.type());
         if (docMapper == null) {
             throw new DocumentMapperNotFoundException("No mapper found for type [" + request.type() + "]");
         }

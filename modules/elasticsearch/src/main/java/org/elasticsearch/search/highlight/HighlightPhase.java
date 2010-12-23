@@ -56,7 +56,7 @@ public class HighlightPhase implements SearchHitPhase {
 
     @Override public void execute(SearchContext context, InternalSearchHit hit, Uid uid, IndexReader reader, int docId) throws ElasticSearchException {
         try {
-            DocumentMapper documentMapper = context.mapperService().type(hit.type());
+            DocumentMapper documentMapper = context.mapperService().documentMapper(hit.type());
 
             Map<String, HighlightField> highlightFields = newHashMap();
             for (SearchContextHighlight.Field field : context.highlight().fields()) {

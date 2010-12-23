@@ -87,4 +87,12 @@ public class CompressedString implements Streamable {
     @Override public int hashCode() {
         return bytes != null ? Arrays.hashCode(bytes) : 0;
     }
+
+    @Override public String toString() {
+        try {
+            return string();
+        } catch (IOException e) {
+            return "_na_";
+        }
+    }
 }

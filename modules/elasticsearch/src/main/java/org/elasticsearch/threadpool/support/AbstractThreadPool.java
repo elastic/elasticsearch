@@ -89,9 +89,7 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         logger.debug("shutting down {} thread pool", getType());
         executorService.shutdown();
         scheduledExecutorService.shutdown();
-        if (!cached.isShutdown()) {
-            cached.shutdown();
-        }
+        cached.shutdown();
     }
 
     @Override public void shutdownNow() {
@@ -102,14 +100,18 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         if (!scheduledExecutorService.isTerminated()) {
             scheduledExecutorService.shutdownNow();
         }
-        if (!cached.isTerminated()) {
-            cached.shutdownNow();
+        if (cached != executorService) {
+            if (!cached.isTerminated()) {
+                cached.shutdownNow();
+            }
         }
     }
 
     @Override public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = executorService.awaitTermination(timeout, unit);
-        result &= cached.awaitTermination(timeout, unit);
+        if (cached != executorService) {
+            result &= cached.awaitTermination(timeout, unit);
+        }
         result &= scheduledExecutorService.awaitTermination(timeout, unit);
         return result;
     }

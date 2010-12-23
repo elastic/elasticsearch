@@ -127,7 +127,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
         try {
-            indexShard.recovering();
+            indexShard.recovering("from gateway");
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             listener.onIgnoreRecovery("already in recovering process, " + e.getMessage());
@@ -150,7 +150,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                     // start the shard if the gateway has not started it already
                     if (indexShard.state() != IndexShardState.STARTED) {
-                        indexShard.start();
+                        indexShard.start("post recovery from gateway");
                     }
                     // refresh the shard
                     indexShard.refresh(new Engine.Refresh(false));

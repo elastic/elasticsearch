@@ -49,6 +49,7 @@ import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -128,7 +129,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     try {
-                        deleteIndex(index, false);
+                        deleteIndex(index, false, "shutdown");
                     } catch (Exception e) {
                         logger.warn("failed to delete index on stop [" + index + "]", e);
                     } finally {
@@ -244,15 +245,15 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indexService;
     }
 
-    @Override public synchronized void cleanIndex(String index) throws ElasticSearchException {
-        deleteIndex(index, false);
+    @Override public synchronized void cleanIndex(String index, String reason) throws ElasticSearchException {
+        deleteIndex(index, false, reason);
     }
 
-    @Override public synchronized void deleteIndex(String index) throws ElasticSearchException {
-        deleteIndex(index, true);
+    @Override public synchronized void deleteIndex(String index, String reason) throws ElasticSearchException {
+        deleteIndex(index, true, reason);
     }
 
-    private void deleteIndex(String index, boolean delete) throws ElasticSearchException {
+    private void deleteIndex(String index, boolean delete, String reason) throws ElasticSearchException {
         Injector indexInjector;
         IndexService indexService;
         synchronized (this) {
@@ -278,7 +279,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             indexInjector.getInstance(closeable).close(delete);
         }
 
-        indexService.close(delete);
+        ((InternalIndexService) indexService).close(delete, reason);
 
         indexInjector.getInstance(IndexCache.class).close();
         indexInjector.getInstance(AnalysisService.class).close();

@@ -143,7 +143,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     /**
      * Marks the shard as recovering, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering() throws IndexShardStartedException,
+    public IndexShardState recovering(String reason) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             IndexShardState returnValue = state;
@@ -159,24 +159,24 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RECOVERING) {
                 throw new IndexShardRecoveringException(shardId);
             }
-            logger.debug("state: [{}]->[{}]", state, IndexShardState.RECOVERING);
+            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.RECOVERING, reason);
             state = IndexShardState.RECOVERING;
             return returnValue;
         }
     }
 
-    public InternalIndexShard relocated() throws IndexShardNotStartedException {
+    public InternalIndexShard relocated(String reason) throws IndexShardNotStartedException {
         synchronized (mutex) {
             if (state != IndexShardState.STARTED) {
                 throw new IndexShardNotStartedException(shardId, state);
             }
-            logger.debug("state: [{}]->[{}]", state, IndexShardState.RELOCATED);
+            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.RELOCATED, reason);
             state = IndexShardState.RELOCATED;
         }
         return this;
     }
 
-    public InternalIndexShard start() throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+    public InternalIndexShard start(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -192,7 +192,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             engine.start();
             scheduleRefresherIfNeeded();
-            logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
+            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.STARTED, reason);
             state = IndexShardState.STARTED;
         }
         return this;
@@ -391,7 +391,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return engine.searcher();
     }
 
-    @Override public void close() {
+    public void close(String reason) {
         synchronized (mutex) {
             if (state != IndexShardState.CLOSED) {
                 if (refreshScheduledFuture != null) {
@@ -399,7 +399,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture = null;
                 }
             }
-            logger.debug("state: [{}]->[{}]", state, IndexShardState.CLOSED);
+            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
             state = IndexShardState.CLOSED;
         }
     }
@@ -435,7 +435,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             engine.flush(new Engine.Flush());
         }
         synchronized (mutex) {
-            logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
+            logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
         }
         scheduleRefresherIfNeeded();

@@ -421,7 +421,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private void recoverTranslog(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) throws IndexShardGatewayRecoveryException {
         if (commitPoint.translogFiles().isEmpty()) {
             // no translog files, bail
-            indexShard.start();
+            indexShard.start("post recovery from gateway, no translog");
             return;
         }
 

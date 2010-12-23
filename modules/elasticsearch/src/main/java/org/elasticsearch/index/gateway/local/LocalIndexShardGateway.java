@@ -96,7 +96,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryStatus.translog().startTime(System.currentTimeMillis());
         if (version == -1) {
             // no translog files, bail
-            indexShard.start();
+            indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
             recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
             return;
@@ -119,7 +119,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         if (!recoveringTranslogFile.exists()) {
             // no translog to recovery from, start and bail
             // no translog files, bail
-            indexShard.start();
+            indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
             recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
             return;

@@ -85,7 +85,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.threadPool = threadPool;
         this.timerService = timerService;
 
-        this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(30));
+        this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
     }
 
     @Override protected void doStart() throws ElasticSearchException {

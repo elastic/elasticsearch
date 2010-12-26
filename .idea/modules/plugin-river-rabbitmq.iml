@@ -15,13 +15,11 @@
     <orderEntry type="module-library">
       <library name="rabbitmq">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/com.rabbitmq/amqp-client/jars/amqp-client-2.1.0.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/commons-io/commons-io/jars/commons-io-1.2.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.rabbitmq/amqp-client/jars/amqp-client-2.2.0.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES>
-          <root url="file://$USER_HOME$/opt/rabbitmq/java-client-2.1.0/src" />
-        </SOURCES>
+        <SOURCES />
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

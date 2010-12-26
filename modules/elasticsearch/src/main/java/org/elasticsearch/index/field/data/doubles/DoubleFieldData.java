@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.doubles;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.trove.TDoubleArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -40,6 +41,10 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
     protected DoubleFieldData(String fieldName, double[] values) {
         super(fieldName);
         this.values = values;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        return RamUsage.NUM_BYTES_DOUBLE * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
     abstract public double value(int docId);

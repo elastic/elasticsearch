@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.doubles;
 
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
@@ -38,6 +39,11 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     public SingleValueDoubleFieldData(String fieldName, int[] ordinals, double[] values) {
         super(fieldName, values);
         this.ordinals = ordinals;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        return super.computeSizeInBytes() +
+                RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
     @Override public boolean multiValued() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.floats;
 
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
@@ -55,6 +56,15 @@ public class MultiValueFloatFieldData extends FloatFieldData {
     public MultiValueFloatFieldData(String fieldName, int[][] ordinals, float[] values) {
         super(fieldName, values);
         this.ordinals = ordinals;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        long size = super.computeSizeInBytes();
+        size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
+        for (int[] ordinal : ordinals) {
+            size += RamUsage.NUM_BYTES_INT * ordinal.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
+        }
+        return size;
     }
 
     @Override public boolean multiValued() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent.geo;
 
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
@@ -64,11 +65,20 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     };
 
     // order with value 0 indicates no value
-    private final int[][] order;
+    private final int[][] ordinals;
 
-    public MultiValueGeoPointFieldData(String fieldName, int[][] order, double[] lat, double[] lon) {
+    public MultiValueGeoPointFieldData(String fieldName, int[][] ordinals, double[] lat, double[] lon) {
         super(fieldName, lat, lon);
-        this.order = order;
+        this.ordinals = ordinals;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        long size = super.computeSizeInBytes();
+        size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
+        for (int[] ordinal : ordinals) {
+            size += RamUsage.NUM_BYTES_INT * ordinal.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
+        }
+        return size;
     }
 
     @Override public boolean multiValued() {
@@ -76,11 +86,11 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return order[docId] != null;
+        return ordinals[docId] != null;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return;
         }
@@ -90,7 +100,7 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public GeoPoint value(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return null;
         }
@@ -101,7 +111,7 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public GeoPoint[] values(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return EMPTY_ARRAY;
         }
@@ -123,7 +133,7 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public double latValue(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return 0;
         }
@@ -131,7 +141,7 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public double lonValue(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return 0;
         }
@@ -139,7 +149,7 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public double[] latValues(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -156,7 +166,7 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public double[] lonValues(int docId) {
-        int[] docOrders = order[docId];
+        int[] docOrders = ordinals[docId];
         if (docOrders == null) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }

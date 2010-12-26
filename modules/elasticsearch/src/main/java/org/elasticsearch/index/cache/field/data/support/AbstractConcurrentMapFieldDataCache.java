@@ -70,6 +70,28 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         // nothing to do here...
     }
 
+    @Override public long sizeInBytes() {
+        // the overhead of the map is not really relevant...
+        long sizeInBytes = 0;
+        for (ConcurrentMap<String, FieldData> map : cache.values()) {
+            for (FieldData fieldData : map.values()) {
+                sizeInBytes += fieldData.sizeInBytes();
+            }
+        }
+        return sizeInBytes;
+    }
+
+    @Override public long sizeInBytes(String fieldName) {
+        long sizeInBytes = 0;
+        for (ConcurrentMap<String, FieldData> map : cache.values()) {
+            FieldData fieldData = map.get(fieldName);
+            if (fieldData != null) {
+                sizeInBytes += fieldData.sizeInBytes();
+            }
+        }
+        return sizeInBytes;
+    }
+
     @Override public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
         ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getFieldCacheKey());
         if (fieldDataCache == null) {

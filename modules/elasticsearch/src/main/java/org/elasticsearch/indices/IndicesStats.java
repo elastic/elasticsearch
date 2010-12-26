@@ -38,11 +38,14 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
 
     private ByteSizeValue storeSize;
 
+    private ByteSizeValue fieldCacheSize;
+
     IndicesStats() {
     }
 
-    public IndicesStats(ByteSizeValue storeSize) {
+    public IndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize) {
         this.storeSize = storeSize;
+        this.fieldCacheSize = fieldCacheSize;
     }
 
     /**
@@ -59,6 +62,14 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         return storeSize;
     }
 
+    public ByteSizeValue fieldCacheSize() {
+        return this.fieldCacheSize;
+    }
+
+    public ByteSizeValue getFieldCacheSize() {
+        return this.fieldCacheSize;
+    }
+
     public static IndicesStats readIndicesStats(StreamInput in) throws IOException {
         IndicesStats stats = new IndicesStats();
         stats.readFrom(in);
@@ -67,16 +78,20 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         storeSize = ByteSizeValue.readBytesSizeValue(in);
+        fieldCacheSize = ByteSizeValue.readBytesSizeValue(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         storeSize.writeTo(out);
+        fieldCacheSize.writeTo(out);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("indices");
         builder.field("store_size", storeSize.toString());
         builder.field("store_size_in_bytes", storeSize.bytes());
+        builder.field("field_cache_size", fieldCacheSize.toString());
+        builder.field("field_cache_size_in_bytes", fieldCacheSize.bytes());
         builder.endObject();
     }
 }

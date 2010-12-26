@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.shorts;
 
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
@@ -45,6 +46,11 @@ public class SingleValueShortFieldData extends ShortFieldData {
     public SingleValueShortFieldData(String fieldName, int[] ordinals, short[] values) {
         super(fieldName, values);
         this.ordinals = ordinals;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        return super.computeSizeInBytes() +
+                RamUsage.NUM_BYTES_INT * ordinals.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
     @Override public boolean multiValued() {

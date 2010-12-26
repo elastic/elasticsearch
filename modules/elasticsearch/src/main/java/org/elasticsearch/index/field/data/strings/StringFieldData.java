@@ -20,6 +20,7 @@
 package org.elasticsearch.index.field.data.strings;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -37,6 +38,14 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
     protected StringFieldData(String fieldName, String[] values) {
         super(fieldName);
         this.values = values;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        long size = RamUsage.NUM_BYTES_ARRAY_HEADER;
+        for (String value : values) {
+            size += RamUsage.NUM_BYTES_OBJECT_HEADER + value.length() * RamUsage.NUM_BYTES_CHAR + (3 * RamUsage.NUM_BYTES_INT);
+        }
+        return size;
     }
 
     abstract public String value(int docId);

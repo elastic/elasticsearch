@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
 
@@ -45,6 +46,15 @@ public class MultiValueStringFieldData extends StringFieldData {
     public MultiValueStringFieldData(String fieldName, int[][] ordinals, String[] values) {
         super(fieldName, values);
         this.ordinals = ordinals;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        long size = super.computeSizeInBytes();
+        size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
+        for (int[] ordinal : ordinals) {
+            size += RamUsage.NUM_BYTES_INT * ordinal.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
+        }
+        return size;
     }
 
     @Override public boolean multiValued() {

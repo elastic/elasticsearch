@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.xcontent.geo;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TDoubleArrayList;
 import org.elasticsearch.index.field.data.FieldData;
@@ -65,6 +66,11 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
 
     @Override public GeoPointDocFieldData docFieldData(int docId) {
         return super.docFieldData(docId);
+    }
+
+    @Override protected long computeSizeInBytes() {
+        return (RamUsage.NUM_BYTES_DOUBLE * lat.length + RamUsage.NUM_BYTES_ARRAY_HEADER) +
+                (RamUsage.NUM_BYTES_DOUBLE * lon.length + RamUsage.NUM_BYTES_ARRAY_HEADER);
     }
 
     @Override public String stringValue(int docId) {

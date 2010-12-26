@@ -61,4 +61,12 @@ public class NoneFieldDataCache extends AbstractIndexComponent implements FieldD
 
     @Override public void close() throws ElasticSearchException {
     }
+
+    @Override public long sizeInBytes() {
+        return 0;
+    }
+
+    @Override public long sizeInBytes(String fieldName) {
+        return 0;
+    }
 }

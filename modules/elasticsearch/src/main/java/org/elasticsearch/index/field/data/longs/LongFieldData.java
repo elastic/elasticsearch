@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.longs;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
@@ -50,6 +51,10 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     protected LongFieldData(String fieldName, long[] values) {
         super(fieldName);
         this.values = values;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        return RamUsage.NUM_BYTES_LONG * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
     abstract public long value(int docId);

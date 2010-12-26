@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.ints;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.trove.TIntArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -40,6 +41,10 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
     protected IntFieldData(String fieldName, int[] values) {
         super(fieldName);
         this.values = values;
+    }
+
+    @Override protected long computeSizeInBytes() {
+        return RamUsage.NUM_BYTES_INT * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
     abstract public int value(int docId);

@@ -95,7 +95,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
-        this.compress = true;
+        this.compress = compress;
         this.compressThreshold = compressThreshold;
         this.fieldSelector = new SourceFieldSelector(names.indexName());
     }

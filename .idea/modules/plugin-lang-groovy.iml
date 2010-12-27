@@ -17,7 +17,7 @@
     <orderEntry type="module-library">
       <library name="groovy">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.groovy/groovy-all/jars/groovy-all-1.7.5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.groovy/groovy-all/jars/groovy-all-1.7.6.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

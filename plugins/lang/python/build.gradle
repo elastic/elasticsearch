@@ -30,8 +30,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.python:jython:2.5.2b2') { transitive = false }
-    distLib('org.python:jython:2.5.2b2') { transitive = false }
+    compile('org.python:jython:2.5.2rc2') { transitive = false }
+    distLib('org.python:jython:2.5.2rc2') { transitive = false }
 
     testCompile project(':test-testng')
     testCompile('org.testng:testng:5.10:jdk15') { transitive = false }

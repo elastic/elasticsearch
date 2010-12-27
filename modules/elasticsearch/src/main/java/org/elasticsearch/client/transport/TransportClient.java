@@ -109,6 +109,27 @@ public class TransportClient extends AbstractClient {
     }
 
     /**
+     * Constructs a new transport client with explicit settings and settings loaded either from the classpath or the file
+     * system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
+     */
+    public TransportClient(Settings.Builder settings) {
+        this(settings.build(), true);
+    }
+
+    /**
+     * Constructs a new transport client with the provided settings and the ability to control if settings will
+     * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
+     * <tt>config/</tt>).
+     *
+     * @param settings           The explicit settings.
+     * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
+     * @throws ElasticSearchException
+     */
+    public TransportClient(Settings.Builder settings, boolean loadConfigSettings) throws ElasticSearchException {
+        this(settings.build(), loadConfigSettings);
+    }
+
+    /**
      * Constructs a new transport client with the provided settings and the ability to control if settings will
      * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
      * <tt>config/</tt>).

@@ -97,7 +97,7 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder {
         queryBuilder.toXContent(builder, params);
         builder.field("type", childType);
         if (scope != null) {
-            builder.field("scope", scope);
+            builder.field("_scope", scope);
         }
         if (score != null) {
             builder.field("score", score);

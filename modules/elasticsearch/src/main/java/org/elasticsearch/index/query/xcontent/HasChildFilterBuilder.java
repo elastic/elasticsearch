@@ -60,7 +60,7 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         queryBuilder.toXContent(builder, params);
         builder.field("type", childType);
         if (scope != null) {
-            builder.field("scope", scope);
+            builder.field("_scope", scope);
         }
         if (filterName != null) {
             builder.field("_name", filterName);

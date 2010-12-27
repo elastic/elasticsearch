@@ -72,7 +72,7 @@ public class TopChildrenQueryParser extends AbstractIndexComponent implements XC
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("scope".equals(currentFieldName)) {
+                } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
                 } else if ("score".equals(currentFieldName)) {
                     scoreType = TopChildrenQuery.ScoreType.fromString(parser.text());

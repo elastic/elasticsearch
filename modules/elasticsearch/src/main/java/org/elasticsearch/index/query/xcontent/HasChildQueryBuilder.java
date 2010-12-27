@@ -65,7 +65,7 @@ public class HasChildQueryBuilder extends BaseQueryBuilder {
         queryBuilder.toXContent(builder, params);
         builder.field("type", childType);
         if (scope != null) {
-            builder.field("scope", scope);
+            builder.field("_scope", scope);
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);

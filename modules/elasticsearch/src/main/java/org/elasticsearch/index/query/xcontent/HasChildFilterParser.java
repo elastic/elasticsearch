@@ -71,7 +71,7 @@ public class HasChildFilterParser extends AbstractIndexComponent implements XCon
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("scope".equals(currentFieldName)) {
+                } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();

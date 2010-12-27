@@ -67,11 +67,15 @@ public class PublishClusterStateAction extends AbstractComponent {
                 // no need to send to our self
                 continue;
             }
-            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequest(clusterState), new VoidTransportResponseHandler(false) {
-                @Override public void handleException(TransportException exp) {
-                    logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
-                }
-            });
+            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
+                    new PublishClusterStateRequest(clusterState),
+                    TransportRequestOptions.options().withHighType(),
+
+                    new VoidTransportResponseHandler(false) {
+                        @Override public void handleException(TransportException exp) {
+                            logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
+                        }
+                    });
         }
     }
 

@@ -89,7 +89,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
     }
 
     public void markAsRequired() {
-        this.required = required;
+        this.required = true;
     }
 
     @Override public boolean required() {

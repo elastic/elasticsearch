@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.common.RamUsage;
 
 import java.io.IOException;
 
@@ -42,6 +43,10 @@ public class AllDocSet extends DocSet {
 
     @Override public boolean get(int doc) throws IOException {
         return doc < maxDoc;
+    }
+
+    @Override public long sizeInBytes() {
+        return RamUsage.NUM_BYTES_INT;
     }
 
     @Override public DocIdSetIterator iterator() throws IOException {

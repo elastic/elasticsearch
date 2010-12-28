@@ -45,4 +45,6 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
      * Clears unreferenced filters.
      */
     void clearUnreferenced();
+
+    long sizeInBytes();
 }

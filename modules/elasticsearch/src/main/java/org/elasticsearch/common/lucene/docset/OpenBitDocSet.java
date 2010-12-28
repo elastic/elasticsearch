@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.docset;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.OpenBitSet;
 import org.apache.lucene.util.OpenBitSetDISI;
+import org.elasticsearch.common.RamUsage;
 
 import java.io.IOException;
 
@@ -58,5 +59,9 @@ public class OpenBitDocSet extends DocSet {
 
     @Override public DocIdSetIterator iterator() throws IOException {
         return set.iterator();
+    }
+
+    @Override public long sizeInBytes() {
+        return set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_ARRAY_HEADER + RamUsage.NUM_BYTES_INT /* wlen */;
     }
 }

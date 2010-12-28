@@ -41,7 +41,13 @@ public abstract class DocSet extends DocIdSet {
         @Override public boolean isCacheable() {
             return true;
         }
+
+        @Override public long sizeInBytes() {
+            return 0;
+        }
     };
 
     public abstract boolean get(int doc) throws IOException;
+
+    public abstract long sizeInBytes();
 }

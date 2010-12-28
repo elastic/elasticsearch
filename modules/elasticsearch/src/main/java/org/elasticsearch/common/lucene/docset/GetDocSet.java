@@ -34,6 +34,10 @@ public abstract class GetDocSet extends DocSet {
         this.maxDoc = maxDoc;
     }
 
+    @Override public long sizeInBytes() {
+        return 0;
+    }
+
     @Override public DocIdSetIterator iterator() throws IOException {
         return new DocIdSetIterator() {
             private int doc = -1;

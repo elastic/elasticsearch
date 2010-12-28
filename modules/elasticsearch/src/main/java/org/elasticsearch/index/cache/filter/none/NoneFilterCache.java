@@ -69,4 +69,8 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     @Override public void clearUnreferenced() {
         // nothing to do here
     }
+
+    @Override public long sizeInBytes() {
+        return 0;
+    }
 }

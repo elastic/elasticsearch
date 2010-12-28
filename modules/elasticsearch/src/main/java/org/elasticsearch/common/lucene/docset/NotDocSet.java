@@ -44,6 +44,10 @@ public class NotDocSet extends GetDocSet {
         return !set.get(doc);
     }
 
+    @Override public long sizeInBytes() {
+        return set.sizeInBytes();
+    }
+
     // This seems like overhead compared to testing with get and iterating over docs
 //    @Override public DocIdSetIterator iterator() throws IOException {
 //        return new NotDocIdSetIterator();

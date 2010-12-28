@@ -164,6 +164,10 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
                 this.searchScript = searchScript;
             }
 
+            @Override public long sizeInBytes() {
+                return 0;
+            }
+
             @Override public boolean isCacheable() {
                 // not cacheable for several reasons:
                 // 1. The script service is shared and holds the current reader executing against, and it

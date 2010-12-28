@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -40,12 +41,15 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
 
     private ByteSizeValue fieldCacheSize;
 
+    private ByteSizeValue filterCacheSize;
+
     IndicesStats() {
     }
 
-    public IndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize) {
+    public IndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize) {
         this.storeSize = storeSize;
         this.fieldCacheSize = fieldCacheSize;
+        this.filterCacheSize = filterCacheSize;
     }
 
     /**
@@ -70,6 +74,14 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         return this.fieldCacheSize;
     }
 
+    public ByteSizeValue filterCacheSize() {
+        return this.filterCacheSize;
+    }
+
+    public ByteSizeValue getFilterCacheSize() {
+        return this.filterCacheSize;
+    }
+
     public static IndicesStats readIndicesStats(StreamInput in) throws IOException {
         IndicesStats stats = new IndicesStats();
         stats.readFrom(in);
@@ -79,19 +91,33 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
     @Override public void readFrom(StreamInput in) throws IOException {
         storeSize = ByteSizeValue.readBytesSizeValue(in);
         fieldCacheSize = ByteSizeValue.readBytesSizeValue(in);
+        filterCacheSize = ByteSizeValue.readBytesSizeValue(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         storeSize.writeTo(out);
         fieldCacheSize.writeTo(out);
+        filterCacheSize.writeTo(out);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("indices");
-        builder.field("store_size", storeSize.toString());
-        builder.field("store_size_in_bytes", storeSize.bytes());
-        builder.field("field_cache_size", fieldCacheSize.toString());
-        builder.field("field_cache_size_in_bytes", fieldCacheSize.bytes());
+        builder.startObject(Fields.INDICES);
+        builder.field(Fields.STORE_SIZE, storeSize.toString());
+        builder.field(Fields.STORE_SIZE_IN_BYTES, storeSize.bytes());
+        builder.field(Fields.FIELD_CACHE_SIZE, fieldCacheSize.toString());
+        builder.field(Fields.FIELD_CACHE_SIZE_IN_BYTES, fieldCacheSize.bytes());
+        builder.field(Fields.FILTER_CACHE_SIZE, filterCacheSize.toString());
+        builder.field(Fields.FILTER_CACHE_SIZE_IN_BYTES, filterCacheSize.bytes());
         builder.endObject();
+    }
+
+    static final class Fields {
+        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
+        static final XContentBuilderString STORE_SIZE = new XContentBuilderString("store_size");
+        static final XContentBuilderString STORE_SIZE_IN_BYTES = new XContentBuilderString("store_size_in_bytes");
+        static final XContentBuilderString FIELD_CACHE_SIZE = new XContentBuilderString("field_cache_size");
+        static final XContentBuilderString FIELD_CACHE_SIZE_IN_BYTES = new XContentBuilderString("field_cache_size_in_bytes");
+        static final XContentBuilderString FILTER_CACHE_SIZE = new XContentBuilderString("filter_cache_size");
+        static final XContentBuilderString FILTER_CACHE_SIZE_IN_BYTES = new XContentBuilderString("filter_cache_size_in_bytes");
     }
 }

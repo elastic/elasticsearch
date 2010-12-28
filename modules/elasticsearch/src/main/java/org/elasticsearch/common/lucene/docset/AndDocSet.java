@@ -55,6 +55,14 @@ public class AndDocSet extends DocSet {
 //        return true;
     }
 
+    @Override public long sizeInBytes() {
+        long sizeInBytes = 0;
+        for (DocSet set : sets) {
+            sizeInBytes += set.sizeInBytes();
+        }
+        return sizeInBytes;
+    }
+
     @Override public DocIdSetIterator iterator() throws IOException {
         return new AndDocIdSetIterator();
     }

@@ -41,7 +41,8 @@ public interface Settings {
 
     /**
      * Component settings for a specific component. Returns all the settings for the given class, where the
-     * FQN of the class is used, without the <tt>org.elasticsearch<tt> prefix.
+     * FQN of the class is used, without the <tt>org.elasticsearch<tt> prefix. If there is no <tt>org.elasticsearch</tt>
+     * prefix, then the prefix used is the first part of the package name (<tt>org</tt> / <tt>com</tt> / ...)
      */
     Settings getComponentSettings(Class component);
 

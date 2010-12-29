@@ -61,14 +61,21 @@ public class RestCreateIndexAction extends BaseRestHandler {
                 try {
                     Map<String, Object> source = XContentFactory.xContent(xContentType)
                             .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength()).mapAndClose();
+                    boolean found = false;
                     if (source.containsKey("settings")) {
                         createIndexRequest.settings((Map<String, Object>) source.get("settings"));
+                        found = true;
                     }
                     if (source.containsKey("mappings")) {
+                        found = true;
                         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
                         for (Map.Entry<String, Object> entry : mappings.entrySet()) {
                             createIndexRequest.mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
                         }
+                    }
+                    if (!found) {
+                        // the top level are settings, use them
+                        createIndexRequest.settings(source);
                     }
                 } catch (Exception e) {
                     try {

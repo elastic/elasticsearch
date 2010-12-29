@@ -17,12 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.terms;
+package org.elasticsearch.search.facet.terms.index;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 
 import java.io.IOException;
 
@@ -33,7 +35,7 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
 
     private final String indexName;
 
-    private final InternalTermsFacet.ComparatorType comparatorType;
+    private final InternalStringTermsFacet.ComparatorType comparatorType;
 
     private final int size;
 
@@ -54,6 +56,6 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalTermsFacet(facetName, "_index", comparatorType, size, Sets.newHashSet(new TermsFacet.Entry(indexName, count)));
+        return new InternalStringTermsFacet(facetName, "_index", comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.StringEntry(indexName, count)));
     }
 }

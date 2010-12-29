@@ -37,6 +37,17 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
      */
     public static final String TYPE = "terms";
 
+    public interface Entry extends Comparable<Entry> {
+
+        String term();
+
+        String getTerm();
+
+        int count();
+
+        int getCount();
+    }
+
     /**
      * Controls how the terms facets are ordered.
      */
@@ -72,14 +83,7 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
         TERM((byte) 2, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
-                int i = o1.term().compareTo(o2.term());
-                if (i == 0) {
-                    i = o1.count() - o2.count();
-                    if (i == 0) {
-                        i = System.identityHashCode(o1) - System.identityHashCode(o2);
-                    }
-                }
-                return i;
+                return o1.compareTo(o2);
             }
         }),
         /**
@@ -136,33 +140,6 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
         }
     }
 
-    public class Entry {
-
-        private String term;
-        private int count;
-
-        public Entry(String term, int count) {
-            this.term = term;
-            this.count = count;
-        }
-
-        public String term() {
-            return term;
-        }
-
-        public String getTerm() {
-            return term;
-        }
-
-        public int count() {
-            return count;
-        }
-
-        public int getCount() {
-            return count();
-        }
-    }
-
     /**
      * The field name the terms were extracted from.
      */
@@ -186,10 +163,10 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     /**
      * The terms and counts.
      */
-    List<Entry> entries();
+    List<? extends TermsFacet.Entry> entries();
 
     /**
      * The terms and counts.
      */
-    List<Entry> getEntries();
+    List<? extends TermsFacet.Entry> getEntries();
 }

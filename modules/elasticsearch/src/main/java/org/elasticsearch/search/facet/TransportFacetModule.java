@@ -26,7 +26,7 @@ import org.elasticsearch.search.facet.histogram.InternalHistogramFacet;
 import org.elasticsearch.search.facet.query.InternalQueryFacet;
 import org.elasticsearch.search.facet.range.InternalRangeFacet;
 import org.elasticsearch.search.facet.statistical.InternalStatisticalFacet;
-import org.elasticsearch.search.facet.terms.InternalTermsFacet;
+import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 
 /**
  * @author kimchy (shay.banon)
@@ -40,6 +40,6 @@ public class TransportFacetModule extends AbstractModule {
         InternalFacet.Streams.registerStream(InternalHistogramFacet.STREAM, InternalHistogramFacet.TYPE);
         InternalFacet.Streams.registerStream(InternalRangeFacet.STREAM, InternalRangeFacet.TYPE);
         InternalFacet.Streams.registerStream(InternalStatisticalFacet.STREAM, InternalStatisticalFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalTermsFacet.STREAM, InternalTermsFacet.TYPE);
+        InternalFacet.Streams.registerStream(InternalStringTermsFacet.STREAM, InternalStringTermsFacet.TYPE);
     }
 }

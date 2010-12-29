@@ -19,21 +19,22 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
-import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.terms.index.IndexNameFacetCollector;
+import org.elasticsearch.search.facet.terms.strings.FieldsTermsStringFacetCollector;
+import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
+import org.elasticsearch.search.facet.terms.strings.ScriptTermsStringFieldFacetCollector;
+import org.elasticsearch.search.facet.terms.strings.TermsStringFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
 
     @Inject public TermsFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalTermsFacet.STREAM, InternalTermsFacet.TYPE);
+        InternalFacet.Streams.registerStream(InternalStringTermsFacet.STREAM, InternalStringTermsFacet.TYPE);
     }
 
     @Override public String[] types() {
@@ -121,41 +122,16 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
             pattern = Regex.compile(regex, regexFlags);
         }
         if (fieldsNames != null) {
-            return new TermsFieldsFacetCollector(facetName, fieldsNames, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+            return new FieldsTermsStringFacetCollector(facetName, fieldsNames, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
         }
         if (field == null && fieldsNames == null && script != null) {
-            return new TermsScriptFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+            return new ScriptTermsStringFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
         }
-        return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+        return new TermsStringFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
     }
 
     @Override public Facet reduce(String name, List<Facet> facets) {
-        if (facets.size() == 1) {
-            return facets.get(0);
-        }
         InternalTermsFacet first = (InternalTermsFacet) facets.get(0);
-        TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
-        aggregated.clear();
-
-        for (Facet facet : facets) {
-            TermsFacet mFacet = (TermsFacet) facet;
-            for (TermsFacet.Entry entry : mFacet) {
-                aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
-            }
-        }
-
-        BoundedTreeSet<TermsFacet.Entry> ordered = new BoundedTreeSet<TermsFacet.Entry>(first.comparatorType().comparator(), first.requiredSize);
-        for (TObjectIntIterator<String> it = aggregated.iterator(); it.hasNext();) {
-            it.advance();
-            ordered.add(new TermsFacet.Entry(it.key(), it.value()));
-        }
-        first.entries = ordered;
-        return first;
+        return first.reduce(name, facets);
     }
-
-    private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
-        @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
-            return new ThreadLocals.CleanableValue<TObjectIntHashMap<String>>(new TObjectIntHashMap<String>());
-        }
-    };
 }

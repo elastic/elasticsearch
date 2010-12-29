@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.internal;
+package org.elasticsearch.search.facet;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -28,15 +28,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.search.facet.filter.InternalFilterFacet;
-import org.elasticsearch.search.facet.geodistance.InternalGeoDistanceFacet;
-import org.elasticsearch.search.facet.histogram.InternalHistogramFacet;
-import org.elasticsearch.search.facet.query.InternalQueryFacet;
-import org.elasticsearch.search.facet.range.InternalRangeFacet;
-import org.elasticsearch.search.facet.statistical.InternalStatisticalFacet;
-import org.elasticsearch.search.facet.terms.InternalTermsFacet;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -141,24 +132,9 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         } else {
             facets = Lists.newArrayListWithCapacity(size);
             for (int i = 0; i < size; i++) {
-                int id = in.readVInt();
-                if (id == Facet.Type.TERMS.id()) {
-                    facets.add(InternalTermsFacet.readTermsFacet(in));
-                } else if (id == Facet.Type.QUERY.id()) {
-                    facets.add(InternalQueryFacet.readCountFacet(in));
-                } else if (id == Facet.Type.STATISTICAL.id()) {
-                    facets.add(InternalStatisticalFacet.readStatisticalFacet(in));
-                } else if (id == Facet.Type.HISTOGRAM.id()) {
-                    facets.add(InternalHistogramFacet.readHistogramFacet(in));
-                } else if (id == Facet.Type.GEO_DISTANCE.id()) {
-                    facets.add(InternalGeoDistanceFacet.readGeoDistanceFacet(in));
-                } else if (id == Facet.Type.RANGE.id()) {
-                    facets.add(InternalRangeFacet.readRangeFacet(in));
-                } else if (id == Facet.Type.FILTER.id()) {
-                    facets.add(InternalFilterFacet.readFilterFacet(in));
-                } else {
-                    throw new IOException("Can't handle facet type with id [" + id + "]");
-                }
+                String type = in.readUTF();
+                Facet facet = InternalFacet.Streams.stream(type).readFacet(type, in);
+                facets.add(facet);
             }
         }
     }
@@ -166,7 +142,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
-            out.writeVInt(facet.type().id());
+            out.writeUTF(facet.type());
             ((InternalFacet) facet).writeTo(out);
         }
     }

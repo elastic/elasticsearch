@@ -77,7 +77,7 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
         }
         builder.startObject(name);
 
-        builder.startObject(StatisticalFacetCollectorParser.NAME);
+        builder.startObject(StatisticalFacet.TYPE);
         if (fieldsNames != null) {
             if (fieldsNames.length == 1) {
                 builder.field("field", fieldsNames[0]);

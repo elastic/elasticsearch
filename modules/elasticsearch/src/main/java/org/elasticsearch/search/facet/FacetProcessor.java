@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,18 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.collector;
+package org.elasticsearch.search.facet;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class FacetCollector extends Collector {
+public interface FacetProcessor {
 
-    public abstract Facet facet();
+    String[] types();
 
-    public abstract void setFilter(Filter filter);
+    FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException;
+
+    Facet reduce(String name, List<Facet> facets);
 }

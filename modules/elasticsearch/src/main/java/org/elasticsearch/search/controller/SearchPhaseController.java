@@ -25,14 +25,15 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
-import org.elasticsearch.search.facet.internal.InternalFacets;
+import org.elasticsearch.search.facet.FacetProcessors;
+import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -47,10 +48,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SearchPhaseController {
+
     private static final ShardDoc[] EMPTY = new ShardDoc[0];
+
+    private final FacetProcessors facetProcessors;
+
+    @Inject public SearchPhaseController(FacetProcessors facetProcessors) {
+        this.facetProcessors = facetProcessors;
+    }
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
         ExtTObjectIntHasMap<Term> dfMap = new ExtTObjectIntHasMap<Term>().defaultReturnValue(-1);
@@ -192,17 +200,23 @@ public class SearchPhaseController {
             // we rely on the fact that the order of facets is the same on all query results
             QuerySearchResult queryResult = queryResults.values().iterator().next().queryResult();
 
-            // we assume the facets are in the same order!
             if (queryResult.facets() != null && queryResult.facets().facets() != null && !queryResult.facets().facets().isEmpty()) {
-                List<Facet> allFacets = Lists.newArrayList();
-                for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
-                    allFacets.addAll(queryResultProvider.queryResult().facets().facets());
+                List<Facet> aggregatedFacets = Lists.newArrayList();
+                List<Facet> namedFacets = Lists.newArrayList();
+                for (Facet facet : queryResult.facets()) {
+                    // aggregate each facet name into a single list, and aggregate it
+                    namedFacets.clear();
+                    for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
+                        for (Facet facet1 : queryResultProvider.queryResult().facets()) {
+                            if (facet.name().equals(facet1.name())) {
+                                namedFacets.add(facet1);
+                            }
+                        }
+                    }
+                    Facet aggregatedFacet = facetProcessors.processor(facet.type()).reduce(facet.name(), namedFacets);
+                    aggregatedFacets.add(aggregatedFacet);
                 }
-                List<Facet> mergedFacets = Lists.newArrayList();
-                for (Facet facet : queryResult.facets().facets()) {
-                    mergedFacets.add(((InternalFacet) facet).aggregate(allFacets));
-                }
-                facets = new InternalFacets(mergedFacets);
+                facets = new InternalFacets(aggregatedFacets);
             }
         }
 

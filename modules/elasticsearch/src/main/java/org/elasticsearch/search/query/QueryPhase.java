@@ -28,7 +28,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
-import org.elasticsearch.search.facet.FacetsPhase;
+import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,10 +41,10 @@ import java.util.Map;
  */
 public class QueryPhase implements SearchPhase {
 
-    private final FacetsPhase facetsPhase;
+    private final FacetPhase facetPhase;
 
-    @Inject public QueryPhase(FacetsPhase facetsPhase) {
-        this.facetsPhase = facetsPhase;
+    @Inject public QueryPhase(FacetPhase facetPhase) {
+        this.facetPhase = facetPhase;
     }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
@@ -58,7 +58,7 @@ public class QueryPhase implements SearchPhase {
                 .put("queryBinary", new QueryBinaryParseElement())
                 .put("query_binary", new QueryBinaryParseElement())
                 .put("sort", new SortParseElement())
-                .putAll(facetsPhase.parseElements());
+                .putAll(facetPhase.parseElements());
         return parseElements.build();
     }
 
@@ -69,7 +69,7 @@ public class QueryPhase implements SearchPhase {
         if (context.queryBoost() != 1.0f) {
             context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
         }
-        facetsPhase.preProcess(context);
+        facetPhase.preProcess(context);
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
@@ -189,6 +189,6 @@ public class QueryPhase implements SearchPhase {
             searchContext.searcher().processedScope();
         }
 
-        facetsPhase.execute(searchContext);
+        facetPhase.execute(searchContext);
     }
 }

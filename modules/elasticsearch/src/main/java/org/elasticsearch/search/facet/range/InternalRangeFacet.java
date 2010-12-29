@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -36,13 +36,19 @@ import java.util.List;
  */
 public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readRangeFacet(in);
+        }
+    };
+
     private String name;
 
     private String keyFieldName;
 
     private String valueFieldName;
 
-    private Entry[] entries;
+    Entry[] entries;
 
     InternalRangeFacet() {
     }
@@ -62,12 +68,12 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         return name();
     }
 
-    @Override public Type type() {
-        return Type.RANGE;
+    @Override public String type() {
+        return RangeFacet.TYPE;
     }
 
-    @Override public Type getType() {
-        return type();
+    @Override public String getType() {
+        return RangeFacet.TYPE;
     }
 
     @Override public String keyFieldName() {
@@ -96,25 +102,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override public Iterator<Entry> iterator() {
         return entries().iterator();
-    }
-
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        InternalRangeFacet agg = null;
-        for (Facet facet : facets) {
-            if (!facet.name().equals(name)) {
-                continue;
-            }
-            InternalRangeFacet geoDistanceFacet = (InternalRangeFacet) facet;
-            if (agg == null) {
-                agg = geoDistanceFacet;
-            } else {
-                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
-                    agg.entries[i].count += geoDistanceFacet.entries[i].count;
-                    agg.entries[i].total += geoDistanceFacet.entries[i].total;
-                }
-            }
-        }
-        return agg;
     }
 
     public static InternalRangeFacet readRangeFacet(StreamInput in) throws IOException {

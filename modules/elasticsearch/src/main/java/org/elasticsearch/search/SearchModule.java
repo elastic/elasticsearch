@@ -19,11 +19,14 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
-import org.elasticsearch.search.facet.FacetsPhase;
+import org.elasticsearch.search.facet.FacetModule;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainSearchHitPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersSearchHitPhase;
@@ -32,13 +35,16 @@ import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class SearchModule extends AbstractModule {
+public class SearchModule extends AbstractModule implements SpawnModules {
+
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new TransportSearchModule(), new FacetModule());
+    }
 
     @Override protected void configure() {
         bind(DfsPhase.class).asEagerSingleton();
-        bind(FacetsPhase.class).asEagerSingleton();
         bind(QueryPhase.class).asEagerSingleton();
         bind(SearchService.class).asEagerSingleton();
         bind(SearchPhaseController.class).asEagerSingleton();

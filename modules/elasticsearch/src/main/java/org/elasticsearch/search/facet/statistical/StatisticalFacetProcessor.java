@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,33 +20,29 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
+import org.elasticsearch.search.facet.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class StatisticalFacetCollectorParser implements FacetCollectorParser {
+public class StatisticalFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedParams = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
-            return new ThreadLocals.CleanableValue<Map<String, Object>>(new HashMap<String, Object>());
-        }
-    };
+    @Inject public StatisticalFacetProcessor(Settings settings) {
+        super(settings);
+        InternalFacet.Streams.registerStream(InternalStatisticalFacet.STREAM, InternalStatisticalFacet.TYPE);
+    }
 
-    public static final String NAME = "statistical";
-
-    @Override public String[] names() {
-        return new String[]{NAME};
+    @Override public String[] types() {
+        return new String[]{StatisticalFacet.TYPE};
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -55,8 +51,7 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
 
         String script = null;
         String scriptLang = null;
-        Map<String, Object> params = cachedParams.get().get();
-        params.clear();
+        Map<String, Object> params = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -96,5 +91,34 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
         } else {
             return new ScriptStatisticalFacetCollector(facetName, scriptLang, script, params, context);
         }
+    }
+
+    @Override public Facet reduce(String name, List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        double min = Double.NaN;
+        double max = Double.NaN;
+        double total = 0;
+        double sumOfSquares = 0;
+        long count = 0;
+
+        for (Facet facet : facets) {
+            if (!facet.name().equals(name)) {
+                continue;
+            }
+            InternalStatisticalFacet statsFacet = (InternalStatisticalFacet) facet;
+            if (statsFacet.min() < min || Double.isNaN(min)) {
+                min = statsFacet.min();
+            }
+            if (statsFacet.max() > max || Double.isNaN(max)) {
+                max = statsFacet.max();
+            }
+            total += statsFacet.total();
+            sumOfSquares += statsFacet.sumOfSquares();
+            count += statsFacet.count();
+        }
+
+        return new InternalStatisticalFacet(name, ((InternalStatisticalFacet) facets.get(0)).fieldName(), min, max, total, sumOfSquares, count);
     }
 }

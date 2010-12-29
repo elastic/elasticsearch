@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,37 +20,33 @@
 package org.elasticsearch.search.facet.geodistance;
 
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
+import org.elasticsearch.search.facet.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
+public class GeoDistanceFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedParams = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
-            return new ThreadLocals.CleanableValue<Map<String, Object>>(new HashMap<String, Object>());
-        }
-    };
+    @Inject public GeoDistanceFacetProcessor(Settings settings) {
+        super(settings);
+        InternalFacet.Streams.registerStream(InternalGeoDistanceFacet.STREAM, InternalGeoDistanceFacet.TYPE);
+    }
 
-    public static final String NAME = "geo_distance";
-
-    @Override public String[] names() {
-        return new String[]{NAME, "geoDistance"};
+    @Override public String[] types() {
+        return new String[]{GeoDistanceFacet.TYPE, "geoDistance"};
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -174,5 +170,21 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
 
         return new GeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                 context);
+    }
+
+    @Override public Facet reduce(String name, List<Facet> facets) {
+        InternalGeoDistanceFacet agg = null;
+        for (Facet facet : facets) {
+            InternalGeoDistanceFacet geoDistanceFacet = (InternalGeoDistanceFacet) facet;
+            if (agg == null) {
+                agg = geoDistanceFacet;
+            } else {
+                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
+                    agg.entries[i].count += geoDistanceFacet.entries[i].count;
+                    agg.entries[i].total += geoDistanceFacet.entries[i].total;
+                }
+            }
+        }
+        return agg;
     }
 }

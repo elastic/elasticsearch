@@ -19,20 +19,15 @@
 
 package org.elasticsearch.search.facet;
 
-import java.util.List;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Filter;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SearchContextFacets {
+public abstract class FacetCollector extends Collector {
 
-    private final List<FacetCollector> facetCollectors;
+    public abstract Facet facet();
 
-    public SearchContextFacets(List<FacetCollector> facetCollectors) {
-        this.facetCollectors = facetCollectors;
-    }
-
-    public List<FacetCollector> facetCollectors() {
-        return facetCollectors;
-    }
+    public abstract void setFilter(Filter filter);
 }

@@ -24,9 +24,9 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

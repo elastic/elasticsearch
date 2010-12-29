@@ -88,7 +88,7 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         }
         builder.startObject(name);
 
-        builder.startObject(StatisticalFacetCollectorParser.NAME);
+        builder.startObject(StatisticalFacet.TYPE);
         builder.field("script", script);
         if (lang != null) {
             builder.field("lang", lang);

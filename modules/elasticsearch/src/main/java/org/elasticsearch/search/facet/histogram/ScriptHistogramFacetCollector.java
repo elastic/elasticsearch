@@ -23,8 +23,8 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

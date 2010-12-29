@@ -21,8 +21,8 @@ package org.elasticsearch.search.facet.terms;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 
 import java.io.IOException;
 

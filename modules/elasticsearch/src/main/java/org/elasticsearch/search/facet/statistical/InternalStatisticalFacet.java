@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 
@@ -32,6 +32,12 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet {
+
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readStatisticalFacet(in);
+        }
+    };
 
     private String name;
 
@@ -76,12 +82,12 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         return fieldName();
     }
 
-    @Override public Type type() {
-        return Type.STATISTICAL;
+    @Override public String type() {
+        return TYPE;
     }
 
-    @Override public Type getType() {
-        return type();
+    @Override public String getType() {
+        return TYPE;
     }
 
     @Override public long count() {
@@ -148,32 +154,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         return stdDeviation();
     }
 
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        double min = Double.NaN;
-        double max = Double.NaN;
-        double total = 0;
-        double sumOfSquares = 0;
-        long count = 0;
-
-        for (Facet facet : facets) {
-            if (!facet.name().equals(name)) {
-                continue;
-            }
-            InternalStatisticalFacet statsFacet = (InternalStatisticalFacet) facet;
-            if (statsFacet.min() < min || Double.isNaN(min)) {
-                min = statsFacet.min();
-            }
-            if (statsFacet.max() > max || Double.isNaN(max)) {
-                max = statsFacet.max();
-            }
-            total += statsFacet.total();
-            sumOfSquares += statsFacet.sumOfSquares();
-            count += statsFacet.count();
-        }
-
-        return new InternalStatisticalFacet(name, fieldName, min, max, total, sumOfSquares, count);
-    }
-
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
@@ -189,7 +169,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, StatisticalFacetCollectorParser.NAME);
+        builder.field(Fields._TYPE, StatisticalFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
         builder.field(Fields.COUNT, count());
         builder.field(Fields.TOTAL, total());

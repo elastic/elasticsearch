@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.support;
+package org.elasticsearch.search.facet;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
@@ -26,7 +26,6 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.search.facet.collector.FacetCollector;
 
 import java.io.IOException;
 

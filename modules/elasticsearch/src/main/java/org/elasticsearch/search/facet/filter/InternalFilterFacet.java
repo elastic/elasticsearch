@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 
@@ -32,6 +32,12 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public class InternalFilterFacet implements FilterFacet, InternalFacet {
+
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readFilterFacet(in);
+        }
+    };
 
     private String name;
 
@@ -46,12 +52,12 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         this.count = count;
     }
 
-    @Override public Type type() {
-        return Type.FILTER;
+    @Override public String type() {
+        return TYPE;
     }
 
-    @Override public Type getType() {
-        return type();
+    @Override public String getType() {
+        return TYPE;
     }
 
     /**
@@ -79,16 +85,6 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         return count;
     }
 
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        int count = 0;
-        for (Facet facet : facets) {
-            if (facet.name().equals(name)) {
-                count += ((FilterFacet) facet).count();
-            }
-        }
-        return new InternalFilterFacet(name, count);
-    }
-
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -96,7 +92,7 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, FilterFacetCollectorParser.NAME);
+        builder.field(Fields._TYPE, FilterFacet.TYPE);
         builder.field(Fields.COUNT, count);
         builder.endObject();
     }

@@ -19,17 +19,13 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
-import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,13 +38,19 @@ import java.util.List;
  */
 public class InternalTermsFacet implements InternalFacet, TermsFacet {
 
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readTermsFacet(in);
+        }
+    };
+
     private String name;
 
     private String fieldName;
 
-    private int requiredSize;
+    int requiredSize;
 
-    private Collection<Entry> entries = ImmutableList.of();
+    Collection<Entry> entries = ImmutableList.of();
 
     private ComparatorType comparatorType;
 
@@ -79,11 +81,11 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
         return fieldName();
     }
 
-    @Override public Type type() {
-        return Type.TERMS;
+    @Override public String type() {
+        return TYPE;
     }
 
-    @Override public Type getType() {
+    @Override public String getType() {
         return type();
     }
 
@@ -110,35 +112,6 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
         return entries.iterator();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
-        @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
-            return new ThreadLocals.CleanableValue<TObjectIntHashMap<String>>(new TObjectIntHashMap<String>());
-        }
-    };
-
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
-        aggregated.clear();
-
-        for (Facet facet : facets) {
-            if (!facet.name().equals(name)) {
-                continue;
-            }
-            TermsFacet mFacet = (TermsFacet) facet;
-            for (Entry entry : mFacet) {
-                aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
-            }
-        }
-
-        BoundedTreeSet<Entry> ordered = new BoundedTreeSet<Entry>(comparatorType.comparator(), requiredSize);
-        for (TObjectIntIterator<String> it = aggregated.iterator(); it.hasNext();) {
-            it.advance();
-            ordered.add(new Entry(it.key(), it.value()));
-        }
-
-        return new InternalTermsFacet(name, fieldName, comparatorType, requiredSize, ordered);
-    }
-
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
@@ -149,7 +122,7 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, TermsFacetCollectorParser.NAME);
+        builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
         builder.startArray(Fields.TERMS);
         for (Entry entry : entries) {

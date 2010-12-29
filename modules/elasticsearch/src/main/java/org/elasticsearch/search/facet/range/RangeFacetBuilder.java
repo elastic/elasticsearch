@@ -160,7 +160,7 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
 
         builder.startObject(name);
 
-        builder.startObject(RangeFacetCollectorParser.NAME);
+        builder.startObject(RangeFacet.TYPE);
         if (valueFieldName != null && !keyFieldName.equals(valueFieldName)) {
             builder.field("key_field", keyFieldName);
             builder.field("value_field", valueFieldName);

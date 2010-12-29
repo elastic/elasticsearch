@@ -23,13 +23,12 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.TLongDoubleIterator;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.common.trove.TLongLongIterator;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -42,8 +41,11 @@ import java.util.TreeSet;
  */
 public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
-    private static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
-    private static final TLongDoubleHashMap EMPTY_LONG_DOUBLE_MAP = new TLongDoubleHashMap();
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readHistogramFacet(in);
+        }
+    };
 
     private String name;
 
@@ -54,11 +56,11 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     private ComparatorType comparatorType;
 
-    private TLongLongHashMap counts;
+    TLongLongHashMap counts;
 
-    private TLongDoubleHashMap totals;
+    TLongDoubleHashMap totals;
 
-    private Collection<Entry> entries = null;
+    Collection<Entry> entries = null;
 
     private InternalHistogramFacet() {
     }
@@ -97,11 +99,11 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
         return valueFieldName();
     }
 
-    @Override public Type type() {
-        return Type.HISTOGRAM;
+    @Override public String type() {
+        return TYPE;
     }
 
-    @Override public Type getType() {
+    @Override public String getType() {
         return type();
     }
 
@@ -134,47 +136,6 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
         return entries;
     }
 
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        TLongLongHashMap counts = null;
-        TLongDoubleHashMap totals = null;
-
-        for (Facet facet : facets) {
-            if (!facet.name().equals(name)) {
-                continue;
-            }
-            InternalHistogramFacet histoFacet = (InternalHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
-                } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
-            }
-
-            if (!histoFacet.totals.isEmpty()) {
-                if (totals == null) {
-                    totals = histoFacet.totals;
-                } else {
-                    for (TLongDoubleIterator it = histoFacet.totals.iterator(); it.hasNext();) {
-                        it.advance();
-                        totals.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
-            }
-        }
-        if (counts == null) {
-            counts = EMPTY_LONG_LONG_MAP;
-        }
-        if (totals == null) {
-            totals = EMPTY_LONG_DOUBLE_MAP;
-        }
-
-        return new InternalHistogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, counts, totals);
-    }
-
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _KEY_FIELD = new XContentBuilderString("_key_field");
@@ -190,7 +151,7 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, HistogramFacetCollectorParser.NAME);
+        builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.field(Fields._KEY_FIELD, keyFieldName);
         builder.field(Fields._VALUE_FIELD, valueFieldName);
         builder.field(Fields._COMPARATOR, comparatorType.description());
@@ -251,4 +212,7 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
             out.writeDouble(totals.get(it.key()));
         }
     }
+
+    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
+    static final TLongDoubleHashMap EMPTY_LONG_DOUBLE_MAP = new TLongDoubleHashMap();
 }

@@ -58,6 +58,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
+import org.elasticsearch.search.TransportSearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.timer.TimerModule;
@@ -153,6 +154,7 @@ public class TransportClient extends AbstractClient {
         modules.add(new ClusterNameModule(settings));
         modules.add(new TimerModule());
         modules.add(new ThreadPoolModule(settings));
+        modules.add(new TransportSearchModule());
         modules.add(new TransportModule(settings));
         modules.add(new ClientTransportActionModule());
         modules.add(new ClientTransportModule());

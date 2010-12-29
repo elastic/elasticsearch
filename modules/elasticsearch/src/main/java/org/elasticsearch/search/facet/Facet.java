@@ -19,100 +19,12 @@
 
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.search.facet.filter.FilterFacet;
-import org.elasticsearch.search.facet.geodistance.GeoDistanceFacet;
-import org.elasticsearch.search.facet.histogram.HistogramFacet;
-import org.elasticsearch.search.facet.query.QueryFacet;
-import org.elasticsearch.search.facet.range.RangeFacet;
-import org.elasticsearch.search.facet.statistical.StatisticalFacet;
-import org.elasticsearch.search.facet.terms.TermsFacet;
-
 /**
  * A search facet.
  *
  * @author kimchy (shay.banon)
  */
 public interface Facet {
-
-    /**
-     * The type of the facet.
-     */
-    enum Type {
-        /**
-         * Terms facet type, matching {@link TermsFacet}.
-         */
-        TERMS(0, TermsFacet.class),
-        /**
-         * Query facet type, matching {@link QueryFacet}.
-         */
-        QUERY(1, QueryFacet.class),
-        /**
-         * Statistical facet type, matching {@link StatisticalFacet}.
-         */
-        STATISTICAL(2, StatisticalFacet.class),
-        /**
-         * Histogram facet type, matching {@link HistogramFacet}.
-         */
-        HISTOGRAM(3, HistogramFacet.class),
-        /**
-         * Geo Distance facet type, matching {@link GeoDistanceFacet}.
-         */
-        GEO_DISTANCE(4, GeoDistanceFacet.class),
-        /**
-         * Geo Distance facet type, matching {@link RangeFacet}.
-         */
-        RANGE(5, RangeFacet.class),
-        /**
-         * Filter facet type, matching {@link FilterFacet}.
-         */
-        FILTER(6, FilterFacet.class);
-
-        private int id;
-
-        private Class<? extends Facet> type;
-
-        Type(int id, Class<? extends Facet> type) {
-            this.id = id;
-            this.type = type;
-        }
-
-        public int id() {
-            return id;
-        }
-
-        /**
-         * The facet class type.
-         */
-        public Class<? extends Facet> type() {
-            return this.type;
-        }
-
-        /**
-         * The facet class type.
-         */
-        public Class<? extends Facet> getType() {
-            return type();
-        }
-
-        public static Type fromId(int id) {
-            if (id == 0) {
-                return TERMS;
-            } else if (id == 1) {
-                return QUERY;
-            } else if (id == 2) {
-                return STATISTICAL;
-            } else if (id == 3) {
-                return HISTOGRAM;
-            } else if (id == 4) {
-                return GEO_DISTANCE;
-            } else if (id == 5) {
-                return RANGE;
-            } else {
-                throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
-            }
-        }
-    }
 
     /**
      * The "logical" name of the search facet.
@@ -127,10 +39,10 @@ public interface Facet {
     /**
      * The type of the facet.
      */
-    Type type();
+    String type();
 
     /**
      * The type of the facet.
      */
-    Type getType();
+    String getType();
 }

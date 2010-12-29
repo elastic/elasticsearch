@@ -324,7 +324,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
             NodeChannels nodeChannels = it.next();
             it.remove();
-            nodeChannels.close();
+            nodeChannels.closeAndWait();
         }
 
         if (clientBootstrap != null) {
@@ -609,6 +609,24 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 try {
                     if (channel != null && channel.isOpen()) {
                         channel.close();
+                    }
+                } catch (Exception e) {
+                    //ignore
+                }
+            }
+        }
+
+        public void closeAndWait() {
+            closeChannelsAndWait(low);
+            closeChannelsAndWait(med);
+            closeChannelsAndWait(high);
+        }
+
+        private void closeChannelsAndWait(Channel[] channels) {
+            for (Channel channel : channels) {
+                try {
+                    if (channel != null && channel.isOpen()) {
+                        channel.close().awaitUninterruptibly();
                     }
                 } catch (Exception e) {
                     //ignore

@@ -17,16 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.terms;
+package org.elasticsearch.search.facet.terms.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
-import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -40,9 +38,9 @@ import java.util.regex.Pattern;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsScriptFieldFacetCollector extends AbstractFacetCollector {
+public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector {
 
-    private final InternalTermsFacet.ComparatorType comparatorType;
+    private final InternalStringTermsFacet.ComparatorType comparatorType;
 
     private final int size;
 
@@ -58,8 +56,8 @@ public class TermsScriptFieldFacetCollector extends AbstractFacetCollector {
 
     private final TObjectIntHashMap<String> facets;
 
-    public TermsScriptFieldFacetCollector(String facetName, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
-                                          ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+    public ScriptTermsStringFieldFacetCollector(String facetName, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
+                                                ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.size = size;
         this.comparatorType = comparatorType;
@@ -70,7 +68,7 @@ public class TermsScriptFieldFacetCollector extends AbstractFacetCollector {
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;
 
-        this.facets = TermsFacetCollector.popFacets();
+        this.facets = TermsStringFacetCollector.popFacets();
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
@@ -116,81 +114,17 @@ public class TermsScriptFieldFacetCollector extends AbstractFacetCollector {
 
     @Override public Facet facet() {
         if (facets.isEmpty()) {
-            TermsFacetCollector.pushFacets(facets);
-            return new InternalTermsFacet(facetName, sScript, comparatorType, size, ImmutableList.<InternalTermsFacet.Entry>of());
+            TermsStringFacetCollector.pushFacets(facets);
+            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
+            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(InternalStringTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
                 it.advance();
-                ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
+                ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
-            TermsFacetCollector.pushFacets(facets);
-            return new InternalTermsFacet(facetName, sScript, comparatorType, size, ordered);
-        }
-    }
-
-    public static class AggregatorValueProc extends StaticAggregatorValueProc {
-
-        private final ImmutableSet<String> excluded;
-
-        private final Matcher matcher;
-
-        private final SearchScript script;
-
-        private final Map<String, Object> scriptParams;
-
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, SearchScript script) {
-            super(facets);
-            this.excluded = excluded;
-            this.matcher = pattern != null ? pattern.matcher("") : null;
-            this.script = script;
-            if (script != null) {
-                scriptParams = Maps.newHashMapWithExpectedSize(4);
-            } else {
-                scriptParams = null;
-            }
-        }
-
-        @Override public void onValue(int docId, String value) {
-            if (excluded != null && excluded.contains(value)) {
-                return;
-            }
-            if (matcher != null && !matcher.reset(value).matches()) {
-                return;
-            }
-            if (script != null) {
-                scriptParams.put("term", value);
-                Object scriptValue = script.execute(docId, scriptParams);
-                if (scriptValue == null) {
-                    return;
-                }
-                if (scriptValue instanceof Boolean) {
-                    if (!((Boolean) scriptValue)) {
-                        return;
-                    }
-                } else {
-                    value = scriptValue.toString();
-                }
-            }
-            super.onValue(docId, value);
-        }
-    }
-
-    public static class StaticAggregatorValueProc implements FieldData.StringValueInDocProc {
-
-        private final TObjectIntHashMap<String> facets;
-
-        public StaticAggregatorValueProc(TObjectIntHashMap<String> facets) {
-            this.facets = facets;
-        }
-
-        @Override public void onValue(int docId, String value) {
-            facets.adjustOrPutValue(value, 1, 1);
-        }
-
-        public final TObjectIntHashMap<String> facets() {
-            return facets;
+            TermsStringFacetCollector.pushFacets(facets);
+            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ordered);
         }
     }
 }

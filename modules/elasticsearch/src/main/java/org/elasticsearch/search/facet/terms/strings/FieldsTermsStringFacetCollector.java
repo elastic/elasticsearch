@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.terms;
+package org.elasticsearch.search.facet.terms.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
@@ -45,7 +45,7 @@ import static org.elasticsearch.common.Strings.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsFieldsFacetCollector extends AbstractFacetCollector {
+public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
@@ -53,7 +53,7 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
 
     private final String[] indexFieldsNames;
 
-    private final InternalTermsFacet.ComparatorType comparatorType;
+    private final InternalStringTermsFacet.ComparatorType comparatorType;
 
     private final int size;
 
@@ -67,8 +67,8 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsFieldsFacetCollector(String facetName, String[] fieldsNames, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
-                                     ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+    public FieldsTermsStringFacetCollector(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
+                                           ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -100,9 +100,9 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
         }
 
         if (excluded.isEmpty() && pattern == null && this.script == null) {
-            aggregator = new StaticAggregatorValueProc(TermsFacetCollector.popFacets());
+            aggregator = new StaticAggregatorValueProc(TermsStringFacetCollector.popFacets());
         } else {
-            aggregator = new AggregatorValueProc(TermsFacetCollector.popFacets(), excluded, pattern, this.script);
+            aggregator = new AggregatorValueProc(TermsStringFacetCollector.popFacets(), excluded, pattern, this.script);
         }
     }
 
@@ -124,17 +124,17 @@ public class TermsFieldsFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
-            TermsFacetCollector.pushFacets(facets);
-            return new InternalTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ImmutableList.<InternalTermsFacet.Entry>of());
+            TermsStringFacetCollector.pushFacets(facets);
+            return new InternalStringTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
+            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(InternalStringTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
                 it.advance();
-                ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
+                ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
-            TermsFacetCollector.pushFacets(facets);
-            return new InternalTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ordered);
+            TermsStringFacetCollector.pushFacets(facets);
+            return new InternalStringTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ordered);
         }
     }
 

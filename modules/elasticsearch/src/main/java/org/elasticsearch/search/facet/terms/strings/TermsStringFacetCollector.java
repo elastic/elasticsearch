@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.terms;
+package org.elasticsearch.search.facet.terms.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsFacetCollector extends AbstractFacetCollector {
+public class TermsStringFacetCollector extends AbstractFacetCollector {
 
     static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
         @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
@@ -61,7 +61,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
-    private final InternalTermsFacet.ComparatorType comparatorType;
+    private final InternalStringTermsFacet.ComparatorType comparatorType;
 
     private final int size;
 
@@ -75,8 +75,8 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
-                               ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+    public TermsStringFacetCollector(String facetName, String fieldName, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
+                                     ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -127,16 +127,16 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalTermsFacet.Entry>of());
+            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
+            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(InternalStringTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
                 it.advance();
-                ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
+                ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ordered);
         }
     }
 

@@ -162,7 +162,7 @@ public class QueryParseContext {
 
         XContentQueryParser queryParser = indexQueryParser.queryParser(queryName);
         if (queryParser == null) {
-            throw new QueryParsingException(index, "No query parser registered for [" + queryName + "]");
+            throw new QueryParsingException(index, "No query registered for [" + queryName + "]");
         }
         Query result = queryParser.parse(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
@@ -181,14 +181,14 @@ public class QueryParseContext {
         }
         token = parser.nextToken();
         assert token == XContentParser.Token.FIELD_NAME;
-        String queryName = parser.currentName();
+        String filterName = parser.currentName();
         // move to the next START_OBJECT or START_ARRAY
         token = parser.nextToken();
         assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
 
-        XContentFilterParser filterParser = indexQueryParser.filterParser(queryName);
+        XContentFilterParser filterParser = indexQueryParser.filterParser(filterName);
         if (filterParser == null) {
-            throw new QueryParsingException(index, "No query parser registered for [" + queryName + "]");
+            throw new QueryParsingException(index, "No filter registered for [" + filterName + "]");
         }
         Filter result = filterParser.parse(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {

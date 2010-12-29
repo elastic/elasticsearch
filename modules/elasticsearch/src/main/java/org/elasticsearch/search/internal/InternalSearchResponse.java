@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.search.facet.internal.InternalFacets;
+import org.elasticsearch.search.facet.InternalFacets;
 
 import java.io.IOException;
 

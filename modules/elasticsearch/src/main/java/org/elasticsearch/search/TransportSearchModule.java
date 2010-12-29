@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.collector;
+package org.elasticsearch.search;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.search.facet.TransportFacetModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface FacetCollectorParser {
+public class TransportSearchModule extends AbstractModule implements SpawnModules {
 
-    String[] names();
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new TransportFacetModule());
+    }
 
-    FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException;
+    @Override protected void configure() {
+
+    }
 }

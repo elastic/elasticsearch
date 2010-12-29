@@ -407,25 +407,6 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
-
-        // test joining two scripts using the same facet name :)
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").scriptField("_source.stag").size(10))
-                .addFacet(termsFacet("facet1").scriptField("_source.tag").size(10))
-                .execute().actionGet();
-
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(4));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("111"), equalTo("yyy")));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("111"), equalTo("yyy")));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(2).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
-        assertThat(facet.entries().get(3).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
-        assertThat(facet.entries().get(3).count(), equalTo(1));
     }
 
     @Test public void testTermFacetWithEqualTermDistribution() throws Exception {

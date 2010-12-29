@@ -26,9 +26,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.search.geo.GeoDistance;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

@@ -29,6 +29,11 @@ import org.elasticsearch.search.facet.Facet;
 public interface QueryFacet extends Facet {
 
     /**
+     * The type of the filter facet.
+     */
+    public static final String TYPE = "query";
+
+    /**
      * The count of the facet.
      */
     long count();

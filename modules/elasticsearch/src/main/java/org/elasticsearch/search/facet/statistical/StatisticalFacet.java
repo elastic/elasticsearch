@@ -29,6 +29,11 @@ import org.elasticsearch.search.facet.Facet;
 public interface StatisticalFacet extends Facet {
 
     /**
+     * The type of the filter facet.
+     */
+    public static final String TYPE = "statistical";
+
+    /**
      * The field name of the facet.
      */
     String fieldName();

@@ -28,8 +28,8 @@ import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

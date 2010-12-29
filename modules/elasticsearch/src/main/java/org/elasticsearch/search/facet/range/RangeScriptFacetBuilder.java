@@ -139,7 +139,7 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
 
         builder.startObject(name);
 
-        builder.startObject(RangeFacetCollectorParser.NAME);
+        builder.startObject(RangeFacet.TYPE);
         builder.field("key_script", keyScript);
         builder.field("value_script", valueScript);
         if (lang != null) {

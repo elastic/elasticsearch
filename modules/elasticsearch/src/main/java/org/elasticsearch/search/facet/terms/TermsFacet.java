@@ -33,6 +33,11 @@ import java.util.List;
 public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
     /**
+     * The type of the filter facet.
+     */
+    public static final String TYPE = "terms";
+
+    /**
      * Controls how the terms facets are ordered.
      */
     public static enum ComparatorType {

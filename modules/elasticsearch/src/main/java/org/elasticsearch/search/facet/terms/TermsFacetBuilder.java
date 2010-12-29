@@ -182,7 +182,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         }
         builder.startObject(name);
 
-        builder.startObject(TermsFacetCollectorParser.NAME);
+        builder.startObject(TermsFacet.TYPE);
         if (fieldsNames != null) {
             if (fieldsNames.length == 1) {
                 builder.field("field", fieldsNames[0]);

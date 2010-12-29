@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,12 +19,21 @@
 
 package org.elasticsearch.search.facet.terms;
 
+import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
+import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetProcessor;
+import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -35,12 +44,15 @@ import java.util.regex.Pattern;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsFacetCollectorParser implements FacetCollectorParser {
+public class TermsFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    public static final String NAME = "terms";
+    @Inject public TermsFacetProcessor(Settings settings) {
+        super(settings);
+        InternalFacet.Streams.registerStream(InternalTermsFacet.STREAM, InternalTermsFacet.TYPE);
+    }
 
-    @Override public String[] names() {
-        return new String[]{NAME};
+    @Override public String[] types() {
+        return new String[]{TermsFacet.TYPE};
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -116,4 +128,34 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         }
         return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
     }
+
+    @Override public Facet reduce(String name, List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        InternalTermsFacet first = (InternalTermsFacet) facets.get(0);
+        TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
+        aggregated.clear();
+
+        for (Facet facet : facets) {
+            TermsFacet mFacet = (TermsFacet) facet;
+            for (TermsFacet.Entry entry : mFacet) {
+                aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
+            }
+        }
+
+        BoundedTreeSet<TermsFacet.Entry> ordered = new BoundedTreeSet<TermsFacet.Entry>(first.comparatorType().comparator(), first.requiredSize);
+        for (TObjectIntIterator<String> it = aggregated.iterator(); it.hasNext();) {
+            it.advance();
+            ordered.add(new TermsFacet.Entry(it.key(), it.value()));
+        }
+        first.entries = ordered;
+        return first;
+    }
+
+    private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
+        @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
+            return new ThreadLocals.CleanableValue<TObjectIntHashMap<String>>(new TObjectIntHashMap<String>());
+        }
+    };
 }

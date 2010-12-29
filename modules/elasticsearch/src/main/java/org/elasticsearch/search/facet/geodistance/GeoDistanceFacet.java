@@ -29,6 +29,11 @@ import java.util.List;
  */
 public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry> {
 
+    /**
+     * The type of the filter facet.
+     */
+    public static final String TYPE = "geo_distance";
+
     String fieldName();
 
     String getFieldName();

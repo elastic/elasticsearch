@@ -24,12 +24,11 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.internal.InternalFacets;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -41,10 +40,16 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class FacetsPhase implements SearchPhase {
+public class FacetPhase implements SearchPhase {
+
+    private final FacetParseElement facetParseElement;
+
+    @Inject public FacetPhase(FacetParseElement facetParseElement) {
+        this.facetParseElement = facetParseElement;
+    }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("facets", new FacetsParseElement());
+        return ImmutableMap.of("facets", facetParseElement);
     }
 
     @Override public void preProcess(SearchContext context) {

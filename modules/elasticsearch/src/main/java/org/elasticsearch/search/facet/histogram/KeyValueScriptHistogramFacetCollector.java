@@ -28,9 +28,9 @@ import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

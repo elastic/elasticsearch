@@ -26,7 +26,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -37,6 +37,12 @@ import java.util.List;
  */
 public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet {
 
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readGeoDistanceFacet(in);
+        }
+    };
+
     private String name;
 
     private String fieldName;
@@ -45,7 +51,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     private DistanceUnit unit;
 
-    private Entry[] entries;
+    Entry[] entries;
 
     InternalGeoDistanceFacet() {
     }
@@ -66,11 +72,11 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         return name();
     }
 
-    @Override public Type type() {
-        return Type.GEO_DISTANCE;
+    @Override public String type() {
+        return TYPE;
     }
 
-    @Override public Type getType() {
+    @Override public String getType() {
         return type();
     }
 
@@ -108,25 +114,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override public Iterator<Entry> iterator() {
         return entries().iterator();
-    }
-
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        InternalGeoDistanceFacet agg = null;
-        for (Facet facet : facets) {
-            if (!facet.name().equals(name)) {
-                continue;
-            }
-            InternalGeoDistanceFacet geoDistanceFacet = (InternalGeoDistanceFacet) facet;
-            if (agg == null) {
-                agg = geoDistanceFacet;
-            } else {
-                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
-                    agg.entries[i].count += geoDistanceFacet.entries[i].count;
-                    agg.entries[i].total += geoDistanceFacet.entries[i].total;
-                }
-            }
-        }
-        return agg;
     }
 
     public static InternalGeoDistanceFacet readGeoDistanceFacet(StreamInput in) throws IOException {
@@ -176,7 +163,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, "geo_distance");
+        builder.field(Fields._TYPE, GeoDistanceFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
         builder.field(Fields._VALUE_FIELD, valueFieldName);
         builder.field(Fields._UNIT, unit);

@@ -68,7 +68,7 @@ public class FilterFacetBuilder extends AbstractFacetBuilder {
             throw new SearchSourceBuilderException("filter must be set on filter facet for facet [" + name + "]");
         }
         builder.startObject(name);
-        builder.field(FilterFacetCollectorParser.NAME);
+        builder.field(FilterFacet.TYPE);
         filter.toXContent(builder, params);
 
         addFilterFacetAndGlobal(builder, params);

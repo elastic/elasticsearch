@@ -29,6 +29,11 @@ import java.util.List;
 public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
 
     /**
+     * The type of the filter facet.
+     */
+    public static final String TYPE = "range";
+
+    /**
      * The key field name used with this facet.
      */
     String keyFieldName();

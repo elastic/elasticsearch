@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.internal.InternalFacet;
+import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
 
@@ -32,6 +32,12 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public class InternalQueryFacet implements QueryFacet, InternalFacet {
+
+    public static Stream STREAM = new Stream() {
+        @Override public Facet readFacet(String type, StreamInput in) throws IOException {
+            return readQueryFacet(in);
+        }
+    };
 
     private String name;
 
@@ -46,12 +52,12 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
         this.count = count;
     }
 
-    @Override public Type type() {
-        return Type.QUERY;
+    @Override public String type() {
+        return TYPE;
     }
 
-    @Override public Type getType() {
-        return type();
+    @Override public String getType() {
+        return TYPE;
     }
 
     /**
@@ -79,16 +85,6 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
         return count;
     }
 
-    @Override public Facet aggregate(Iterable<Facet> facets) {
-        int count = 0;
-        for (Facet facet : facets) {
-            if (facet.name().equals(name)) {
-                count += ((QueryFacet) facet).count();
-            }
-        }
-        return new InternalQueryFacet(name, count);
-    }
-
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -96,12 +92,12 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, QueryFacetCollectorParser.NAME);
+        builder.field(Fields._TYPE, QueryFacet.TYPE);
         builder.field(Fields.COUNT, count);
         builder.endObject();
     }
 
-    public static QueryFacet readCountFacet(StreamInput in) throws IOException {
+    public static QueryFacet readQueryFacet(StreamInput in) throws IOException {
         InternalQueryFacet result = new InternalQueryFacet();
         result.readFrom(in);
         return result;

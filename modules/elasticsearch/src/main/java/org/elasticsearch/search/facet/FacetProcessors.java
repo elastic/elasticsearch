@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,20 +19,30 @@
 
 package org.elasticsearch.search.facet;
 
-import java.util.List;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.inject.Inject;
+
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SearchContextFacets {
+public class FacetProcessors {
 
-    private final List<FacetCollector> facetCollectors;
+    private final ImmutableMap<String, FacetProcessor> processors;
 
-    public SearchContextFacets(List<FacetCollector> facetCollectors) {
-        this.facetCollectors = facetCollectors;
+    @Inject public FacetProcessors(Set<FacetProcessor> processors) {
+        MapBuilder<String, FacetProcessor> builder = MapBuilder.newMapBuilder();
+        for (FacetProcessor processor : processors) {
+            for (String type : processor.types()) {
+                builder.put(type, processor);
+            }
+        }
+        this.processors = builder.immutableMap();
     }
 
-    public List<FacetCollector> facetCollectors() {
-        return facetCollectors;
+    public FacetProcessor processor(String type) {
+        return processors.get(type);
     }
 }

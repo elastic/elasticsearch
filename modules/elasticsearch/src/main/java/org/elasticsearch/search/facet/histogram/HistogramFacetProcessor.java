@@ -2,12 +2,12 @@
  * Licensed to Elastic Search and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
+ * regarding copyright ownership. Elastic Search licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,25 +19,34 @@
 
 package org.elasticsearch.search.facet.histogram;
 
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.TLongDoubleHashMap;
+import org.elasticsearch.common.trove.TLongDoubleIterator;
+import org.elasticsearch.common.trove.TLongLongHashMap;
+import org.elasticsearch.common.trove.TLongLongIterator;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
+import org.elasticsearch.search.facet.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class HistogramFacetCollectorParser implements FacetCollectorParser {
+public class HistogramFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    public static final String NAME = "histogram";
+    @Inject public HistogramFacetProcessor(Settings settings) {
+        super(settings);
+        InternalFacet.Streams.registerStream(InternalHistogramFacet.STREAM, InternalHistogramFacet.TYPE);
+    }
 
-    @Override public String[] names() {
-        return new String[]{NAME};
+    @Override public String[] types() {
+        return new String[]{HistogramFacet.TYPE};
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -101,5 +110,49 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
             // we have a value field, and its different than the key
             return new KeyValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);
         }
+    }
+
+    @Override public Facet reduce(String name, List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        TLongLongHashMap counts = null;
+        TLongDoubleHashMap totals = null;
+
+        InternalHistogramFacet firstHistoFacet = (InternalHistogramFacet) facets.get(0);
+        for (Facet facet : facets) {
+            InternalHistogramFacet histoFacet = (InternalHistogramFacet) facet;
+            if (!histoFacet.counts.isEmpty()) {
+                if (counts == null) {
+                    counts = histoFacet.counts;
+                } else {
+                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
+                        it.advance();
+                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
+                    }
+                }
+            }
+
+            if (!histoFacet.totals.isEmpty()) {
+                if (totals == null) {
+                    totals = histoFacet.totals;
+                } else {
+                    for (TLongDoubleIterator it = histoFacet.totals.iterator(); it.hasNext();) {
+                        it.advance();
+                        totals.adjustOrPutValue(it.key(), it.value(), it.value());
+                    }
+                }
+            }
+        }
+        if (counts == null) {
+            counts = InternalHistogramFacet.EMPTY_LONG_LONG_MAP;
+        }
+        if (totals == null) {
+            totals = InternalHistogramFacet.EMPTY_LONG_DOUBLE_MAP;
+        }
+        firstHistoFacet.counts = counts;
+        firstHistoFacet.totals = totals;
+
+        return firstHistoFacet;
     }
 }

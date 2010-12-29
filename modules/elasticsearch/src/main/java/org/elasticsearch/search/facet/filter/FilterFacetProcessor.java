@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,28 +20,48 @@
 package org.elasticsearch.search.facet.filter;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
+import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetProcessor;
+import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FilterFacetCollectorParser implements FacetCollectorParser {
+public class FilterFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    public static final String NAME = "filter";
+    @Inject public FilterFacetProcessor(Settings settings) {
+        super(settings);
+        InternalFacet.Streams.registerStream(InternalFilterFacet.STREAM, InternalFilterFacet.TYPE);
+    }
 
-    @Override public String[] names() {
-        return new String[]{"filter"};
+    @Override public String[] types() {
+        return new String[]{FilterFacet.TYPE};
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
         Filter facetFilter = indexQueryParser.parseInnerFilter(parser);
         return new FilterFacetCollector(facetName, facetFilter, context.filterCache());
+    }
+
+    @Override public Facet reduce(String name, List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        int count = 0;
+        for (Facet facet : facets) {
+            count += ((FilterFacet) facet).count();
+        }
+        return new InternalFilterFacet(name, count);
     }
 }

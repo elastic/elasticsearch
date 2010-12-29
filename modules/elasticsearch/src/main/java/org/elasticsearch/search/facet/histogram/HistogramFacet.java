@@ -33,6 +33,11 @@ import java.util.List;
 public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
     /**
+     * The type of the filter facet.
+     */
+    public static final String TYPE = "histogram";
+
+    /**
      * The key field name used with this facet.
      */
     String keyFieldName();

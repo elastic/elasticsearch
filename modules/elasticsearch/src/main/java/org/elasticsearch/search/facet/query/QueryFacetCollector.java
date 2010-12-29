@@ -26,8 +26,8 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.support.AbstractFacetCollector;
 
 import java.io.IOException;
 

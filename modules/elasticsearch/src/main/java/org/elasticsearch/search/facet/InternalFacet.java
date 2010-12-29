@@ -17,20 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.internal;
+package org.elasticsearch.search.facet;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.search.facet.Facet;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
 public interface InternalFacet extends Facet, Streamable, ToXContent {
 
-    /**
-     * Aggregate the data of the provided facets and returns the aggregated value. Note, this method
-     * might should handle cases of facets provided with different names, and should excllude them.
-     */
-    Facet aggregate(Iterable<Facet> facets);
+    public static interface Stream {
+        Facet readFacet(String type, StreamInput in) throws IOException;
+    }
+
+    public static class Streams {
+
+        private static ImmutableMap<String, Stream> streams = ImmutableMap.of();
+
+        public static synchronized void registerStream(Stream stream, String... types) {
+            MapBuilder<String, Stream> uStreams = MapBuilder.newMapBuilder(streams);
+            for (String type : types) {
+                uStreams.put(type, stream);
+            }
+            streams = uStreams.immutableMap();
+        }
+
+        public static Stream stream(String type) {
+            return streams.get(type);
+        }
+    }
 }

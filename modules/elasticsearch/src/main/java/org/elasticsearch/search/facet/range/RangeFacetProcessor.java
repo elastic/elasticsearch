@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,11 +20,12 @@
 package org.elasticsearch.search.facet.range;
 
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
+import org.elasticsearch.search.facet.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,12 +35,15 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class RangeFacetCollectorParser implements FacetCollectorParser {
+public class RangeFacetProcessor extends AbstractComponent implements FacetProcessor {
 
-    public static final String NAME = "range";
+    @Inject public RangeFacetProcessor(Settings settings) {
+        super(settings);
+        InternalFacet.Streams.registerStream(InternalRangeFacet.STREAM, InternalRangeFacet.TYPE);
+    }
 
-    @Override public String[] names() {
-        return new String[]{NAME};
+    @Override public String[] types() {
+        return new String[]{RangeFacet.TYPE};
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -139,5 +143,24 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
             // we have a value field, and its different than the key
             return new KeyValueRangeFacetCollector(facetName, keyField, valueField, rangeEntries, context);
         }
+    }
+
+    @Override public Facet reduce(String name, List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        InternalRangeFacet agg = null;
+        for (Facet facet : facets) {
+            InternalRangeFacet geoDistanceFacet = (InternalRangeFacet) facet;
+            if (agg == null) {
+                agg = geoDistanceFacet;
+            } else {
+                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
+                    agg.entries[i].count += geoDistanceFacet.entries[i].count;
+                    agg.entries[i].total += geoDistanceFacet.entries[i].total;
+                }
+            }
+        }
+        return agg;
     }
 }

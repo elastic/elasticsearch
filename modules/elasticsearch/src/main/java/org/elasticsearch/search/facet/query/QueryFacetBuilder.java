@@ -69,7 +69,7 @@ public class QueryFacetBuilder extends AbstractFacetBuilder {
             throw new SearchSourceBuilderException("query must be set on query facet for facet [" + name + "]");
         }
         builder.startObject(name);
-        builder.field(QueryFacetCollectorParser.NAME);
+        builder.field(QueryFacet.TYPE);
         query.toXContent(builder, params);
 
         addFilterFacetAndGlobal(builder, params);

@@ -115,7 +115,7 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         }
         builder.startObject(name);
 
-        builder.startObject(HistogramFacetCollectorParser.NAME);
+        builder.startObject(HistogramFacet.TYPE);
         if (keyFieldName != null) {
             builder.field("key_field", keyFieldName);
         } else if (keyScript != null) {

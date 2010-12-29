@@ -227,7 +227,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
 
         builder.startObject(name);
 
-        builder.startObject(GeoDistanceFacetCollectorParser.NAME);
+        builder.startObject(GeoDistanceFacet.TYPE);
 
         if (geohash != null) {
             builder.field(fieldName, geohash);

@@ -20,28 +20,16 @@
 package org.elasticsearch.search.facet;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.facet.collector.FacetCollector;
-import org.elasticsearch.search.facet.collector.FacetCollectorParser;
-import org.elasticsearch.search.facet.filter.FilterFacetCollectorParser;
-import org.elasticsearch.search.facet.geodistance.GeoDistanceFacetCollectorParser;
-import org.elasticsearch.search.facet.histogram.HistogramFacetCollectorParser;
-import org.elasticsearch.search.facet.query.QueryFacetCollectorParser;
-import org.elasticsearch.search.facet.range.RangeFacetCollectorParser;
-import org.elasticsearch.search.facet.statistical.StatisticalFacetCollectorParser;
-import org.elasticsearch.search.facet.terms.TermsFacetCollectorParser;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
-
-import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
  * <pre>
@@ -62,26 +50,12 @@ import static org.elasticsearch.common.collect.MapBuilder.*;
  *
  * @author kimchy (shay.banon)
  */
-public class FacetsParseElement implements SearchParseElement {
+public class FacetParseElement implements SearchParseElement {
 
-    private final ImmutableMap<String, FacetCollectorParser> facetCollectorParsers;
+    private final FacetProcessors facetProcessors;
 
-    public FacetsParseElement() {
-        MapBuilder<String, FacetCollectorParser> builder = newMapBuilder();
-        addFacetParser(builder, new TermsFacetCollectorParser());
-        addFacetParser(builder, new QueryFacetCollectorParser());
-        addFacetParser(builder, new StatisticalFacetCollectorParser());
-        addFacetParser(builder, new HistogramFacetCollectorParser());
-        addFacetParser(builder, new GeoDistanceFacetCollectorParser());
-        addFacetParser(builder, new RangeFacetCollectorParser());
-        addFacetParser(builder, new FilterFacetCollectorParser());
-        this.facetCollectorParsers = builder.immutableMap();
-    }
-
-    private void addFacetParser(MapBuilder<String, FacetCollectorParser> builder, FacetCollectorParser facetCollectorParser) {
-        for (String s : facetCollectorParser.names()) {
-            builder.put(s, facetCollectorParser);
-        }
+    @Inject public FacetParseElement(FacetProcessors facetProcessors) {
+        this.facetProcessors = facetProcessors;
     }
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
@@ -107,11 +81,11 @@ public class FacetsParseElement implements SearchParseElement {
                             XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
                             filter = indexQueryParser.parseInnerFilter(parser);
                         } else {
-                            FacetCollectorParser facetCollectorParser = facetCollectorParsers.get(facetFieldName);
-                            if (facetCollectorParser == null) {
+                            FacetProcessor facetProcessor = facetProcessors.processor(facetFieldName);
+                            if (facetProcessor == null) {
                                 throw new SearchParseException(context, "No facet type for [" + facetFieldName + "]");
                             }
-                            facet = facetCollectorParser.parse(topLevelFieldName, parser, context);
+                            facet = facetProcessor.parse(topLevelFieldName, parser, context);
                         }
                     } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {

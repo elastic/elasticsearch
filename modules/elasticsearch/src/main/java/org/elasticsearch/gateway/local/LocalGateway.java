@@ -354,7 +354,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         initialized = true;
 
         // if this is not a possible master node or data node, bail, we won't save anything here...
-        if (!clusterService.localNode().masterNode() || !clusterService.localNode().dataNode()) {
+        if (!clusterService.localNode().masterNode() && !clusterService.localNode().dataNode()) {
             location = null;
         } else {
             // create the location where the state will be stored

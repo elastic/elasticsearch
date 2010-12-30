@@ -187,6 +187,7 @@ public class PluginsService extends AbstractComponent {
             pluginUrls = settings.getClassLoader().getResources("es-plugin.properties");
         } catch (IOException e) {
             logger.warn("failed to find plugins from classpath", e);
+            return ImmutableMap.of();
         }
         while (pluginUrls.hasMoreElements()) {
             URL pluginUrl = pluginUrls.nextElement();

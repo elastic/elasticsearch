@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
@@ -116,20 +117,8 @@ public class Directories {
                 os.write(buffer, 0, toRead);
             }
         } finally {
-            if (os != null) {
-                try {
-                    os.close();
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-            if (ii != null) {
-                try {
-                    ii.close();
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
+            Closeables.closeQuietly(os);
+            Closeables.closeQuietly(ii);
         }
     }
 
@@ -148,20 +137,8 @@ public class Directories {
                 output = dir.createOutput(fileName);
                 copyToDirectory(is, output);
             } finally {
-                if (is != null) {
-                    try {
-                        is.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
-                if (output != null) {
-                    try {
-                        output.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
+                Closeables.closeQuietly(is);
+                Closeables.closeQuietly(output);
             }
         }
         sync(dir, fileName);
@@ -173,20 +150,8 @@ public class Directories {
             output = dir.createOutput(fileName);
             copyToDirectory(is, output);
         } finally {
-            if (is != null) {
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
-            if (output != null) {
-                try {
-                    output.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
+            Closeables.closeQuietly(is);
+            Closeables.closeQuietly(output);
         }
         sync(dir, fileName);
     }
@@ -207,16 +172,8 @@ public class Directories {
                 io.writeBytes(buffer, len);
             }
         } finally {
-            try {
-                io.close();
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                is.close();
-            } catch (Exception e) {
-                // ignore
-            }
+            Closeables.closeQuietly(io);
+            Closeables.closeQuietly(is);
         }
     }
 

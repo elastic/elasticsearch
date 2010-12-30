@@ -43,13 +43,7 @@ public interface FieldDataType<T extends FieldData> {
         public static final LongFieldDataType LONG = new LongFieldDataType();
         public static final FloatFieldDataType FLOAT = new FloatFieldDataType();
         public static final DoubleFieldDataType DOUBLE = new DoubleFieldDataType();
-
-        public static boolean isNumeric(FieldDataType type) {
-            return type == INT || type == LONG || type == FLOAT || type == DOUBLE;
-        }
     }
-
-    Class<T> fieldDataClass();
 
     FieldComparatorSource newFieldComparatorSource(FieldDataCache cache);
 

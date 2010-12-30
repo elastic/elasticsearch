@@ -32,10 +32,6 @@ import java.io.IOException;
  */
 public class LongFieldDataType implements FieldDataType<LongFieldData> {
 
-    @Override public Class<LongFieldData> fieldDataClass() {
-        return LongFieldData.class;
-    }
-
     @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {

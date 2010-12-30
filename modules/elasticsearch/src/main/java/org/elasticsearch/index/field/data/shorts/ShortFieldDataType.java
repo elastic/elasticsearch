@@ -32,10 +32,6 @@ import java.io.IOException;
  */
 public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
 
-    @Override public Class<ShortFieldData> fieldDataClass() {
-        return ShortFieldData.class;
-    }
-
     @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {

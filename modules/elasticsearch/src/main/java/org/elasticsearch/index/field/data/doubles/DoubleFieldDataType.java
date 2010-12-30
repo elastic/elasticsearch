@@ -32,10 +32,6 @@ import java.io.IOException;
  */
 public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
 
-    @Override public Class<DoubleFieldData> fieldDataClass() {
-        return DoubleFieldData.class;
-    }
-
     @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {

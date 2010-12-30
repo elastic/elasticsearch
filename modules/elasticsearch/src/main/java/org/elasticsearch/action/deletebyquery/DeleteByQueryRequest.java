@@ -293,6 +293,16 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
+
+        int size = in.readVInt();
+        if (size == 0) {
+            types = Strings.EMPTY_ARRAY;
+        } else {
+            types = new String[size];
+            for (int i = 0; i < size; i++) {
+                types[i] = in.readUTF();
+            }
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -312,6 +322,11 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+
+        out.writeVInt(types.length);
+        for (String type : types) {
+            out.writeUTF(type);
         }
     }
 

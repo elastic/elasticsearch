@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.FastStringReader;
 
@@ -31,27 +32,37 @@ import static org.elasticsearch.common.collect.Maps.*;
 /**
  * Settings loader that loads (parses) the settings in a properties format.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class PropertiesSettingsLoader implements SettingsLoader {
 
     @Override public Map<String, String> load(String source) throws IOException {
         Properties props = new Properties();
-        props.load(new FastStringReader(source));
-        Map<String, String> result = newHashMap();
-        for (Map.Entry entry : props.entrySet()) {
-            result.put((String) entry.getKey(), (String) entry.getValue());
+        FastStringReader reader = new FastStringReader(source);
+        try {
+            props.load(reader);
+            Map<String, String> result = newHashMap();
+            for (Map.Entry entry : props.entrySet()) {
+                result.put((String) entry.getKey(), (String) entry.getValue());
+            }
+            return result;
+        } finally {
+            Closeables.closeQuietly(reader);
         }
-        return result;
     }
 
     @Override public Map<String, String> load(byte[] source) throws IOException {
         Properties props = new Properties();
-        props.load(new FastByteArrayInputStream(source));
-        Map<String, String> result = newHashMap();
-        for (Map.Entry entry : props.entrySet()) {
-            result.put((String) entry.getKey(), (String) entry.getValue());
+        FastByteArrayInputStream stream = new FastByteArrayInputStream(source);
+        try {
+            props.load(stream);
+            Map<String, String> result = newHashMap();
+            for (Map.Entry entry : props.entrySet()) {
+                result.put((String) entry.getKey(), (String) entry.getValue());
+            }
+            return result;
+        } finally {
+            Closeables.closeQuietly(stream);
         }
-        return result;
     }
 }

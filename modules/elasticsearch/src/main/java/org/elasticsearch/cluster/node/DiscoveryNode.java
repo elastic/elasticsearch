@@ -42,6 +42,10 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.*;
  */
 public class DiscoveryNode implements Streamable, Serializable {
 
+    public static boolean nodeRequiresLocalStorage(Settings settings) {
+        return !(settings.getAsBoolean("node.client", false) || (!settings.getAsBoolean("node.data", true) && !settings.getAsBoolean("node.master", true)));
+    }
+
     public static Map<String, String> buildCommonNodesAttributes(Settings settings) {
         Map<String, String> attributes = Maps.newHashMap(settings.getByPrefix("node.").getAsMap());
         if (attributes.containsKey("client")) {

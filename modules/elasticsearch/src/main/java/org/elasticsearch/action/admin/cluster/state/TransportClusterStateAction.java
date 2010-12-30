@@ -85,7 +85,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
             }
 
             if (request.filteredIndices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndices(request.filteredIndices(), true);
+                String[] indices = currentState.metaData().concreteIndicesIgnoreMissing(request.filteredIndices());
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {

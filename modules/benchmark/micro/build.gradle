@@ -13,14 +13,4 @@ sourceSets.test.resources.srcDirs 'src/test/java'
 
 dependencies {
     compile project(':elasticsearch')
-
-    testCompile('org.testng:testng:5.10:jdk15') { transitive = false }
-    testCompile 'org.hamcrest:hamcrest-all:1.1'
-}
-
-test {
-    useTestNG()
-    suiteName = project.name
-    listeners = ["org.elasticsearch.util.testng.Listeners"]
-    systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
 }

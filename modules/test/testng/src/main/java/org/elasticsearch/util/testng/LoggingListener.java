@@ -37,6 +37,8 @@ public class LoggingListener extends TestListenerAdapter {
         String logsDir = context.getOutputDirectory() + "/logs";
         deleteRecursively(new File(logsDir), false);
         System.setProperty("test.log.dir", logsDir);
+        System.setProperty("es.path.data", context.getOutputDirectory() + "/data");
+        System.setProperty("es.path.work", context.getOutputDirectory() + "/work");
     }
 
     @Override public void onTestStart(ITestResult result) {

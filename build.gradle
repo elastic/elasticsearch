@@ -40,6 +40,30 @@ allprojects {
     plugins.withType(JavaPlugin).whenPluginAdded {
         sourceCompatibility = 1.6
         targetCompatibility = 1.6
+
+        test {
+            useTestNG()
+            String testSuiteName = project.name
+            suiteName = project.name
+            workingDir = rootProject.projectDir
+            options {
+                suiteNamte = testSuiteName
+                listeners << 'org.elasticsearch.util.testng.Listeners'
+            }
+            systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
+            systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
+        }
+
+        dependencies {
+            if (project.name != "test-testng") {
+                testCompile project(':test-testng')
+            }
+            testCompile('org.testng:testng:5.14.6') { transitive = false }
+            testCompile('com.beust:jcommander:1.5') { transitive = false }
+            testCompile('org.beanshell:bsh:2.0b4') { transitive = false }
+            testCompile('org.hamcrest:hamcrest-core:1.3.RC2') { transitive = false }
+            testCompile('org.hamcrest:hamcrest-library:1.3.RC2') { transitive = false }
+        }
     }
 
     repositories {

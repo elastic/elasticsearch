@@ -84,6 +84,16 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         }
     }
 
+    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+        int[] docOrders = ordinals[docId];
+        if (docOrders == null) {
+            return;
+        }
+        for (int docOrder : docOrders) {
+            proc.onValue(docId, values[docOrder]);
+        }
+    }
+
     @Override public double[] doubleValues(int docId) {
         return values(docId);
     }

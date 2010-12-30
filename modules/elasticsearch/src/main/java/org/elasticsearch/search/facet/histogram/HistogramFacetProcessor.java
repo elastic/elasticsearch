@@ -28,7 +28,10 @@ import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.common.trove.TLongLongIterator;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.facet.*;
+import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
+import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,7 +45,7 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
 
     @Inject public HistogramFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalHistogramFacet.STREAM, InternalHistogramFacet.TYPE);
+        InternalHistogramFacet.registerStreams();
     }
 
     @Override public String[] types() {

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.terms.strings;
+package org.elasticsearch.search.facet.terms.ints;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
-import org.elasticsearch.common.trove.TObjectIntIterator;
+import org.elasticsearch.common.trove.TIntIntHashMap;
+import org.elasticsearch.common.trove.TIntIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.field.data.ints.IntFieldData;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
@@ -41,20 +41,17 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsStringFacetCollector extends AbstractFacetCollector {
+public class TermsIntFacetCollector extends AbstractFacetCollector {
 
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<java.lang.String>>>(new ArrayDeque<TObjectIntHashMap<String>>());
+    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TIntIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TIntIntHashMap>>>() {
+        @Override protected ThreadLocals.CleanableValue<Deque<TIntIntHashMap>> initialValue() {
+            return new ThreadLocals.CleanableValue<Deque<TIntIntHashMap>>(new ArrayDeque<TIntIntHashMap>());
         }
     };
-
 
     private final FieldDataCache fieldDataCache;
 
@@ -70,14 +67,14 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataType fieldDataType;
 
-    private FieldData fieldData;
+    private IntFieldData fieldData;
 
     private final StaticAggregatorValueProc aggregator;
 
     private final SearchScript script;
 
-    public TermsStringFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, SearchContext context,
-                                     ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+    public TermsIntFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, SearchContext context,
+                                  String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -88,12 +85,15 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
 
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            this.indexFieldName = fieldName;
-            this.fieldDataType = FieldDataType.DefaultTypes.STRING;
+            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] doesn't have a type, can't run terms int facet collector on it");
         } else {
             // add type filter if there is exact doc mapper associated with it
             if (smartMappers.hasDocMapper()) {
                 setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
+            }
+
+            if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.INT) {
+                throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] is not of int type, can't run terms int facet collector on it");
             }
 
             this.indexFieldName = smartMappers.mapper().names().indexName();
@@ -106,15 +106,15 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
             this.script = null;
         }
 
-        if (excluded.isEmpty() && pattern == null && this.script == null) {
+        if (this.script == null) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.script);
+            aggregator = new AggregatorValueProc(popFacets(), this.script);
         }
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        fieldData = (IntFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
         if (script != null) {
             script.setNextReader(reader);
         }
@@ -125,35 +125,35 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        TObjectIntHashMap<String> facets = aggregator.facets();
+        TIntIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
+            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
-            for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
+            BoundedTreeSet<InternalIntTermsFacet.IntEntry> ordered = new BoundedTreeSet<InternalIntTermsFacet.IntEntry>(comparatorType.comparator(), size * numberOfShards);
+            for (TIntIntIterator it = facets.iterator(); it.hasNext();) {
                 it.advance();
-                ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                ordered.add(new InternalIntTermsFacet.IntEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ordered);
         }
     }
 
-    static TObjectIntHashMap<String> popFacets() {
-        Deque<TObjectIntHashMap<String>> deque = cache.get().get();
+    static TIntIntHashMap popFacets() {
+        Deque<TIntIntHashMap> deque = cache.get().get();
         if (deque.isEmpty()) {
-            deque.add(new TObjectIntHashMap<String>());
+            deque.add(new TIntIntHashMap());
         }
-        TObjectIntHashMap<String> facets = deque.pollFirst();
+        TIntIntHashMap facets = deque.pollFirst();
         facets.clear();
         return facets;
     }
 
-    static void pushFacets(TObjectIntHashMap<String> facets) {
+    static void pushFacets(TIntIntHashMap facets) {
         facets.clear();
-        Deque<TObjectIntHashMap<String>> deque = cache.get().get();
+        Deque<TIntIntHashMap> deque = cache.get().get();
         if (deque != null) {
             deque.add(facets);
         }
@@ -161,18 +161,12 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
 
     public static class AggregatorValueProc extends StaticAggregatorValueProc {
 
-        private final ImmutableSet<String> excluded;
-
-        private final Matcher matcher;
-
         private final SearchScript script;
 
         private final Map<String, Object> scriptParams;
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, SearchScript script) {
+        public AggregatorValueProc(TIntIntHashMap facets, SearchScript script) {
             super(facets);
-            this.excluded = excluded;
-            this.matcher = pattern != null ? pattern.matcher("") : null;
             this.script = script;
             if (script != null) {
                 scriptParams = Maps.newHashMapWithExpectedSize(4);
@@ -181,13 +175,7 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
             }
         }
 
-        @Override public void onValue(int docId, String value) {
-            if (excluded != null && excluded.contains(value)) {
-                return;
-            }
-            if (matcher != null && !matcher.reset(value).matches()) {
-                return;
-            }
+        @Override public void onValue(int docId, int value) {
             if (script != null) {
                 scriptParams.put("term", value);
                 Object scriptValue = script.execute(docId, scriptParams);
@@ -199,26 +187,26 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
                         return;
                     }
                 } else {
-                    value = scriptValue.toString();
+                    value = ((Number) scriptValue).intValue();
                 }
             }
             super.onValue(docId, value);
         }
     }
 
-    public static class StaticAggregatorValueProc implements FieldData.StringValueInDocProc {
+    public static class StaticAggregatorValueProc implements IntFieldData.ValueInDocProc {
 
-        private final TObjectIntHashMap<String> facets;
+        private final TIntIntHashMap facets;
 
-        public StaticAggregatorValueProc(TObjectIntHashMap<String> facets) {
+        public StaticAggregatorValueProc(TIntIntHashMap facets) {
             this.facets = facets;
         }
 
-        @Override public void onValue(int docId, String value) {
+        @Override public void onValue(int docId, int value) {
             facets.adjustOrPutValue(value, 1, 1);
         }
 
-        public final TObjectIntHashMap<String> facets() {
+        public final TIntIntHashMap facets() {
             return facets;
         }
     }

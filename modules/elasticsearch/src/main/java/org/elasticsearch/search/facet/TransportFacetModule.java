@@ -26,7 +26,7 @@ import org.elasticsearch.search.facet.histogram.InternalHistogramFacet;
 import org.elasticsearch.search.facet.query.InternalQueryFacet;
 import org.elasticsearch.search.facet.range.InternalRangeFacet;
 import org.elasticsearch.search.facet.statistical.InternalStatisticalFacet;
-import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
+import org.elasticsearch.search.facet.terms.InternalTermsFacet;
 
 /**
  * @author kimchy (shay.banon)
@@ -34,12 +34,12 @@ import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 public class TransportFacetModule extends AbstractModule {
 
     @Override protected void configure() {
-        InternalFacet.Streams.registerStream(InternalFilterFacet.STREAM, InternalFilterFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalQueryFacet.STREAM, InternalQueryFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalGeoDistanceFacet.STREAM, InternalGeoDistanceFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalHistogramFacet.STREAM, InternalHistogramFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalRangeFacet.STREAM, InternalRangeFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalStatisticalFacet.STREAM, InternalStatisticalFacet.TYPE);
-        InternalFacet.Streams.registerStream(InternalStringTermsFacet.STREAM, InternalStringTermsFacet.TYPE);
+        InternalFilterFacet.registerStreams();
+        InternalQueryFacet.registerStreams();
+        InternalGeoDistanceFacet.registerStreams();
+        InternalHistogramFacet.registerStreams();
+        InternalRangeFacet.registerStreams();
+        InternalStatisticalFacet.registerStreams();
+        InternalTermsFacet.registerStreams();
     }
 }

@@ -118,7 +118,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
             return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(InternalStringTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
+            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
                 it.advance();
                 ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));

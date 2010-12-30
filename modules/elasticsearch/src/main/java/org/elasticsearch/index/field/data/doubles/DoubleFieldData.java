@@ -107,6 +107,11 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
         void onValue(double value);
     }
 
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, double value);
+    }
 
     public static DoubleFieldData load(IndexReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new DoubleTypeLoader());

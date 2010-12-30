@@ -25,7 +25,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.*;
+import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
+import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -39,7 +42,7 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
 
     @Inject public RangeFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalRangeFacet.STREAM, InternalRangeFacet.TYPE);
+        InternalRangeFacet.registerStreams();
     }
 
     @Override public String[] types() {

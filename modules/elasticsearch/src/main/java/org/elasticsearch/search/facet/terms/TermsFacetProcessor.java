@@ -26,13 +26,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
-import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.terms.doubles.TermsDoubleFacetCollector;
+import org.elasticsearch.search.facet.terms.floats.TermsFloatFacetCollector;
 import org.elasticsearch.search.facet.terms.index.IndexNameFacetCollector;
+import org.elasticsearch.search.facet.terms.ints.TermsIntFacetCollector;
+import org.elasticsearch.search.facet.terms.longs.TermsLongFacetCollector;
+import org.elasticsearch.search.facet.terms.shorts.TermsShortFacetCollector;
 import org.elasticsearch.search.facet.terms.strings.FieldsTermsStringFacetCollector;
-import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 import org.elasticsearch.search.facet.terms.strings.ScriptTermsStringFieldFacetCollector;
 import org.elasticsearch.search.facet.terms.strings.TermsStringFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
@@ -49,7 +54,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
 
     @Inject public TermsFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalStringTermsFacet.STREAM, InternalStringTermsFacet.TYPE);
+        InternalTermsFacet.registerStreams();
     }
 
     @Override public String[] types() {
@@ -126,6 +131,21 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         }
         if (field == null && fieldsNames == null && script != null) {
             return new ScriptTermsStringFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+        }
+
+        FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(field);
+        if (fieldMapper != null) {
+            if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
+                return new TermsLongFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
+                return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
+                return new TermsIntFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
+                return new TermsFloatFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.SHORT) {
+                return new TermsShortFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+            }
         }
         return new TermsStringFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
     }

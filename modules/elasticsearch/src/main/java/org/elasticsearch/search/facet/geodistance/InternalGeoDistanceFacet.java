@@ -37,11 +37,21 @@ import java.util.List;
  */
 public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet {
 
-    public static Stream STREAM = new Stream() {
+    private static final String STREAM_TYPE = "geoDistance";
+
+    public static void registerStreams() {
+        Streams.registerStream(STREAM, STREAM_TYPE);
+    }
+
+    static Stream STREAM = new Stream() {
         @Override public Facet readFacet(String type, StreamInput in) throws IOException {
             return readGeoDistanceFacet(in);
         }
     };
+
+    @Override public String streamType() {
+        return STREAM_TYPE;
+    }
 
     private String name;
 

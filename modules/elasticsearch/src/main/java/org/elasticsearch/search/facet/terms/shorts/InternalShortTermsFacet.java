@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.terms.strings;
+package org.elasticsearch.search.facet.terms.shorts;
 
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
-import org.elasticsearch.common.trove.TObjectIntIterator;
+import org.elasticsearch.common.trove.TShortIntHashMap;
+import org.elasticsearch.common.trove.TShortIntIterator;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -41,9 +41,9 @@ import java.util.List;
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalStringTermsFacet extends InternalTermsFacet {
+public class InternalShortTermsFacet extends InternalTermsFacet {
 
-    private static final String STREAM_TYPE = "tTerms";
+    private static final String STREAM_TYPE = "sTerms";
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -59,26 +59,26 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         return STREAM_TYPE;
     }
 
-    public static class StringEntry implements Entry {
+    public static class ShortEntry implements Entry {
 
-        private String term;
-        private int count;
+        short term;
+        int count;
 
-        public StringEntry(String term, int count) {
+        public ShortEntry(short term, int count) {
             this.term = term;
             this.count = count;
         }
 
         public String term() {
-            return term;
+            return Short.toString(term);
         }
 
         public String getTerm() {
-            return term;
+            return term();
         }
 
         @Override public Number termAsNumber() {
-            return Double.parseDouble(term);
+            return term;
         }
 
         @Override public Number getTermAsNumber() {
@@ -94,7 +94,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         }
 
         @Override public int compareTo(Entry o) {
-            int i = term.compareTo(o.term());
+            short anotherVal = ((ShortEntry) o).term;
+            int i = term - anotherVal;
             if (i == 0) {
                 i = count - o.count();
                 if (i == 0) {
@@ -111,14 +112,14 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     int requiredSize;
 
-    Collection<StringEntry> entries = ImmutableList.of();
+    Collection<ShortEntry> entries = ImmutableList.of();
 
     private ComparatorType comparatorType;
 
-    InternalStringTermsFacet() {
+    InternalShortTermsFacet() {
     }
 
-    public InternalStringTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<StringEntry> entries) {
+    public InternalShortTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<ShortEntry> entries) {
         this.name = name;
         this.fieldName = fieldName;
         this.comparatorType = comparatorType;
@@ -158,14 +159,14 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         return comparatorType();
     }
 
-    @Override public List<StringEntry> entries() {
+    @Override public List<ShortEntry> entries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);
         }
-        return (List<StringEntry>) entries;
+        return (List<ShortEntry>) entries;
     }
 
-    @Override public List<StringEntry> getEntries() {
+    @Override public List<ShortEntry> getEntries() {
         return entries();
     }
 
@@ -174,9 +175,9 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
-        @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
-            return new ThreadLocals.CleanableValue<TObjectIntHashMap<String>>(new TObjectIntHashMap<String>());
+    private static ThreadLocal<ThreadLocals.CleanableValue<TShortIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TShortIntHashMap>>() {
+        @Override protected ThreadLocals.CleanableValue<TShortIntHashMap> initialValue() {
+            return new ThreadLocals.CleanableValue<TShortIntHashMap>(new TShortIntHashMap());
         }
     };
 
@@ -185,21 +186,21 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        InternalStringTermsFacet first = (InternalStringTermsFacet) facets.get(0);
-        TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
+        InternalShortTermsFacet first = (InternalShortTermsFacet) facets.get(0);
+        TShortIntHashMap aggregated = aggregateCache.get().get();
         aggregated.clear();
 
         for (Facet facet : facets) {
-            InternalStringTermsFacet mFacet = (InternalStringTermsFacet) facet;
-            for (InternalStringTermsFacet.StringEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
+            InternalShortTermsFacet mFacet = (InternalShortTermsFacet) facet;
+            for (ShortEntry entry : mFacet.entries) {
+                aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
             }
         }
 
-        BoundedTreeSet<StringEntry> ordered = new BoundedTreeSet<StringEntry>(first.comparatorType().comparator(), first.requiredSize);
-        for (TObjectIntIterator<String> it = aggregated.iterator(); it.hasNext();) {
+        BoundedTreeSet<ShortEntry> ordered = new BoundedTreeSet<ShortEntry>(first.comparatorType().comparator(), first.requiredSize);
+        for (TShortIntIterator it = aggregated.iterator(); it.hasNext();) {
             it.advance();
-            ordered.add(new StringEntry(it.key(), it.value()));
+            ordered.add(new ShortEntry(it.key(), it.value()));
         }
         first.entries = ordered;
         return first;
@@ -218,9 +219,9 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
         builder.startArray(Fields.TERMS);
-        for (Entry entry : entries) {
+        for (ShortEntry entry : entries) {
             builder.startObject();
-            builder.field(Fields.TERM, entry.term());
+            builder.field(Fields.TERM, entry.term);
             builder.field(Fields.COUNT, entry.count());
             builder.endObject();
         }
@@ -228,8 +229,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         builder.endObject();
     }
 
-    public static InternalStringTermsFacet readTermsFacet(StreamInput in) throws IOException {
-        InternalStringTermsFacet facet = new InternalStringTermsFacet();
+    public static InternalShortTermsFacet readTermsFacet(StreamInput in) throws IOException {
+        InternalShortTermsFacet facet = new InternalShortTermsFacet();
         facet.readFrom(in);
         return facet;
     }
@@ -241,9 +242,9 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         requiredSize = in.readVInt();
 
         int size = in.readVInt();
-        entries = new ArrayList<StringEntry>(size);
+        entries = new ArrayList<ShortEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new StringEntry(in.readUTF(), in.readVInt()));
+            entries.add(new ShortEntry(in.readShort(), in.readVInt()));
         }
     }
 
@@ -255,8 +256,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         out.writeVInt(requiredSize);
 
         out.writeVInt(entries.size());
-        for (Entry entry : entries) {
-            out.writeUTF(entry.term());
+        for (ShortEntry entry : entries) {
+            out.writeShort(entry.term);
             out.writeVInt(entry.count());
         }
     }

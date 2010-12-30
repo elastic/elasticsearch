@@ -78,13 +78,17 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
+                .field("lstag", 111)
                 .startArray("tag").value("xxx").value("yyy").endArray()
+                .startArray("ltag").value(1000l).value(2000l).endArray()
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
+                .field("lstag", 111)
                 .startArray("tag").value("zzz").value("yyy").endArray()
+                .startArray("ltag").value(3000l).value(2000l).endArray()
                 .endObject()).execute().actionGet();
 
         client.admin().indices().prepareRefresh().execute().actionGet();
@@ -207,13 +211,21 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
+                .field("lstag", 111)
+                .field("dstag", 111.1)
                 .startArray("tag").value("xxx").value("yyy").endArray()
+                .startArray("ltag").value(1000l).value(2000l).endArray()
+                .startArray("dtag").value(1000.1).value(2000.1).endArray()
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
+                .field("lstag", 111)
+                .field("dstag", 111.1)
                 .startArray("tag").value("zzz").value("yyy").endArray()
+                .startArray("ltag").value(3000l).value(2000l).endArray()
+                .startArray("dtag").value(3000.1).value(2000.1).endArray()
                 .endObject()).execute().actionGet();
 
         client.admin().indices().prepareRefresh().execute().actionGet();
@@ -235,6 +247,52 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        // Numeric
+
+        searchResponse = client.prepareSearch()
+                .setQuery(termQuery("stag", "111"))
+                .addFacet(termsFacet("facet1").field("lstag").size(10))
+                .addFacet(termsFacet("facet2").field("ltag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        facet = searchResponse.facets().facet("facet2");
+        assertThat(facet.name(), equalTo("facet2"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).term(), equalTo("2000"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("1000"), equalTo("3000")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000"), equalTo("3000")));
+        assertThat(facet.entries().get(2).count(), equalTo(1));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(termQuery("stag", "111"))
+                .addFacet(termsFacet("facet1").field("dstag").size(10))
+                .addFacet(termsFacet("facet2").field("dtag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111.1"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        facet = searchResponse.facets().facet("facet2");
+        assertThat(facet.name(), equalTo("facet2"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).term(), equalTo("2000.1"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
+        assertThat(facet.entries().get(2).count(), equalTo(1));
 
         // Test Facet Filter
 

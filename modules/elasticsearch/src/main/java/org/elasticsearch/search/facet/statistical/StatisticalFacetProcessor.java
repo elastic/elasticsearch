@@ -24,7 +24,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.facet.*;
+import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
+import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,7 +41,7 @@ public class StatisticalFacetProcessor extends AbstractComponent implements Face
 
     @Inject public StatisticalFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalStatisticalFacet.STREAM, InternalStatisticalFacet.TYPE);
+        InternalStatisticalFacet.registerStreams();
     }
 
     @Override public String[] types() {

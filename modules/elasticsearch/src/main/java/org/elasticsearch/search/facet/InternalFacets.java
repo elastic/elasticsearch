@@ -142,8 +142,9 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
-            out.writeUTF(facet.type());
-            ((InternalFacet) facet).writeTo(out);
+            InternalFacet internalFacet = (InternalFacet) facet;
+            out.writeUTF(internalFacet.streamType());
+            internalFacet.writeTo(out);
         }
     }
 }

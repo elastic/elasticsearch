@@ -361,6 +361,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     final BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
                     String line;
                     while ((line = reader.readLine()) != null) {
+                        if (closed) {
+                            return;
+                        }
                         if (line.length() == 0) {
                             logger.trace("[couchdb] heartbeat");
                             continue;
@@ -376,6 +379,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                             is.close();
                         } catch (IOException e1) {
                             // ignore
+                        } finally {
+                            is = null;
                         }
                     }
                     if (connection != null) {
@@ -383,6 +388,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                             connection.disconnect();
                         } catch (Exception e1) {
                             // ignore
+                        } finally {
+                            connection = null;
                         }
                     }
                     if (closed) {
@@ -394,6 +401,25 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     } catch (InterruptedException e1) {
                         if (closed) {
                             return;
+                        }
+                    }
+                } finally {
+                    if (is != null) {
+                        try {
+                            is.close();
+                        } catch (IOException e1) {
+                            // ignore
+                        } finally {
+                            is = null;
+                        }
+                    }
+                    if (connection != null) {
+                        try {
+                            connection.disconnect();
+                        } catch (Exception e1) {
+                            // ignore
+                        } finally {
+                            connection = null;
                         }
                     }
                 }

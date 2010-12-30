@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
@@ -374,15 +375,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                         stream.add(line);
                     }
                 } catch (Exception e) {
-                    if (is != null) {
-                        try {
-                            is.close();
-                        } catch (IOException e1) {
-                            // ignore
-                        } finally {
-                            is = null;
-                        }
-                    }
+                    Closeables.closeQuietly(is);
                     if (connection != null) {
                         try {
                             connection.disconnect();
@@ -404,15 +397,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                         }
                     }
                 } finally {
-                    if (is != null) {
-                        try {
-                            is.close();
-                        } catch (IOException e1) {
-                            // ignore
-                        } finally {
-                            is = null;
-                        }
-                    }
+                    Closeables.closeQuietly(is);
                     if (connection != null) {
                         try {
                             connection.disconnect();

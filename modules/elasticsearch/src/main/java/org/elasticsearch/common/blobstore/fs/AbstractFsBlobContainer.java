@@ -93,11 +93,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
                     }
                     listener.onCompleted();
                 } catch (Exception e) {
-                    try {
-                        is.close();
-                    } catch (IOException e1) {
-                        // ignore
-                    }
+                    Closeables.closeQuietly(is);
                     listener.onFailure(e);
                 }
             }

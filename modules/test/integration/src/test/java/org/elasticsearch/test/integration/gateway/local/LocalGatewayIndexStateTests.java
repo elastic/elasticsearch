@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -52,7 +53,9 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
             if (node("node" + i) != null) {
                 node("node" + i).stop();
                 // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-                ((InternalNode) node("node" + i)).injector().getInstance(Gateway.class).reset();
+                if (((InternalNode) node("node" + i)).injector().getInstance(NodeEnvironment.class).hasNodeFile()) {
+                    ((InternalNode) node("node" + i)).injector().getInstance(Gateway.class).reset();
+                }
             }
         }
         closeAllNodes();
@@ -220,5 +223,52 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
+    }
+
+    @Test public void testJustMasterNode() throws Exception {
+        logger.info("--> cleaning nodes");
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        logger.info("--> starting 1 master node non data");
+        startNode("node1", settingsBuilder().put("node.data", false).put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+
+        logger.info("--> create an index");
+        client("node1").admin().indices().prepareCreate("test").execute().actionGet();
+
+        logger.info("--> closing master node");
+        closeNode("node1");
+
+        logger.info("--> starting 1 master node non data again");
+        startNode("node1", settingsBuilder().put("node.data", false).put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+
+        logger.info("--> waiting for test index to be created");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setIndices("test").execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        logger.info("--> verify we have an index");
+        ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setFilterIndices("test").execute().actionGet();
+        assertThat(clusterStateResponse.state().metaData().hasIndex("test"), equalTo(true));
+    }
+
+    @Test public void testJustMasterNodeAndJustDataNode() throws Exception {
+        logger.info("--> cleaning nodes");
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        logger.info("--> starting 1 master node non data");
+        startNode("node1", settingsBuilder().put("node.data", false).put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        startNode("node2", settingsBuilder().put("node.master", false).put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+
+        logger.info("--> create an index");
+        client("node1").admin().indices().prepareCreate("test").execute().actionGet();
+
+        logger.info("--> waiting for test index to be created");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setIndices("test").setWaitForYellowStatus().execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        client("node1").prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
 }

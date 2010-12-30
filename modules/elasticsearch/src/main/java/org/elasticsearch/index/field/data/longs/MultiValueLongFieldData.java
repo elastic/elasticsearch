@@ -111,6 +111,39 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
+    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+        int[] docOrders = ordinals[docId];
+        if (docOrders == null) {
+            return;
+        }
+        for (int docOrder : docOrders) {
+            proc.onValue(docId, values[docOrder]);
+        }
+    }
+
+    @Override public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
+        int[] docOrders = ordinals[docId];
+        if (docOrders == null) {
+            return;
+        }
+        MutableDateTime dateTime = dateTimeCache.get().get();
+        for (int docOrder : docOrders) {
+            dateTime.setMillis(values[docOrder]);
+            proc.onValue(docId, dateTime);
+        }
+    }
+
+    @Override public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
+        int[] docOrders = ordinals[docId];
+        if (docOrders == null) {
+            return;
+        }
+        for (int docOrder : docOrders) {
+            dateTime.setMillis(values[docOrder]);
+            proc.onValue(docId, dateTime);
+        }
+    }
+
     @Override public MutableDateTime[] dates(int docId) {
         int[] docOrders = ordinals[docId];
         if (docOrders == null) {

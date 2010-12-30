@@ -40,7 +40,7 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     static final long[] EMPTY_LONG_ARRAY = new long[0];
     static final MutableDateTime[] EMPTY_DATETIME_ARRAY = new MutableDateTime[0];
 
-    private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>> dateTimeCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>>() {
+    ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>> dateTimeCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>>() {
         @Override protected ThreadLocals.CleanableValue<MutableDateTime> initialValue() {
             return new ThreadLocals.CleanableValue<MutableDateTime>(new MutableDateTime(DateTimeZone.UTC));
         }
@@ -65,6 +65,10 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         MutableDateTime dateTime = dateTimeCache.get().get();
         dateTime.setMillis(value(docId));
         return dateTime;
+    }
+
+    public void date(int docId, MutableDateTime dateTime) {
+        dateTime.setMillis(value(docId));
     }
 
     public abstract MutableDateTime[] dates(int docId);
@@ -125,6 +129,19 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         void onValue(long value);
     }
 
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, long value);
+    }
+
+    public abstract void forEachValueInDoc(int docId, DateValueInDocProc proc);
+
+    public abstract void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc);
+
+    public static interface DateValueInDocProc {
+        void onValue(int docId, MutableDateTime dateTime);
+    }
 
     public static LongFieldData load(IndexReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new LongTypeLoader());

@@ -77,6 +77,14 @@ public class SingleValueShortFieldData extends ShortFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
     @Override public short value(int docId) {
         return values[ordinals[docId]];
     }

@@ -87,6 +87,33 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            return;
+        }
+        MutableDateTime dateTime = dateTimeCache.get().get();
+        dateTime.setMillis(values[loc]);
+        proc.onValue(docId, dateTime);
+    }
+
+    @Override public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            return;
+        }
+        dateTime.setMillis(values[loc]);
+        proc.onValue(docId, dateTime);
+    }
+
     @Override public MutableDateTime[] dates(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {

@@ -71,7 +71,7 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
      * Additional parameters that can be provided to the script.
      */
     public CustomScoreQueryBuilder params(Map<String, Object> params) {
-        if (params == null) {
+        if (this.params == null) {
             this.params = params;
         } else {
             this.params.putAll(params);

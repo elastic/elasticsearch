@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -179,7 +180,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     }
                 } else {
                     // really, no shards active in this group
-                    onOperation(shard, shardIt, null, false);
+                    onOperation(null, shardIt, null, false);
                 }
             }
             // we have local operations, perform them now
@@ -219,7 +220,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             final ShardRouting shard = nextShardOrNull(shardIt);
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
-                onOperation(shard, shardIt, null, false);
+                onOperation(null, shardIt, null, false);
             } else {
                 final ShardRequest shardRequest = newShardRequest(shard, request);
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -278,7 +279,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         @SuppressWarnings({"unchecked"})
-        private void onOperation(ShardRouting shard, final ShardIterator shardIt, Throwable t, boolean alreadyThreaded) {
+        private void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t, boolean alreadyThreaded) {
             if (!hasNextShard(shardIt)) {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {

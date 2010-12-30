@@ -32,10 +32,6 @@ import java.io.IOException;
  */
 public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
 
-    @Override public Class<FloatFieldData> fieldDataClass() {
-        return FloatFieldData.class;
-    }
-
     @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {

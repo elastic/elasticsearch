@@ -41,10 +41,6 @@ dependencies {
     compile 'org.apache.lucene:lucene-analyzers:3.0.3'
     compile 'org.apache.lucene:lucene-queries:3.0.3'
     compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.3'
-
-    testCompile project(':test-testng')
-    testCompile('org.testng:testng:5.10:jdk15') { transitive = false }
-    testCompile('org.hamcrest:hamcrest-all:1.1') { transitive = false }
 }
 
 configurations {
@@ -77,14 +73,6 @@ jar << {
 
 javadoc {
     maxMemory = "1g"
-}
-
-test {
-    useTestNG()
-    jmvArgs = ["-ea", "-Xmx1024m"]
-    suiteName = project.name
-    listeners = ["org.elasticsearch.util.testng.Listeners"]
-    systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {

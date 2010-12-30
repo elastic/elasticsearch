@@ -11,12 +11,5 @@ sourceSets.test.resources.srcDirs 'src/test/java'
 
 dependencies {
     compile('org.testng:testng:5.10:jdk15') { transitive = false }
-    compile('org.slf4j:slf4j-api:1.5.11') { transitive = false }
-    compile('org.slf4j:slf4j-log4j12:1.5.11') { transitive = false }
     compile('log4j:log4j:1.2.15') { transitive = false }
-}
-
-test {
-    useTestNG()
-    systemProperties['es.test.log.conf'] = 'log4j-gradle.properties'
 }

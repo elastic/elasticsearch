@@ -28,7 +28,7 @@ import org.testng.ITestResult;
  */
 public class Listeners implements ITestListener {
 
-    private final ITestListener[] listeners = new ITestListener[]{new DotTestListener(), new LoggingListener()};
+    private final ITestListener[] listeners = new ITestListener[]{new LoggingListener()};
 
     @Override public void onTestStart(ITestResult result) {
         for (ITestListener listener : listeners) {

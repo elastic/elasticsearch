@@ -57,7 +57,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
     }
 
     public ClusterBlockLevel[] levels() {
-        return this.levels();
+        return this.levels;
     }
 
     public boolean contains(ClusterBlockLevel level) {

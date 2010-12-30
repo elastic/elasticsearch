@@ -42,6 +42,7 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -136,7 +137,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     }
                 } else {
                     // really, no shards active in this group
-                    onFirstPhaseResult(shard, shardIt, null);
+                    onFirstPhaseResult(null, shardIt, null);
                 }
             }
             // we have local operations, perform them now
@@ -184,7 +185,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             final ShardRouting shard = shardIt.nextActiveOrNull();
             if (shard == null) {
                 // no more active shards... (we should not really get here, but just for safety)
-                onFirstPhaseResult(shard, shardIt, null);
+                onFirstPhaseResult(null, shardIt, null);
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
                 if (node == null) {
@@ -229,7 +230,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, final ShardIterator shardIt, Throwable t) {
+        private void onFirstPhaseResult(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {

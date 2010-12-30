@@ -54,7 +54,7 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
     }
 
     public ScriptFilterBuilder params(Map<String, Object> params) {
-        if (params == null) {
+        if (this.params == null) {
             this.params = params;
         } else {
             this.params.putAll(params);

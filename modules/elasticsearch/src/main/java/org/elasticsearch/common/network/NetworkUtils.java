@@ -180,7 +180,7 @@ public abstract class NetworkUtils {
                 }
             }
         } else {
-            throw new UnknownHostException("network interface " + intf + " not found");
+            throw new UnknownHostException("network interface not found");
         }
         return supportsVersion;
     }

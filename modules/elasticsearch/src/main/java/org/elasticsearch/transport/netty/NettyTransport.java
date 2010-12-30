@@ -433,7 +433,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new ElasticSearchIllegalStateException("Can't add nodes to a stopped transport");
         }
         if (node == null) {
-            throw new ConnectTransportException(node, "Can't connect to a null node");
+            throw new ConnectTransportException(null, "Can't connect to a null node");
         }
         try {
             NodeChannels nodeChannels = connectedNodes.get(node);

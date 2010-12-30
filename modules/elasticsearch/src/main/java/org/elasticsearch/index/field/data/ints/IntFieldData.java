@@ -107,6 +107,11 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
         void onValue(int value);
     }
 
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, int value);
+    }
 
     public static IntFieldData load(IndexReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new IntTypeLoader());

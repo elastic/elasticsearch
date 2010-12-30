@@ -107,6 +107,11 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
         void onValue(float value);
     }
 
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, float value);
+    }
 
     public static FloatFieldData load(IndexReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new FloatTypeLoader());

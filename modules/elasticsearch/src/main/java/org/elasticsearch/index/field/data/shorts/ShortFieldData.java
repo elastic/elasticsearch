@@ -107,6 +107,11 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         void onValue(short value);
     }
 
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, short value);
+    }
 
     public static ShortFieldData load(IndexReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new ShortTypeLoader());

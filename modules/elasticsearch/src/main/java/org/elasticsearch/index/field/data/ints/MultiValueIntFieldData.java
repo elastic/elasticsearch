@@ -95,6 +95,16 @@ public class MultiValueIntFieldData extends IntFieldData {
         }
     }
 
+    @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+        int[] docOrders = ordinals[docId];
+        if (docOrders == null) {
+            return;
+        }
+        for (int docOrder : docOrders) {
+            proc.onValue(docId, values[docOrder]);
+        }
+    }
+
     @Override public double[] doubleValues(int docId) {
         int[] docOrders = ordinals[docId];
         if (docOrders == null) {

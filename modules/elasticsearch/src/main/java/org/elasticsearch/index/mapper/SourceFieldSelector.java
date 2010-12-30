@@ -29,7 +29,7 @@ import org.apache.lucene.document.FieldSelectorResult;
  */
 public class SourceFieldSelector implements FieldSelector {
 
-    public static SourceFieldSelector INSTANCE = new SourceFieldSelector();
+    public static final SourceFieldSelector INSTANCE = new SourceFieldSelector();
 
     private SourceFieldSelector() {
 

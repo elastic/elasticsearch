@@ -26,9 +26,9 @@ import org.elasticsearch.common.collect.Tuple;
  */
 public class ParsedScrollId {
 
-    public static String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
+    public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
 
-    public static String QUERY_AND_FETCH_TYPE = "queryAndFetch";
+    public static final String QUERY_AND_FETCH_TYPE = "queryAndFetch";
 
     private final String source;
 

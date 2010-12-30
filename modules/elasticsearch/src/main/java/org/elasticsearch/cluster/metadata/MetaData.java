@@ -40,7 +40,7 @@ import static org.elasticsearch.common.collect.Sets.*;
 @Immutable
 public class MetaData implements Iterable<IndexMetaData> {
 
-    public static MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
+    public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
 
     private final ImmutableMap<String, IndexMetaData> indices;
     private final ImmutableMap<String, IndexTemplateMetaData> templates;

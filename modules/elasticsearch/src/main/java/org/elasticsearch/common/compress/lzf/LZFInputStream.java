@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class LZFInputStream extends InputStream {
-    public static int EOF_FLAG = -1;
+    public static final int EOF_FLAG = -1;
 
     /* stream to be decompressed */
     private final InputStream inputStream;

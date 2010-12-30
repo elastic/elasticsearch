@@ -29,7 +29,7 @@ import org.apache.lucene.document.FieldSelectorResult;
  */
 public class AllButSourceFieldSelector implements FieldSelector {
 
-    public static AllButSourceFieldSelector INSTANCE = new AllButSourceFieldSelector();
+    public static final AllButSourceFieldSelector INSTANCE = new AllButSourceFieldSelector();
 
     @Override public FieldSelectorResult accept(String fieldName) {
         if (SourceFieldMapper.NAME.equals(fieldName)) {

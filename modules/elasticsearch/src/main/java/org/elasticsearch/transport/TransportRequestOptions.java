@@ -26,7 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class TransportRequestOptions {
 
-    public static TransportRequestOptions EMPTY = options();
+    public static final TransportRequestOptions EMPTY = options();
 
     public static TransportRequestOptions options() {
         return new TransportRequestOptions();

@@ -29,8 +29,8 @@ public enum ClusterBlockLevel {
     WRITE(1),
     METADATA(2);
 
-    public static ClusterBlockLevel[] ALL = new ClusterBlockLevel[]{READ, WRITE, METADATA};
-    public static ClusterBlockLevel[] READ_WRITE = new ClusterBlockLevel[]{READ, WRITE};
+    public static final ClusterBlockLevel[] ALL = new ClusterBlockLevel[]{READ, WRITE, METADATA};
+    public static final ClusterBlockLevel[] READ_WRITE = new ClusterBlockLevel[]{READ, WRITE};
 
     private final int id;
 

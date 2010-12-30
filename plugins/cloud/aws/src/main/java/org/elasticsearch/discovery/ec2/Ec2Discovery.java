@@ -49,10 +49,14 @@ public class Ec2Discovery extends ZenDiscovery {
                     break;
                 }
             }
-            // update the unicast zen ping to add cloud hosts provider
-            // and, while we are at it, use only it and not the multicast for example
-            unicastZenPing.addHostsProvider(new AwsEc2UnicastHostsProvider(settings, ec2Service.client()));
-            pingService.zenPings(ImmutableList.of(unicastZenPing));
+            if (unicastZenPing != null) {
+                // update the unicast zen ping to add cloud hosts provider
+                // and, while we are at it, use only it and not the multicast for example
+                unicastZenPing.addHostsProvider(new AwsEc2UnicastHostsProvider(settings, ec2Service.client()));
+                pingService.zenPings(ImmutableList.of(unicastZenPing));
+            } else {
+                logger.warn("failed to apply ec2 unicast discovery, no unicast ping found");
+            }
         }
     }
 }

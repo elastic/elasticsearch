@@ -29,7 +29,7 @@ import org.apache.lucene.document.FieldSelectorResult;
  */
 public class UidFieldSelector implements FieldSelector {
 
-    public static UidFieldSelector INSTANCE = new UidFieldSelector();
+    public static final UidFieldSelector INSTANCE = new UidFieldSelector();
 
     private UidFieldSelector() {
 

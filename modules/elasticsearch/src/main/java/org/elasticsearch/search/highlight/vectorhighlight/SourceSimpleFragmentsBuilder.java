@@ -45,7 +45,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         this.searchContext = searchContext;
     }
 
-    public static Field[] EMPTY_FIELDS = new Field[0];
+    public static final Field[] EMPTY_FIELDS = new Field[0];
 
     @Override protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with

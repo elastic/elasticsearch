@@ -41,7 +41,7 @@ import static org.elasticsearch.common.collect.Maps.*;
  */
 public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
-    public static DiscoveryNodes EMPTY_NODES = newNodesBuilder().build();
+    public static final DiscoveryNodes EMPTY_NODES = newNodesBuilder().build();
 
     private final ImmutableMap<String, DiscoveryNode> nodes;
 

@@ -49,9 +49,9 @@ public class CustomFieldQuery extends FieldQuery {
     }
 
     // hack since flatten is called from the parent constructor, so we can't pass it
-    public static ThreadLocal<IndexReader> reader = new ThreadLocal<IndexReader>();
+    public static final ThreadLocal<IndexReader> reader = new ThreadLocal<IndexReader>();
 
-    public static ThreadLocal<Boolean> highlightFilters = new ThreadLocal<Boolean>();
+    public static final ThreadLocal<Boolean> highlightFilters = new ThreadLocal<Boolean>();
 
     public CustomFieldQuery(Query query, FastVectorHighlighter highlighter) {
         this(query, highlighter.isPhraseHighlight(), highlighter.isFieldMatch());

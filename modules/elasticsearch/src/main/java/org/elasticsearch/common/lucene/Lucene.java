@@ -44,9 +44,9 @@ import java.util.Map;
  */
 public class Lucene {
 
-    @SuppressWarnings({"deprecation"}) public static Version VERSION = Version.LUCENE_CURRENT;
-    public static Version ANALYZER_VERSION = VERSION;
-    public static Version QUERYPARSER_VERSION = VERSION;
+    @SuppressWarnings({"deprecation"}) public static final Version VERSION = Version.LUCENE_CURRENT;
+    public static final Version ANALYZER_VERSION = VERSION;
+    public static final Version QUERYPARSER_VERSION = VERSION;
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());

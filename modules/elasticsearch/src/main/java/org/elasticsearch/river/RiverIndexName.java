@@ -40,7 +40,7 @@ import static java.lang.annotation.RetentionPolicy.*;
 public @interface RiverIndexName {
 
     static class Conf {
-        public static String DEFAULT_INDEX_NAME = "_river";
+        public static final String DEFAULT_INDEX_NAME = "_river";
 
         public static String indexName(Settings settings) {
             return settings.get("river.index_name", DEFAULT_INDEX_NAME);

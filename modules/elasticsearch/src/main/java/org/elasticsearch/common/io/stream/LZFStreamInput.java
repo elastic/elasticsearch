@@ -29,7 +29,7 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public class LZFStreamInput extends StreamInput {
-    public static int EOF_FLAG = -1;
+    public static final int EOF_FLAG = -1;
 
     /* the current buffer of compressed bytes */
     private final byte[] compressedBytes = new byte[LZFChunk.MAX_CHUNK_LEN];

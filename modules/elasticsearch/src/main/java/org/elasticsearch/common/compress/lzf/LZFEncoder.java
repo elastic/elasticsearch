@@ -73,7 +73,7 @@ public class LZFEncoder {
         } while (left > 0);
     }
 
-    public static ThreadLocal<ThreadLocals.CleanableValue<ChunkEncoder>> cachedEncoder = new ThreadLocal<ThreadLocals.CleanableValue<ChunkEncoder>>() {
+    public static final ThreadLocal<ThreadLocals.CleanableValue<ChunkEncoder>> cachedEncoder = new ThreadLocal<ThreadLocals.CleanableValue<ChunkEncoder>>() {
         @Override protected ThreadLocals.CleanableValue<ChunkEncoder> initialValue() {
             return new ThreadLocals.CleanableValue<ChunkEncoder>(new ChunkEncoder(LZFChunk.MAX_CHUNK_LEN));
         }

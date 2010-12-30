@@ -43,6 +43,10 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
         String getTerm();
 
+        Number termAsNumber();
+
+        Number getTermAsNumber();
+
         int count();
 
         int getCount();

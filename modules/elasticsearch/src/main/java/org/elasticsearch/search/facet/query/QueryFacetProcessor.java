@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
-import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ public class QueryFacetProcessor extends AbstractComponent implements FacetProce
 
     @Inject public QueryFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalQueryFacet.STREAM, InternalQueryFacet.TYPE);
+        InternalQueryFacet.registerStreams();
     }
 
     @Override public String[] types() {

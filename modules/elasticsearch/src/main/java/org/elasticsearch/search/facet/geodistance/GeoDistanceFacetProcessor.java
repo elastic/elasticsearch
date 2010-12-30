@@ -28,7 +28,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.search.facet.*;
+import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
+import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,7 +45,7 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
 
     @Inject public GeoDistanceFacetProcessor(Settings settings) {
         super(settings);
-        InternalFacet.Streams.registerStream(InternalGeoDistanceFacet.STREAM, InternalGeoDistanceFacet.TYPE);
+        InternalGeoDistanceFacet.registerStreams();
     }
 
     @Override public String[] types() {

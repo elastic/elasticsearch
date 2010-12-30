@@ -33,11 +33,21 @@ import java.io.IOException;
  */
 public class InternalQueryFacet implements QueryFacet, InternalFacet {
 
-    public static Stream STREAM = new Stream() {
+    private static final String STREAM_TYPE = "query";
+
+    public static void registerStreams() {
+        Streams.registerStream(STREAM, STREAM_TYPE);
+    }
+
+    static Stream STREAM = new Stream() {
         @Override public Facet readFacet(String type, StreamInput in) throws IOException {
             return readQueryFacet(in);
         }
     };
+
+    @Override public String streamType() {
+        return STREAM_TYPE;
+    }
 
     private String name;
 

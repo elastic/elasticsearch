@@ -32,6 +32,8 @@ import java.io.IOException;
  */
 public interface InternalFacet extends Facet, Streamable, ToXContent {
 
+    String streamType();
+
     public static interface Stream {
         Facet readFacet(String type, StreamInput in) throws IOException;
     }

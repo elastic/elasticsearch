@@ -82,6 +82,8 @@
       <w>linefeeds</w>
       <w>lons</w>
       <w>loopback</w>
+      <w>lstag</w>
+      <w>ltag</w>
       <w>lucene</w>
       <w>mcast</w>
       <w>memcached</w>

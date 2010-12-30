@@ -41,11 +41,21 @@ import java.util.TreeSet;
  */
 public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
-    public static Stream STREAM = new Stream() {
+    private static final String STREAM_TYPE = "histogram";
+
+    public static void registerStreams() {
+        Streams.registerStream(STREAM, STREAM_TYPE);
+    }
+
+    static Stream STREAM = new Stream() {
         @Override public Facet readFacet(String type, StreamInput in) throws IOException {
             return readHistogramFacet(in);
         }
     };
+
+    @Override public String streamType() {
+        return STREAM_TYPE;
+    }
 
     private String name;
 

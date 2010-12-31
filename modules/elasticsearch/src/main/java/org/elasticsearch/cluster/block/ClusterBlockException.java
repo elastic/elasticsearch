@@ -34,6 +34,15 @@ public class ClusterBlockException extends ElasticSearchException {
         this.blocks = blocks;
     }
 
+    public boolean retryable() {
+        for (ClusterBlock block : blocks) {
+            if (!block.retryable()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public ImmutableSet<ClusterBlock> blocks() {
         return blocks;
     }

@@ -39,7 +39,7 @@ import org.elasticsearch.indices.IndexMissingException;
  */
 public class MetaDataStateIndexService extends AbstractComponent {
 
-    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", ClusterBlockLevel.READ_WRITE);
+    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, ClusterBlockLevel.READ_WRITE);
 
     private final ClusterService clusterService;
 

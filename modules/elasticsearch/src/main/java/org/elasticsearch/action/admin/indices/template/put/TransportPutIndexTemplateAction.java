@@ -24,6 +24,7 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.inject.Inject;
@@ -61,8 +62,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
         return new PutIndexTemplateResponse();
     }
 
-    @Override protected void checkBlock(PutIndexTemplateRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, "");
+    @Override protected ClusterBlockException checkBlock(PutIndexTemplateRequest request, ClusterState state) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
     }
 
     @Override protected PutIndexTemplateResponse masterOperation(PutIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {

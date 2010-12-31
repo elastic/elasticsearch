@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
@@ -78,13 +79,14 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         return new DeleteMappingResponse();
     }
 
-    @Override protected void checkBlock(DeleteMappingRequest request, ClusterState state) {
+    @Override protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
         // update to concrete indices
-        request.indices(state.metaData().concreteIndices(request.indices()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        super.doExecute(request, listener);
+    }
 
-        for (String index : request.indices()) {
-            state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, index);
-        }
+    @Override protected ClusterBlockException checkBlock(DeleteMappingRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override protected DeleteMappingResponse masterOperation(final DeleteMappingRequest request, final ClusterState state) throws ElasticSearchException {

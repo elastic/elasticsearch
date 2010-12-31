@@ -34,7 +34,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
  */
 public interface Discovery extends LifecycleComponent<Discovery> {
 
-    final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", ClusterBlockLevel.ALL);
+    final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", true, ClusterBlockLevel.ALL);
 
     DiscoveryNode localNode();
 

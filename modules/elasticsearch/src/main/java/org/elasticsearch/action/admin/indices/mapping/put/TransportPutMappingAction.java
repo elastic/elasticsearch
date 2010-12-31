@@ -20,10 +20,12 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
@@ -62,13 +64,13 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         return new PutMappingResponse();
     }
 
-    @Override protected void checkBlock(PutMappingRequest request, ClusterState state) {
-        // update to concrete indices
-        request.indices(state.metaData().concreteIndices(request.indices()));
+    @Override protected void doExecute(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        super.doExecute(request, listener);
+    }
 
-        for (String index : request.indices()) {
-            state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, index);
-        }
+    @Override protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override protected PutMappingResponse masterOperation(PutMappingRequest request, ClusterState state) throws ElasticSearchException {

@@ -19,11 +19,20 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.*;
+import org.apache.lucene.search.highlight.Formatter;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -35,9 +44,10 @@ import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragme
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.collect.Maps.*;
 
@@ -45,6 +55,8 @@ import static org.elasticsearch.common.collect.Maps.*;
  * @author kimchy (shay.banon)
  */
 public class HighlightPhase implements SearchHitPhase {
+
+    private static final Encoder DEFAULT_ENCODER = new DefaultEncoder();
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("highlight", new HighlighterParseElement());
@@ -65,19 +77,91 @@ public class HighlightPhase implements SearchHitPhase {
                     throw new SearchException(context.shardTarget(), "No mapping found for [" + field.field() + "]");
                 }
 
-                FastVectorHighlighter highlighter = buildHighlighter(context, mapper, field);
-                FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), reader, field);
+                // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
+                // slower plain highlighter
+                if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
+                    if (!context.queryRewritten()) {
+                        try {
+                            context.updateRewriteQuery(context.searcher().rewrite(context.query()));
+                        } catch (IOException e) {
+                            throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                        }
+                    }
+                    // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
+                    // let the highlighter handle MultiTerm ones
+                    QueryScorer queryScorer = new QueryScorer(context.parsedQuery().query(), null);
+                    queryScorer.setExpandMultiTermQuery(true);
+                    Fragmenter fragmenter;
+                    if (field.numberOfFragments() == 0) {
+                        fragmenter = new NullFragmenter();
+                    } else {
+                        fragmenter = new SimpleSpanFragmenter(queryScorer, field.fragmentCharSize());
+                    }
+                    Formatter formatter = new SimpleHTMLFormatter(field.preTags()[0], field.postTags()[0]);
+                    Highlighter highlighter = new Highlighter(formatter, DEFAULT_ENCODER, queryScorer);
+                    highlighter.setTextFragmenter(fragmenter);
 
-                String[] fragments;
-                try {
-                    // a HACK to make highlighter do highlighting, even though its using the single frag list builder
-                    int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
-                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
-                } catch (IOException e) {
-                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    List<Object> textsToHighlight;
+                    if (mapper.stored()) {
+                        try {
+                            Document doc = reader.document(docId, new SingleFieldSelector(mapper.names().indexName()));
+                            textsToHighlight = new ArrayList<Object>(doc.getFields().size());
+                            for (Fieldable docField : doc.getFields()) {
+                                if (docField.stringValue() != null) {
+                                    textsToHighlight.add(docField.stringValue());
+                                }
+                            }
+                        } catch (Exception e) {
+                            throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                        }
+                    } else {
+                        SearchLookup lookup = context.lookup();
+                        lookup.setNextReader(reader);
+                        lookup.setNextDocId(docId);
+                        textsToHighlight = lookup.source().getValues(mapper.names().fullName());
+                    }
+
+                    ArrayList<TextFragment> fragsList = new ArrayList<TextFragment>();
+                    try {
+                        for (Object textToHighlight : textsToHighlight) {
+                            String text = textToHighlight.toString();
+                            Analyzer analyzer = context.mapperService().documentMapper(hit.type()).mappers().indexAnalyzer();
+                            TokenStream tokenStream = analyzer.reusableTokenStream(mapper.names().indexName(), new FastStringReader(text));
+                            TextFragment[] bestTextFragments = highlighter.getBestTextFragments(tokenStream, text, false, field.numberOfFragments());
+                            Collections.addAll(fragsList, bestTextFragments);
+                        }
+                    } catch (Exception e) {
+                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    }
+                    if (field.scoreOrdered()) {
+                        Collections.sort(fragsList, new Comparator<TextFragment>() {
+                            public int compare(TextFragment o1, TextFragment o2) {
+                                return Math.round(o2.getScore() - o1.getScore());
+                            }
+                        });
+                    }
+                    int numberOfFragments = fragsList.size() < field.numberOfFragments() ? fragsList.size() : field.numberOfFragments();
+                    String[] fragments = new String[numberOfFragments];
+                    for (int i = 0; i < fragments.length; i++) {
+                        fragments[i] = fragsList.get(i).toString();
+                    }
+                    HighlightField highlightField = new HighlightField(field.field(), fragments);
+                    highlightFields.put(highlightField.name(), highlightField);
+                } else {
+                    FastVectorHighlighter highlighter = buildHighlighter(context, mapper, field);
+                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), reader, field);
+
+                    String[] fragments;
+                    try {
+                        // a HACK to make highlighter do highlighting, even though its using the single frag list builder
+                        int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
+                        fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
+                    } catch (IOException e) {
+                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
+                    }
+                    HighlightField highlightField = new HighlightField(field.field(), fragments);
+                    highlightFields.put(highlightField.name(), highlightField);
                 }
-                HighlightField highlightField = new HighlightField(field.field(), fragments);
-                highlightFields.put(highlightField.name(), highlightField);
             }
 
             hit.highlightFields(highlightFields);

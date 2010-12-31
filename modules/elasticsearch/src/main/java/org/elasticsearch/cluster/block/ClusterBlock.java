@@ -39,12 +39,15 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
 
     private ClusterBlockLevel[] levels;
 
+    private boolean retryable;
+
     private ClusterBlock() {
     }
 
-    public ClusterBlock(int id, String description, ClusterBlockLevel... levels) {
+    public ClusterBlock(int id, String description, boolean retryable, ClusterBlockLevel... levels) {
         this.id = id;
         this.description = description;
+        this.retryable = retryable;
         this.levels = levels;
     }
 
@@ -69,9 +72,14 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         return false;
     }
 
+    public boolean retryable() {
+        return this.retryable;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Integer.toString(id));
         builder.field("description", description);
+        builder.field("retryable", retryable);
         builder.startArray("levels");
         for (ClusterBlockLevel level : levels) {
             builder.value(level.name().toLowerCase());
@@ -93,6 +101,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         for (int i = 0; i < levels.length; i++) {
             levels[i] = ClusterBlockLevel.fromId(in.readVInt());
         }
+        retryable = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -102,6 +111,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         for (ClusterBlockLevel level : levels) {
             out.writeVInt(level.id());
         }
+        out.writeBoolean(retryable);
     }
 
     public String toString() {

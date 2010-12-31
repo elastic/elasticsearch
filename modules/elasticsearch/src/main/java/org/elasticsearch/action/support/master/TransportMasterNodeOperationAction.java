@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -69,8 +70,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
         return false;
     }
 
-    protected void checkBlock(Request request, ClusterState state) {
-
+    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+        return null;
     }
 
     protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
@@ -85,17 +86,52 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
         final ClusterState clusterState = clusterService.state();
         final DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster() || localExecute(request)) {
-            threadPool.execute(new Runnable() {
-                @Override public void run() {
-                    try {
-                        checkBlock(request, clusterState);
-                        Response response = masterOperation(request, clusterState);
-                        listener.onResponse(response);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
+            // check for block, if blocked, retry, else, execute locally
+            final ClusterBlockException blockException = checkBlock(request, clusterState);
+            if (blockException != null) {
+                if (!blockException.retryable()) {
+                    listener.onFailure(blockException);
+                    return;
                 }
-            });
+                clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
+                    @Override public void postAdded() {
+                        ClusterBlockException blockException = checkBlock(request, clusterState);
+                        if (blockException == null || !blockException.retryable()) {
+                            clusterService.remove(this);
+                            innerExecute(request, listener, false);
+                        }
+                    }
+
+                    @Override public void onClose() {
+                        clusterService.remove(this);
+                        listener.onFailure(blockException);
+                    }
+
+                    @Override public void onTimeout(TimeValue timeout) {
+                        clusterService.remove(this);
+                        listener.onFailure(blockException);
+                    }
+
+                    @Override public void clusterChanged(ClusterChangedEvent event) {
+                        ClusterBlockException blockException = checkBlock(request, event.state());
+                        if (blockException == null || !blockException.retryable()) {
+                            clusterService.remove(this);
+                            innerExecute(request, listener, false);
+                        }
+                    }
+                });
+            } else {
+                threadPool.execute(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            Response response = masterOperation(request, clusterState);
+                            listener.onResponse(response);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
+            }
         } else {
             if (nodes.masterNode() == null) {
                 if (retrying) {

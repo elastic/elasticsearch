@@ -24,6 +24,7 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
 import org.elasticsearch.common.inject.Inject;
@@ -61,8 +62,8 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
         return new CloseIndexResponse();
     }
 
-    @Override protected void checkBlock(CloseIndexRequest request, ClusterState state) {
-        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, request.index());
+    @Override protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
     }
 
     @Override protected CloseIndexResponse masterOperation(CloseIndexRequest request, ClusterState state) throws ElasticSearchException {

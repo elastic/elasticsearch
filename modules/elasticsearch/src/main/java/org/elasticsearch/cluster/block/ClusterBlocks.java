@@ -100,8 +100,15 @@ public class ClusterBlocks {
     }
 
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {
+        ClusterBlockException blockException = indexBlockedException(level, index);
+        if (blockException != null) {
+            throw blockException;
+        }
+    }
+
+    public ClusterBlockException indexBlockedException(ClusterBlockLevel level, String index) {
         if (!indexBlocked(level, index)) {
-            return;
+            return null;
         }
         ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
         builder.addAll(global(level));
@@ -109,7 +116,7 @@ public class ClusterBlocks {
         if (indexBlocks != null) {
             builder.addAll(indexBlocks);
         }
-        throw new ClusterBlockException(builder.build());
+        return new ClusterBlockException(builder.build());
     }
 
     public boolean indexBlocked(ClusterBlockLevel level, String index) {
@@ -121,6 +128,27 @@ public class ClusterBlocks {
             return true;
         }
         return false;
+    }
+
+    public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
+        boolean indexIsBlocked = false;
+        for (String index : indices) {
+            if (indexBlocked(level, index)) {
+                indexIsBlocked = true;
+            }
+        }
+        if (!indexIsBlocked) {
+            return null;
+        }
+        ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
+        builder.addAll(global(level));
+        for (String index : indices) {
+            ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
+            if (indexBlocks != null) {
+                builder.addAll(indexBlocks);
+            }
+        }
+        return new ClusterBlockException(builder.build());
     }
 
     static class ImmutableLevelHolder {

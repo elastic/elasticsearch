@@ -22,9 +22,11 @@ package org.elasticsearch.deps.joda;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.common.unit.TimeValue;
 import org.testng.annotations.Test;
 
 import java.util.Date;
@@ -115,4 +117,66 @@ public class SimpleJodaTests {
 
         System.out.println(formatter.printer().print(millis));
     }
+
+    @Test public void testRounding() {
+        long TIME = utcTimeInMillis("2009-02-03T01:01:01");
+        MutableDateTime time = new MutableDateTime(DateTimeZone.UTC);
+        time.setMillis(TIME);
+        assertThat(time.monthOfYear().roundFloor().toString(), equalTo("2009-02-01T00:00:00.000Z"));
+        time.setMillis(TIME);
+        assertThat(time.hourOfDay().roundFloor().toString(), equalTo("2009-02-03T01:00:00.000Z"));
+        time.setMillis(TIME);
+        assertThat(time.dayOfMonth().roundFloor().toString(), equalTo("2009-02-03T00:00:00.000Z"));
+    }
+
+    @Test public void testRoundingSetOnTime() {
+        MutableDateTime time = new MutableDateTime(DateTimeZone.UTC);
+        time.setRounding(time.getChronology().monthOfYear(), MutableDateTime.ROUND_FLOOR);
+        time.setMillis(utcTimeInMillis("2009-02-03T01:01:01"));
+        assertThat(time.toString(), equalTo("2009-02-01T00:00:00.000Z"));
+        assertThat(time.getMillis(), equalTo(utcTimeInMillis("2009-02-01T00:00:00.000Z")));
+
+        time.setMillis(utcTimeInMillis("2009-05-03T01:01:01"));
+        assertThat(time.toString(), equalTo("2009-05-01T00:00:00.000Z"));
+        assertThat(time.getMillis(), equalTo(utcTimeInMillis("2009-05-01T00:00:00.000Z")));
+
+        time = new MutableDateTime(DateTimeZone.UTC);
+        time.setRounding(time.getChronology().dayOfMonth(), MutableDateTime.ROUND_FLOOR);
+        time.setMillis(utcTimeInMillis("2009-02-03T01:01:01"));
+        assertThat(time.toString(), equalTo("2009-02-03T00:00:00.000Z"));
+        assertThat(time.getMillis(), equalTo(utcTimeInMillis("2009-02-03T00:00:00.000Z")));
+
+        time.setMillis(utcTimeInMillis("2009-02-02T23:01:01"));
+        assertThat(time.toString(), equalTo("2009-02-02T00:00:00.000Z"));
+        assertThat(time.getMillis(), equalTo(utcTimeInMillis("2009-02-02T00:00:00.000Z")));
+    }
+
+    @Test public void testRoundingWithTimeZone() {
+        MutableDateTime time = new MutableDateTime(DateTimeZone.UTC);
+        time.setZone(DateTimeZone.forOffsetHours(-2));
+        time.setRounding(time.getChronology().dayOfMonth(), MutableDateTime.ROUND_FLOOR);
+
+        MutableDateTime utcTime = new MutableDateTime(DateTimeZone.UTC);
+        utcTime.setRounding(utcTime.getChronology().dayOfMonth(), MutableDateTime.ROUND_FLOOR);
+
+        time.setMillis(utcTimeInMillis("2009-02-03T01:01:01"));
+        utcTime.setMillis(utcTimeInMillis("2009-02-03T01:01:01"));
+
+        assertThat(time.toString(), equalTo("2009-02-02T00:00:00.000-02:00"));
+        assertThat(utcTime.toString(), equalTo("2009-02-03T00:00:00.000Z"));
+        // the time is on the 2nd, and utcTime is on the 3rd, but, because time already encapsulates
+        // time zone, the millis diff is not 24, but 22 hours
+        assertThat(time.getMillis(), equalTo(utcTime.getMillis() - TimeValue.timeValueHours(22).millis()));
+
+        time.setMillis(utcTimeInMillis("2009-02-04T01:01:01"));
+        utcTime.setMillis(utcTimeInMillis("2009-02-04T01:01:01"));
+        assertThat(time.toString(), equalTo("2009-02-03T00:00:00.000-02:00"));
+        assertThat(utcTime.toString(), equalTo("2009-02-04T00:00:00.000Z"));
+        assertThat(time.getMillis(), equalTo(utcTime.getMillis() - TimeValue.timeValueHours(22).millis()));
+    }
+
+    private long utcTimeInMillis(String time) {
+        return ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC).parseMillis(time);
+    }
+
 }

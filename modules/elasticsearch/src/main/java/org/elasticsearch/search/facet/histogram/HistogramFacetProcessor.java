@@ -22,10 +22,6 @@ package org.elasticsearch.search.facet.histogram;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.TLongDoubleIterator;
-import org.elasticsearch.common.trove.TLongLongHashMap;
-import org.elasticsearch.common.trove.TLongLongIterator;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facet.Facet;
@@ -107,8 +103,10 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
 
         if (valueScript != null) {
             return new KeyValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, comparatorType, context);
-        } else if (valueField == null || keyField.equals(valueField)) {
-            return new HistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
+        } else if (valueField == null) {
+            return new CountHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
+        } else if (keyField.equals(valueField)) {
+            return new CountAndTotalHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else {
             // we have a value field, and its different than the key
             return new KeyValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);
@@ -116,46 +114,7 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
     }
 
     @Override public Facet reduce(String name, List<Facet> facets) {
-        if (facets.size() == 1) {
-            return facets.get(0);
-        }
-        TLongLongHashMap counts = null;
-        TLongDoubleHashMap totals = null;
-
-        InternalHistogramFacet firstHistoFacet = (InternalHistogramFacet) facets.get(0);
-        for (Facet facet : facets) {
-            InternalHistogramFacet histoFacet = (InternalHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
-                } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
-            }
-
-            if (!histoFacet.totals.isEmpty()) {
-                if (totals == null) {
-                    totals = histoFacet.totals;
-                } else {
-                    for (TLongDoubleIterator it = histoFacet.totals.iterator(); it.hasNext();) {
-                        it.advance();
-                        totals.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
-            }
-        }
-        if (counts == null) {
-            counts = InternalHistogramFacet.EMPTY_LONG_LONG_MAP;
-        }
-        if (totals == null) {
-            totals = InternalHistogramFacet.EMPTY_LONG_DOUBLE_MAP;
-        }
-        firstHistoFacet.counts = counts;
-        firstHistoFacet.totals = totals;
-
-        return firstHistoFacet;
+        InternalHistogramFacet first = (InternalHistogramFacet) facets.get(0);
+        return first.reduce(name, facets);
     }
 }

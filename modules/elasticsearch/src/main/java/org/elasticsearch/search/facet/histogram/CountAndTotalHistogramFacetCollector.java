@@ -27,14 +27,12 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A histogram facet collector that uses the same field as the key as well as the
@@ -42,7 +40,7 @@ import java.util.Map;
  *
  * @author kimchy (shay.banon)
  */
-public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollector {
+public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
 
@@ -58,11 +56,9 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
     private NumericFieldData fieldData;
 
-    private final SearchScript valueScript;
-
     private final HistogramProc histoProc;
 
-    public KeyValueScriptHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountAndTotalHistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.fieldName = fieldName;
         this.interval = interval;
@@ -79,14 +75,12 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
-        this.valueScript = new SearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
-
         FieldMapper mapper = smartMappers.mapper();
 
         indexFieldName = mapper.names().indexName();
         fieldDataType = mapper.fieldDataType();
 
-        histoProc = new HistogramProc(interval, this.valueScript);
+        histoProc = new HistogramProc(interval);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
@@ -95,7 +89,6 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        valueScript.setNextReader(reader);
     }
 
     @Override public Facet facet() {
@@ -110,22 +103,18 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
         private final long interval;
 
-        private final SearchScript valueScript;
-
         private final TLongLongHashMap counts = new TLongLongHashMap();
 
         private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-        public HistogramProc(long interval, SearchScript valueScript) {
+        public HistogramProc(long interval) {
             this.interval = interval;
-            this.valueScript = valueScript;
         }
 
         @Override public void onValue(int docId, double value) {
             long bucket = bucket(value, interval);
             counts.adjustOrPutValue(bucket, 1, 1);
-            double scriptValue = ((Number) valueScript.execute(docId)).doubleValue();
-            totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
+            totals.adjustOrPutValue(bucket, value, value);
         }
 
         public TLongLongHashMap counts() {

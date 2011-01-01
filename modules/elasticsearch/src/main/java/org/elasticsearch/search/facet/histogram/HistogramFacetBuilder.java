@@ -53,7 +53,6 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
      */
     public HistogramFacetBuilder field(String field) {
         this.keyFieldName = field;
-        this.valueFieldName = field;
         return this;
     }
 
@@ -131,7 +130,7 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
         builder.startObject(name);
 
         builder.startObject(HistogramFacet.TYPE);
-        if (valueFieldName != null && !keyFieldName.equals(valueFieldName)) {
+        if (valueFieldName != null) {
             builder.field("key_field", keyFieldName);
             builder.field("value_field", valueFieldName);
         } else {

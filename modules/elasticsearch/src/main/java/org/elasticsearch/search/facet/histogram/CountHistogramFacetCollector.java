@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -40,7 +39,7 @@ import java.io.IOException;
  *
  * @author kimchy (shay.banon)
  */
-public class HistogramFacetCollector extends AbstractFacetCollector {
+public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
 
@@ -58,7 +57,7 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
 
     private final HistogramProc histoProc;
 
-    public HistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountHistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.fieldName = fieldName;
         this.interval = interval;
@@ -92,7 +91,7 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalHistogramFacet(facetName, fieldName, fieldName, interval, comparatorType, histoProc.counts(), histoProc.totals());
+        return new InternalCountHistogramFacet(facetName, fieldName, fieldName, interval, comparatorType, histoProc.counts());
     }
 
     public static long bucket(double value, long interval) {
@@ -105,8 +104,6 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
 
         private final TLongLongHashMap counts = new TLongLongHashMap();
 
-        private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
-
         public HistogramProc(long interval) {
             this.interval = interval;
         }
@@ -114,15 +111,10 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
         @Override public void onValue(int docId, double value) {
             long bucket = bucket(value, interval);
             counts.adjustOrPutValue(bucket, 1, 1);
-            totals.adjustOrPutValue(bucket, value, value);
         }
 
         public TLongLongHashMap counts() {
             return counts;
-        }
-
-        public TLongDoubleHashMap totals() {
-            return totals;
         }
     }
 }

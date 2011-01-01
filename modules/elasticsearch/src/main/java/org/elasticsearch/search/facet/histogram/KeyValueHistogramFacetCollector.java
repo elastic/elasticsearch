@@ -99,7 +99,7 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
                 double[] values = valueFieldData.doubleValues(doc);
                 int size = Math.min(keys.length, values.length);
                 for (int i = 0; i < size; i++) {
-                    long bucket = HistogramFacetCollector.bucket(keys[i], interval);
+                    long bucket = CountAndTotalHistogramFacetCollector.bucket(keys[i], interval);
                     counts.adjustOrPutValue(bucket, 1, 1);
                     totals.adjustOrPutValue(bucket, values[i], values[i]);
                 }
@@ -107,14 +107,14 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
                 // key multi valued, value is a single value
                 double value = valueFieldData.doubleValue(doc);
                 for (double key : keyFieldData.doubleValues(doc)) {
-                    long bucket = HistogramFacetCollector.bucket(key, interval);
+                    long bucket = CountAndTotalHistogramFacetCollector.bucket(key, interval);
                     counts.adjustOrPutValue(bucket, 1, 1);
                     totals.adjustOrPutValue(bucket, value, value);
                 }
             }
         } else {
             // single key value, compute the bucket once
-            long bucket = HistogramFacetCollector.bucket(keyFieldData.doubleValue(doc), interval);
+            long bucket = CountAndTotalHistogramFacetCollector.bucket(keyFieldData.doubleValue(doc), interval);
             if (valueFieldData.multiValued()) {
                 for (double value : valueFieldData.doubleValues(doc)) {
                     counts.adjustOrPutValue(bucket, 1, 1);
@@ -135,6 +135,6 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalHistogramFacet(facetName, keyFieldName, valueFieldName, interval, comparatorType, counts, totals);
+        return new InternalCountAndTotalHistogramFacet(facetName, keyFieldName, valueFieldName, interval, comparatorType, counts, totals);
     }
 }

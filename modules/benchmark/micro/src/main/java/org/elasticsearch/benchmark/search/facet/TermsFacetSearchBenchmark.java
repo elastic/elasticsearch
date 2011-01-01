@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.benchmark.search.facet.terms;
+package org.elasticsearch.benchmark.search.facet;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkResponse;

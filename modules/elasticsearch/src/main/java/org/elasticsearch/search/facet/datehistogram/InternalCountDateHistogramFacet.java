@@ -229,7 +229,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         } else {
             counts = new TLongLongHashMap(size);
             for (int i = 0; i < size; i++) {
-                long key = in.readVLong();
+                long key = in.readLong();
                 counts.put(key, in.readVLong());
             }
         }
@@ -241,7 +241,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         out.writeVInt(counts.size());
         for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
             it.advance();
-            out.writeVLong(it.key());
+            out.writeLong(it.key());
             out.writeVLong(it.value());
         }
     }

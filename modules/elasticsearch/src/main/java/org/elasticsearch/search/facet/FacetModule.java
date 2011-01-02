@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetProcessor;
 import org.elasticsearch.search.facet.filter.FilterFacetProcessor;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacetProcessor;
 import org.elasticsearch.search.facet.histogram.HistogramFacetProcessor;
@@ -44,6 +45,7 @@ public class FacetModule extends AbstractModule {
         processors.add(QueryFacetProcessor.class);
         processors.add(GeoDistanceFacetProcessor.class);
         processors.add(HistogramFacetProcessor.class);
+        processors.add(DateHistogramFacetProcessor.class);
         processors.add(RangeFacetProcessor.class);
         processors.add(StatisticalFacetProcessor.class);
         processors.add(TermsFacetProcessor.class);

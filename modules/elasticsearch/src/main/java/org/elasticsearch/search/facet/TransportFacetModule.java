@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.search.facet.datehistogram.InternalDateHistogramFacet;
 import org.elasticsearch.search.facet.filter.InternalFilterFacet;
 import org.elasticsearch.search.facet.geodistance.InternalGeoDistanceFacet;
 import org.elasticsearch.search.facet.histogram.InternalHistogramFacet;
@@ -38,6 +39,7 @@ public class TransportFacetModule extends AbstractModule {
         InternalQueryFacet.registerStreams();
         InternalGeoDistanceFacet.registerStreams();
         InternalHistogramFacet.registerStreams();
+        InternalDateHistogramFacet.registerStreams();
         InternalRangeFacet.registerStreams();
         InternalStatisticalFacet.registerStreams();
         InternalTermsFacet.registerStreams();

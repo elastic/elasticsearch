@@ -129,6 +129,7 @@ public class HistogramFacetSearchBenchmark {
                 System.err.println("--> mismatch on hits");
             }
         }
+        System.out.println("--> Warmup DONE");
 
         long totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
@@ -182,6 +183,19 @@ public class HistogramFacetSearchBenchmark {
         }
         System.out.println("--> Histogram Facet (date/l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(dateHistogramFacet("date").field("date").interval("day"))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Date Histogram Facet (date) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         clientNode.close();
 

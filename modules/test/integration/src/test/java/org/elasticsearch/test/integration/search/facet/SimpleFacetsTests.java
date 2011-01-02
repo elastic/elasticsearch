@@ -23,7 +23,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
 import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.facet.range.RangeFacet;
@@ -904,5 +907,97 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).toAsString(), equalTo("1970-01-01T00:00:53"));
         assertThat(facet.entries().get(2).count(), equalTo(1l));
         assertThat(facet.entries().get(2).fromAsString(), equalTo("1970-01-01T00:00:26"));
+    }
+
+    @Test public void testDateHistoFacets() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("date", "2009-03-05T01:01:01")
+                .field("num", 1)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("date", "2009-03-05T04:01:01")
+                .field("num", 2)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("date", "2009-03-06T01:01:01")
+                .field("num", 3)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(dateHistogramFacet("stats1").field("date").interval("day"))
+                .addFacet(dateHistogramFacet("stats2").field("date").interval("day").zone("-02:00"))
+                .addFacet(dateHistogramFacet("stats3").field("date").valueField("num").interval("day").zone("-02:00"))
+                .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").zone("-02:00"))
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+
+        DateHistogramFacet facet = searchResponse.facets().facet("stats1");
+        assertThat(facet.name(), equalTo("stats1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+        // time zone causes the dates to shift by 2
+        facet = searchResponse.facets().facet("stats2");
+        assertThat(facet.name(), equalTo("stats2"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+
+        // time zone causes the dates to shift by 2
+        facet = searchResponse.facets().facet("stats3");
+        assertThat(facet.name(), equalTo("stats3"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(0).total(), equalTo(1d));
+        assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), equalTo(5d));
+
+        // time zone causes the dates to shift by 2
+        facet = searchResponse.facets().facet("stats4");
+        assertThat(facet.name(), equalTo("stats4"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(0).total(), equalTo(2d));
+        assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), equalTo(10d));
+    }
+
+    private long utcTimeInMillis(String time) {
+        return timeInMillis(time, DateTimeZone.UTC);
+    }
+
+    private long timeInMillis(String time, DateTimeZone zone) {
+        return ISODateTimeFormat.dateOptionalTimeParser().withZone(zone).parseMillis(time);
     }
 }

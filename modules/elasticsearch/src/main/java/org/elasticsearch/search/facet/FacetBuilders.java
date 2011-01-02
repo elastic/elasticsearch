@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet;
 
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetBuilder;
 import org.elasticsearch.search.facet.filter.FilterFacetBuilder;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacetBuilder;
 import org.elasticsearch.search.facet.histogram.HistogramFacetBuilder;
@@ -67,6 +68,10 @@ public class FacetBuilders {
 
     public static HistogramFacetBuilder histogramFacet(String facetName) {
         return new HistogramFacetBuilder(facetName);
+    }
+
+    public static DateHistogramFacetBuilder dateHistogramFacet(String facetName) {
+        return new DateHistogramFacetBuilder(facetName);
     }
 
     public static HistogramScriptFacetBuilder histogramScriptFacet(String facetName) {

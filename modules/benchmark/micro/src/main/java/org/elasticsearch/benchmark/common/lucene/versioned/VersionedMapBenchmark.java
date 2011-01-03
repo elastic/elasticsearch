@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.benchmark.util.lucene.versioned;
+package org.elasticsearch.benchmark.common.lucene.versioned;
 
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.lucene.versioned.ConcurrentVersionedMap;

@@ -223,7 +223,11 @@ public class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         long totalHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
+        boolean timedOut = false;
         for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
+            if (queryResultProvider.queryResult().searchTimedOut()) {
+                timedOut = true;
+            }
             totalHits += queryResultProvider.queryResult().topDocs().totalHits;
             if (!Float.isNaN(queryResultProvider.queryResult().topDocs().getMaxScore())) {
                 maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
@@ -265,7 +269,8 @@ public class SearchPhaseController {
                 }
             }
         }
+
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
-        return new InternalSearchResponse(searchHits, facets);
+        return new InternalSearchResponse(searchHits, facets, timedOut);
     }
 }

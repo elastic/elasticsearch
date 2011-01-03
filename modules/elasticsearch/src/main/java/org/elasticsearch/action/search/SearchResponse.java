@@ -95,6 +95,20 @@ public class SearchResponse implements ActionResponse, ToXContent {
     }
 
     /**
+     * Has the search operation timed out.
+     */
+    public boolean timedOut() {
+        return internalResponse.timedOut();
+    }
+
+    /**
+     * Has the search operation timed out.
+     */
+    public boolean isTimedOut() {
+        return timedOut();
+    }
+
+    /**
      * How long the search took.
      */
     public TimeValue took() {
@@ -205,6 +219,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
         static final XContentBuilderString SHARD = new XContentBuilderString("shard");
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
+        static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -212,6 +227,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
             builder.field(Fields._SCROLL_ID, scrollId);
         }
         builder.field(Fields.TOOK, tookInMillis);
+        builder.field(Fields.TIMED_OUT, timedOut());
         builder.startObject(Fields._SHARDS);
         builder.field(Fields.TOTAL, totalShards());
         builder.field(Fields.SUCCESSFUL, successfulShards());

@@ -41,12 +41,19 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalFacets facets;
 
+    private boolean timedOut;
+
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, boolean timedOut) {
         this.hits = hits;
         this.facets = facets;
+        this.timedOut = timedOut;
+    }
+
+    public boolean timedOut() {
+        return this.timedOut;
     }
 
     public SearchHits hits() {
@@ -75,6 +82,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
+        timedOut = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -85,5 +93,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             out.writeBoolean(true);
             facets.writeTo(out);
         }
+        out.writeBoolean(timedOut);
     }
 }

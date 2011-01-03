@@ -38,7 +38,7 @@ public class SimpleUuidBenchmark {
         for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
             UUID.randomUUID().toString();
         }
-        System.out.println("Generated in " + stopWatch.stop().totalTime() + " TP Millis " + (stopWatch.totalTime().millisFrac() / NUMBER_OF_ITERATIONS));
+        System.out.println("Generated in " + stopWatch.stop().totalTime() + " TP Millis " + (NUMBER_OF_ITERATIONS / stopWatch.totalTime().millisFrac()));
 
         System.out.println("Generating using " + NUMBER_OF_THREADS + " threads with " + NUMBER_OF_ITERATIONS + " iterations");
         final CountDownLatch latch = new CountDownLatch(NUMBER_OF_THREADS);
@@ -59,6 +59,6 @@ public class SimpleUuidBenchmark {
         }
         latch.await();
         stopWatch.stop();
-        System.out.println("Generate in " + stopWatch.totalTime() + " TP Millis " + (stopWatch.totalTime().millisFrac() / (NUMBER_OF_ITERATIONS * NUMBER_OF_THREADS)));
+        System.out.println("Generate in " + stopWatch.totalTime() + " TP Millis " + ((NUMBER_OF_ITERATIONS * NUMBER_OF_THREADS) / stopWatch.totalTime().millisFrac()));
     }
 }

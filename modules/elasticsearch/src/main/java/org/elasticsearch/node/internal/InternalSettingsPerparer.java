@@ -46,28 +46,33 @@ public class InternalSettingsPerparer {
         Environment environment = new Environment(settingsBuilder.build());
 
         if (loadConfigSettings) {
-            try {
-                settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
-            } catch (FailedToResolveConfigException e) {
-                // ignore
-            } catch (NoClassDefFoundError e) {
-                // ignore, no yaml
-            }
-            try {
-                settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.json"));
-            } catch (FailedToResolveConfigException e) {
-                // ignore
-            }
-            try {
-                settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.properties"));
-            } catch (FailedToResolveConfigException e) {
-                // ignore
-            }
+            boolean explicitSettingsProvided = false;
             if (System.getProperty("es.config") != null) {
+                explicitSettingsProvided = true;
                 settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.config")));
             }
             if (System.getProperty("elasticsearch.config") != null) {
+                explicitSettingsProvided = true;
                 settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("elasticsearch.config")));
+            }
+            if (!explicitSettingsProvided) {
+                try {
+                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
+                } catch (FailedToResolveConfigException e) {
+                    // ignore
+                } catch (NoClassDefFoundError e) {
+                    // ignore, no yaml
+                }
+                try {
+                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.json"));
+                } catch (FailedToResolveConfigException e) {
+                    // ignore
+                }
+                try {
+                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.properties"));
+                } catch (FailedToResolveConfigException e) {
+                    // ignore
+                }
             }
         }
 

@@ -104,12 +104,12 @@ public class QueryParseContext {
         return indexQueryParser.indexCache;
     }
 
-    public MapperQueryParser queryParser(QueryParserSettings settings) {
+    public MapperQueryParser singleQueryParser(QueryParserSettings settings) {
         queryParser.reset(settings);
         return queryParser;
     }
 
-    public MultiFieldMapperQueryParser queryParser(MultiFieldQueryParserSettings settings) {
+    public MultiFieldMapperQueryParser multiQueryParser(MultiFieldQueryParserSettings settings) {
         multiFieldQueryParser.reset(settings);
         return multiFieldQueryParser;
     }

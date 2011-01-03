@@ -12,6 +12,7 @@ modules/test/integration/build/
 modules/test/testng/build/
 modules/benchmark/micro/build/
 plugins/analysis/icu/build
+plugins/analysis/snowball/build
 plugins/cloud/aws/build
 plugins/hadoop/build
 plugins/lang/groovy/build

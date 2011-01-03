@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="lucene-snowball">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+    <jarDirectory url="file://$PROJECT_DIR$" recursive="false" />
+  </library>
+</component>

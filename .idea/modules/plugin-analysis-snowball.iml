@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/../../plugins/analysis/snowball/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../plugins/analysis/snowball/build/classes/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../plugins/analysis/snowball">
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/analysis/snowball/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/analysis/snowball/src/test/java" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/analysis/snowball/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="elasticsearch" />
+    <orderEntry type="module-library">
+      <library name="snowball4j">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-snowball/jars/lucene-snowball-3.0.3.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module" module-name="test-testng" />
+    <orderEntry type="library" name="testng" level="project" />
+    <orderEntry type="library" name="hamcrest" level="project" />
+  </component>
+</module>
+

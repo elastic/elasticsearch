@@ -147,7 +147,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.stop();
         initialStateSent.set(false);
         if (sendLeaveRequest) {
-            if (!master) {
+            if (!master && latestDiscoNodes.masterNode() != null) {
                 try {
                     membership.sendLeaveRequestBlocking(latestDiscoNodes.masterNode(), localNode, TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {

@@ -131,7 +131,7 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
             return query;
         }
 
-        MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
+        MapperQueryParser queryParser = parseContext.singleQueryParser(qpSettings);
 
         try {
             query = queryParser.parse(qpSettings.queryString());

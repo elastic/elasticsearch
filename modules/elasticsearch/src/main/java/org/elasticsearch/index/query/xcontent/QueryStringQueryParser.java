@@ -177,13 +177,13 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
         if (qpSettings.fields() != null) {
             if (qpSettings.fields().size() == 1) {
                 qpSettings.defaultField(qpSettings.fields().get(0));
-                queryParser = parseContext.queryParser(qpSettings);
+                queryParser = parseContext.singleQueryParser(qpSettings);
             } else {
                 qpSettings.defaultField(null); // reset defaultField when using multi query parser
-                queryParser = parseContext.queryParser(qpSettings);
+                queryParser = parseContext.multiQueryParser(qpSettings);
             }
         } else {
-            queryParser = parseContext.queryParser(qpSettings);
+            queryParser = parseContext.singleQueryParser(qpSettings);
         }
 
 

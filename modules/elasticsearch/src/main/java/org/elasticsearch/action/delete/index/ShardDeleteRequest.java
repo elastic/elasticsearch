@@ -39,6 +39,7 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
     private String type;
     private String id;
     private boolean refresh = false;
+    private long version;
 
     ShardDeleteRequest(IndexDeleteRequest request, int shardId) {
         this.index = request.index();
@@ -49,6 +50,7 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
         consistencyLevel(request.consistencyLevel());
         timeout = request.timeout();
         this.refresh = request.refresh();
+        this.version = request.version();
     }
 
     ShardDeleteRequest() {
@@ -81,12 +83,21 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
         return this.refresh;
     }
 
+    public void version(long version) {
+        this.version = version;
+    }
+
+    public long version() {
+        return this.version;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardId = in.readVInt();
         type = in.readUTF();
         id = in.readUTF();
         refresh = in.readBoolean();
+        version = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -95,5 +106,6 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest {
         out.writeUTF(type);
         out.writeUTF(id);
         out.writeBoolean(refresh);
+        out.writeLong(version);
     }
 }

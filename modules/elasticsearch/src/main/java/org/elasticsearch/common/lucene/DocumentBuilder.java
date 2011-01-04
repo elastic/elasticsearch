@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.lucene.uid.UidField;
 
 /**
  * @author kimchy (Shay Banon)
@@ -32,6 +33,14 @@ public class DocumentBuilder {
 
     public static DocumentBuilder doc() {
         return new DocumentBuilder();
+    }
+
+    public static Fieldable uidField(String value) {
+        return uidField(value, 0);
+    }
+
+    public static Fieldable uidField(String value, long version) {
+        return new UidField("_uid", value, version);
     }
 
     public static FieldBuilder field(String name, String value) {

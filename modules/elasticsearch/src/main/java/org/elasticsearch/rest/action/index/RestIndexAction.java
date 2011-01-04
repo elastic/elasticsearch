@@ -29,11 +29,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 
@@ -65,6 +69,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
+        indexRequest.version(RestActions.parseVersion(request));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {
@@ -102,6 +107,7 @@ public class RestIndexAction extends BaseRestHandler {
                             .field(Fields._INDEX, result.index())
                             .field(Fields._TYPE, result.type())
                             .field(Fields._ID, result.id())
+                            .field(Fields._VERSION, result.version())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
@@ -110,8 +116,15 @@ public class RestIndexAction extends BaseRestHandler {
             }
 
             @Override public void onFailure(Throwable e) {
+                Throwable t = unwrapCause(e);
+                RestResponse.Status status = RestResponse.Status.INTERNAL_SERVER_ERROR;
+                if (t instanceof VersionConflictEngineException) {
+                    status = RestResponse.Status.CONFLICT;
+                } else if (t instanceof DocumentAlreadyExistsEngineException) {
+                    status = RestResponse.Status.CONFLICT;
+                }
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, status, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }
@@ -124,6 +137,7 @@ public class RestIndexAction extends BaseRestHandler {
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
     }
 
 }

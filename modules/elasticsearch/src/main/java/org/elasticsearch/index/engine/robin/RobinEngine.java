@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine.robin;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.IndexWriters;
 import org.elasticsearch.common.lucene.ReaderSearcherHolder;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -48,6 +50,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -103,6 +107,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private volatile int disableFlushCounter = 0;
 
+    private final ConcurrentMap<String, VersionValue> versionMap;
+
+    private final Object[] dirtyLocks;
+
     @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                                MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                                AnalysisService analysisService, SimilarityService similarityService) throws EngineException {
@@ -124,6 +132,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         this.mergeScheduler = mergeScheduler;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
+
+        this.versionMap = new ConcurrentHashMap<String, VersionValue>(1000);
+        this.dirtyLocks = new Object[componentSettings.getAsInt("concurrency", 10000)];
+        for (int i = 0; i < dirtyLocks.length; i++) {
+            dirtyLocks[i] = new Object();
+        }
     }
 
     @Override public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
@@ -202,18 +216,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     switch (op.opType()) {
                         case CREATE:
                             Create create = (Create) op;
-                            writer.addDocument(create.doc(), create.analyzer());
-                            translog.add(new Translog.Create(create));
+                            innerCreate(create, writer);
                             break;
                         case INDEX:
                             Index index = (Index) op;
-                            writer.updateDocument(index.uid(), index.doc(), index.analyzer());
-                            translog.add(new Translog.Index(index));
+                            innerIndex(index, writer);
                             break;
                         case DELETE:
                             Delete delete = (Delete) op;
-                            writer.deleteDocuments(delete.uid());
-                            translog.add(new Translog.Delete(delete));
+                            innerDelete(delete, writer);
                             break;
                     }
                 } catch (Exception e) {
@@ -222,13 +233,25 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     }
                     switch (op.opType()) {
                         case CREATE:
-                            failures[i] = new CreateFailedEngineException(shardId, (Create) op, e);
+                            if (e instanceof EngineException) {
+                                failures[i] = (EngineException) e;
+                            } else {
+                                failures[i] = new CreateFailedEngineException(shardId, (Create) op, e);
+                            }
                             break;
                         case INDEX:
-                            failures[i] = new IndexFailedEngineException(shardId, (Index) op, e);
+                            if (e instanceof EngineException) {
+                                failures[i] = (EngineException) e;
+                            } else {
+                                failures[i] = new IndexFailedEngineException(shardId, (Index) op, e);
+                            }
                             break;
                         case DELETE:
-                            failures[i] = new DeleteFailedEngineException(shardId, (Delete) op, e);
+                            if (e instanceof EngineException) {
+                                failures[i] = (EngineException) e;
+                            } else {
+                                failures[i] = new DeleteFailedEngineException(shardId, (Delete) op, e);
+                            }
                             break;
                     }
                 }
@@ -254,8 +277,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             if (writer == null) {
                 throw new EngineClosedException(shardId);
             }
-            writer.addDocument(create.doc(), create.analyzer());
-            translog.add(new Translog.Create(create));
+            innerCreate(create, writer);
             dirty = true;
             if (create.refresh()) {
                 refresh(new Refresh(false));
@@ -267,6 +289,76 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
+    private void innerCreate(Create create, IndexWriter writer) throws IOException {
+        synchronized (dirtyLock(create.uid())) {
+            UidField uidField = create.uidField();
+            if (create.origin() == Operation.Origin.RECOVERY) {
+                // on recovery, we get the actual version we want to use
+                if (create.version() != 0) {
+                    versionMap.put(create.uid().text(), new VersionValue(create.version(), false));
+                }
+                uidField.version(create.version());
+                writer.addDocument(create.doc(), create.analyzer());
+                translog.add(new Translog.Create(create));
+            } else {
+                long expectedVersion = create.version();
+                long currentVersion;
+                VersionValue versionValue = versionMap.get(create.uid().text());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(create.uid());
+                } else {
+                    currentVersion = versionValue.version();
+                }
+
+                // same logic as index
+                long updatedVersion;
+                if (create.origin() == Operation.Origin.PRIMARY) {
+                    if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
+                        if (currentVersion == -1) {
+                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), -1, expectedVersion);
+                        } else if (expectedVersion != currentVersion) {
+                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
+                        }
+                    }
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // if (index.origin() == Operation.Origin.REPLICA) {
+                    if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // if it does not exists, and its considered the first index operation (replicas are 1 of)
+                        // then nothing to do
+                        if (!(currentVersion == -1 && create.version() == 1)) {
+                            // with replicas, we only check for previous version, we allow to set a future version
+                            if (expectedVersion <= currentVersion) {
+                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
+                            }
+                        }
+                    }
+                    // replicas already hold the "future" version
+                    updatedVersion = create.version();
+                }
+
+                // if the doc does not exists or it exists but not delete
+                if (versionValue != null) {
+                    if (!versionValue.delete()) {
+                        throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
+                    }
+                } else if (currentVersion != -1) {
+                    // its not deleted, its already there
+                    throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
+                }
+
+                versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false));
+                uidField.version(updatedVersion);
+                create.version(updatedVersion);
+
+                writer.addDocument(create.doc(), create.analyzer());
+                translog.add(new Translog.Create(create));
+            }
+        }
+    }
+
     @Override public void index(Index index) throws EngineException {
         rwl.readLock().lock();
         try {
@@ -274,8 +366,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             if (writer == null) {
                 throw new EngineClosedException(shardId);
             }
-            writer.updateDocument(index.uid(), index.doc(), index.analyzer());
-            translog.add(new Translog.Index(index));
+
+            innerIndex(index, writer);
             dirty = true;
             if (index.refresh()) {
                 refresh(new Refresh(false));
@@ -287,6 +379,71 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
+    private void innerIndex(Index index, IndexWriter writer) throws IOException {
+        synchronized (dirtyLock(index.uid())) {
+            UidField uidField = index.uidField();
+            if (index.origin() == Operation.Origin.RECOVERY) {
+                // on recovery, we get the actual version we want to use
+                if (index.version() != 0) {
+                    versionMap.put(index.uid().text(), new VersionValue(index.version(), false));
+                }
+                uidField.version(index.version());
+                writer.updateDocument(index.uid(), index.doc(), index.analyzer());
+                translog.add(new Translog.Index(index));
+            } else {
+                long expectedVersion = index.version();
+                long currentVersion;
+                VersionValue versionValue = versionMap.get(index.uid().text());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(index.uid());
+                } else {
+                    currentVersion = versionValue.version();
+                }
+
+                long updatedVersion;
+                if (index.origin() == Operation.Origin.PRIMARY) {
+                    if (expectedVersion != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
+                        // this is important, since we don't allow to preset a version in order to handle deletes
+                        if (currentVersion == -1) {
+                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), -1, expectedVersion);
+                        } else if (expectedVersion != currentVersion) {
+                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
+                        }
+                    }
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // if (index.origin() == Operation.Origin.REPLICA) {
+                    if (currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // if it does not exists, and its considered the first index operation (replicas are 1 of)
+                        // then nothing to do
+                        if (!(currentVersion == -1 && index.version() == 1)) {
+                            // with replicas, we only check for previous version, we allow to set a future version
+                            if (expectedVersion <= currentVersion) {
+                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
+                            }
+                        }
+                    }
+                    // replicas already hold the "future" version
+                    updatedVersion = index.version();
+                }
+
+                versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false));
+                uidField.version(updatedVersion);
+                index.version(updatedVersion);
+
+                if (currentVersion == -1) {
+                    // document does not exists, we can optimize for create
+                    writer.addDocument(index.doc(), index.analyzer());
+                } else {
+                    writer.updateDocument(index.uid(), index.doc(), index.analyzer());
+                }
+                translog.add(new Translog.Index(index));
+            }
+        }
+    }
+
     @Override public void delete(Delete delete) throws EngineException {
         rwl.readLock().lock();
         try {
@@ -294,8 +451,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             if (writer == null) {
                 throw new EngineClosedException(shardId);
             }
-            writer.deleteDocuments(delete.uid());
-            translog.add(new Translog.Delete(delete));
+            innerDelete(delete, writer);
             dirty = true;
             if (delete.refresh()) {
                 refresh(new Refresh(false));
@@ -304,6 +460,69 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             throw new DeleteFailedEngineException(shardId, delete, e);
         } finally {
             rwl.readLock().unlock();
+        }
+    }
+
+    private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
+        synchronized (dirtyLock(delete.uid())) {
+            if (delete.origin() == Operation.Origin.RECOVERY) {
+                // update the version with the exact version from recovery, assuming we have it
+                if (delete.version() != 0) {
+                    versionMap.put(delete.uid().text(), new VersionValue(delete.version(), true));
+                }
+
+                writer.deleteDocuments(delete.uid());
+                translog.add(new Translog.Delete(delete));
+            } else {
+                long currentVersion;
+                VersionValue versionValue = versionMap.get(delete.uid().text());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(delete.uid());
+                } else {
+                    currentVersion = versionValue.version();
+                }
+
+                long updatedVersion;
+                if (delete.origin() == Operation.Origin.PRIMARY) {
+                    if (delete.version() != 0 && currentVersion != -2) { // -2 means we don't have a version, so ignore...
+                        // an explicit version is provided, see if there is a conflict
+                        // if the current version is -1, means we did not find anything, and
+                        // a version is provided, so we do expect to find a doc under that version
+                        if (currentVersion == -1) {
+                            throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
+                        } else if (delete.version() != currentVersion) {
+                            throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
+                        }
+                    }
+                    updatedVersion = currentVersion < 0 ? 1 : currentVersion + 1;
+                } else { // if (delete.origin() == Operation.Origin.REPLICA) {
+                    // on replica, the version is the future value expected (returned from the operation on the primary)
+                    if (currentVersion != -2) { // -2 means we don't have a version in the index, ignore
+                        // only check if we have a version for it, otherwise, ignore (see later)
+                        if (currentVersion != -1) {
+                            // with replicas, we only check for previous version, we allow to set a future version
+                            if (delete.version() <= currentVersion) {
+                                throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion - 1, delete.version());
+                            }
+                        }
+                    }
+                    // replicas already hold the "future" version
+                    updatedVersion = delete.version();
+                }
+
+                if (currentVersion == -1) {
+                    // if the doc does not exists, just update with doc 0
+                    delete.version(0).notFound(true);
+                } else if (versionValue != null && versionValue.delete()) {
+                    // if its a delete on delete and we have the current delete version, return it
+                    delete.version(versionValue.version()).notFound(true);
+                } else {
+                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true));
+                    delete.version(updatedVersion);
+                    writer.deleteDocuments(delete.uid());
+                    translog.add(new Translog.Delete(delete));
+                }
+            }
         }
     }
 
@@ -437,6 +656,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     throw new FlushFailedEngineException(shardId, e);
                 }
             }
+            versionMap.clear();
+            dirty = true; // force a refresh
+            refresh(new Refresh(true));
         } finally {
             rwl.writeLock().unlock();
         }
@@ -582,6 +804,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
         closed = true;
         rwl.writeLock().lock();
+        this.versionMap.clear();
         try {
             if (nrtResource != null) {
                 this.nrtResource.forceClose();
@@ -599,6 +822,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         } finally {
             indexWriter = null;
             rwl.writeLock().unlock();
+        }
+    }
+
+    private Object dirtyLock(Term uid) {
+        return dirtyLocks[Math.abs(uid.hashCode()) % dirtyLocks.length];
+    }
+
+    private long loadCurrentVersionFromIndex(Term uid) {
+        // no version, get the version from the index
+        Searcher searcher = searcher();
+        try {
+            return UidField.loadVersion(searcher.reader(), uid);
+        } finally {
+            searcher.release();
         }
     }
 
@@ -661,6 +898,24 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         @Override public boolean release() throws ElasticSearchException {
             nrtHolder.release();
             return true;
+        }
+    }
+
+    static class VersionValue {
+        private long version;
+        private final boolean delete;
+
+        VersionValue(long version, boolean delete) {
+            this.version = version;
+            this.delete = delete;
+        }
+
+        public long version() {
+            return version;
+        }
+
+        public boolean delete() {
+            return delete;
         }
     }
 }

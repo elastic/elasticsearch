@@ -124,6 +124,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private OpType opType = OpType.INDEX;
 
     private boolean refresh = false;
+    private long version = 0;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
@@ -519,6 +520,19 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.refresh;
     }
 
+    /**
+     * Sets the version, which will cause the index operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public IndexRequest version(long version) {
+        this.version = version;
+        return this;
+    }
+
+    public long version() {
+        return this.version;
+    }
+
     public void processRouting(MappingMetaData mappingMd) throws ElasticSearchException {
         if (routing == null && mappingMd.routing().hasPath()) {
             XContentParser parser = null;
@@ -561,6 +575,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
+        version = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -588,6 +603,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         out.writeBytes(source, sourceOffset, sourceLength);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
+        out.writeLong(version);
     }
 
     @Override public String toString() {

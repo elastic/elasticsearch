@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.index.IndexDeleteRequest;
 import org.elasticsearch.action.delete.index.IndexDeleteResponse;
+import org.elasticsearch.action.delete.index.ShardDeleteResponse;
 import org.elasticsearch.action.delete.index.TransportIndexDeleteAction;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -97,8 +98,17 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                 if (request.routing() == null) {
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
                         @Override public void onResponse(IndexDeleteResponse indexDeleteResponse) {
-                            // TODO what do we do with specific failed shards?
-                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id()));
+                            // go over the response, see if we have found one, and the version if found
+                            long version = 0;
+                            boolean found = false;
+                            for (ShardDeleteResponse deleteResponse : indexDeleteResponse.responses()) {
+                                if (!deleteResponse.notFound()) {
+                                    found = true;
+                                    version = deleteResponse.version();
+                                    break;
+                                }
+                            }
+                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(), version, !found));
                         }
 
                         @Override public void onFailure(Throwable e) {
@@ -135,16 +145,20 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override protected DeleteResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indexShard(shardRequest);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id());
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
+                .origin(Engine.Operation.Origin.PRIMARY);
         delete.refresh(request.refresh());
         indexShard.delete(delete);
-        return new DeleteResponse(request.index(), request.type(), request.id());
+        // update the request with teh version so it will go to the replicas
+        request.version(delete.version());
+        return new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.notFound());
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indexShard(shardRequest);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id());
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
+                .origin(Engine.Operation.Origin.REPLICA);
         delete.refresh(request.refresh());
         indexShard.delete(delete);
     }

@@ -28,11 +28,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 
@@ -51,6 +55,7 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.routing(request.param("routing"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
+        deleteRequest.version(RestActions.parseVersion(request));
         // we just send a response, no need to fork
         deleteRequest.listenerThreaded(false);
         // we don't spawn, then fork if local
@@ -70,24 +75,44 @@ public class RestDeleteAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field("ok", true)
-                            .field("_index", result.index())
-                            .field("_type", result.type())
-                            .field("_id", result.id())
+                            .field(Fields.OK, true)
+                            .field(Fields.FOUND, !result.notFound())
+                            .field(Fields._INDEX, result.index())
+                            .field(Fields._TYPE, result.type())
+                            .field(Fields._ID, result.id())
+                            .field(Fields._VERSION, result.version())
                             .endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    RestResponse.Status status = OK;
+                    if (result.notFound()) {
+                        status = NOT_FOUND;
+                    }
+                    channel.sendResponse(new XContentRestResponse(request, status, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
             }
 
             @Override public void onFailure(Throwable e) {
+                Throwable t = unwrapCause(e);
+                RestResponse.Status status = RestResponse.Status.INTERNAL_SERVER_ERROR;
+                if (t instanceof VersionConflictEngineException) {
+                    status = RestResponse.Status.CONFLICT;
+                }
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, status, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }
             }
         });
+    }
+
+    static final class Fields {
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
     }
 }

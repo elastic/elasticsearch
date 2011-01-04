@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -41,7 +42,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
         public static final String NAME = org.elasticsearch.index.mapper.UidFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
-        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = false; // we store payload
     }
 
     public static class Builder extends XContentMapper.Builder<Builder, UidFieldMapper> {
@@ -71,12 +72,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (context.id() == null) {
             throw new MapperParsingException("No id found while parsing the content source");
         }
         context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
-        return new Field(names.indexName(), context.uid(), store, index);
+        return new UidField(names().indexName(), context.uid(), 0); // version get updated by the engine
     }
 
     @Override public Uid value(Fieldable field) {

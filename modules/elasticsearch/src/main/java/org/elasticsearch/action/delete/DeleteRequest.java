@@ -51,6 +51,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     private String id;
     @Nullable private String routing;
     private boolean refresh;
+    private long version;
 
     /**
      * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
@@ -197,6 +198,19 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         return this.refresh;
     }
 
+    /**
+     * Sets the version, which will cause the delete operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public DeleteRequest version(long version) {
+        this.version = version;
+        return this;
+    }
+
+    public long version() {
+        return this.version;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
@@ -205,6 +219,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
             routing = in.readUTF();
         }
         refresh = in.readBoolean();
+        version = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -218,6 +233,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
             out.writeUTF(routing);
         }
         out.writeBoolean(refresh);
+        out.writeLong(version);
     }
 
     @Override public String toString() {

@@ -42,6 +42,8 @@ import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -370,6 +372,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private void retry(boolean fromClusterEvent, final ShardId shardId) {
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
+                request.beforeLocalFork();
                 request.operationThreaded(true);
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
                     @Override public void postAdded() {
@@ -426,7 +429,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (logger.isDebugEnabled()) {
                     logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
                 }
-                listener.onFailure(new ReplicationShardOperationFailedException(shardIt.shardId(), e));
+                listener.onFailure(e);
             }
         }
 
@@ -637,6 +640,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return true;
             }
             if (cause instanceof ConnectTransportException) {
+                return true;
+            }
+            // on version conflict or document missing, it means
+            // that a news change has crept into the replica, and its fine
+            if (cause instanceof VersionConflictEngineException) {
+                return true;
+            }
+            // same here
+            if (cause instanceof DocumentAlreadyExistsEngineException) {
                 return true;
             }
             return false;

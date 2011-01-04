@@ -34,6 +34,8 @@ public class SourceToParse {
 
     private String id;
 
+    private long version;
+
     private String routing;
 
     private String parentId;
@@ -61,6 +63,15 @@ public class SourceToParse {
 
     public SourceToParse id(String id) {
         this.id = id;
+        return this;
+    }
+
+    public long version() {
+        return this.version;
+    }
+
+    public SourceToParse version(long version) {
+        this.version = version;
         return this;
     }
 

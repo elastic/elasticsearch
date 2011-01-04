@@ -112,6 +112,7 @@ public class BulkRequest implements ActionRequest {
             String routing = null;
             String parent = null;
             String opType = null;
+            long version = 0;
 
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -130,6 +131,8 @@ public class BulkRequest implements ActionRequest {
                         parent = parser.text();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
+                    } else if ("_version".equals(currentFieldName)) {
+                        version = parser.longValue();
                     }
                 }
             }
@@ -144,15 +147,15 @@ public class BulkRequest implements ActionRequest {
                 // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                                 .source(data, from, nextMarker - from, contentUnsafe));
                     } else {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe));
                     }
                 } else if ("create".equals(action)) {
-                    add(new IndexRequest(index, type, id).routing(routing).parent(parent)
+                    add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe));
                 }

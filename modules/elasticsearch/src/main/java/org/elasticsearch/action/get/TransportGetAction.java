@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.*;
@@ -89,13 +90,17 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         boolean exists = false;
         byte[] source = null;
         Map<String, GetField> fields = null;
+        long version = -1;
         try {
-            int docId = Lucene.docId(searcher.reader(), docMapper.uidMapper().term(request.type(), request.id()));
-            if (docId != Lucene.NO_DOC) {
+            UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(searcher.reader(), docMapper.uidMapper().term(request.type(), request.id()));
+            if (docIdAndVersion.docId != Lucene.NO_DOC) {
+                if (docIdAndVersion.version > 0) {
+                    version = docIdAndVersion.version;
+                }
                 exists = true;
                 FieldSelector fieldSelector = buildFieldSelectors(docMapper, request.fields());
                 if (fieldSelector != null) {
-                    Document doc = searcher.reader().document(docId, fieldSelector);
+                    Document doc = searcher.reader().document(docIdAndVersion.docId, fieldSelector);
                     source = extractSource(doc, docMapper);
 
                     for (Object oField : doc.getFields()) {
@@ -136,7 +141,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         } finally {
             searcher.release();
         }
-        return new GetResponse(request.index(), request.type(), request.id(), exists, source, fields);
+        return new GetResponse(request.index(), request.type(), request.id(), version, exists, source, fields);
     }
 
     private FieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {

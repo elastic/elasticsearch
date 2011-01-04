@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -48,14 +49,16 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     @Override protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, AtomicReferenceArray shardsResponses) {
         int successfulShards = 0;
         int failedShards = 0;
+        ArrayList<ShardDeleteResponse> responses = new ArrayList<ShardDeleteResponse>();
         for (int i = 0; i < shardsResponses.length(); i++) {
             if (shardsResponses.get(i) == null) {
                 failedShards++;
             } else {
+                responses.add((ShardDeleteResponse) shardsResponses.get(i));
                 successfulShards++;
             }
         }
-        return new IndexDeleteResponse(request.index(), successfulShards, failedShards);
+        return new IndexDeleteResponse(request.index(), successfulShards, failedShards, responses.toArray(new ShardDeleteResponse[responses.size()]));
     }
 
     @Override protected boolean accumulateExceptions() {

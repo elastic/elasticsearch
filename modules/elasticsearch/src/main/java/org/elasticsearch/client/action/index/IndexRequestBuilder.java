@@ -276,6 +276,15 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
+     * Sets the version, which will cause the index operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public IndexRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     public IndexRequestBuilder setListenerThreaded(boolean listenerThreaded) {

@@ -28,10 +28,12 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
 
@@ -247,7 +249,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             DELETE
         }
 
+        static enum Origin {
+            PRIMARY,
+            REPLICA,
+            RECOVERY
+        }
+
         Type opType();
+
+        Origin origin();
     }
 
     static class Bulk {
@@ -273,10 +283,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     }
 
     static class Create implements Operation {
+        private final Term uid;
         private final ParsedDocument doc;
         private boolean refresh;
+        private long version;
+        private Origin origin = Origin.PRIMARY;
 
-        public Create(ParsedDocument doc) {
+        public Create(Term uid, ParsedDocument doc) {
+            this.uid = uid;
             this.doc = doc;
         }
 
@@ -284,8 +298,21 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return Type.CREATE;
         }
 
+        public Create origin(Origin origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        @Override public Origin origin() {
+            return this.origin;
+        }
+
         public ParsedDocument parsedDoc() {
             return this.doc;
+        }
+
+        public Term uid() {
+            return this.uid;
         }
 
         public String type() {
@@ -298,6 +325,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public String routing() {
             return this.doc.routing();
+        }
+
+        public long version() {
+            return this.version;
+        }
+
+        public Create version(long version) {
+            this.version = version;
+            return this;
         }
 
         public String parent() {
@@ -323,12 +359,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public void refresh(boolean refresh) {
             this.refresh = refresh;
         }
+
+        public UidField uidField() {
+            return (UidField) doc().getFieldable(UidFieldMapper.NAME);
+        }
     }
 
     static class Index implements Operation {
         private final Term uid;
         private final ParsedDocument doc;
         private boolean refresh;
+        private long version;
+        private Origin origin = Origin.PRIMARY;
 
         public Index(Term uid, ParsedDocument doc) {
             this.uid = uid;
@@ -339,12 +381,30 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return Type.INDEX;
         }
 
+        public Index origin(Origin origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        @Override public Origin origin() {
+            return this.origin;
+        }
+
         public Term uid() {
             return this.uid;
         }
 
         public ParsedDocument parsedDoc() {
             return this.doc;
+        }
+
+        public Index version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public long version() {
+            return this.version;
         }
 
         public Document doc() {
@@ -382,18 +442,46 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public void refresh(boolean refresh) {
             this.refresh = refresh;
         }
+
+        public UidField uidField() {
+            return (UidField) doc().getFieldable(UidFieldMapper.NAME);
+        }
     }
 
     static class Delete implements Operation {
+        private final String type;
+        private final String id;
         private final Term uid;
         private boolean refresh;
+        private long version;
+        private Origin origin = Origin.PRIMARY;
+        private boolean notFound;
 
-        public Delete(Term uid) {
+        public Delete(String type, String id, Term uid) {
+            this.type = type;
+            this.id = id;
             this.uid = uid;
         }
 
         @Override public Type opType() {
             return Type.DELETE;
+        }
+
+        public Delete origin(Origin origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        @Override public Origin origin() {
+            return this.origin;
+        }
+
+        public String type() {
+            return this.type;
+        }
+
+        public String id() {
+            return this.id;
         }
 
         public Term uid() {
@@ -406,6 +494,24 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public void refresh(boolean refresh) {
             this.refresh = refresh;
+        }
+
+        public Delete version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public long version() {
+            return this.version;
+        }
+
+        public boolean notFound() {
+            return this.notFound;
+        }
+
+        public Delete notFound(boolean notFound) {
+            this.notFound = notFound;
+            return this;
         }
     }
 

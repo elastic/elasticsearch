@@ -84,6 +84,15 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
     }
 
     /**
+     * Sets the version, which will cause the delete operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public DeleteRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     public DeleteRequestBuilder setListenerThreaded(boolean threadedListener) {

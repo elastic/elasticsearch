@@ -69,16 +69,20 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Override protected ShardDeleteResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
         IndexShard indexShard = indexShard(shardRequest);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id());
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
+                .origin(Engine.Operation.Origin.PRIMARY);
         delete.refresh(request.refresh());
         indexShard.delete(delete);
-        return new ShardDeleteResponse();
+        // update the version to happen on the replicas
+        request.version(delete.version());
+        return new ShardDeleteResponse(delete.version(), delete.notFound());
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
         IndexShard indexShard = indexShard(shardRequest);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id());
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
+                .origin(Engine.Operation.Origin.REPLICA);
         delete.refresh(request.refresh());
         indexShard.delete(delete);
     }

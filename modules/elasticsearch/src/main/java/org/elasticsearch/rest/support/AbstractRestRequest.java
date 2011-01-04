@@ -61,6 +61,18 @@ public abstract class AbstractRestRequest implements RestRequest {
         }
     }
 
+    @Override public long paramAsLong(String key, long defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(sValue);
+        } catch (NumberFormatException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
     @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
         return Booleans.parseBoolean(param(key), defaultValue);
     }

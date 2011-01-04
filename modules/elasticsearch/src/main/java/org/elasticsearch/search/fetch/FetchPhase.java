@@ -23,8 +23,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -80,7 +82,13 @@ public class FetchPhase implements SearchPhase {
 
             byte[] source = extractSource(doc, documentMapper);
 
-            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), source, null);
+            // get the version
+            long version = UidField.loadVersion(context.searcher().getIndexReader(), new Term(UidFieldMapper.NAME, doc.get(UidFieldMapper.NAME)));
+            if (version < 0) {
+                version = -1;
+            }
+
+            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), version, source, null);
             hits[index] = searchHit;
 
             for (Object oField : doc.getFields()) {

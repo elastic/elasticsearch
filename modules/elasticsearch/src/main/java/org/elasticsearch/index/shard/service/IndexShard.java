@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -56,11 +55,9 @@ public interface IndexShard extends IndexShardComponent {
 
     ParsedDocument index(Engine.Index index) throws ElasticSearchException;
 
-    Engine.Delete prepareDelete(String type, String id) throws ElasticSearchException;
+    Engine.Delete prepareDelete(String type, String id, long version) throws ElasticSearchException;
 
     void delete(Engine.Delete delete) throws ElasticSearchException;
-
-    void delete(Term uid) throws ElasticSearchException;
 
     EngineException[] bulk(Engine.Bulk bulk) throws ElasticSearchException;
 

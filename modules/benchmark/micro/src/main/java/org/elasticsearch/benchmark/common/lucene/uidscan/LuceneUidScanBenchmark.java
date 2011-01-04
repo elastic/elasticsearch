@@ -19,24 +19,20 @@
 
 package org.elasticsearch.benchmark.common.lucene.uidscan;
 
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermPositions;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -59,7 +55,7 @@ public class LuceneUidScanBenchmark {
         System.out.println("Indexing " + INDEX_COUNT + " docs...");
         for (long i = startUid; i < LIMIT; i++) {
             Document doc = new Document();
-            doc.add(new UidField(Long.toString(i), i));
+            doc.add(new UidField("_uid", Long.toString(i), i));
             writer.addDocument(doc);
         }
         System.out.println("Done indexing, took " + watch.stop().lastTaskTime());
@@ -103,56 +99,5 @@ public class LuceneUidScanBenchmark {
         latch.await();
         watch.stop();
         System.out.println("Scanned in " + watch.totalTime() + " TP Seconds " + ((SCAN_COUNT * NUMBER_OF_THREADS) / watch.totalTime().secondsFrac()));
-    }
-
-
-    public static class UidField extends AbstractField {
-
-        private final String uid;
-
-        private final long version;
-
-        public UidField(String uid, long version) {
-            super("_uid", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO);
-            this.uid = uid;
-            this.version = version;
-        }
-
-        @Override public String stringValue() {
-            return uid;
-        }
-
-        @Override public Reader readerValue() {
-            return null;
-        }
-
-        @Override public TokenStream tokenStreamValue() {
-            try {
-                return new UidPayloadTokenStream(Lucene.KEYWORD_ANALYZER.reusableTokenStream("_uid", new FastStringReader(uid)), version);
-            } catch (IOException e) {
-                throw new RuntimeException("failed to create token stream", e);
-            }
-        }
-    }
-
-    public static class UidPayloadTokenStream extends TokenFilter {
-
-        private final PayloadAttribute payloadAttribute;
-
-        private final long version;
-
-        public UidPayloadTokenStream(TokenStream input, long version) {
-            super(input);
-            this.version = version;
-            payloadAttribute = addAttribute(PayloadAttribute.class);
-        }
-
-        @Override public boolean incrementToken() throws IOException {
-            if (!input.incrementToken()) {
-                return false;
-            }
-            payloadAttribute.setPayload(new Payload(Numbers.longToBytes(version)));
-            return true;
-        }
     }
 }

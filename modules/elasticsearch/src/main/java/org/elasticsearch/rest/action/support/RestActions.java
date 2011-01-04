@@ -41,6 +41,17 @@ public class RestActions {
     public final static Pattern nodesIdsPattern = Pattern.compile(",");
     public final static Pattern genericPattern = Pattern.compile(",");
 
+    public static long parseVersion(RestRequest request) {
+        if (request.hasParam("version")) {
+            return request.paramAsLong("version", 0);
+        }
+        String ifMatch = request.header("If-Match");
+        if (ifMatch != null) {
+            return Long.parseLong(ifMatch);
+        }
+        return 0;
+    }
+
     public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
         builder.startObject("_shards");
         builder.field("total", response.totalShards());

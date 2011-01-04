@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,27 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index.engine;
 
-import org.elasticsearch.index.IndexException;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class IndexShardException extends IndexException {
+public class DocumentAlreadyExistsEngineException extends EngineException {
 
-    private final ShardId shardId;
-
-    public IndexShardException(ShardId shardId, String msg) {
-        this(shardId, msg, null);
-    }
-
-    public IndexShardException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId == null ? null : shardId.index(), false, "[" + (shardId == null ? "_na" : shardId.id()) + "] " + msg, cause);
-        this.shardId = shardId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
+    public DocumentAlreadyExistsEngineException(ShardId shardId, String type, String id) {
+        super(shardId, "[" + type + "][" + id + "]: document already exists");
     }
 }

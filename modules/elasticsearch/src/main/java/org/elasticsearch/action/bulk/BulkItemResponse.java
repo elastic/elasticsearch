@@ -214,6 +214,21 @@ public class BulkItemResponse implements Streamable {
     }
 
     /**
+     * The version of the action.
+     */
+    public long version() {
+        if (failure != null) {
+            return -1;
+        }
+        if (response instanceof IndexResponse) {
+            return ((IndexResponse) response).version();
+        } else if (response instanceof DeleteResponse) {
+            return ((DeleteResponse) response).version();
+        }
+        return -1;
+    }
+
+    /**
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
      * case of failure.
      */

@@ -41,14 +41,20 @@ public class DeleteResponse implements ActionResponse, Streamable {
 
     private String type;
 
+    private long version;
+
+    private boolean notFound;
+
     public DeleteResponse() {
 
     }
 
-    public DeleteResponse(String index, String type, String id) {
+    public DeleteResponse(String index, String type, String id, long version, boolean notFound) {
         this.index = index;
         this.id = id;
         this.type = type;
+        this.version = version;
+        this.notFound = notFound;
     }
 
     /**
@@ -93,15 +99,47 @@ public class DeleteResponse implements ActionResponse, Streamable {
         return id;
     }
 
+    /**
+     * The version of the delete operation.
+     */
+    public long version() {
+        return this.version;
+    }
+
+    /**
+     * The version of the delete operation.
+     */
+    public long getVersion() {
+        return this.version;
+    }
+
+    /**
+     * Returns <tt>true</tt> if there was no doc found to delete.
+     */
+    public boolean notFound() {
+        return notFound;
+    }
+
+    /**
+     * Returns <tt>true</tt> if there was no doc found to delete.
+     */
+    public boolean isNotFound() {
+        return notFound;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         id = in.readUTF();
         type = in.readUTF();
+        version = in.readLong();
+        notFound = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(id);
         out.writeUTF(type);
+        out.writeLong(version);
+        out.writeBoolean(notFound);
     }
 }

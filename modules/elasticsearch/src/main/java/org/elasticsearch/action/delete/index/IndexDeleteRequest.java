@@ -37,6 +37,8 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest {
 
     private boolean refresh = false;
 
+    private long version;
+
     IndexDeleteRequest() {
     }
 
@@ -48,6 +50,7 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest {
         this.type = request.type();
         this.id = request.id();
         this.refresh = request.refresh();
+        this.version = request.version();
     }
 
     public String type() {
@@ -62,11 +65,16 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest {
         return this.refresh;
     }
 
+    public long version() {
+        return this.version;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
         id = in.readUTF();
         refresh = in.readBoolean();
+        version = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -74,5 +82,6 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest {
         out.writeUTF(type);
         out.writeUTF(id);
         out.writeBoolean(refresh);
+        out.writeLong(version);
     }
 }

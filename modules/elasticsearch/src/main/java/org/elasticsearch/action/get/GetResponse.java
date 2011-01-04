@@ -53,6 +53,8 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
 
     private String id;
 
+    private long version;
+
     private boolean exists;
 
     private Map<String, GetField> fields;
@@ -64,10 +66,11 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     GetResponse() {
     }
 
-    GetResponse(String index, String type, String id, boolean exists, byte[] source, Map<String, GetField> fields) {
+    GetResponse(String index, String type, String id, long version, boolean exists, byte[] source, Map<String, GetField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
+        this.version = version;
         this.exists = exists;
         this.source = source;
         this.fields = fields;
@@ -130,6 +133,20 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
      */
     public String getId() {
         return id;
+    }
+
+    /**
+     * The version of the doc.
+     */
+    public long version() {
+        return this.version;
+    }
+
+    /**
+     * The version of the doc.
+     */
+    public long getVersion() {
+        return this.version;
     }
 
     /**
@@ -220,6 +237,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
@@ -235,6 +253,9 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
             builder.field(Fields._INDEX, index);
             builder.field(Fields._TYPE, type);
             builder.field(Fields._ID, id);
+            if (version != -1) {
+                builder.field(Fields._VERSION, version);
+            }
             if (source != null) {
                 RestXContentBuilder.restDocumentSource(source, builder, params);
             }
@@ -268,6 +289,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
+        version = in.readLong();
         exists = in.readBoolean();
         if (exists) {
             int size = in.readVInt();
@@ -292,6 +314,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);
+        out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {
             if (source == null) {

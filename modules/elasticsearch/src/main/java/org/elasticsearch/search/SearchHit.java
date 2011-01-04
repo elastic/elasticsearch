@@ -76,6 +76,16 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     String getType();
 
     /**
+     * The version of the hit.
+     */
+    long version();
+
+    /**
+     * The version of the hit.
+     */
+    long getVersion();
+
+    /**
      * The source of the document (can be <tt>null</tt>).
      */
     byte[] source();

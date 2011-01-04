@@ -39,10 +39,13 @@ public class IndexDeleteResponse implements ActionResponse, Streamable {
 
     private int failedShards;
 
-    IndexDeleteResponse(String index, int successfulShards, int failedShards) {
+    private ShardDeleteResponse[] deleteResponses;
+
+    IndexDeleteResponse(String index, int successfulShards, int failedShards, ShardDeleteResponse[] deleteResponses) {
         this.index = index;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
+        this.deleteResponses = deleteResponses;
     }
 
     IndexDeleteResponse() {
@@ -105,15 +108,28 @@ public class IndexDeleteResponse implements ActionResponse, Streamable {
         return failedShards;
     }
 
+    public ShardDeleteResponse[] responses() {
+        return this.deleteResponses;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
+        deleteResponses = new ShardDeleteResponse[in.readVInt()];
+        for (int i = 0; i < deleteResponses.length; i++) {
+            deleteResponses[i] = new ShardDeleteResponse();
+            deleteResponses[i].readFrom(in);
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
+        out.writeVInt(deleteResponses.length);
+        for (ShardDeleteResponse deleteResponse : deleteResponses) {
+            deleteResponse.writeTo(out);
+        }
     }
 }

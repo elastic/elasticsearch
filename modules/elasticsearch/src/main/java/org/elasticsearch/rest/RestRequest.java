@@ -78,6 +78,8 @@ public interface RestRequest extends ToXContent.Params {
 
     int paramAsInt(String key, int defaultValue);
 
+    long paramAsLong(String key, long defaultValue);
+
     boolean paramAsBoolean(String key, boolean defaultValue);
 
     Boolean paramAsBoolean(String key, Boolean defaultValue);

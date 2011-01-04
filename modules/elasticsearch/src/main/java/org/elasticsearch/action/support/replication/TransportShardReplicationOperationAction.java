@@ -372,6 +372,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private void retry(boolean fromClusterEvent, final ShardId shardId) {
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
+                request.beforeLocalFork();
                 request.operationThreaded(true);
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
                     @Override public void postAdded() {

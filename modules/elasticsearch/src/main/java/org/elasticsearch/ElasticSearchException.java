@@ -77,10 +77,10 @@ public class ElasticSearchException extends RuntimeException {
 
 
     /**
-     * Retrieve the innermost cause of this exception, if any.
+     * Retrieve the innermost cause of this exception, if none, returns the current exception.
      */
     public Throwable getRootCause() {
-        Throwable rootCause = null;
+        Throwable rootCause = this;
         Throwable cause = getCause();
         while (cause != null && cause != rootCause) {
             rootCause = cause;

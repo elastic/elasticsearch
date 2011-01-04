@@ -1,4 +1,4 @@
-package org.elasticsearch.test.integration.load;
+package org.elasticsearch.test.integration.versioning;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;

@@ -429,7 +429,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (logger.isDebugEnabled()) {
                     logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
                 }
-                listener.onFailure(new ReplicationShardOperationFailedException(shardIt.shardId(), e));
+                listener.onFailure(e);
             }
         }
 

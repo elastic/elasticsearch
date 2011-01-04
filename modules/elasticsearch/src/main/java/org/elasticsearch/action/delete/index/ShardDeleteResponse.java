@@ -33,9 +33,33 @@ import java.io.IOException;
  */
 public class ShardDeleteResponse implements ActionResponse, Streamable {
 
+    private long version;
+
+    private boolean notFound;
+
+    public ShardDeleteResponse() {
+    }
+
+    public ShardDeleteResponse(long version, boolean notFound) {
+        this.version = version;
+        this.notFound = notFound;
+    }
+
+    public long version() {
+        return version;
+    }
+
+    public boolean notFound() {
+        return notFound;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
+        version = in.readLong();
+        notFound = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(version);
+        out.writeBoolean(notFound);
     }
 }

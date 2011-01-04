@@ -42,6 +42,8 @@ import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -637,6 +639,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return true;
             }
             if (cause instanceof ConnectTransportException) {
+                return true;
+            }
+            // on version conflict or document missing, it means
+            // that a news change has crept into the replica, and its fine
+            if (cause instanceof VersionConflictEngineException) {
+                return true;
+            }
+            // same here
+            if (cause instanceof DocumentAlreadyExistsEngineException) {
                 return true;
             }
             return false;

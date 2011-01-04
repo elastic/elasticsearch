@@ -41,14 +41,17 @@ public class IndexResponse implements ActionResponse, Streamable {
 
     private String type;
 
+    private long version;
+
     public IndexResponse() {
 
     }
 
-    public IndexResponse(String index, String type, String id) {
+    public IndexResponse(String index, String type, String id, long version) {
         this.index = index;
         this.id = id;
         this.type = type;
+        this.version = version;
     }
 
     /**
@@ -93,15 +96,31 @@ public class IndexResponse implements ActionResponse, Streamable {
         return id;
     }
 
+    /**
+     * Returns the version of the doc indexed.
+     */
+    public long version() {
+        return this.version;
+    }
+
+    /**
+     * Returns the version of the doc indexed.
+     */
+    public long getVersion() {
+        return version();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         id = in.readUTF();
         type = in.readUTF();
+        version = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(id);
         out.writeUTF(type);
+        out.writeLong(version);
     }
 }

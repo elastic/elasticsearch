@@ -22,7 +22,6 @@ package org.elasticsearch.index.shard.service;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -40,10 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -213,7 +209,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Create(doc);
+        return new Engine.Create(docMapper.uidMapper().term(doc.uid()), doc).version(source.version());
     }
 
     @Override public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
@@ -228,7 +224,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc);
+        return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc).version(source.version());
     }
 
     @Override public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
@@ -240,13 +236,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return index.parsedDoc();
     }
 
-    @Override public Engine.Delete prepareDelete(String type, String id) throws ElasticSearchException {
+    @Override public Engine.Delete prepareDelete(String type, String id, long version) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
-        return new Engine.Delete(docMapper.uidMapper().term(type, id));
-    }
-
-    @Override public void delete(Term uid) {
-        delete(new Engine.Delete(uid));
+        return new Engine.Delete(type, id, docMapper.uidMapper().term(type, id)).version(version);
     }
 
     @Override public void delete(Engine.Delete delete) throws ElasticSearchException {
@@ -453,16 +445,20 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             case CREATE:
                 Translog.Create create = (Translog.Create) operation;
                 engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
-                        .routing(create.routing()).parent(create.parent())));
+                        .routing(create.routing()).parent(create.parent())).version(create.version())
+                        .origin(Engine.Operation.Origin.RECOVERY));
                 break;
             case SAVE:
                 Translog.Index index = (Translog.Index) operation;
                 engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
-                        .routing(index.routing()).parent(index.parent())));
+                        .routing(index.routing()).parent(index.parent())).version(index.version())
+                        .origin(Engine.Operation.Origin.RECOVERY));
                 break;
             case DELETE:
                 Translog.Delete delete = (Translog.Delete) operation;
-                engine.delete(new Engine.Delete(delete.uid()));
+                Uid uid = Uid.createUid(delete.uid().text());
+                engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid()).version(delete.version())
+                        .origin(Engine.Operation.Origin.RECOVERY));
                 break;
             case DELETE_BY_QUERY:
                 Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;

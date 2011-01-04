@@ -62,6 +62,8 @@ public class InternalSearchHit implements SearchHit {
 
     private String type;
 
+    private long version = -1;
+
     private byte[] source;
 
     private Map<String, SearchHitField> fields = ImmutableMap.of();
@@ -82,10 +84,11 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, String type, long version, byte[] source, Map<String, SearchHitField> fields) {
         this.docId = docId;
         this.id = id;
         this.type = type;
+        this.version = version;
         this.source = source;
         this.fields = fields;
     }
@@ -108,6 +111,14 @@ public class InternalSearchHit implements SearchHit {
 
     @Override public float getScore() {
         return score();
+    }
+
+    @Override public long version() {
+        return this.version;
+    }
+
+    @Override public long getVersion() {
+        return this.version;
     }
 
     @Override public String index() {
@@ -279,6 +290,7 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
         static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
@@ -295,8 +307,11 @@ public class InternalSearchHit implements SearchHit {
         builder.field(Fields._INDEX, shard.index());
 //        builder.field("_shard", shard.shardId());
 //        builder.field("_node", shard.nodeId());
-        builder.field(Fields._TYPE, type());
-        builder.field(Fields._ID, id());
+        builder.field(Fields._TYPE, type);
+        builder.field(Fields._ID, id);
+        if (version != -1) {
+            builder.field(Fields._VERSION, version);
+        }
         if (Float.isNaN(score)) {
             builder.nullField(Fields._SCORE);
         } else {
@@ -390,6 +405,7 @@ public class InternalSearchHit implements SearchHit {
         score = in.readFloat();
         id = in.readUTF();
         type = in.readUTF();
+        version = in.readLong();
         int size = in.readVInt();
         if (size > 0) {
             source = new byte[size];
@@ -518,6 +534,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeFloat(score);
         out.writeUTF(id);
         out.writeUTF(type);
+        out.writeLong(version);
         if (source == null) {
             out.writeVInt(0);
         } else {

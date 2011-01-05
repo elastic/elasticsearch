@@ -31,12 +31,12 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.util.Set;
 
 /**
- * Creates a SnowballAnalyzer with a set of English stopwords and additional
- * stopwords can be passed via configuration using the stopwords attribute.
+ * Creates am English SnowballAnalyzer with a set of English stopwords
+ * Additional stopwords can be passed via configuration using the stopwords
+ * attribute.
  *
  * The SnowballAnalyzer comes with a StandardFilter, LowerCaseFilter, StopFilter
- * and a SnowballFilter. The SnowballFilter is specified by the "name" attribute
- * in the ElasticSearch configuration.
+ * and the SnowballFilter configured to English.
  *
  * @author harryf (Harry Fuecks)
  */
@@ -49,7 +49,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
 
         Set<?> stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
 
-        analyzer = new SnowballAnalyzer(Lucene.VERSION, settings.get("name"), stopWords);
+        analyzer = new SnowballAnalyzer(Lucene.VERSION, "English", stopWords);
     }
 
     @Override public SnowballAnalyzer get() {

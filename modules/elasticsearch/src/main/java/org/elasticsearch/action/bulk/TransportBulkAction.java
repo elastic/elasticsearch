@@ -86,6 +86,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
     }
 
     @Override protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+        final long startTime = System.currentTimeMillis();
         Set<String> indices = Sets.newHashSet();
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
@@ -109,7 +110,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
                         @Override public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(bulkRequest, listener);
+                                executeBulk(bulkRequest, startTime, listener);
                             }
                         }
 
@@ -117,7 +118,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                                 // we have the index, do it
                                 if (counter.decrementAndGet() == 0) {
-                                    executeBulk(bulkRequest, listener);
+                                    executeBulk(bulkRequest, startTime, listener);
                                 }
                             } else if (failed.compareAndSet(false, true)) {
                                 listener.onFailure(e);
@@ -126,16 +127,16 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     });
                 } else {
                     if (counter.decrementAndGet() == 0) {
-                        executeBulk(bulkRequest, listener);
+                        executeBulk(bulkRequest, startTime, listener);
                     }
                 }
             }
         } else {
-            executeBulk(bulkRequest, listener);
+            executeBulk(bulkRequest, startTime, listener);
         }
     }
 
-    private void executeBulk(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+    private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener) {
         ClusterState clusterState = clusterService.state();
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
@@ -251,11 +252,11 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     if (bulkRequest.listenerThreaded()) {
                         threadPool.execute(new Runnable() {
                             @Override public void run() {
-                                listener.onResponse(new BulkResponse(responses));
+                                listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
                             }
                         });
                     } else {
-                        listener.onResponse(new BulkResponse(responses));
+                        listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
                     }
                 }
             });

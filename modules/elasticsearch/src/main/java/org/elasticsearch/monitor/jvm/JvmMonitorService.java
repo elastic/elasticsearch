@@ -62,7 +62,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         this.dumpMonitorService = dumpMonitorService;
 
         this.enabled = componentSettings.getAsBoolean("enabled", true);
-        this.interval = componentSettings.getAsTime("interval", timeValueSeconds(10));
+        this.interval = componentSettings.getAsTime("interval", timeValueSeconds(1));
         this.gcThreshold = componentSettings.getAsTime("gc_threshold", timeValueMillis(5000));
     }
 

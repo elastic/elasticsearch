@@ -19,7 +19,9 @@
 
 package org.elasticsearch.test.integration.search.highlight;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -188,6 +190,65 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+    }
+
+    @Test public void testFastVectorHighlighterManyDocs() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(IndexMissingException.class));
+        }
+        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        int COUNT = 100;
+        logger.info("--> indexing docs");
+        for (int i = 0; i < COUNT; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i).execute().actionGet();
+            if (i % 5 == 0) {
+                // flush so we get updated readers and segmented readers
+                client.admin().indices().prepareFlush().execute().actionGet();
+            }
+        }
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> searching explicitly on field1 and highlighting on it");
+        SearchResponse searchResponse = client.prepareSearch()
+                .setSize(COUNT)
+                .setQuery(termQuery("field1", "test"))
+                .addHighlightedField("field1", 100, 0)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo((long) COUNT));
+        assertThat(searchResponse.hits().hits().length, equalTo(COUNT));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.highlightFields().get("field1").fragments()[0], equalTo("<em>test</em> " + hit.id()));
+        }
+
+        logger.info("--> searching explicitly on field1 and highlighting on it, with DFS");
+        searchResponse = client.prepareSearch()
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setSize(COUNT)
+                .setQuery(termQuery("field1", "test"))
+                .addHighlightedField("field1", 100, 0)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo((long) COUNT));
+        assertThat(searchResponse.hits().hits().length, equalTo(COUNT));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.highlightFields().get("field1").fragments()[0], equalTo("<em>test</em> " + hit.id()));
+        }
+
+        logger.info("--> searching explicitly _all and highlighting on _all");
+        searchResponse = client.prepareSearch()
+                .setSize(COUNT)
+                .setQuery(termQuery("_all", "test"))
+                .addHighlightedField("_all", 100, 0)
+                .execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo((long) COUNT));
+        assertThat(searchResponse.hits().hits().length, equalTo(COUNT));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.highlightFields().get("_all").fragments()[0], equalTo("<em>test</em> " + hit.id() + " "));
+        }
     }
 
     public XContentBuilder type1TermVectorMapping() throws IOException {

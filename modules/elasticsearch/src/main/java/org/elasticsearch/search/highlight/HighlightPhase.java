@@ -155,7 +155,7 @@ public class HighlightPhase implements SearchHitPhase {
                     try {
                         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
                         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
-                        fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
+                        fragments = highlighter.getBestFragments(fieldQuery, reader, docId, mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }

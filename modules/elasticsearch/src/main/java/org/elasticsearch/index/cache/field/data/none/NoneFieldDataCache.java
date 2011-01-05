@@ -69,4 +69,8 @@ public class NoneFieldDataCache extends AbstractIndexComponent implements FieldD
     @Override public long sizeInBytes(String fieldName) {
         return 0;
     }
+
+    @Override public long evictions() {
+        return 0;
+    }
 }

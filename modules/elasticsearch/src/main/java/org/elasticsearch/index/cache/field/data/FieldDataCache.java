@@ -42,6 +42,8 @@ public interface FieldDataCache extends IndexComponent, CloseableComponent {
 
     void clearUnreferenced();
 
+    long evictions();
+
     long sizeInBytes();
 
     long sizeInBytes(String fieldName);

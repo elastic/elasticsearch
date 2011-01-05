@@ -45,4 +45,8 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
     @Override public String type() {
         return "resident";
     }
+
+    @Override public long evictions() {
+        return 0;
+    }
 }

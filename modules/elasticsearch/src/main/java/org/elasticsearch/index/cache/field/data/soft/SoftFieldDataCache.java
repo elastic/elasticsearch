@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.field.data.soft;
 
+import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -27,22 +28,34 @@ import org.elasticsearch.index.cache.field.data.support.AbstractConcurrentMapFie
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import javax.annotation.Nullable;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache {
+public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache implements MapEvictionListener<String, FieldData> {
+
+    private final AtomicLong evictions = new AtomicLong();
 
     @Inject public SoftFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
     @Override protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
-        return new MapMaker().softValues().makeMap();
+        return new MapMaker().softValues().evictionListener(this).makeMap();
+    }
+
+    @Override public long evictions() {
+        return evictions.get();
     }
 
     @Override public String type() {
         return "soft";
+    }
+
+    @Override public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
+        evictions.incrementAndGet();
     }
 }

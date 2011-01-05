@@ -88,13 +88,14 @@ public class RestBulkAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-
+                    builder.field(Fields.TOOK, response.tookInMillis());
                     builder.startArray(Fields.ITEMS);
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject();
                         builder.startObject(itemResponse.opType());
                         builder.field(Fields._INDEX, itemResponse.index());
                         builder.field(Fields._TYPE, itemResponse.type());
+                        builder.field(Fields._ID, itemResponse.id());
                         long version = itemResponse.version();
                         if (version != -1) {
                             builder.field(Fields._VERSION, itemResponse.version());
@@ -133,6 +134,7 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
         static final XContentBuilderString OK = new XContentBuilderString("ok");
+        static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
     }
 

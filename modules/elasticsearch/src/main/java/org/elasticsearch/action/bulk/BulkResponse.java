@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -38,11 +39,42 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
 
     private BulkItemResponse[] responses;
 
+    private long tookInMillis;
+
     BulkResponse() {
     }
 
-    public BulkResponse(BulkItemResponse[] responses) {
+    public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
         this.responses = responses;
+        this.tookInMillis = tookInMillis;
+    }
+
+    /**
+     * How long the bulk execution took.
+     */
+    public TimeValue took() {
+        return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * How long the bulk execution took.
+     */
+    public TimeValue getTook() {
+        return took();
+    }
+
+    /**
+     * How long the bulk execution took in milliseconds.
+     */
+    public long tookInMillis() {
+        return tookInMillis;
+    }
+
+    /**
+     * How long the bulk execution took in milliseconds.
+     */
+    public long getTookInMillis() {
+        return tookInMillis();
     }
 
     /**

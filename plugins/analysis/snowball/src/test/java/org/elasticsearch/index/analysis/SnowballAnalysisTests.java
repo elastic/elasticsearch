@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.snowball.SnowballAnalyzer;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.index.Index;
@@ -43,6 +45,9 @@ public class SnowballAnalysisTests {
                 new AnalysisModule(EMPTY_SETTINGS).addProcessor(new SnowballAnalysisBinderProcessor())).createInjector();
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
+
+        Analyzer analyzer = analysisService.analyzer("snowball").analyzer();
+        MatcherAssert.assertThat(analyzer, instanceOf(SnowballAnalyzer.class));
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("snowball_filter");
         MatcherAssert.assertThat(filterFactory, instanceOf(SnowballTokenFilterFactory.class));

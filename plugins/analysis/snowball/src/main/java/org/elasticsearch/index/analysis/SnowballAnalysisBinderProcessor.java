@@ -24,6 +24,10 @@ package org.elasticsearch.index.analysis;
  */
 public class SnowballAnalysisBinderProcessor extends AnalysisModule.AnalysisBinderProcessor {
 
+    @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+        analyzersBindings.processAnalyzer("snowball", SnowballAnalyzerProvider.class);
+    }
+
     @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
         tokenFiltersBindings.processTokenFilter("snowballFilter", SnowballTokenFilterFactory.class);
         tokenFiltersBindings.processTokenFilter("snowball_filter", SnowballTokenFilterFactory.class);

@@ -43,13 +43,17 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
 
     private ByteSizeValue filterCacheSize;
 
+    private long fieldCacheEvictions;
+
     IndicesStats() {
     }
 
-    public IndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize) {
+    public IndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
+                        long fieldCacheEvictions) {
         this.storeSize = storeSize;
         this.fieldCacheSize = fieldCacheSize;
         this.filterCacheSize = filterCacheSize;
+        this.fieldCacheEvictions = fieldCacheEvictions;
     }
 
     /**
@@ -82,6 +86,14 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         return this.filterCacheSize;
     }
 
+    public long fieldCacheEvictions() {
+        return this.fieldCacheEvictions;
+    }
+
+    public long getFieldCacheEvictions() {
+        return fieldCacheEvictions();
+    }
+
     public static IndicesStats readIndicesStats(StreamInput in) throws IOException {
         IndicesStats stats = new IndicesStats();
         stats.readFrom(in);
@@ -104,6 +116,7 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         builder.startObject(Fields.INDICES);
         builder.field(Fields.STORE_SIZE, storeSize.toString());
         builder.field(Fields.STORE_SIZE_IN_BYTES, storeSize.bytes());
+        builder.field(Fields.FIELD_CACHE_EVICTIONS, fieldCacheEvictions);
         builder.field(Fields.FIELD_CACHE_SIZE, fieldCacheSize.toString());
         builder.field(Fields.FIELD_CACHE_SIZE_IN_BYTES, fieldCacheSize.bytes());
         builder.field(Fields.FILTER_CACHE_SIZE, filterCacheSize.toString());
@@ -117,6 +130,7 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString STORE_SIZE_IN_BYTES = new XContentBuilderString("store_size_in_bytes");
         static final XContentBuilderString FIELD_CACHE_SIZE = new XContentBuilderString("field_cache_size");
         static final XContentBuilderString FIELD_CACHE_SIZE_IN_BYTES = new XContentBuilderString("field_cache_size_in_bytes");
+        static final XContentBuilderString FIELD_CACHE_EVICTIONS = new XContentBuilderString("field_cache_evictions");
         static final XContentBuilderString FILTER_CACHE_SIZE = new XContentBuilderString("filter_cache_size");
         static final XContentBuilderString FILTER_CACHE_SIZE_IN_BYTES = new XContentBuilderString("filter_cache_size_in_bytes");
     }

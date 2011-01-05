@@ -156,6 +156,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override public IndicesStats stats() {
         long storeTotalSize = 0;
+        long fieldCacheEvictions = 0;
         long fieldCacheTotalSize = 0;
         long filterCacheTotalSize = 0;
         for (IndexService indexService : indices.values()) {
@@ -166,10 +167,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                     // ignore
                 }
             }
+            fieldCacheEvictions += indexService.cache().fieldData().evictions();
             fieldCacheTotalSize += indexService.cache().fieldData().sizeInBytes();
             filterCacheTotalSize += indexService.cache().filter().sizeInBytes();
         }
-        return new IndicesStats(new ByteSizeValue(storeTotalSize), new ByteSizeValue(fieldCacheTotalSize), new ByteSizeValue(filterCacheTotalSize));
+        return new IndicesStats(new ByteSizeValue(storeTotalSize), new ByteSizeValue(fieldCacheTotalSize), new ByteSizeValue(filterCacheTotalSize), fieldCacheEvictions);
     }
 
     /**

@@ -25,6 +25,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.collect.Ordering;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -51,6 +53,16 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class SearchPhaseController {
+
+    public static Ordering<QuerySearchResultProvider> QUERY_RESULT_ORDERING = new Ordering<QuerySearchResultProvider>() {
+        @Override public int compare(@Nullable QuerySearchResultProvider o1, @Nullable QuerySearchResultProvider o2) {
+            int i = o1.shardTarget().index().compareTo(o2.shardTarget().index());
+            if (i == 0) {
+                i = o1.shardTarget().shardId() - o2.shardTarget().shardId();
+            }
+            return i;
+        }
+    };
 
     private static final ShardDoc[] EMPTY = new ShardDoc[0];
 
@@ -72,12 +84,14 @@ public class SearchPhaseController {
         return new AggregatedDfs(dfMap, aggMaxDoc);
     }
 
-    public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results) {
-        if (results.isEmpty()) {
+    public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results1) {
+        if (results1.isEmpty()) {
             return EMPTY;
         }
 
-        QuerySearchResultProvider queryResultProvider = Iterables.get(results, 0);
+        List<? extends QuerySearchResultProvider> results = QUERY_RESULT_ORDERING.sortedCopy(results1);
+
+        QuerySearchResultProvider queryResultProvider = results.get(0);
 
         int totalNumDocs = 0;
 

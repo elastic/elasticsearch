@@ -5,6 +5,8 @@
       <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-core/jars/lucene-core-3.0.3.jar!/" />
       <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-queries/jars/lucene-queries-3.0.3.jar!/" />
       <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-analyzers/jars/lucene-analyzers-3.0.3.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-highlighter/jars/lucene-highlighter-3.0.3.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-memory/jars/lucene-memory-3.0.3.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES>
@@ -12,6 +14,8 @@
       <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/fast-vector-highlighter/src/java" />
       <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/analyzers/common/src/java" />
       <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/highlighter/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/memory/src/java" />
     </SOURCES>
   </library>
 </component>

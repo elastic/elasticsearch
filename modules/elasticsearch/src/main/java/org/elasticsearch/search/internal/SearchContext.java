@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
@@ -247,6 +248,10 @@ public class SearchContext implements Releasable {
 
     public MapperService mapperService() {
         return indexService.mapperService();
+    }
+
+    public AnalysisService analysisService() {
+        return indexService.analysisService();
     }
 
     public IndexQueryParserService queryParserService() {

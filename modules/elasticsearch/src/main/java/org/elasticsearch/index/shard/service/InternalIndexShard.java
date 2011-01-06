@@ -321,7 +321,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 throw new IndexQueryParserMissingException(queryParserName);
             }
         }
-        Query query = queryParser.parse(querySource).query();
+        Query query = queryParser.parse(querySource, querySourceOffset, querySourceLength).query();
         // wrap it in filter, cache it, and constant score it
         // Don't cache it, since it might be very different queries each time...
 //        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));

@@ -49,21 +49,21 @@ public class MatchedFiltersSearchHitPhase implements SearchHitPhase {
         return !context.parsedQuery().namedFilters().isEmpty();
     }
 
-    @Override public void execute(SearchContext context, InternalSearchHit hit, Uid uid, IndexReader reader, int docId) throws ElasticSearchException {
+    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
         for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
             String name = entry.getKey();
             Filter filter = entry.getValue();
             filter = context.filterCache().cache(filter);
             try {
-                DocIdSet docIdSet = filter.getDocIdSet(reader);
-                if (docIdSet instanceof DocSet && ((DocSet) docIdSet).get(docId)) {
+                DocIdSet docIdSet = filter.getDocIdSet(hitContext.reader());
+                if (docIdSet instanceof DocSet && ((DocSet) docIdSet).get(hitContext.docId())) {
                     matchedFilters.add(name);
                 }
             } catch (IOException e) {
                 // ignore
             }
         }
-        hit.matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
+        hitContext.hit().matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
     }
 }

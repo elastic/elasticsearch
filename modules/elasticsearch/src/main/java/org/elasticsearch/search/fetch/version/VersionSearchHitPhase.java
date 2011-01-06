@@ -17,40 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch.explain;
+package org.elasticsearch.search.fetch.version;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.SearchHitPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ExplainSearchHitPhase implements SearchHitPhase {
+public class VersionSearchHitPhase implements SearchHitPhase {
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("explain", new ExplainParseElement());
+        return ImmutableMap.of();
     }
 
     @Override public boolean executionNeeded(SearchContext context) {
-        return context.explain();
+        return true;
     }
 
     @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
-        try {
-            // we use the top level doc id, since we work with the top level searcher
-            hitContext.hit().explanation(context.searcher().explain(context.query(), hitContext.hit().docId()));
-        } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().type() + "#" + hitContext.hit().id() + "]", e);
+        long version = UidField.loadVersion(hitContext.reader(), new Term(UidFieldMapper.NAME, hitContext.doc().get(UidFieldMapper.NAME)));
+        if (version < 0) {
+            version = -1;
         }
+        hitContext.hit().version(version);
     }
 }

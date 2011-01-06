@@ -106,9 +106,13 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+        for (int i = 0; i < 10; i++) {
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+        }
 
-        SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
-        assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+        }
     }
 }

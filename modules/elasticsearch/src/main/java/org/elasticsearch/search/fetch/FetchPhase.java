@@ -23,10 +23,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -34,6 +32,7 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainSearchHitPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersSearchHitPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsSearchHitPhase;
+import org.elasticsearch.search.fetch.version.VersionSearchHitPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -53,8 +52,8 @@ public class FetchPhase implements SearchPhase {
     private final SearchHitPhase[] hitPhases;
 
     @Inject public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsSearchHitPhase scriptFieldsPhase,
-                              MatchedFiltersSearchHitPhase matchFiltersPhase, ExplainSearchHitPhase explainPhase) {
-        this.hitPhases = new SearchHitPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase};
+                              MatchedFiltersSearchHitPhase matchFiltersPhase, ExplainSearchHitPhase explainPhase, VersionSearchHitPhase versionPhase) {
+        this.hitPhases = new SearchHitPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
     }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
@@ -83,12 +82,8 @@ public class FetchPhase implements SearchPhase {
             byte[] source = extractSource(doc, documentMapper);
 
             // get the version
-            long version = UidField.loadVersion(context.searcher().getIndexReader(), new Term(UidFieldMapper.NAME, doc.get(UidFieldMapper.NAME)));
-            if (version < 0) {
-                version = -1;
-            }
 
-            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), version, source, null);
+            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), source, null);
             hits[index] = searchHit;
 
             for (Object oField : doc.getFields()) {
@@ -134,22 +129,14 @@ public class FetchPhase implements SearchPhase {
                 hitField.values().add(value);
             }
 
-            boolean hitPhaseExecutionRequired = false;
+            int readerIndex = context.searcher().readerIndex(docId);
+            IndexReader subReader = context.searcher().subReaders()[readerIndex];
+            int subDoc = docId - context.searcher().docStarts()[readerIndex];
             for (SearchHitPhase hitPhase : hitPhases) {
+                SearchHitPhase.HitContext hitContext = new SearchHitPhase.HitContext();
                 if (hitPhase.executionNeeded(context)) {
-                    hitPhaseExecutionRequired = true;
-                    break;
-                }
-            }
-
-            if (hitPhaseExecutionRequired) {
-                int readerIndex = context.searcher().readerIndex(docId);
-                IndexReader subReader = context.searcher().subReaders()[readerIndex];
-                int subDoc = docId - context.searcher().docStarts()[readerIndex];
-                for (SearchHitPhase hitPhase : hitPhases) {
-                    if (hitPhase.executionNeeded(context)) {
-                        hitPhase.execute(context, searchHit, uid, subReader, subDoc);
-                    }
+                    hitContext.reset(searchHit, subReader, subDoc, doc);
+                    hitPhase.execute(context, hitContext);
                 }
             }
         }

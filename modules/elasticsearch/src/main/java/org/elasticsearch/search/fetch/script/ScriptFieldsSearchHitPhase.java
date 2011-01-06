@@ -54,13 +54,13 @@ public class ScriptFieldsSearchHitPhase implements SearchHitPhase {
         return context.hasScriptFields();
     }
 
-    @Override public void execute(SearchContext context, InternalSearchHit hit, Uid uid, IndexReader reader, int docId) throws ElasticSearchException {
+    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
-            scriptField.script().setNextReader(reader);
+            scriptField.script().setNextReader(hitContext.reader());
 
             Object value;
             try {
-                value = scriptField.script().execute(docId);
+                value = scriptField.script().execute(hitContext.docId());
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;
@@ -68,14 +68,14 @@ public class ScriptFieldsSearchHitPhase implements SearchHitPhase {
                 throw e;
             }
 
-            if (hit.fieldsOrNull() == null) {
-                hit.fields(new HashMap<String, SearchHitField>(2));
+            if (hitContext.hit().fieldsOrNull() == null) {
+                hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
             }
 
-            SearchHitField hitField = hit.fields().get(scriptField.name());
+            SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
             if (hitField == null) {
                 hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<Object>(2));
-                hit.fields().put(scriptField.name(), hitField);
+                hitContext.hit().fields().put(scriptField.name(), hitField);
             }
             hitField.values().add(value);
         }

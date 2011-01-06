@@ -66,9 +66,9 @@ public class HighlightPhase implements SearchHitPhase {
         return context.highlight() != null;
     }
 
-    @Override public void execute(SearchContext context, InternalSearchHit hit, Uid uid, IndexReader reader, int docId) throws ElasticSearchException {
+    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         try {
-            DocumentMapper documentMapper = context.mapperService().documentMapper(hit.type());
+            DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
 
             Map<String, HighlightField> highlightFields = newHashMap();
             for (SearchContextHighlight.Field field : context.highlight().fields()) {
@@ -104,7 +104,7 @@ public class HighlightPhase implements SearchHitPhase {
                     List<Object> textsToHighlight;
                     if (mapper.stored()) {
                         try {
-                            Document doc = reader.document(docId, new SingleFieldSelector(mapper.names().indexName()));
+                            Document doc = hitContext.reader().document(hitContext.docId(), new SingleFieldSelector(mapper.names().indexName()));
                             textsToHighlight = new ArrayList<Object>(doc.getFields().size());
                             for (Fieldable docField : doc.getFields()) {
                                 if (docField.stringValue() != null) {
@@ -116,8 +116,8 @@ public class HighlightPhase implements SearchHitPhase {
                         }
                     } else {
                         SearchLookup lookup = context.lookup();
-                        lookup.setNextReader(reader);
-                        lookup.setNextDocId(docId);
+                        lookup.setNextReader(hitContext.reader());
+                        lookup.setNextDocId(hitContext.docId());
                         textsToHighlight = lookup.source().getValues(mapper.names().fullName());
                     }
 
@@ -125,7 +125,7 @@ public class HighlightPhase implements SearchHitPhase {
                     try {
                         for (Object textToHighlight : textsToHighlight) {
                             String text = textToHighlight.toString();
-                            Analyzer analyzer = context.mapperService().documentMapper(hit.type()).mappers().indexAnalyzer();
+                            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
                             TokenStream tokenStream = analyzer.reusableTokenStream(mapper.names().indexName(), new FastStringReader(text));
                             TextFragment[] bestTextFragments = highlighter.getBestTextFragments(tokenStream, text, false, field.numberOfFragments());
                             Collections.addAll(fragsList, bestTextFragments);
@@ -149,13 +149,13 @@ public class HighlightPhase implements SearchHitPhase {
                     highlightFields.put(highlightField.name(), highlightField);
                 } else {
                     FastVectorHighlighter highlighter = buildHighlighter(context, mapper, field);
-                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), reader, field);
+                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), hitContext.reader(), field);
 
                     String[] fragments;
                     try {
                         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
                         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
-                        fragments = highlighter.getBestFragments(fieldQuery, reader, docId, mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
+                        fragments = highlighter.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }
@@ -164,7 +164,7 @@ public class HighlightPhase implements SearchHitPhase {
                 }
             }
 
-            hit.highlightFields(highlightFields);
+            hitContext.hit().highlightFields(highlightFields);
         } finally {
             CustomFieldQuery.reader.remove();
             CustomFieldQuery.highlightFilters.remove();

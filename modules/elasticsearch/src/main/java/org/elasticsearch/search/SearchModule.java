@@ -31,6 +31,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainSearchHitPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersSearchHitPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsSearchHitPhase;
+import org.elasticsearch.search.fetch.version.VersionSearchHitPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
 
@@ -52,6 +53,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(FetchPhase.class).asEagerSingleton();
         bind(ExplainSearchHitPhase.class).asEagerSingleton();
         bind(ScriptFieldsSearchHitPhase.class).asEagerSingleton();
+        bind(VersionSearchHitPhase.class).asEagerSingleton();
         bind(MatchedFiltersSearchHitPhase.class).asEagerSingleton();
         bind(HighlightPhase.class).asEagerSingleton();
 

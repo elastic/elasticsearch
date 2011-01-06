@@ -84,11 +84,10 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, long version, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
         this.docId = docId;
         this.id = id;
         this.type = type;
-        this.version = version;
         this.source = source;
         this.fields = fields;
     }
@@ -111,6 +110,10 @@ public class InternalSearchHit implements SearchHit {
 
     @Override public float getScore() {
         return score();
+    }
+
+    public void version(long version) {
+        this.version = version;
     }
 
     @Override public long version() {

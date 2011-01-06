@@ -84,7 +84,9 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
-        querySource = new byte[in.readVInt()];
+        querySourceLength = in.readVInt();
+        querySourceOffset = 0;
+        querySource = new byte[querySourceLength];
         in.readFully(querySource);
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
@@ -101,8 +103,8 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        out.writeVInt(querySource.length);
-        out.writeBytes(querySource);
+        out.writeVInt(querySourceLength);
+        out.writeBytes(querySource, querySourceOffset, querySourceLength);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

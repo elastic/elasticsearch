@@ -322,6 +322,8 @@ public class AnalysisModule extends AbstractModule {
 
     private static class ExtendedProcessor extends AnalysisBinderProcessor {
         @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+            tokenFiltersBindings.processTokenFilter("snowball", SnowballTokenFilterFactory.class);
+
             tokenFiltersBindings.processTokenFilter("arabicStem", ArabicStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("arabic_stem", ArabicStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("brazilianStem", BrazilianStemTokenFilterFactory.class);
@@ -345,6 +347,7 @@ public class AnalysisModule extends AbstractModule {
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
             analyzersBindings.processAnalyzer("pattern", PatternAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("snowball", SnowballAnalyzerProvider.class);
 
             analyzersBindings.processAnalyzer("arabic", ArabicAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("brazilian", BrazilianAnalyzerProvider.class);

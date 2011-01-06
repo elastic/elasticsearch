@@ -17,6 +17,7 @@
       <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/src/java" />
       <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/highlighter/src/java" />
       <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/memory/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.0.3.src/contrib/snowball/src/java" />
     </SOURCES>
   </library>
 </component>

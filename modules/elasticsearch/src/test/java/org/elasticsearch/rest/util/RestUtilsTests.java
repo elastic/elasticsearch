@@ -52,7 +52,12 @@ public class RestUtilsTests {
 
         params.clear();
         uri = "something";
-        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        RestUtils.decodeQueryString(uri, uri.length(), params);
+        assertThat(params.size(), equalTo(0));
+
+        params.clear();
+        uri = "something";
+        RestUtils.decodeQueryString(uri, -1, params);
         assertThat(params.size(), equalTo(0));
     }
 }

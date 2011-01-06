@@ -60,4 +60,63 @@ public class RestUtilsTests {
         RestUtils.decodeQueryString(uri, -1, params);
         assertThat(params.size(), equalTo(0));
     }
+
+    @Test
+    public void testDecodeQueryStringEdgeCases() {
+        Map<String, String> params = newHashMap();
+
+        String uri = "something?";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(0));
+
+        params.clear();
+        uri = "something?&";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(0));
+
+        params.clear();
+        uri = "something?p=v&&p1=v1";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(2));
+        assertThat(params.get("p"), equalTo("v"));
+        assertThat(params.get("p1"), equalTo("v1"));
+
+        params.clear();
+        uri = "something?=";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(1));
+        assertThat(params.get(""), equalTo(""));
+
+        params.clear();
+        uri = "something?&=";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(1));
+        assertThat(params.get(""), equalTo(""));
+
+        params.clear();
+        uri = "something?a";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(0));
+
+        params.clear();
+        uri = "something?p=v&a";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(1));
+        assertThat(params.get("p"), equalTo("v"));
+
+        params.clear();
+        uri = "something?p=v&a&p1=v1";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(2));
+        assertThat(params.get("p"), equalTo("v"));
+        assertThat(params.get("p1"), equalTo("v1"));
+
+        params.clear();
+        uri = "something?p=v&a&b&p1=v1";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.size(), equalTo(2));
+        assertThat(params.get("p"), equalTo("v"));
+        assertThat(params.get("p1"), equalTo("v1"));
+    }
+
 }

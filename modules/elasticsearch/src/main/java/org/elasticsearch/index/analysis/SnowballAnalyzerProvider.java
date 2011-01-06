@@ -24,6 +24,9 @@ import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.snowball.SnowballAnalyzer;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -44,39 +47,18 @@ import java.util.Set;
  * The SnowballAnalyzer comes with a StandardFilter, LowerCaseFilter, StopFilter
  * and the SnowballFilter.
  *
+ * @author kimchy (Shay Banon)
  * @author harryf (Harry Fuecks)
  */
 public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
 
-    private enum SupportedAnalyzer {
-        DUTCH {
-            public Set<?> getStopwords() {
-                return DutchAnalyzer.getDefaultStopSet();
-            }
-        },
-        ENGLISH {
-            public Set<?> getStopwords() {
-                return StopAnalyzer.ENGLISH_STOP_WORDS_SET;
-            }
-        },
-        FRENCH {
-            public Set<?> getStopwords() {
-                return FrenchAnalyzer.getDefaultStopSet();
-            }
-        },
-        GERMAN {
-            public Set<?> getStopwords() {
-                return GermanAnalyzer.getDefaultStopSet();
-            }
-        },
-        GERMAN2 {
-            public Set<?> getStopwords() {
-                return GermanAnalyzer.getDefaultStopSet();
-            }
-        };
-
-        public abstract Set<?> getStopwords();
-    }
+    private static final ImmutableMap<String, Set<?>> defaultLanguageStopwords = MapBuilder.<String, Set<?>>newMapBuilder()
+            .put("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET)
+            .put("Dutch", DutchAnalyzer.getDefaultStopSet())
+            .put("German", GermanAnalyzer.getDefaultStopSet())
+            .put("German2", GermanAnalyzer.getDefaultStopSet())
+            .put("French", FrenchAnalyzer.getDefaultStopSet())
+            .immutableMap();
 
     private final SnowballAnalyzer analyzer;
 
@@ -84,8 +66,8 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         super(index, indexSettings, name);
 
         String language = settings.get("language", "English");
-        Set<?> stopWords = Analysis.parseStopWords(settings,
-                SupportedAnalyzer.valueOf(language.toUpperCase()).getStopwords());
+        Set<?> defaultStopwords = defaultLanguageStopwords.containsKey(language) ? defaultLanguageStopwords.get(language) : ImmutableSet.<Set<?>>of();
+        Set<?> stopWords = Analysis.parseStopWords(settings, defaultStopwords);
 
         analyzer = new SnowballAnalyzer(Lucene.VERSION, language, stopWords);
     }

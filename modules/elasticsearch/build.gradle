@@ -39,6 +39,7 @@ dependencies {
 
     compile 'org.apache.lucene:lucene-core:3.0.3'
     compile 'org.apache.lucene:lucene-analyzers:3.0.3'
+    compile 'org.apache.lucene:lucene-snowball:3.0.3'
     compile 'org.apache.lucene:lucene-queries:3.0.3'
     compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.3'
     compile 'org.apache.lucene:lucene-memory:3.0.3'

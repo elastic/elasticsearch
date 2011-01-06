@@ -36,9 +36,20 @@ public class PluginManager {
     public void downloadPlugin(String name) throws IOException {
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
 
-        URL pluginUrl = new URL(url + "/" + name + "/elasticsearch-" + name + "-" + Version.number() + ".zip");
-        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
-        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+        File pluginFile = new File(url + "/" + name + "/elasticsearch-" + name + "-" + Version.number() + ".zip");
+        if (!pluginFile.exists()) {
+            pluginFile = new File(url + "/elasticsearch-" + name + "-" + Version.number() + ".zip");
+            if (!pluginFile.exists()) {
+                URL pluginUrl = new URL(url + "/" + name + "/elasticsearch-" + name + "-" + Version.number() + ".zip");
+                System.out.println("Downloading plugin from " + pluginUrl.toExternalForm());
+                pluginFile = new File(environment.pluginsFile(), name + ".zip");
+                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+            } else {
+                System.out.println("Using plugin from local fs: " + pluginFile.getAbsolutePath());
+            }
+        } else {
+            System.out.println("Using plugin from local fs: " + pluginFile.getAbsolutePath());
+        }
 
         // extract the plugin
         File extractLocation = new File(environment.pluginsFile(), name);
@@ -88,20 +99,26 @@ public class PluginManager {
             initialSettings.v2().pluginsFile().mkdirs();
         }
 
-        PluginManager pluginManager = new PluginManager(initialSettings.v2(), "http://elasticsearch.googlecode.com/svn/plugins");
+        String url = "http://elasticsearch.googlecode.com/svn/plugins";
+        for (int i = 0; i < args.length; i++) {
+            if ("url".equals(args[i]) || "-url".equals(args[i])) {
+                url = args[i + 1];
+                break;
+            }
+        }
+
+        PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
 
         if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    - install [list of plugin names]: Downloads and installs listed plugins");
-            System.out.println("    - remove [list of plugin names]: Removes listed plugins");
+            System.out.println("    -url     [plugins location]    : Downloads and installs listed plugins");
+            System.out.println("    -install [plugin name]: Downloads and installs listed plugins");
+            System.out.println("    -remove  [plugin name]: Removes listed plugins");
         }
-        String command = args[0];
-        if (command.equals("install") || command.equals("-install")) {
-            if (args.length < 2) {
-                System.out.println("'install' requires an additional parameter with the plugin name");
-            }
-            for (int i = 1; i < args.length; i++) {
-                String pluginName = args[i];
+        for (int c = 0; c < args.length; c++) {
+            String command = args[c];
+            if (command.equals("install") || command.equals("-install")) {
+                String pluginName = args[++c];
                 System.out.print("-> Installing " + pluginName + " ");
                 try {
                     pluginManager.downloadPlugin(pluginName);
@@ -109,22 +126,18 @@ public class PluginManager {
                 } catch (IOException e) {
                     System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
                 }
-            }
-        } else if (command.equals("remove") || command.equals("-remove")) {
-            if (args.length < 2) {
-                System.out.println("'remove' requires an additional parameter with the plugin name");
-            }
-            for (int i = 1; i < args.length; i++) {
-                String pluginName = args[i];
+            } else if (command.equals("remove") || command.equals("-remove")) {
+                String pluginName = args[++c];
                 System.out.println("-> Removing " + pluginName + " ");
                 try {
                     pluginManager.removePlugin(pluginName);
                 } catch (IOException e) {
                     System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                 }
+            } else {
+                // not install or remove, continue
+                c++;
             }
-        } else {
-            System.out.println("No command matching '" + command + "' found");
         }
     }
 }

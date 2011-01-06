@@ -39,10 +39,9 @@ public class RestUtils {
         int toIndex;
         while ((toIndex = queryString.indexOf('&', fromIndex)) >= 0) {
             int idx = queryString.indexOf('=', fromIndex);
-            if (idx < 0) {
-                continue;
+            if (fromIndex < idx && idx < toIndex) {
+                params.put(decodeComponent(queryString.substring(fromIndex, idx)), decodeComponent(queryString.substring(idx + 1, toIndex)));
             }
-            params.put(decodeComponent(queryString.substring(fromIndex, idx)), decodeComponent(queryString.substring(idx + 1, toIndex)));
             fromIndex = toIndex + 1;
         }
         int idx = queryString.indexOf('=', fromIndex);

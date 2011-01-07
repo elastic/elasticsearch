@@ -112,6 +112,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         if (!enabled) {
             return null;
         }
+        if (context.flyweight()) {
+            return null;
+        }
         byte[] data = context.source();
         if (compress != null && compress && !LZFDecoder.isCompressed(data)) {
             if (compressThreshold == -1 || data.length > compressThreshold) {

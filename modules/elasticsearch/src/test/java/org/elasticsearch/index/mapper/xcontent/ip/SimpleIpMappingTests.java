@@ -48,7 +48,7 @@ public class SimpleIpMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getField("ip1"), notNullValue());
+        assertThat(doc.doc().getFieldable("ip1"), notNullValue());
         assertThat(doc.doc().get("ip1"), nullValue()); // its numeric
         assertThat(doc.doc().get("ip2"), equalTo("0.1"));
         assertThat(doc.doc().get("ip3"), equalTo("127.0.0.1.2"));

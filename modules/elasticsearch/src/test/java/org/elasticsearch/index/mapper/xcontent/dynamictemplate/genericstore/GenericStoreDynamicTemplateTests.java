@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.xcontent.dynamictemplate.genericstore;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class GenericStoreDynamicTempalteTests {
+public class GenericStoreDynamicTemplateTests {
 
     @Test public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/dynamictemplate/genericstore/test-mapping.json");
@@ -41,7 +41,7 @@ public class GenericStoreDynamicTempalteTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/dynamictemplate/genericstore/test-data.json");
         Document doc = docMapper.parse(json).doc();
 
-        Field f = doc.getField("name");
+        Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(true));
@@ -50,7 +50,7 @@ public class GenericStoreDynamicTempalteTests {
         assertThat(fieldMappers.mappers().size(), equalTo(1));
         assertThat(fieldMappers.mapper().stored(), equalTo(true));
 
-        f = doc.getField("age");
+        f = doc.getFieldable("age");
         assertThat(f.name(), equalTo("age"));
         assertThat(f.isStored(), equalTo(true));
 

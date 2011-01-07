@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
@@ -145,22 +146,21 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
         super.parse(context);
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
-        float value = parseFloatValue(context);
+    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
+        final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
             return null;
         }
         context.doc().setBoost(value);
-        Field field = null;
-        if (stored()) {
-            field = new Field(names.indexName(), Numbers.floatToBytes(value), store);
-            if (indexed()) {
-                field.setTokenStream(popCachedStream(precisionStep).setFloatValue(value));
+        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.floatToBytes(value) : null) {
+            @Override public TokenStream tokenStreamValue() {
+                if (indexed()) {
+                    return popCachedStream(precisionStep).setFloatValue(value);
+                } else {
+                    return null;
+                }
             }
-        } else if (indexed()) {
-            field = new Field(names.indexName(), popCachedStream(precisionStep).setFloatValue(value));
-        }
-        return field;
+        };
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {

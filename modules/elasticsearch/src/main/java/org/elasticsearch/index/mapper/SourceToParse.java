@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -30,6 +32,10 @@ public class SourceToParse {
 
     private final byte[] source;
 
+    private final XContentParser parser;
+
+    private boolean flyweight = false;
+
     private String type;
 
     private String id;
@@ -40,8 +46,18 @@ public class SourceToParse {
 
     private String parentId;
 
+    public SourceToParse(XContentParser parser) {
+        this.parser = parser;
+        this.source = null;
+    }
+
     public SourceToParse(byte[] source) {
         this.source = source;
+        this.parser = null;
+    }
+
+    public XContentParser parser() {
+        return this.parser;
     }
 
     public byte[] source() {
@@ -55,6 +71,15 @@ public class SourceToParse {
     public SourceToParse type(String type) {
         this.type = type;
         return this;
+    }
+
+    public SourceToParse flyweight(boolean flyweight) {
+        this.flyweight = flyweight;
+        return this;
+    }
+
+    public boolean flyweight() {
+        return this.flyweight;
     }
 
     public String id() {

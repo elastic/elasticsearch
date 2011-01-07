@@ -23,9 +23,11 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TDoubleArrayList;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
+import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 
 import java.io.IOException;
@@ -38,6 +40,18 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
     static ThreadLocal<ThreadLocals.CleanableValue<GeoPoint>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPoint>>() {
         @Override protected ThreadLocals.CleanableValue<GeoPoint> initialValue() {
             return new ThreadLocals.CleanableValue<GeoPoint>(new GeoPoint());
+        }
+    };
+
+    static class GeoPointHash {
+        public double lat;
+        public double lon;
+        public String geoHash = "";
+    }
+
+    static ThreadLocal<ThreadLocals.CleanableValue<GeoPointHash>> geoHashCache = new ThreadLocal<ThreadLocals.CleanableValue<GeoPointHash>>() {
+        @Override protected ThreadLocals.CleanableValue<GeoPointHash> initialValue() {
+            return new ThreadLocals.CleanableValue<GeoPointHash>(new GeoPointHash());
         }
     };
 
@@ -63,6 +77,21 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
     abstract public double[] latValues(int docId);
 
     abstract public double[] lonValues(int docId);
+
+    public double distance(int docId, DistanceUnit unit, double lat, double lon) {
+        return GeoDistance.PLANE.calculate(latValue(docId), lonValue(docId), lat, lon, unit);
+    }
+
+    public double distanceGeohash(int docId, DistanceUnit unit, String geoHash) {
+        GeoPointHash geoPointHash = geoHashCache.get().get();
+        if (geoPointHash.geoHash != geoHash) {
+            geoPointHash.geoHash = geoHash;
+            double[] decode = GeoHashUtils.decode(geoHash);
+            geoPointHash.lat = decode[0];
+            geoPointHash.lon = decode[1];
+        }
+        return GeoDistance.PLANE.calculate(latValue(docId), lonValue(docId), geoPointHash.lat, geoPointHash.lon, unit);
+    }
 
     @Override public GeoPointDocFieldData docFieldData(int docId) {
         return super.docFieldData(docId);

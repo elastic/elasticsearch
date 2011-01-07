@@ -23,6 +23,7 @@
       <w>camelcase</w>
       <w>canonicalhost</w>
       <w>charfilter</w>
+      <w>charsets</w>
       <w>checksum</w>
       <w>chunking</w>
       <w>closeable</w>

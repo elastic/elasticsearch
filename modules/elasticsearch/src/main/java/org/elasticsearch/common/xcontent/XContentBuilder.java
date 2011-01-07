@@ -284,11 +284,23 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder field(String name, Integer value) throws IOException {
-        return field(name, value.intValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.intValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, Integer value) throws IOException {
-        return field(name, value.intValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.intValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(String name, int value) throws IOException {
@@ -304,11 +316,23 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder field(String name, Long value) throws IOException {
-        return field(name, value.longValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.longValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, Long value) throws IOException {
-        return field(name, value.longValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.longValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(String name, long value) throws IOException {
@@ -324,11 +348,23 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder field(String name, Float value) throws IOException {
-        return field(name, value.floatValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.floatValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, Float value) throws IOException {
-        return field(name, value.floatValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.floatValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(String name, float value) throws IOException {
@@ -344,11 +380,23 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder field(String name, Double value) throws IOException {
-        return field(name, value.doubleValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.doubleValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, Double value) throws IOException {
-        return field(name, value.doubleValue());
+        field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeNumber(value.doubleValue());
+        }
+        return this;
     }
 
     public XContentBuilder field(String name, double value) throws IOException {
@@ -637,14 +685,17 @@ public final class XContentBuilder {
 
     public XContentBuilder field(String name, byte[] value) throws IOException {
         field(name);
-        generator.writeBinary(value);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeBinary(value);
+        }
         return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, byte[] value) throws IOException {
         field(name);
-        generator.writeBinary(value);
-        return this;
+        return value(value);
     }
 
     public XContentBuilder field(String name, ReadableInstant date) throws IOException {
@@ -727,6 +778,9 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
+        if (date == null) {
+            return nullValue();
+        }
         return value(dateTimeFormatter.print(date));
     }
 
@@ -735,10 +789,16 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
+        if (date == null) {
+            return nullValue();
+        }
         return value(dateTimeFormatter.print(date.getTime()));
     }
 
     public XContentBuilder value(Integer value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         return value(value.intValue());
     }
 
@@ -748,6 +808,9 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(Long value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         return value(value.longValue());
     }
 
@@ -757,6 +820,9 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(Float value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         return value(value.floatValue());
     }
 
@@ -766,6 +832,9 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(Double value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         return value(value.doubleValue());
     }
 
@@ -775,21 +844,33 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(String value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         generator.writeString(value);
         return this;
     }
 
     public XContentBuilder value(byte[] value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         generator.writeBinary(value);
         return this;
     }
 
     public XContentBuilder map(Map<String, Object> map) throws IOException {
+        if (map == null) {
+            return nullValue();
+        }
         XContentMapConverter.writeMap(generator, map);
         return this;
     }
 
     public XContentBuilder value(Map<String, Object> map) throws IOException {
+        if (map == null) {
+            return nullValue();
+        }
         XContentMapConverter.writeMap(generator, map);
         return this;
     }

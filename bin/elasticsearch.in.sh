@@ -34,6 +34,14 @@ JAVA_OPTS="$JAVA_OPTS -XX:MaxTenuringThreshold=1"
 JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 
+# GC logging options -- uncomment to enable
+# JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCDetails"
+# JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCTimeStamps"
+# JAVA_OPTS="$JAVA_OPTS -XX:+PrintClassHistogram"
+# JAVA_OPTS="$JAVA_OPTS -XX:+PrintTenuringDistribution"
+# JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCApplicationStoppedTime"
+# JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/log/elasticsearch/gc.log"
+
 # Causes the JVM to dump its heap on OutOfMemory.
 JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 # The path to the heap dump location, note directory must exists and have enough

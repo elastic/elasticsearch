@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent.geo;
 
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.DocFieldData;
 
 /**
@@ -36,6 +37,22 @@ public class GeoPointDocFieldData extends DocFieldData<GeoPointFieldData> {
 
     public GeoPoint[] getValues() {
         return fieldData.values(docId);
+    }
+
+    public double distance(double lat, double lon) {
+        return fieldData.distance(docId, DistanceUnit.MILES, lat, lon);
+    }
+
+    public double distanceInKm(double lat, double lon) {
+        return fieldData.distance(docId, DistanceUnit.KILOMETERS, lat, lon);
+    }
+
+    public double geohashDistance(String geohash) {
+        return fieldData.distanceGeohash(docId, DistanceUnit.MILES, geohash);
+    }
+
+    public double geohashDistanceInKm(String geohash) {
+        return fieldData.distanceGeohash(docId, DistanceUnit.KILOMETERS, geohash);
     }
 
     public double getLat() {

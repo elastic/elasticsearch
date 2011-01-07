@@ -56,6 +56,8 @@ public class ParseContext {
 
     private String id;
 
+    private boolean flyweight;
+
     private DocumentMapper.ParseListener listener;
 
     private String uid;
@@ -81,7 +83,7 @@ public class ParseContext {
         this.path = path;
     }
 
-    public void reset(XContentParser parser, Document document, String type, byte[] source, DocumentMapper.ParseListener listener) {
+    public void reset(XContentParser parser, Document document, String type, byte[] source, boolean flyweight, DocumentMapper.ParseListener listener) {
         this.parser = parser;
         this.document = document;
         this.analyzer = null;
@@ -89,12 +91,17 @@ public class ParseContext {
         this.id = null;
         this.type = type;
         this.source = source;
+        this.flyweight = flyweight;
         this.path.reset();
         this.parsedIdState = ParsedIdState.NO;
         this.mappersAdded = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
+    }
+
+    public boolean flyweight() {
+        return this.flyweight;
     }
 
     public XContentDocumentMapperParser docMapperParser() {

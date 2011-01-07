@@ -376,18 +376,20 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         }
         source.type(this.type);
 
-        XContentParser parser = null;
+        XContentParser parser = source.parser();
         try {
-            if (LZFDecoder.isCompressed(source.source())) {
-                BytesStreamInput siBytes = new BytesStreamInput(source.source());
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                XContentType contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
-                parser = XContentFactory.xContent(contentType).createParser(siLzf);
-            } else {
-                parser = XContentFactory.xContent(source.source()).createParser(source.source());
+            if (parser == null) {
+                if (LZFDecoder.isCompressed(source.source())) {
+                    BytesStreamInput siBytes = new BytesStreamInput(source.source());
+                    LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                    XContentType contentType = XContentFactory.xContentType(siLzf);
+                    siLzf.resetToBufferStart();
+                    parser = XContentFactory.xContent(contentType).createParser(siLzf);
+                } else {
+                    parser = XContentFactory.xContent(source.source()).createParser(source.source());
+                }
             }
-            context.reset(parser, new Document(), type, source.source(), listener);
+            context.reset(parser, new Document(), type, source.source(), source.flyweight(), listener);
 
             // will result in START_OBJECT
             XContentParser.Token token = parser.nextToken();
@@ -431,12 +433,24 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
             // if we did not get the id, we need to parse the uid into the document now, after it was added
             if (source.id() == null) {
-                uidFieldMapper.parse(context);
+                if (context.id() == null) {
+                    if (!source.flyweight()) {
+                        throw new MapperParsingException("No id found while parsing the content source");
+                    }
+                } else {
+                    uidFieldMapper.parse(context);
+                }
             }
             if (context.parsedIdState() != ParseContext.ParsedIdState.PARSED) {
-                // mark it as external, so we can parse it
-                context.parsedId(ParseContext.ParsedIdState.EXTERNAL);
-                idFieldMapper.parse(context);
+                if (context.id() == null) {
+                    if (!source.flyweight()) {
+                        throw new MapperParsingException("No id mapping with [_id] found in the content, and not explicitly set");
+                    }
+                } else {
+                    // mark it as external, so we can parse it
+                    context.parsedId(ParseContext.ParsedIdState.EXTERNAL);
+                    idFieldMapper.parse(context);
+                }
             }
             if (parentFieldMapper != null) {
                 context.externalValue(source.parent());
@@ -449,14 +463,15 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse", e);
         } finally {
-            if (parser != null) {
+            // only close the parser when its not provided externally
+            if (source.parser() == null && parser != null) {
                 parser.close();
             }
         }
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), context.doc(), context.analyzer(),
                 context.source(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
-        context.reset(null, null, null, null, null);
+        context.reset(null, null, null, null, false, null);
         return doc;
     }
 

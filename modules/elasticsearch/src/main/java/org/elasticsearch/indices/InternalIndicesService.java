@@ -47,6 +47,7 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
+import org.elasticsearch.index.percolator.PercolatorModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
@@ -237,6 +238,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new MapperServiceModule());
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
         modules.add(new IndexModule());
+        modules.add(new PercolatorModule());
 
         Injector indexInjector = modules.createChildInjector(injector);
 

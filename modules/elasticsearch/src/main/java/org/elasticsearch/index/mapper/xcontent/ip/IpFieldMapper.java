@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.xcontent.ip;
 
 import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
@@ -195,7 +196,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                 includeLower, includeUpper);
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();
@@ -217,17 +218,16 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             context.allEntries().addText(names.fullName(), ipAsString, boost);
         }
 
-        long value = ipToLong(ipAsString);
-        Field field = null;
-        if (stored()) {
-            field = new Field(names.indexName(), Numbers.longToBytes(value), store);
-            if (indexed()) {
-                field.setTokenStream(popCachedStream(precisionStep).setLongValue(value));
+        final long value = ipToLong(ipAsString);
+        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.longToBytes(value) : null) {
+            @Override public TokenStream tokenStreamValue() {
+                if (indexed()) {
+                    return popCachedStream(precisionStep).setLongValue(value);
+                } else {
+                    return null;
+                }
             }
-        } else if (indexed()) {
-            field = new Field(names.indexName(), popCachedStream(precisionStep).setLongValue(value));
-        }
-        return field;
+        };
     }
 
     @Override public FieldDataType fieldDataType() {

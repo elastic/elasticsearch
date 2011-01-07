@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.xcontent.multifield;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.xcontent.MapperTests;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
@@ -43,28 +44,28 @@ public class MultiFieldTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/test-data.json");
         Document doc = docMapper.parse(json).doc();
 
-        Field f = doc.getField("name");
+        Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(true));
         assertThat(f.isIndexed(), equalTo(true));
 
-        f = doc.getField("name.indexed");
+        f = doc.getFieldable("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(false));
         assertThat(f.isIndexed(), equalTo(true));
 
-        f = doc.getField("name.not_indexed");
+        f = doc.getFieldable("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(true));
         assertThat(f.isIndexed(), equalTo(false));
 
-        f = doc.getField("object1.multi1");
+        f = doc.getFieldable("object1.multi1");
         assertThat(f.name(), equalTo("object1.multi1"));
 
-        f = doc.getField("object1.multi1.string");
+        f = doc.getFieldable("object1.multi1.string");
         assertThat(f.name(), equalTo("object1.multi1.string"));
         assertThat(f.stringValue(), equalTo("2010-01-01"));
     }
@@ -89,19 +90,19 @@ public class MultiFieldTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/test-data.json");
         Document doc = docMapper.parse(json).doc();
 
-        Field f = doc.getField("name");
+        Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(true));
         assertThat(f.isIndexed(), equalTo(true));
 
-        f = doc.getField("name.indexed");
+        f = doc.getFieldable("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(false));
         assertThat(f.isIndexed(), equalTo(true));
 
-        f = doc.getField("name.not_indexed");
+        f = doc.getFieldable("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(true));

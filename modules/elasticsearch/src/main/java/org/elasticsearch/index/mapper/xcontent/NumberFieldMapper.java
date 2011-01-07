@@ -21,11 +21,13 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -34,6 +36,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -253,6 +256,37 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         public CachedNumericTokenStream setDoubleValue(double value) {
             numericTokenStream.setDoubleValue(value);
             return this;
+        }
+    }
+
+    // used to we can use a numeric field in a document that is then parsed twice!
+    protected abstract static class CustomNumericField extends AbstractField {
+
+        public CustomNumericField(String name, boolean indexed, byte[] value) {
+            this.name = StringHelper.intern(name);        // field names are interned
+            fieldsData = value;
+
+            isIndexed = indexed;
+            isTokenized = indexed;
+            omitTermFreqAndPositions = true;
+            omitNorms = true;
+
+            if (value != null) {
+                isStored = true;
+                isBinary = true;
+                binaryLength = value.length;
+                binaryOffset = 0;
+            }
+
+            setStoreTermVector(Field.TermVector.NO);
+        }
+
+        @Override public String stringValue() {
+            return null;
+        }
+
+        @Override public Reader readerValue() {
+            return null;
         }
     }
 }

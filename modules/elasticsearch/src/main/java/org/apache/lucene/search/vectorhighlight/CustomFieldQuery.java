@@ -83,18 +83,17 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof MultiTermQuery) {
             MultiTermQuery multiTermQuery = (MultiTermQuery) sourceQuery;
             MultiTermQuery.RewriteMethod rewriteMethod = multiTermQuery.getRewriteMethod();
-            if (rewriteMethod != MultiTermQuery.CONSTANT_SCORE_BOOLEAN_QUERY_REWRITE && rewriteMethod != MultiTermQuery.SCORING_BOOLEAN_QUERY_REWRITE) {
-                // we need to rewrite
-                multiTermQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_QUERY_REWRITE);
-                try {
-                    flatten(multiTermQuery.rewrite(reader.get()), flatQueries);
-                } catch (IOException e) {
-                    // ignore
-                } catch (BooleanQuery.TooManyClauses e) {
-                    // ignore
-                } finally {
-                    multiTermQuery.setRewriteMethod(rewriteMethod);
-                }
+            // we want to rewrite a multi term query to extract the terms out of it
+            // LUCENE MONITOR: The regular Highlighter actually uses MemoryIndex to extract the terms
+            multiTermQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_QUERY_REWRITE);
+            try {
+                flatten(multiTermQuery.rewrite(reader.get()), flatQueries);
+            } catch (IOException e) {
+                // ignore
+            } catch (BooleanQuery.TooManyClauses e) {
+                // ignore
+            } finally {
+                multiTermQuery.setRewriteMethod(rewriteMethod);
             }
         } else if (sourceQuery instanceof FilteredQuery) {
             flatten(((FilteredQuery) sourceQuery).getQuery(), flatQueries);

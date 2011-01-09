@@ -181,16 +181,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             }
         }
 
-        final float fValue = value;
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.floatToBytes(fValue) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setFloatValue(fValue);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new CustomFloatNumericField(this, value);
     }
 
     @Override public FieldDataType fieldDataType() {
@@ -238,6 +229,26 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+    }
+
+    public static class CustomFloatNumericField extends CustomNumericField {
+
+        private final float number;
+
+        private final NumberFieldMapper mapper;
+
+        public CustomFloatNumericField(NumberFieldMapper mapper, float number) {
+            super(mapper, mapper.stored() ? Numbers.floatToBytes(number) : null);
+            this.mapper = mapper;
+            this.number = number;
+        }
+
+        @Override public TokenStream tokenStreamValue() {
+            if (isIndexed) {
+                return mapper.popCachedStream().setFloatValue(number);
+            }
+            return null;
         }
     }
 }

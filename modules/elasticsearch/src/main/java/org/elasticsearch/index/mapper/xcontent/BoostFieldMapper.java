@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
@@ -152,15 +151,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
             return null;
         }
         context.doc().setBoost(value);
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.floatToBytes(value) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setFloatValue(value);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new FloatFieldMapper.CustomFloatNumericField(this, value);
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {

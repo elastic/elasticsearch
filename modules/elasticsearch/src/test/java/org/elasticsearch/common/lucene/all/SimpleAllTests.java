@@ -31,6 +31,8 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
+
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -39,6 +41,31 @@ import static org.hamcrest.Matchers.*;
  */
 @Test
 public class SimpleAllTests {
+
+    @Test public void testAllEntriesRead() throws Exception {
+        AllEntries allEntries = new AllEntries();
+        allEntries.addText("field1", "something", 1.0f);
+        allEntries.addText("field2", "else", 1.0f);
+
+        for (int i = 1; i < 30; i++) {
+            allEntries.reset();
+            char[] data = new char[i];
+            String value = slurpToString(allEntries, data);
+            assertThat("failed for " + i, value, equalTo("something else"));
+        }
+    }
+
+    private String slurpToString(AllEntries allEntries, char[] data) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        while (true) {
+            int read = allEntries.read(data, 0, data.length);
+            if (read == -1) {
+                break;
+            }
+            sb.append(data, 0, read);
+        }
+        return sb.toString();
+    }
 
     @Test public void testSimpleAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();

@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene.all;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.io.CharSequenceReader;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 
@@ -40,10 +39,10 @@ public class AllEntries extends Reader {
 
     public static class Entry {
         private final String name;
-        private final CharSequenceReader reader;
+        private final FastStringReader reader;
         private final float boost;
 
-        public Entry(String name, CharSequenceReader reader, float boost) {
+        public Entry(String name, FastStringReader reader, float boost) {
             this.name = name;
             this.reader = reader;
             this.boost = boost;
@@ -57,7 +56,7 @@ public class AllEntries extends Reader {
             return this.boost;
         }
 
-        public CharSequenceReader reader() {
+        public FastStringReader reader() {
             return this.reader;
         }
     }
@@ -70,7 +69,12 @@ public class AllEntries extends Reader {
 
     private boolean itsSeparatorTime = false;
 
+    private boolean customBoost = false;
+
     public void addText(String name, String text, float boost) {
+        if (boost != 1.0f) {
+            customBoost = true;
+        }
         Entry entry = new Entry(name, new FastStringReader(text), boost);
         entries.add(entry);
     }
@@ -129,45 +133,58 @@ public class AllEntries extends Reader {
         if (current == null) {
             return -1;
         }
-        int result = current.reader().read(cbuf, off, len);
-        if (result == -1) {
-            if (itsSeparatorTime) {
-                itsSeparatorTime = false;
-                cbuf[off] = ' ';
-                return 1;
+        if (customBoost) {
+            int result = current.reader().read(cbuf, off, len);
+            if (result == -1) {
+                if (itsSeparatorTime) {
+                    itsSeparatorTime = false;
+                    cbuf[off] = ' ';
+                    return 1;
+                }
+                itsSeparatorTime = true;
+                // close(); No need to close, we work on in mem readers
+                if (it.hasNext()) {
+                    current = it.next();
+                } else {
+                    current = null;
+                }
+                return read(cbuf, off, len);
             }
-            itsSeparatorTime = true;
-            advance();
-            return read(cbuf, off, len);
+            return result;
+        } else {
+            int read = 0;
+            while (len > 0) {
+                int result = current.reader().read(cbuf, off, len);
+                if (result == -1) {
+                    if (it.hasNext()) {
+                        current = it.next();
+                    } else {
+                        current = null;
+                        return read;
+                    }
+                    cbuf[off++] = ' ';
+                    read++;
+                    len--;
+                } else {
+                    read += result;
+                    off += result;
+                    len -= result;
+                }
+            }
+            return read;
         }
-        return result;
     }
 
     @Override public void close() {
         if (current != null) {
-            try {
-                current.reader().close();
-            } catch (IOException e) {
-                // can't happen...
-            } finally {
-                current = null;
-            }
+            current.reader().close();
+            current = null;
         }
     }
 
 
     @Override public boolean ready() throws IOException {
         return (current != null) && current.reader().ready();
-    }
-
-    /**
-     * Closes the current reader and opens the next one, if any.
-     */
-    private void advance() {
-        close();
-        if (it.hasNext()) {
-            current = it.next();
-        }
     }
 
     @Override public String toString() {

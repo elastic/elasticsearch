@@ -135,6 +135,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyCleanedIndices(final ClusterChangedEvent event) {
+        // handle closed indices, since they are not allocated on a node once they are closed
+        // so applyDeletedIndices might not take them into account
+        for (final String index : indicesService.indices()) {
+            IndexMetaData indexMetaData = event.state().metaData().index(index);
+            if (indexMetaData != null && indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                IndexService indexService = indicesService.indexService(index);
+                for (Integer shardId : indexService.shardIds()) {
+                    logger.warn("[{}][{}] removing shard (index is closed)", index, shardId);
+                    indexService.removeShard(shardId, "removing shard (index is closed)");
+                }
+            }
+        }
         for (final String index : indicesService.indices()) {
             if (indicesService.indexService(index).shardIds().isEmpty()) {
                 if (logger.isDebugEnabled()) {

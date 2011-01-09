@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.xcontent.ip;
 
 import org.apache.lucene.analysis.NumericTokenStream;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
@@ -40,10 +39,7 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.xcontent.MergeContext;
-import org.elasticsearch.index.mapper.xcontent.NumberFieldMapper;
-import org.elasticsearch.index.mapper.xcontent.ParseContext;
-import org.elasticsearch.index.mapper.xcontent.XContentMapper;
+import org.elasticsearch.index.mapper.xcontent.*;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
@@ -219,15 +215,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = ipToLong(ipAsString);
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.longToBytes(value) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setLongValue(value);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new LongFieldMapper.CustomLongNumericField(this, value);
     }
 
     @Override public FieldDataType fieldDataType() {

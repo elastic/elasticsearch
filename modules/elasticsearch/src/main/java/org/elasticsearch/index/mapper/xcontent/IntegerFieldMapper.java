@@ -181,16 +181,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             }
         }
 
-        final int fValue = value;
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.intToBytes(fValue) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setIntValue(fValue);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new CustomIntegerNumericField(this, value);
     }
 
     @Override public FieldDataType fieldDataType() {
@@ -237,6 +228,26 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+    }
+
+    public static class CustomIntegerNumericField extends CustomNumericField {
+
+        private final int number;
+
+        private final NumberFieldMapper mapper;
+
+        public CustomIntegerNumericField(NumberFieldMapper mapper, int number) {
+            super(mapper, mapper.stored() ? Numbers.intToBytes(number) : null);
+            this.mapper = mapper;
+            this.number = number;
+        }
+
+        @Override public TokenStream tokenStreamValue() {
+            if (isIndexed) {
+                return mapper.popCachedStream().setIntValue(number);
+            }
+            return null;
         }
     }
 }

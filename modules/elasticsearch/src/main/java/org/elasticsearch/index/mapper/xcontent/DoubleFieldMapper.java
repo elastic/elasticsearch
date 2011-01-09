@@ -182,16 +182,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             }
         }
 
-        final double fValue = value;
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.doubleToBytes(fValue) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setDoubleValue(fValue);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new CustomDoubleNumericField(this, value);
     }
 
     @Override public FieldDataType fieldDataType() {
@@ -238,6 +229,26 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+    }
+
+    public static class CustomDoubleNumericField extends CustomNumericField {
+
+        private final double number;
+
+        private final NumberFieldMapper mapper;
+
+        public CustomDoubleNumericField(NumberFieldMapper mapper, double number) {
+            super(mapper, mapper.stored() ? Numbers.doubleToBytes(number) : null);
+            this.mapper = mapper;
+            this.number = number;
+        }
+
+        @Override public TokenStream tokenStreamValue() {
+            if (isIndexed) {
+                return mapper.popCachedStream().setDoubleValue(number);
+            }
+            return null;
         }
     }
 }

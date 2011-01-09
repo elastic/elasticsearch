@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
@@ -200,15 +199,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = parseStringValue(dateAsString);
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.longToBytes(value) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setLongValue(value);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new LongFieldMapper.CustomLongNumericField(this, value);
     }
 
     @Override public FieldDataType fieldDataType() {

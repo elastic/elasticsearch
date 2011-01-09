@@ -180,16 +180,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 }
             }
         }
-        final short fValue = value;
-        return new CustomNumericField(names.indexName(), indexed(), stored() ? Numbers.shortToBytes(fValue) : null) {
-            @Override public TokenStream tokenStreamValue() {
-                if (indexed()) {
-                    return popCachedStream(precisionStep).setIntValue(fValue);
-                } else {
-                    return null;
-                }
-            }
-        };
+        return new CustomShortNumericField(this, value);
     }
 
     @Override public FieldDataType fieldDataType() {
@@ -236,6 +227,26 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+    }
+
+    public static class CustomShortNumericField extends CustomNumericField {
+
+        private final short number;
+
+        private final NumberFieldMapper mapper;
+
+        public CustomShortNumericField(NumberFieldMapper mapper, short number) {
+            super(mapper, mapper.stored() ? Numbers.shortToBytes(number) : null);
+            this.mapper = mapper;
+            this.number = number;
+        }
+
+        @Override public TokenStream tokenStreamValue() {
+            if (isIndexed) {
+                return mapper.popCachedStream().setIntValue(number);
+            }
+            return null;
         }
     }
 }

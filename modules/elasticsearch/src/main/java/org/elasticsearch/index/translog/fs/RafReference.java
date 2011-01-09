@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -36,16 +37,23 @@ public class RafReference {
 
     private final RandomAccessFile raf;
 
+    private final FileChannel channel;
+
     private final AtomicInteger refCount = new AtomicInteger();
 
     public RafReference(File file) throws FileNotFoundException {
         this.file = file;
         this.raf = new RandomAccessFile(file, "rw");
+        this.channel = raf.getChannel();
         this.refCount.incrementAndGet();
     }
 
     public File file() {
         return this.file;
+    }
+
+    public FileChannel channel() {
+        return this.channel;
     }
 
     public RandomAccessFile raf() {

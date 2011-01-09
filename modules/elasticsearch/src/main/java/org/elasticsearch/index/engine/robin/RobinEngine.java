@@ -255,15 +255,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                             break;
                     }
                 }
-                if (bulk.refresh()) {
-                    try {
-                        refresh(new Refresh(false));
-                    } catch (Exception e) {
-                        //ignore
-                    }
-                }
             }
             dirty = true;
+            if (bulk.refresh()) {
+                try {
+                    refresh(new Refresh(false));
+                } catch (Exception e) {
+                    //ignore
+                }
+            }
         } finally {
             rwl.readLock().unlock();
         }

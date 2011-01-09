@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.*;
@@ -42,8 +41,6 @@ import static org.elasticsearch.node.NodeBuilder.*;
 public class SingleThreadIndexingStress {
 
     public static void main(String[] args) throws Exception {
-        Random random = new Random();
-
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put("index.engine.robin.refreshInterval", "-1")
@@ -52,8 +49,10 @@ public class SingleThreadIndexingStress {
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server1")).node();
-        Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server2")).node();
+        Node[] nodes = new Node[1];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
+        }
 
         Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
 
@@ -82,11 +81,26 @@ public class SingleThreadIndexingStress {
 
         client.close();
 
-        node1.close();
-        node2.close();
+        for (Node node : nodes) {
+            node.close();
+        }
     }
 
     private static XContentBuilder source(String id, String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
+        long time = System.currentTimeMillis();
+        return jsonBuilder().startObject()
+                .field("id", id)
+                .field("numeric1", time)
+                .field("numeric2", time)
+                .field("numeric3", time)
+                .field("numeric4", time)
+                .field("numeric5", time)
+                .field("numeric6", time)
+                .field("numeric7", time)
+                .field("numeric8", time)
+                .field("numeric9", time)
+                .field("numeric10", time)
+                .field("name", nameValue)
+                .endObject();
     }
 }

@@ -57,10 +57,11 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
         return id();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("process");
         builder.field("id", id);
         builder.endObject();
+        return builder;
     }
 
     public static ProcessInfo readProcessInfo(StreamInput in) throws IOException {

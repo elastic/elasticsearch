@@ -135,10 +135,11 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements org.e
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

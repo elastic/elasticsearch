@@ -213,7 +213,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
@@ -226,6 +226,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 
     public static InternalStringTermsFacet readTermsFacet(StreamInput in) throws IOException {

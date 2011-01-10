@@ -152,10 +152,10 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements org.ela
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && store == Defaults.STORE && termVector == Defaults.TERM_VECTOR && indexAnalyzer == null && searchAnalyzer == null) {
-            return;
+            return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (enabled != Defaults.ENABLED) {
@@ -179,6 +179,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements org.ela
             }
         }
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

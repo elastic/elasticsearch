@@ -83,7 +83,7 @@ public class ScriptSortBuilder extends SortBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_script");
         builder.field("script", script);
         builder.field("type", type);
@@ -94,5 +94,6 @@ public class ScriptSortBuilder extends SortBuilder {
             builder.field("params", this.params);
         }
         builder.endObject();
+        return builder;
     }
 }

@@ -153,10 +153,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
         if (index == Defaults.INDEX && store == Defaults.STORE && required == Defaults.REQUIRED && path == Defaults.PATH) {
-            return;
+            return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (index != Defaults.INDEX) {
@@ -172,6 +172,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements o
             builder.field("path", path);
         }
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

@@ -108,8 +108,9 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // for now, don't output it at all
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

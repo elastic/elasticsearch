@@ -28,10 +28,11 @@ import java.io.IOException;
  */
 public abstract class BaseFilterBuilder implements XContentFilterBuilder {
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         doXContent(builder, params);
         builder.endObject();
+        return builder;
     }
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;

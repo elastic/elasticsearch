@@ -102,7 +102,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         return swap();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("os");
         builder.field("timestamp", timestamp);
 
@@ -151,6 +151,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         }
 
         builder.endObject();
+        return builder;
     }
 
     public static OsStats readOsStats(StreamInput in) throws IOException {

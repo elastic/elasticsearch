@@ -106,7 +106,7 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (keyScript == null && keyFieldName == null) {
             throw new SearchSourceBuilderException("key_script or key_field must be set on histogram script facet for facet [" + name + "]");
         }
@@ -139,5 +139,6 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
+        return builder;
     }
 }

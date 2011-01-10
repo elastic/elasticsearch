@@ -354,7 +354,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
         }
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         if (pathType != Defaults.PATH_TYPE) {
@@ -377,6 +377,7 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
         }
 
         builder.endObject();
+        return builder;
     }
 
     public static class GeoStringFieldMapper extends StringFieldMapper {

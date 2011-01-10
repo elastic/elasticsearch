@@ -180,7 +180,7 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, "range");
         builder.field(Fields._KEY_FIELD, keyFieldName);
@@ -207,5 +207,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 }

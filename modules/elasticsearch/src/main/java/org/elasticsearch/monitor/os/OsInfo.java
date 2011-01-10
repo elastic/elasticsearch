@@ -67,7 +67,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
         return swap();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("os");
         if (cpu != null) {
             builder.startObject("cpu");
@@ -94,6 +94,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
             builder.endObject();
         }
         builder.endObject();
+        return builder;
     }
 
     public static OsInfo readOsInfo(StreamInput in) throws IOException {

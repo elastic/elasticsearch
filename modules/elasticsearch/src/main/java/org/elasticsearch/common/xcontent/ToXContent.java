@@ -92,5 +92,5 @@ public interface ToXContent {
         }
     }
 
-    void toXContent(XContentBuilder builder, Params params) throws IOException;
+    XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 }

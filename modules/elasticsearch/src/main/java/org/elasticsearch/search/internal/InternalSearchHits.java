@@ -157,7 +157,7 @@ public class InternalSearchHits implements SearchHits {
         static final XContentBuilderString MAX_SCORE = new XContentBuilderString("max_score");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HITS);
         builder.field(Fields.TOTAL, totalHits);
         if (Float.isNaN(maxScore)) {
@@ -172,6 +172,7 @@ public class InternalSearchHits implements SearchHits {
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 
     public static InternalSearchHits readSearchHits(StreamInput in, StreamContext context) throws IOException {

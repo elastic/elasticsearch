@@ -171,7 +171,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, GeoDistanceFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
@@ -193,5 +193,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 }

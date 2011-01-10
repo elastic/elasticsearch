@@ -43,11 +43,12 @@ public class TransportInfo implements Streamable, Serializable, ToXContent {
         this.address = address;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("transport");
         builder.field("bound_address", address.boundAddress().toString());
         builder.field("publish_address", address.publishAddress().toString());
         builder.endObject();
+        return builder;
     }
 
     public static TransportInfo readTransportInfo(StreamInput in) throws IOException {

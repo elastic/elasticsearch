@@ -120,7 +120,7 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (keyFieldName == null) {
             throw new SearchSourceBuilderException("field must be set on histogram facet for facet [" + name + "]");
         }
@@ -145,5 +145,6 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
         addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
+        return builder;
     }
 }

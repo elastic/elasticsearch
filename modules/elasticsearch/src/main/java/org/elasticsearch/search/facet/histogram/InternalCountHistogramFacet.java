@@ -250,7 +250,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.field(Fields._KEY_FIELD, keyFieldName);
@@ -266,6 +266,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 
     public static InternalCountHistogramFacet readHistogramFacet(StreamInput in) throws IOException {

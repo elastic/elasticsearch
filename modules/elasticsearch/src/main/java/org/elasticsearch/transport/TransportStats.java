@@ -52,7 +52,7 @@ public class TransportStats implements Streamable, Serializable, ToXContent {
         this.txSize = txSize;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("transport");
         builder.field("rx_count", rxCount);
         builder.field("rx_size", rxSize().toString());
@@ -61,6 +61,7 @@ public class TransportStats implements Streamable, Serializable, ToXContent {
         builder.field("tx_size", txSize().toString());
         builder.field("tx_size_in_bytes", txSize);
         builder.endObject();
+        return builder;
     }
 
     public static TransportStats readTransportStats(StreamInput in) throws IOException {

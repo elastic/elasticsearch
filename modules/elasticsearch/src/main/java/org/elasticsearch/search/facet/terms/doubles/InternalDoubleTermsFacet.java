@@ -217,7 +217,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
@@ -230,6 +230,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 
     public static InternalDoubleTermsFacet readTermsFacet(StreamInput in) throws IOException {

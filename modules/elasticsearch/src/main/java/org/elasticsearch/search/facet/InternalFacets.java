@@ -110,12 +110,13 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         static final XContentBuilderString FACETS = new XContentBuilderString("facets");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FACETS);
         for (Facet facet : facets) {
             ((InternalFacet) facet).toXContent(builder, params);
         }
         builder.endObject();
+        return builder;
     }
 
     public static InternalFacets readFacets(StreamInput in) throws IOException {

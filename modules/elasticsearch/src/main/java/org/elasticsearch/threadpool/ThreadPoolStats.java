@@ -73,13 +73,14 @@ public class ThreadPoolStats implements Streamable, Serializable, ToXContent {
         out.writeVInt(schedulerActiveCount);
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("thread_pool");
         builder.field("pool_size", poolSize);
         builder.field("active_count", activeCount);
         builder.field("scheduler_pool_size", schedulerPoolSize);
         builder.field("scheduler_active_count", schedulerActiveCount);
         builder.endObject();
+        return builder;
     }
 
     /**

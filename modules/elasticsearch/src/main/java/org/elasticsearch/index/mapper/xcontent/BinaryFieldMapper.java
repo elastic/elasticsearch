@@ -99,12 +99,13 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         builder.field("type", contentType());
         if (!names.name().equals(names.indexNameClean())) {
             builder.field("index_name", names.indexNameClean());
         }
         builder.endObject();
+        return builder;
     }
 }

@@ -73,13 +73,14 @@ public class ThreadPoolInfo implements Streamable, Serializable, ToXContent {
         out.writeInt(schedulerThreads);
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("thread_pool");
         builder.field("type", type);
         builder.field("min_threads", minThreads);
         builder.field("max_threads", maxThreads);
         builder.field("scheduler_threads", schedulerThreads);
         builder.endObject();
+        return builder;
     }
 
     /**

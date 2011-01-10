@@ -224,7 +224,7 @@ public class InternalCountAndTotalDateHistogramFacet extends InternalDateHistogr
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.startArray(Fields.ENTRIES);
@@ -238,6 +238,7 @@ public class InternalCountAndTotalDateHistogramFacet extends InternalDateHistogr
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 
     public static InternalCountAndTotalDateHistogramFacet readHistogramFacet(StreamInput in) throws IOException {

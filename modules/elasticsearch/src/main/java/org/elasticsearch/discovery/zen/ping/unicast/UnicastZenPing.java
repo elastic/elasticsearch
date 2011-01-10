@@ -95,8 +95,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         int idCounter = 0;
         for (String host : hosts) {
             try {
-                for (TransportAddress address : transportService.addressesFromString(host)) {
-                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", address));
+                TransportAddress[] addresses = transportService.addressesFromString(host);
+                // we only limit to 5 addresses, makes no sense to ping 100 ports
+                for (int i = 0; (i < addresses.length && i < 5); i++) {
+                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i]));
                 }
             } catch (Exception e) {
                 throw new ElasticSearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);

@@ -88,120 +88,149 @@ public class MultiValueLongFieldData extends LongFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return ordinals[docId] != null;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            proc.onValue(docId, Long.toString(values[docOrder]));
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, Long.toString(values[loc]));
+            }
         }
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            proc.onValue(docId, values[docOrder]);
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, values[loc]);
+            }
         }
     }
 
     @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            proc.onValue(docId, values[docOrder]);
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, values[loc]);
+            }
         }
     }
 
     @Override public void forEachValueInDoc(int docId, DateValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
         MutableDateTime dateTime = dateTimeCache.get().get();
-        for (int docOrder : docOrders) {
-            dateTime.setMillis(values[docOrder]);
-            proc.onValue(docId, dateTime);
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                dateTime.setMillis(values[loc]);
+                proc.onValue(docId, dateTime);
+            }
         }
     }
 
     @Override public void forEachValueInDoc(int docId, MutableDateTime dateTime, DateValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            dateTime.setMillis(values[docOrder]);
-            proc.onValue(docId, dateTime);
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                dateTime.setMillis(values[loc]);
+                proc.onValue(docId, dateTime);
+            }
         }
     }
 
     @Override public MutableDateTime[] dates(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
+        int length = 0;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                length++;
+            }
+        }
+        if (length == 0) {
             return EMPTY_DATETIME_ARRAY;
         }
         MutableDateTime[] dates;
-        if (docOrders.length < VALUE_CACHE_SIZE) {
-            dates = dateTimesCache.get().get()[docOrders.length];
+        if (length < VALUE_CACHE_SIZE) {
+            dates = dateTimesCache.get().get()[length];
         } else {
-            dates = new MutableDateTime[docOrders.length];
+            dates = new MutableDateTime[length];
             for (int i = 0; i < dates.length; i++) {
                 dates[i] = new MutableDateTime();
             }
         }
-        for (int i = 0; i < docOrders.length; i++) {
-            dates[i].setMillis(values[docOrders[i]]);
+        int i = 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                dates[i++].setMillis(values[loc]);
+            }
         }
         return dates;
     }
 
     @Override public double[] doubleValues(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
+        int length = 0;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                length++;
+            }
+        }
+        if (length == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
         double[] doubles;
-        if (docOrders.length < VALUE_CACHE_SIZE) {
-            doubles = doublesValuesCache.get().get()[docOrders.length];
+        if (length < VALUE_CACHE_SIZE) {
+            doubles = doublesValuesCache.get().get()[length];
         } else {
-            doubles = new double[docOrders.length];
+            doubles = new double[length];
         }
-        for (int i = 0; i < docOrders.length; i++) {
-            doubles[i] = values[docOrders[i]];
+        int i = 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                doubles[i++] = values[loc];
+            }
         }
         return doubles;
     }
 
     @Override public long value(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                return values[loc];
+            }
         }
-        return values[docOrders[0]];
+        return 0;
     }
 
     @Override public long[] values(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
+        int length = 0;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                length++;
+            }
+        }
+        if (length == 0) {
             return EMPTY_LONG_ARRAY;
         }
         long[] longs;
-        if (docOrders.length < VALUE_CACHE_SIZE) {
-            longs = valuesCache.get().get()[docOrders.length];
+        if (length < VALUE_CACHE_SIZE) {
+            longs = valuesCache.get().get()[length];
         } else {
-            longs = new long[docOrders.length];
+            longs = new long[length];
         }
-        for (int i = 0; i < docOrders.length; i++) {
-            longs[i] = values[docOrders[i]];
+        int i = 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                longs[i++] = values[loc];
+            }
         }
         return longs;
     }

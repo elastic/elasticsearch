@@ -27,7 +27,7 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.field.data.FieldData;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 
 /**
  * @author kimchy (shay.banon)
@@ -40,8 +40,8 @@ public class FieldDataLoader {
         loader.init();
 
         field = StringHelper.intern(field);
-        int[] ordinals = new int[reader.maxDoc()];
-        int[][] multiValueOrdinals = null;
+        ArrayList<int[]> ordinals = new ArrayList<int[]>();
+        ordinals.add(new int[reader.maxDoc()]);
 
         int t = 1;  // current term number
 
@@ -55,46 +55,23 @@ public class FieldDataLoader {
                 termDocs.seek(termEnum);
                 while (termDocs.next()) {
                     int doc = termDocs.doc();
-                    if (multiValueOrdinals != null) {
-                        int[] ordinalPerDoc = multiValueOrdinals[doc];
-                        if (ordinalPerDoc == null) {
-                            ordinalPerDoc = new int[1];
-                            ordinalPerDoc[0] = t;
-                            multiValueOrdinals[doc] = ordinalPerDoc;
-                        } else {
-                            ordinalPerDoc = Arrays.copyOf(ordinalPerDoc, ordinalPerDoc.length + 1);
-                            ordinalPerDoc[ordinalPerDoc.length - 1] = t;
-                            multiValueOrdinals[doc] = ordinalPerDoc;
-                        }
-                    } else {
-                        int ordinal = ordinals[doc];
-                        if (ordinal == 0) { // still not multi valued...
-                            ordinals[doc] = t;
-                        } else {
-                            // move to multi valued
-                            multiValueOrdinals = new int[reader.maxDoc()][];
-                            for (int i = 0; i < ordinals.length; i++) {
-                                ordinal = ordinals[i];
-                                if (ordinal != 0) {
-                                    multiValueOrdinals[i] = new int[1];
-                                    multiValueOrdinals[i][0] = ordinal;
-                                }
-                            }
-                            // now put the current "t" value
-                            int[] ordinalPerDoc = multiValueOrdinals[doc];
-                            if (ordinalPerDoc == null) {
-                                ordinalPerDoc = new int[1];
-                                ordinalPerDoc[0] = t;
-                                multiValueOrdinals[doc] = ordinalPerDoc;
-                            } else {
-                                ordinalPerDoc = Arrays.copyOf(ordinalPerDoc, ordinalPerDoc.length + 1);
-                                ordinalPerDoc[ordinalPerDoc.length - 1] = t;
-                                multiValueOrdinals[doc] = ordinalPerDoc;
-                            }
+                    boolean found = false;
+                    for (int i = 0; i < ordinals.size(); i++) {
+                        int[] ordinal = ordinals.get(i);
+                        if (ordinal[doc] == 0) {
+                            // we found a spot, use it
+                            ordinal[doc] = t;
+                            found = true;
+                            break;
                         }
                     }
+                    if (!found) {
+                        // did not find one, increase by one and redo
+                        int[] ordinal = new int[reader.maxDoc()];
+                        ordinals.add(ordinal);
+                        ordinal[doc] = t;
+                    }
                 }
-
                 t++;
             } while (termEnum.next());
         } catch (RuntimeException e) {
@@ -108,10 +85,14 @@ public class FieldDataLoader {
             termEnum.close();
         }
 
-        if (multiValueOrdinals != null) {
-            return loader.buildMultiValue(field, multiValueOrdinals);
+        if (ordinals.size() == 1) {
+            return loader.buildSingleValue(field, ordinals.get(0));
         } else {
-            return loader.buildSingleValue(field, ordinals);
+            int[][] nativeOrdinals = new int[ordinals.size()][];
+            for (int i = 0; i < nativeOrdinals.length; i++) {
+                nativeOrdinals[i] = ordinals.get(i);
+            }
+            return loader.buildMultiValue(field, nativeOrdinals);
         }
     }
 

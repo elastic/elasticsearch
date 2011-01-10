@@ -72,77 +72,99 @@ public class MultiValueIntFieldData extends IntFieldData {
     }
 
     @Override public boolean hasValue(int docId) {
-        return ordinals[docId] != null;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            proc.onValue(docId, Integer.toString(values[docOrder]));
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, Integer.toString(values[loc]));
+            }
         }
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            proc.onValue(docId, values[docOrder]);
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, values[loc]);
+            }
         }
     }
 
     @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return;
-        }
-        for (int docOrder : docOrders) {
-            proc.onValue(docId, values[docOrder]);
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, values[loc]);
+            }
         }
     }
 
     @Override public double[] doubleValues(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
+        int length = 0;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                length++;
+            }
+        }
+        if (length == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
         double[] doubles;
-        if (docOrders.length < VALUE_CACHE_SIZE) {
-            doubles = doublesValuesCache.get().get()[docOrders.length];
+        if (length < VALUE_CACHE_SIZE) {
+            doubles = doublesValuesCache.get().get()[length];
         } else {
-            doubles = new double[docOrders.length];
+            doubles = new double[length];
         }
-        for (int i = 0; i < docOrders.length; i++) {
-            doubles[i] = values[docOrders[i]];
+        int i = 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                doubles[i++] = values[loc];
+            }
         }
         return doubles;
     }
 
     @Override public int value(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
-            return 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                return values[loc];
+            }
         }
-        return values[docOrders[0]];
+        return 0;
     }
 
     @Override public int[] values(int docId) {
-        int[] docOrders = ordinals[docId];
-        if (docOrders == null) {
+        int length = 0;
+        for (int[] ordinal : ordinals) {
+            if (ordinal[docId] != 0) {
+                length++;
+            }
+        }
+        if (length == 0) {
             return EMPTY_INT_ARRAY;
         }
         int[] ints;
-        if (docOrders.length < VALUE_CACHE_SIZE) {
-            ints = valuesCache.get().get()[docOrders.length];
+        if (length < VALUE_CACHE_SIZE) {
+            ints = valuesCache.get().get()[length];
         } else {
-            ints = new int[docOrders.length];
+            ints = new int[length];
         }
-        for (int i = 0; i < docOrders.length; i++) {
-            ints[i] = values[docOrders[i]];
+        int i = 0;
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                ints[i++] = values[loc];
+            }
         }
         return ints;
     }

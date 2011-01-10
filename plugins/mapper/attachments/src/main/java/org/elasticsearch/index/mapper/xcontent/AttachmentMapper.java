@@ -284,7 +284,7 @@ public class AttachmentMapper implements XContentMapper {
         keywordsMapper.traverse(fieldMapperListener);
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         builder.field("path", pathType.name().toLowerCase());
@@ -298,5 +298,6 @@ public class AttachmentMapper implements XContentMapper {
         builder.endObject();
 
         builder.endObject();
+        return builder;
     }
 }

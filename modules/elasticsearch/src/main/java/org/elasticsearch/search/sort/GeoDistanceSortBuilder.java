@@ -95,7 +95,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
 
         if (geohash != null) {
@@ -115,5 +115,6 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         }
 
         builder.endObject();
+        return builder;
     }
 }

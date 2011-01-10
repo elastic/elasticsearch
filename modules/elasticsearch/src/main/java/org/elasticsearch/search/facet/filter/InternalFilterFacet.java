@@ -100,11 +100,12 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, FilterFacet.TYPE);
         builder.field(Fields.COUNT, count);
         builder.endObject();
+        return builder;
     }
 
     public static FilterFacet readFilterFacet(StreamInput in) throws IOException {

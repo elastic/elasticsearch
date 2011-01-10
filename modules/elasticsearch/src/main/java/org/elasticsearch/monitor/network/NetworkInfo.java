@@ -45,7 +45,7 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
         return primaryInterface();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("network");
         if (primary != NA_INTERFACE) {
             builder.startObject("primary_interface");
@@ -55,6 +55,7 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
             builder.endObject();
         }
         builder.endObject();
+        return builder;
     }
 
     public static NetworkInfo readNetworkInfo(StreamInput in) throws IOException {

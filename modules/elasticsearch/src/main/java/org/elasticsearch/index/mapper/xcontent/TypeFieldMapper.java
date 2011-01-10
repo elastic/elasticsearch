@@ -109,16 +109,17 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
         if (store == Defaults.STORE) {
-            return;
+            return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (store != Defaults.STORE) {
             builder.field("store", store.name().toLowerCase());
         }
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

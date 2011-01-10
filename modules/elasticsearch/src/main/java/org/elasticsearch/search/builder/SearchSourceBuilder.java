@@ -331,7 +331,7 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
         if (from != -1) {
@@ -423,6 +423,7 @@ public class SearchSourceBuilder implements ToXContent {
         }
 
         builder.endObject();
+        return builder;
     }
 
     private static class ScriptField {

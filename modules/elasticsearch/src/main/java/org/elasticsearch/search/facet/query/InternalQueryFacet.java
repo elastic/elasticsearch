@@ -100,11 +100,12 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, QueryFacet.TYPE);
         builder.field(Fields.COUNT, count);
         builder.endObject();
+        return builder;
     }
 
     public static QueryFacet readQueryFacet(StreamInput in) throws IOException {

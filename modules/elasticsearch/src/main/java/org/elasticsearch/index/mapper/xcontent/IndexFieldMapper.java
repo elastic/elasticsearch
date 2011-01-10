@@ -127,10 +127,10 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements org
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all defaults, no need to write it at all
         if (store == Defaults.STORE && enabled == Defaults.ENABLED) {
-            return;
+            return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (store != Defaults.STORE) {
@@ -140,6 +140,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements org
             builder.field("enabled", enabled);
         }
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

@@ -525,9 +525,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         }
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         rootObjectMapper.toXContent(builder, params, new ToXContent() {
-            @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+            @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
                     if (!indexAnalyzer.name().equals("default")) {
                         // same analyzers, output it once
@@ -549,9 +549,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 if (meta != null && !meta.isEmpty()) {
                     builder.field("_meta", meta());
                 }
+                return builder;
             }
             // no need to pass here id and boost, since they are added to the root object mapper
             // in the constructor
         }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper);
+        return builder;
     }
 }

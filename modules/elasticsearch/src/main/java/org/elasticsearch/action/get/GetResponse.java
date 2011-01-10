@@ -241,7 +241,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!exists()) {
             builder.startObject();
             builder.field(Fields._INDEX, index);
@@ -283,6 +283,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
 
             builder.endObject();
         }
+        return builder;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

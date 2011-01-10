@@ -112,7 +112,7 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         filterCacheSize.writeTo(out);
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
         builder.field(Fields.STORE_SIZE, storeSize.toString());
         builder.field(Fields.STORE_SIZE_IN_BYTES, storeSize.bytes());
@@ -122,6 +122,7 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         builder.field(Fields.FILTER_CACHE_SIZE, filterCacheSize.toString());
         builder.field(Fields.FILTER_CACHE_SIZE_IN_BYTES, filterCacheSize.bytes());
         builder.endObject();
+        return builder;
     }
 
     static final class Fields {

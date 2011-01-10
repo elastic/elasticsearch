@@ -184,7 +184,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         return systemProperties;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("jvm");
         builder.field("pid", pid);
         builder.field("vm_name", vmName);
@@ -192,6 +192,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         builder.field("vm_vendor", vmVendor);
         builder.field("start_time", startTime);
         builder.endObject();
+        return builder;
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {

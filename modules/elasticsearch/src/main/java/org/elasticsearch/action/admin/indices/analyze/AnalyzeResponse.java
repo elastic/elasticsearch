@@ -145,7 +145,7 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
         return tokens.iterator();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         String format = params.param("format", "detailed");
         if ("detailed".equals(format)) {
             builder.startArray("tokens");
@@ -177,6 +177,7 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
             }
             builder.field("tokens", sb);
         }
+        return builder;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

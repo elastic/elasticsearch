@@ -177,7 +177,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         static final XContentBuilderString STD_DEVIATION = new XContentBuilderString("std_deviation");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, StatisticalFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
@@ -190,6 +190,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         builder.field(Fields.VARIANCE, variance());
         builder.field(Fields.STD_DEVIATION, stdDeviation());
         builder.endObject();
+        return builder;
     }
 
     public static StatisticalFacet readStatisticalFacet(StreamInput in) throws IOException {

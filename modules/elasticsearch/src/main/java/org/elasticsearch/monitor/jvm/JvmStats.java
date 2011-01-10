@@ -197,7 +197,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         return gc();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("jvm");
         builder.field("timestamp", timestamp);
         builder.field("uptime", uptime().format());
@@ -240,6 +240,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             builder.endObject();
         }
         builder.endObject();
+        return builder;
     }
 
     public static JvmStats readJvmStats(StreamInput in) throws IOException {

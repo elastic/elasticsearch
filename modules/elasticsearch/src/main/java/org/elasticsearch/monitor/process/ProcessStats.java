@@ -78,7 +78,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         return fd();
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("process");
         builder.field("timestamp", timestamp);
         if (cpu != null) {
@@ -108,6 +108,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
             builder.endObject();
         }
         builder.endObject();
+        return builder;
     }
 
     public static ProcessStats readProcessStats(StreamInput in) throws IOException {

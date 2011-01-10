@@ -263,7 +263,7 @@ public class MultiFieldMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         if (pathType != Defaults.PATH_TYPE) {
@@ -280,5 +280,6 @@ public class MultiFieldMapper implements XContentMapper, IncludeInAllMapper {
         builder.endObject();
 
         builder.endObject();
+        return builder;
     }
 }

@@ -127,7 +127,7 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
         if (tagsSchema != null) {
             builder.field("tags_schema", tagsSchema);
@@ -156,6 +156,7 @@ public class HighlightBuilder implements ToXContent {
             builder.endObject();
         }
         builder.endObject();
+        return builder;
     }
 
     private static class Field {

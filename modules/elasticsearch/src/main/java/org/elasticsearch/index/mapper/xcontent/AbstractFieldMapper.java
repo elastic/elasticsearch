@@ -388,10 +388,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
         return FieldDataType.DefaultTypes.STRING;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         doXContentBody(builder);
         builder.endObject();
+        return builder;
     }
 
     protected void doXContentBody(XContentBuilder builder) throws IOException {

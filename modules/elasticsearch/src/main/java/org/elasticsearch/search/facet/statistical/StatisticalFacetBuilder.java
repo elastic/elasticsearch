@@ -71,7 +71,7 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null && fieldsNames == null) {
             throw new SearchSourceBuilderException("field must be set on statistical facet for facet [" + name + "]");
         }
@@ -92,5 +92,6 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
         addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
+        return builder;
     }
 }

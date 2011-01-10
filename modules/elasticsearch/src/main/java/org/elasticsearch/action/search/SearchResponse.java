@@ -222,7 +222,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field(Fields._SCROLL_ID, scrollId);
         }
@@ -249,6 +249,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
 
         builder.endObject();
         internalResponse.toXContent(builder, params);
+        return builder;
     }
 
     public static SearchResponse readSearchResponse(StreamInput in) throws IOException {

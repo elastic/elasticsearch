@@ -41,7 +41,7 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
 
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("network");
         if (tcp != null) {
             builder.startObject("tcp");
@@ -58,6 +58,7 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
             builder.endObject();
         }
         builder.endObject();
+        return builder;
     }
 
     public static NetworkStats readNetworkStats(StreamInput in) throws IOException {

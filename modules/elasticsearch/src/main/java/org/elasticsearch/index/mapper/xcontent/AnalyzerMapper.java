@@ -110,14 +110,15 @@ public class AnalyzerMapper implements XContentMapper {
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (path.equals(Defaults.PATH)) {
-            return;
+            return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (!path.equals(Defaults.PATH)) {
             builder.field("path", path);
         }
         builder.endObject();
+        return builder;
     }
 }

@@ -548,8 +548,9 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         toXContent(builder, params, null, XContentMapper.EMPTY_ARRAY);
+        return builder;
     }
 
     public void toXContent(XContentBuilder builder, Params params, ToXContent custom, XContentMapper... additionalMappers) throws IOException {

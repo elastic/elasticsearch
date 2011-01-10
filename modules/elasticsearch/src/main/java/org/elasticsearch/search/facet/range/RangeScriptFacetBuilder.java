@@ -125,7 +125,7 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (keyScript == null) {
             throw new SearchSourceBuilderException("key_script must be set on range script facet for facet [" + name + "]");
         }
@@ -167,6 +167,7 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
+        return builder;
     }
 
     private static class Entry {

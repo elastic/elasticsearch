@@ -176,7 +176,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null && fieldsNames == null && script == null) {
             throw new SearchSourceBuilderException("field/fields/script must be set on terms facet for facet [" + name + "]");
         }
@@ -225,5 +225,6 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
+        return builder;
     }
 }

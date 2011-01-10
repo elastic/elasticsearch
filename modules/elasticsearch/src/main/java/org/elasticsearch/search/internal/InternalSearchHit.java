@@ -305,7 +305,7 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Fields._INDEX, shard.index());
 //        builder.field("_shard", shard.shardId());
@@ -377,6 +377,7 @@ public class InternalSearchHit implements SearchHit {
             buildExplanation(builder, explanation());
         }
         builder.endObject();
+        return builder;
     }
 
     private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {

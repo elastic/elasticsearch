@@ -175,10 +175,10 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, don't write it at all
         if (name().equals(Defaults.NAME) && nullValue == null) {
-            return;
+            return builder;
         }
         builder.startObject(contentType());
         if (!name().equals(Defaults.NAME)) {
@@ -188,6 +188,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
             builder.field("null_value", nullValue);
         }
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

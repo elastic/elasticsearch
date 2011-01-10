@@ -181,10 +181,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         return CONTENT_TYPE;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1) {
-            return;
+            return builder;
         }
         builder.startObject(contentType());
         if (enabled != Defaults.ENABLED) {
@@ -197,6 +197,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
         }
         builder.endObject();
+        return builder;
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

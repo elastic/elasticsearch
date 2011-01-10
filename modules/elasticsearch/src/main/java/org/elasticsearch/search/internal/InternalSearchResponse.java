@@ -64,11 +64,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return facets;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
         if (facets != null) {
             facets.toXContent(builder, params);
         }
+        return builder;
     }
 
     public static InternalSearchResponse readInternalSearchResponse(StreamInput in) throws IOException {

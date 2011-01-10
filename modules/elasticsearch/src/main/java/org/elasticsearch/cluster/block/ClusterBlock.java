@@ -76,7 +76,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         return this.retryable;
     }
 
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Integer.toString(id));
         builder.field("description", description);
         builder.field("retryable", retryable);
@@ -86,6 +86,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         }
         builder.endArray();
         builder.endObject();
+        return builder;
     }
 
     public static ClusterBlock readClusterBlock(StreamInput in) throws IOException {

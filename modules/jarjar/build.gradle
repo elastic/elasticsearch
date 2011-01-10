@@ -4,9 +4,10 @@ archivesBaseName = "$project.archivesBaseName"
 
 dependencies {
     runtime 'aopalliance:aopalliance:1.0'
-    runtime 'com.google.inject:guice:2.0'
-    runtime 'com.google.inject.extensions:guice-assisted-inject:2.0'
-    runtime 'com.google.inject.extensions:guice-multibindings:2.0'
+    runtime 'javax.inject:javax.inject:1'
+    runtime 'com.google.inject:guice:3.0-rc2'
+    runtime 'com.google.inject.extensions:guice-assistedinject:3.0-rc2'
+    runtime 'com.google.inject.extensions:guice-multibindings:3.0-rc2'
 
     runtime 'com.google.guava:guava:r07'
     runtime 'org.elasticsearch:es-trove:2.1.0'
@@ -37,7 +38,7 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.runtime.files.findAll {file ->
-                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
+                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'javax.inject', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")

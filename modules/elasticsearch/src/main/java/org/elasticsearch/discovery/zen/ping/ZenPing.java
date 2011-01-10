@@ -103,7 +103,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
         }
 
         @Override public String toString() {
-            return "ping_response target [" + target + "], master [" + master + "]";
+            return "ping_response{target [" + target + "], master [" + master + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 }

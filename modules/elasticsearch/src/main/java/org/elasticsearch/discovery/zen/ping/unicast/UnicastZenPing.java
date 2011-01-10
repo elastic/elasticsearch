@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -158,7 +159,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }, timeout);
     }
 
-    private void sendPings(int id, TimeValue timeout, boolean wait) {
+    private void sendPings(final int id, TimeValue timeout, boolean wait) {
         UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = id;
         pingRequest.timeout = timeout;
@@ -185,11 +186,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             try {
                 transportService.connectToNode(nodeToSend);
             } catch (ConnectTransportException e) {
+                logger.trace("[{}] failed to connect to {}", e, id, nodeToSend);
                 latch.countDown();
                 // can't connect to the node
                 continue;
             }
 
+            logger.trace("[{}] connecting to {}, disconnect[{}]", id, nodeToSend, disconnectX);
             final boolean disconnect = disconnectX;
             transportService.sendRequest(nodeToSend, UnicastPingRequestHandler.ACTION, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
@@ -198,6 +201,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 }
 
                 @Override public void handleResponse(UnicastPingResponse response) {
+                    logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
                     try {
                         DiscoveryNodes discoveryNodes = nodesProvider.nodes();
                         for (PingResponse pingResponse : response.pingResponses) {
@@ -210,6 +214,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             }
                             if (!pingResponse.clusterName().equals(clusterName)) {
                                 // not part of the cluster
+                                logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", pingResponse.target(), pingResponse.clusterName().value());
                                 return;
                             }
                             ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
@@ -228,6 +233,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     latch.countDown();
                     if (exp instanceof ConnectTransportException) {
                         // ok, not connected...
+                        logger.trace("failed to connect to {}", exp, nodeToSend);
                     } else {
                         if (disconnect) {
                             transportService.disconnectFromNode(nodeToSend);

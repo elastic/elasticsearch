@@ -603,10 +603,10 @@ public class SimpleIndexQueryParserTests {
     @Test public void testAndFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), andFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
 
-        AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
+        AndFilter andFilter = (AndFilter) constantScoreQuery.getFilter();
         assertThat(andFilter.filters().size(), equalTo(2));
         assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
         assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
@@ -655,10 +655,10 @@ public class SimpleIndexQueryParserTests {
     @Test public void testOrFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), orFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
 
-        OrFilter andFilter = (OrFilter) filteredQuery.getFilter();
+        OrFilter andFilter = (OrFilter) constantScoreQuery.getFilter();
         assertThat(andFilter.filters().size(), equalTo(2));
         assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
         assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
@@ -693,10 +693,10 @@ public class SimpleIndexQueryParserTests {
     @Test public void testNotFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), notFilter(termFilter("name.first", "shay1")))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
 
-        NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
+        NotFilter notFilter = (NotFilter) constantScoreQuery.getFilter();
         assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
     }
 
@@ -1175,9 +1175,9 @@ public class SimpleIndexQueryParserTests {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery.query(), instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery.query();
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1188,9 +1188,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1201,9 +1201,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1214,9 +1214,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1227,9 +1227,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1240,9 +1240,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance5.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1253,9 +1253,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance6.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1266,9 +1266,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance7.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1279,9 +1279,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance8.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1292,9 +1292,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance9.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1305,9 +1305,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance10.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1318,9 +1318,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance11.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1331,9 +1331,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance12.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1344,10 +1344,10 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        assertThat(parsedQuery.query(), instanceOf(DeletionAwareConstantScoreQuery.class));
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery.query();
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1360,9 +1360,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1374,9 +1374,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1388,9 +1388,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1402,9 +1402,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1417,9 +1417,9 @@ public class SimpleIndexQueryParserTests {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery.query(), instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery.query();
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
@@ -1434,9 +1434,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
@@ -1451,9 +1451,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
@@ -1468,9 +1468,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
@@ -1485,9 +1485,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
+        DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
         assertThat(filter.points()[0].lat, closeTo(40, 0.00001));

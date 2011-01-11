@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.field.data.bytes.ByteFieldData;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.field.data.floats.FloatFieldData;
 import org.elasticsearch.index.field.data.ints.IntFieldData;
@@ -116,6 +117,63 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
         h ^= (includeLower ? 1549299360 : -365038026) ^ (includeUpper ? 1721088258 : 1948649653);
         return h;
     }
+
+    public static NumericRangeFieldDataFilter<Byte> newByteRange(FieldDataCache fieldDataCache, String field, Byte lowerVal, Byte upperVal, boolean includeLower, boolean includeUpper) {
+        return new NumericRangeFieldDataFilter<Byte>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {
+            @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+                final byte inclusiveLowerPoint, inclusiveUpperPoint;
+                if (lowerVal != null) {
+                    byte i = lowerVal.byteValue();
+                    if (!includeLower && i == Byte.MAX_VALUE)
+                        return DocSet.EMPTY_DOC_SET;
+                    inclusiveLowerPoint = (byte) (includeLower ? i : (i + 1));
+                } else {
+                    inclusiveLowerPoint = Byte.MIN_VALUE;
+                }
+                if (upperVal != null) {
+                    byte i = upperVal.byteValue();
+                    if (!includeUpper && i == Byte.MIN_VALUE)
+                        return DocSet.EMPTY_DOC_SET;
+                    inclusiveUpperPoint = (byte) (includeUpper ? i : (i - 1));
+                } else {
+                    inclusiveUpperPoint = Byte.MAX_VALUE;
+                }
+
+                if (inclusiveLowerPoint > inclusiveUpperPoint)
+                    return DocSet.EMPTY_DOC_SET;
+
+                final ByteFieldData fieldData = (ByteFieldData) this.fieldDataCache.cache(FieldDataType.DefaultTypes.BYTE, reader, field);
+                return new GetDocSet(reader.maxDoc()) {
+
+                    @Override public boolean isCacheable() {
+                        // not cacheable for several reasons:
+                        // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
+                        // 2. Its already fast without in mem bitset, since it works with field data
+                        return false;
+                    }
+
+                    @Override public boolean get(int doc) throws IOException {
+                        if (!fieldData.hasValue(doc)) {
+                            return false;
+                        }
+                        if (fieldData.multiValued()) {
+                            byte[] values = fieldData.values(doc);
+                            for (byte value : values) {
+                                if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        } else {
+                            byte value = fieldData.value(doc);
+                            return value >= inclusiveLowerPoint && value <= inclusiveUpperPoint;
+                        }
+                    }
+                };
+            }
+        };
+    }
+
 
     public static NumericRangeFieldDataFilter<Short> newShortRange(FieldDataCache fieldDataCache, String field, Short lowerVal, Short upperVal, boolean includeLower, boolean includeUpper) {
         return new NumericRangeFieldDataFilter<Short>(fieldDataCache, field, lowerVal, upperVal, includeLower, includeUpper) {

@@ -32,6 +32,11 @@ import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.facet.range.RangeFacet;
 import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.bytes.InternalByteTermsFacet;
+import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
+import org.elasticsearch.search.facet.terms.ints.InternalIntTermsFacet;
+import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
+import org.elasticsearch.search.facet.terms.shorts.InternalShortTermsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -209,12 +214,25 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("bstag").field("type", "byte").endObject()
+                        .startObject("shstag").field("type", "short").endObject()
+                        .startObject("istag").field("type", "integer").endObject()
+                        .startObject("lstag").field("type", "long").endObject()
+                        .startObject("fstag").field("type", "float").endObject()
+                        .startObject("dstag").field("type", "double").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
+                .field("bstag", 111)
+                .field("shstag", 111)
+                .field("istag", 111)
                 .field("lstag", 111)
+                .field("fstag", 111.1f)
                 .field("dstag", 111.1)
                 .startArray("tag").value("xxx").value("yyy").endArray()
                 .startArray("ltag").value(1000l).value(2000l).endArray()
@@ -224,7 +242,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
+                .field("bstag", 111)
+                .field("shstag", 111)
+                .field("istag", 111)
                 .field("lstag", 111)
+                .field("fstag", 111.1f)
                 .field("dstag", 111.1)
                 .startArray("tag").value("zzz").value("yyy").endArray()
                 .startArray("ltag").value(3000l).value(2000l).endArray()
@@ -260,12 +282,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         facet = searchResponse.facets().facet("facet1");
+        assertThat(facet, instanceOf(InternalLongTermsFacet.class));
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
 
         facet = searchResponse.facets().facet("facet2");
+        assertThat(facet, instanceOf(InternalLongTermsFacet.class));
         assertThat(facet.name(), equalTo("facet2"));
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("2000"));
@@ -282,12 +306,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         facet = searchResponse.facets().facet("facet1");
+        assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111.1"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
 
         facet = searchResponse.facets().facet("facet2");
+        assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
         assertThat(facet.name(), equalTo("facet2"));
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("2000.1"));
@@ -296,6 +322,42 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(1));
         assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
         assertThat(facet.entries().get(2).count(), equalTo(1));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(termQuery("stag", "111"))
+                .addFacet(termsFacet("facet1").field("bstag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet, instanceOf(InternalByteTermsFacet.class));
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(termQuery("stag", "111"))
+                .addFacet(termsFacet("facet1").field("istag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet, instanceOf(InternalIntTermsFacet.class));
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(termQuery("stag", "111"))
+                .addFacet(termsFacet("facet1").field("shstag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet, instanceOf(InternalShortTermsFacet.class));
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
 
         // Test Facet Filter
 

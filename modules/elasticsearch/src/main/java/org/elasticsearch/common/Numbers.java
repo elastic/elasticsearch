@@ -37,7 +37,7 @@ public final class Numbers {
      * @return The int converted
      */
     public static short bytesToShort(byte[] arr) {
-        return (short) (((arr[2] & 0xff) << 8) | (arr[3] & 0xff));
+        return (short) (((arr[0] & 0xff) << 8) | (arr[1] & 0xff));
     }
 
     /**
@@ -105,8 +105,8 @@ public final class Numbers {
      */
     public static byte[] shortToBytes(int val) {
         byte[] arr = new byte[2];
-        arr[2] = (byte) (val >>> 8);
-        arr[3] = (byte) (val);
+        arr[0] = (byte) (val >>> 8);
+        arr[1] = (byte) (val);
         return arr;
     }
 

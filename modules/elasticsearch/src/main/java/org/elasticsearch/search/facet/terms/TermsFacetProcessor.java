@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
+import org.elasticsearch.search.facet.terms.bytes.TermsByteFacetCollector;
 import org.elasticsearch.search.facet.terms.doubles.TermsDoubleFacetCollector;
 import org.elasticsearch.search.facet.terms.floats.TermsFloatFacetCollector;
 import org.elasticsearch.search.facet.terms.index.IndexNameFacetCollector;
@@ -145,6 +146,8 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                 return new TermsFloatFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.SHORT) {
                 return new TermsShortFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.BYTE) {
+                return new TermsByteFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
             }
         }
         return new TermsStringFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);

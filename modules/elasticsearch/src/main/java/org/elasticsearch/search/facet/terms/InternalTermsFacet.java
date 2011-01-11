@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.terms;
 
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.terms.bytes.InternalByteTermsFacet;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.floats.InternalFloatTermsFacet;
 import org.elasticsearch.search.facet.terms.ints.InternalIntTermsFacet;
@@ -42,6 +43,7 @@ public abstract class InternalTermsFacet implements TermsFacet, InternalFacet {
         InternalIntTermsFacet.registerStream();
         InternalFloatTermsFacet.registerStream();
         InternalShortTermsFacet.registerStream();
+        InternalByteTermsFacet.registerStream();
     }
 
     public abstract Facet reduce(String name, List<Facet> facets);

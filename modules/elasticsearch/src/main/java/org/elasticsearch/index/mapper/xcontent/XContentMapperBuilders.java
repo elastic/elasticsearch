@@ -106,6 +106,10 @@ public final class XContentMapperBuilders {
         return new ShortFieldMapper.Builder(name);
     }
 
+    public static ByteFieldMapper.Builder byteField(String name) {
+        return new ByteFieldMapper.Builder(name);
+    }
+
     public static IntegerFieldMapper.Builder integerField(String name) {
         return new IntegerFieldMapper.Builder(name);
     }

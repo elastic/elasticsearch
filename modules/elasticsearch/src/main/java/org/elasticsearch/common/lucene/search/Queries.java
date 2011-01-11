@@ -87,4 +87,17 @@ public class Queries {
         }
         return q;
     }
+
+    public static boolean isMatchAllQuery(Query query) {
+        if (query instanceof MatchAllDocsQuery) {
+            return true;
+        }
+        if (query instanceof DeletionAwareConstantScoreQuery) {
+            DeletionAwareConstantScoreQuery scoreQuery = (DeletionAwareConstantScoreQuery) query;
+            if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -86,6 +88,13 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
             filter = parseContext.cacheFilter(filter);
         }
 
+        // if its a match_all query, use constant_score
+        if (Queries.isMatchAllQuery(query)) {
+            Query q = new DeletionAwareConstantScoreQuery(filter);
+            q.setBoost(boost);
+            return q;
+        }
+
         // TODO
         // With the way filtered queries work today, both query and filter advance (one at a time)
         // to get hits. Since all filters support random access, it might make sense to use that.
@@ -95,6 +104,7 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
         // More info:
         //    - https://issues.apache.org/jira/browse/LUCENE-1536
         //    - http://chbits.blogspot.com/2010/09/fast-search-filters-using-flex.html
+
 
         FilteredQuery filteredQuery = new FilteredQuery(query, filter);
         filteredQuery.setBoost(boost);

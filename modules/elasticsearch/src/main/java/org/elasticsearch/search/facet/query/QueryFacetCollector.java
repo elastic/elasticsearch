@@ -20,10 +20,13 @@
 package org.elasticsearch.search.facet.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -71,14 +74,8 @@ public class QueryFacetCollector extends AbstractFacetCollector {
     private Filter extractFilterIfApplicable(Query query) {
         if (query instanceof FilteredQuery) {
             FilteredQuery fQuery = (FilteredQuery) query;
-            if (fQuery.getQuery() instanceof MatchAllDocsQuery) {
+            if (Queries.isMatchAllQuery(fQuery.getQuery())) {
                 return fQuery.getFilter();
-            }
-            if (fQuery.getQuery() instanceof DeletionAwareConstantScoreQuery) {
-                DeletionAwareConstantScoreQuery scoreQuery = (DeletionAwareConstantScoreQuery) fQuery.getQuery();
-                if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
-                    return fQuery.getFilter();
-                }
             }
         }
         return null;

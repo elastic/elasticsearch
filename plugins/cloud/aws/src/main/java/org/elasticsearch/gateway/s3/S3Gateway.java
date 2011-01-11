@@ -31,16 +31,22 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DynamicExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.blobstore.BlobStoreGateway;
 import org.elasticsearch.index.gateway.s3.S3IndexGatewayModule;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class S3Gateway extends BlobStoreGateway {
+
+    private final ExecutorService concurrentStreamPool;
 
     @Inject public S3Gateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
                              ClusterName clusterName, ThreadPool threadPool, AwsS3Service s3Service) throws IOException {
@@ -76,13 +82,17 @@ public class S3Gateway extends BlobStoreGateway {
         }
         ByteSizeValue chunkSize = componentSettings.getAsBytesSize("chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB));
 
-        logger.debug("using bucket [{}], region [{}], chunk_size [{}]", bucket, region, chunkSize);
+        int concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
+        this.concurrentStreamPool = DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[s3_stream]"));
 
-        initialize(new S3BlobStore(settings, s3Service.client(), bucket, region, threadPool.cached()), clusterName, chunkSize);
+        logger.debug("using bucket [{}], region [{}], chunk_size [{}], concurrent_streams [{}]", bucket, region, chunkSize, concurrentStreams);
+
+        initialize(new S3BlobStore(settings, s3Service.client(), bucket, region, concurrentStreamPool), clusterName, chunkSize);
     }
 
-    @Override public void close() throws ElasticSearchException {
-        super.close();
+    @Override protected void doClose() throws ElasticSearchException {
+        super.doClose();
+        concurrentStreamPool.shutdown();
     }
 
     @Override public String type() {

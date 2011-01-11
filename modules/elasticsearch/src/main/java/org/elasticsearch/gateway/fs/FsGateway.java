@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.fs;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -26,6 +27,9 @@ import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DynamicExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.blobstore.BlobStoreGateway;
 import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
@@ -33,11 +37,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class FsGateway extends BlobStoreGateway {
+
+    private final ExecutorService concurrentStreamPool;
 
     @Inject public FsGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
                              Environment environment, ClusterName clusterName, ThreadPool threadPool) throws IOException {
@@ -51,7 +58,11 @@ public class FsGateway extends BlobStoreGateway {
         } else {
             gatewayFile = new File(location);
         }
-        initialize(new FsBlobStore(componentSettings, threadPool.cached(), gatewayFile), clusterName, null);
+
+        int concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
+        this.concurrentStreamPool = DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[s3_stream]"));
+
+        initialize(new FsBlobStore(componentSettings, concurrentStreamPool, gatewayFile), clusterName, null);
     }
 
     @Override public String type() {
@@ -60,5 +71,10 @@ public class FsGateway extends BlobStoreGateway {
 
     @Override public Class<? extends Module> suggestIndexGateway() {
         return FsIndexGatewayModule.class;
+    }
+
+    @Override protected void doClose() throws ElasticSearchException {
+        super.doClose();
+        concurrentStreamPool.shutdown();
     }
 }

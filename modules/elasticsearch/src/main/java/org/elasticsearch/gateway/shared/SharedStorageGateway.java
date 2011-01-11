@@ -149,6 +149,10 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
+                if (fMetaData.indices().isEmpty()) {
+                    listener.onSuccess();
+                    return;
+                }
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {

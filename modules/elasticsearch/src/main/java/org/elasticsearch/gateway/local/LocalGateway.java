@@ -152,11 +152,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             listener.onSuccess();
             return;
         }
-        if (electedState.state().metaData().indices().isEmpty()) {
-            logger.debug("no indices in metadata");
-            listener.onSuccess();
-            return;
-        }
 
         logger.debug("elected state from [{}]", electedState.node());
         final LocalGatewayMetaState state = electedState.state();
@@ -179,6 +174,10 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
+                if (state.metaData().indices().isEmpty()) {
+                    listener.onSuccess();
+                    return;
+                }
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : state.metaData()) {

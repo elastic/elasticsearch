@@ -20,11 +20,10 @@
 package org.elasticsearch.search.facet.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -44,7 +43,12 @@ public class QueryFacetCollector extends AbstractFacetCollector {
 
     public QueryFacetCollector(String facetName, Query query, FilterCache filterCache) {
         super(facetName);
-        this.filter = filterCache.cache(new QueryWrapperFilter(query));
+        Filter possibleFilter = extractFilterIfApplicable(query);
+        if (possibleFilter != null) {
+            this.filter = filterCache.cache(possibleFilter);
+        } else {
+            this.filter = filterCache.cache(new QueryWrapperFilter(query));
+        }
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
@@ -59,5 +63,24 @@ public class QueryFacetCollector extends AbstractFacetCollector {
 
     @Override public Facet facet() {
         return new InternalQueryFacet(facetName, count);
+    }
+
+    /**
+     * If its a filtered query with a match all, then we just need the inner filter.
+     */
+    private Filter extractFilterIfApplicable(Query query) {
+        if (query instanceof FilteredQuery) {
+            FilteredQuery fQuery = (FilteredQuery) query;
+            if (fQuery.getQuery() instanceof MatchAllDocsQuery) {
+                return fQuery.getFilter();
+            }
+            if (fQuery.getQuery() instanceof DeletionAwareConstantScoreQuery) {
+                DeletionAwareConstantScoreQuery scoreQuery = (DeletionAwareConstantScoreQuery) fQuery.getQuery();
+                if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
+                    return fQuery.getFilter();
+                }
+            }
+        }
+        return null;
     }
 }

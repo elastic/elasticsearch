@@ -41,7 +41,7 @@ public class FieldDataCacheModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(FieldDataCache.class)
-                .to(settings.getAsClass(FieldDataCacheSettings.FIELD_DATA_CACHE_TYPE, SoftFieldDataCache.class, "org.elasticsearch.index.cache.field.", "FieldDataCache"))
+                .to(settings.getAsClass(FieldDataCacheSettings.FIELD_DATA_CACHE_TYPE, SoftFieldDataCache.class, "org.elasticsearch.index.cache.field.data.", "FieldDataCache"))
                 .in(Scopes.SINGLETON);
     }
 }

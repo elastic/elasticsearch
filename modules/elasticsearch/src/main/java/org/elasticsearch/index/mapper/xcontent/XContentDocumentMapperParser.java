@@ -69,6 +69,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         super(index, indexSettings);
         this.analysisService = analysisService;
         typeParsers = new MapBuilder<String, XContentMapper.TypeParser>()
+                .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())
                 .put(IntegerFieldMapper.CONTENT_TYPE, new IntegerFieldMapper.TypeParser())
                 .put(LongFieldMapper.CONTENT_TYPE, new LongFieldMapper.TypeParser())

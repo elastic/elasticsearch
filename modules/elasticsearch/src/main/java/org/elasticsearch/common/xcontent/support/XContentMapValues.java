@@ -80,6 +80,13 @@ public class XContentMapValues {
         return Short.parseShort(node.toString());
     }
 
+    public static byte nodeByteValue(Object node) {
+        if (node instanceof Number) {
+            return ((Number) node).byteValue();
+        }
+        return Byte.parseByte(node.toString());
+    }
+
     public static long nodeLongValue(Object node) {
         if (node instanceof Number) {
             return ((Number) node).longValue();

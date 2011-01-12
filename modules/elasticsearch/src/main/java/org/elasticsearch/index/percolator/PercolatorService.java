@@ -178,7 +178,11 @@ public class PercolatorService extends AbstractIndexComponent {
             } else {
                 Reader reader = field.readerValue();
                 if (reader != null) {
-                    System.err.println("Can't handle reader value currently in percolator");
+                    try {
+                        memoryIndex.addField(field.name(), doc.analyzer().reusableTokenStream(field.name(), reader), field.getBoost() * doc.doc().getBoost());
+                    } catch (IOException e) {
+                        throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
+                    }
                 } else {
                     String value = field.stringValue();
                     if (value != null) {

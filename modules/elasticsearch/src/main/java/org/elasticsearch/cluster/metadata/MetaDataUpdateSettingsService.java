@@ -20,9 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -36,13 +34,56 @@ import static org.elasticsearch.cluster.routing.RoutingTable.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class MetaDataUpdateSettingsService extends AbstractComponent {
+public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
 
     private final ClusterService clusterService;
 
     @Inject public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
+        this.clusterService.add(this);
+    }
+
+    @Override public void clusterChanged(ClusterChangedEvent event) {
+        // update an index with number of replicas based on data nodes if possible
+        if (!event.state().nodes().localNodeMaster()) {
+            return;
+        }
+        if (!event.nodesChanged()) {
+            return;
+        }
+        for (final IndexMetaData indexMetaData : event.state().metaData()) {
+            String autoExpandReplicas = indexMetaData.settings().get("index.auto_expand_replicas");
+            if (autoExpandReplicas != null) {
+                try {
+                    final int numberOfReplicas = event.state().nodes().dataNodes().size() - 1;
+
+                    int min = Integer.parseInt(autoExpandReplicas.substring(0, autoExpandReplicas.indexOf('-')));
+                    int max;
+                    String sMax = autoExpandReplicas.substring(autoExpandReplicas.indexOf('-') + 1);
+                    if (sMax.equals("all")) {
+                        max = event.state().nodes().dataNodes().size() - 1;
+                    } else {
+                        max = Integer.parseInt(sMax);
+                    }
+
+                    if (numberOfReplicas >= min && numberOfReplicas <= max) {
+                        Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+                        updateSettings(settings, new String[]{indexMetaData.index()}, new Listener() {
+                            @Override public void onSuccess() {
+                                logger.info("[{}] auto expanded replicas to [{}]", indexMetaData.index(), numberOfReplicas);
+                            }
+
+                            @Override public void onFailure(Throwable t) {
+                                logger.warn("[{}] fail to auto expand replicas to [{}]", indexMetaData.index(), numberOfReplicas);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    logger.warn("[{}] failed to parse auto expand replicas", e, indexMetaData.index());
+                }
+            }
+        }
     }
 
     public void updateSettings(final Settings pSettings, final String[] indices, final Listener listener) {

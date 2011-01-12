@@ -48,6 +48,8 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.recovery.RecoveryStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
@@ -72,6 +74,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final IndexCache indexCache;
 
+    private final InternalIndicesLifecycle indicesLifecycle;
+
     private final Store store;
 
     private final Engine engine;
@@ -91,9 +95,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private RecoveryStatus peerRecoveryStatus;
 
-    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, Store store, Engine engine, Translog translog,
+    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
         super(shardId, indexSettings);
+        this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.store = store;
         this.engine = engine;
         this.translog = translog;
@@ -191,6 +196,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.STARTED, reason);
             state = IndexShardState.STARTED;
         }
+        indicesLifecycle.afterIndexShardStarted(this);
         return this;
     }
 
@@ -435,6 +441,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
         // clear unreferenced files
         translog.clearUnreferenced();
+        indicesLifecycle.afterIndexShardStarted(this);
     }
 
     public void performRecoveryOperation(Translog.Operation operation) throws ElasticSearchException {

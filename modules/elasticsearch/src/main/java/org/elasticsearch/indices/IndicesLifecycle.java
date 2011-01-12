@@ -78,6 +78,13 @@ public interface IndicesLifecycle {
         }
 
         /**
+         * Called after the index shard has been started.
+         */
+        public void afterIndexShardStarted(IndexShard indexShard) {
+
+        }
+
+        /**
          * Called before the index get closed.
          *
          * @param indexService The index service

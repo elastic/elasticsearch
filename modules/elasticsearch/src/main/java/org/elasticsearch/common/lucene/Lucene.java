@@ -416,6 +416,58 @@ public class Lucene {
         }
     }
 
+    public static class ExistsCollector extends Collector {
+
+        private boolean exists;
+
+        public boolean exists() {
+            return exists;
+        }
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+            this.exists = false;
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            exists = true;
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+    }
+
+    public static class SingleScoreCollector extends Collector {
+
+        private Scorer scorer;
+
+        private float score;
+
+        public float score() {
+            return this.score;
+        }
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+            this.score = 0;
+            this.scorer = scorer;
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            score = scorer.score();
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+    }
+
+
     private Lucene() {
 
     }

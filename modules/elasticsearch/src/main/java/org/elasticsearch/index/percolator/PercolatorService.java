@@ -21,18 +21,16 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -196,7 +194,7 @@ public class PercolatorService extends AbstractIndexComponent {
             }
         }
 
-        ExistsCollector collector = new ExistsCollector();
+        Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
         List<String> matches = new ArrayList<String>();
         IndexSearcher searcher = memoryIndex.createSearcher();
         for (Map.Entry<String, Query> entry : queries.entrySet()) {
@@ -223,57 +221,5 @@ public class PercolatorService extends AbstractIndexComponent {
         }
 
         return new Response(matches, doc.mappersAdded());
-    }
-
-    static class ExistsCollector extends Collector {
-
-        private boolean exists;
-
-        public boolean exists() {
-            return exists;
-        }
-
-        @Override public void setScorer(Scorer scorer) throws IOException {
-            this.exists = false;
-        }
-
-        @Override public void collect(int doc) throws IOException {
-            exists = true;
-        }
-
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        }
-
-        @Override public boolean acceptsDocsOutOfOrder() {
-            return true;
-        }
-    }
-
-
-    static class SingleScoreCollector extends Collector {
-
-        private Scorer scorer;
-
-        private float score;
-
-        public float score() {
-            return this.score;
-        }
-
-        @Override public void setScorer(Scorer scorer) throws IOException {
-            this.score = 0;
-            this.scorer = scorer;
-        }
-
-        @Override public void collect(int doc) throws IOException {
-            score = scorer.score();
-        }
-
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        }
-
-        @Override public boolean acceptsDocsOutOfOrder() {
-            return true;
-        }
     }
 }

@@ -28,7 +28,7 @@ dependencies {
     compile files(rootProject.jarjarArchivePath)
 
     compile('jline:jline:0.9.94') { transitive = false }
-    compile files(rootProject.file("lib/sigar/sigar-1.6.3.jar").absolutePath)
+    compile files(rootProject.file("lib/sigar/sigar-1.6.4.jar").absolutePath)
 
 
     compile 'org.slf4j:slf4j-api:1.5.11'

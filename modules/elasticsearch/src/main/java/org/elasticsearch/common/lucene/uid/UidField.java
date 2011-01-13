@@ -52,8 +52,9 @@ public class UidField extends AbstractField {
 
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) {
         int docId = Lucene.NO_DOC;
+        TermPositions uid = null;
         try {
-            TermPositions uid = reader.termPositions(term);
+            uid = reader.termPositions(term);
             if (!uid.next()) {
                 return new DocIdAndVersion(Lucene.NO_DOC, -1);
             }
@@ -69,6 +70,14 @@ public class UidField extends AbstractField {
             return new DocIdAndVersion(docId, Numbers.bytesToLong(payload));
         } catch (Exception e) {
             return new DocIdAndVersion(docId, -2);
+        } finally {
+            if (uid != null) {
+                try {
+                    uid.close();
+                } catch (IOException e) {
+                    // nothing to do here...
+                }
+            }
         }
     }
 
@@ -77,8 +86,9 @@ public class UidField extends AbstractField {
      * no version is available (for backward comp.)
      */
     public static long loadVersion(IndexReader reader, Term term) {
+        TermPositions uid = null;
         try {
-            TermPositions uid = reader.termPositions(term);
+            uid = reader.termPositions(term);
             if (!uid.next()) {
                 return -1;
             }
@@ -93,6 +103,14 @@ public class UidField extends AbstractField {
             return Numbers.bytesToLong(payload);
         } catch (Exception e) {
             return -2;
+        } finally {
+            if (uid != null) {
+                try {
+                    uid.close();
+                } catch (IOException e) {
+                    // nothing to do here...
+                }
+            }
         }
     }
 

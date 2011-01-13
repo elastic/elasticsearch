@@ -44,6 +44,9 @@ public class VersionSearchHitPhase implements SearchHitPhase {
     }
 
     @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+        // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
+        // it is going to mean we work on the high level multi reader and not the lower level reader as is
+        // the case below...
         long version = UidField.loadVersion(hitContext.reader(), new Term(UidFieldMapper.NAME, hitContext.doc().get(UidFieldMapper.NAME)));
         if (version < 0) {
             version = -1;

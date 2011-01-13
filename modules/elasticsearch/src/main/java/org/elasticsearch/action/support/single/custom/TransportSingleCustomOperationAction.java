@@ -116,40 +116,44 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
          * First get should try and use a shard that exists on a local node for better performance
          */
         private void performFirst() {
-            while (shardsIt.hasNextActive()) {
-                final ShardRouting shard = shardsIt.nextActive();
-                if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                    if (request.operationThreaded()) {
-                        request.beforeLocalFork();
-                        threadPool.execute(new Runnable() {
-                            @Override public void run() {
-                                try {
-                                    Response response = shardOperation(request, shard.id());
-                                    listener.onResponse(response);
-                                } catch (Exception e) {
-                                    onFailure(shard, e);
-                                }
-                            }
-                        });
-                        return;
-                    } else {
-                        try {
-                            final Response response = shardOperation(request, shard.id());
-                            if (request.listenerThreaded()) {
-                                threadPool.execute(new Runnable() {
-                                    @Override public void run() {
+            if (request.preferLocalShard()) {
+                while (shardsIt.hasNextActive()) {
+                    final ShardRouting shard = shardsIt.nextActive();
+                    if (shard.currentNodeId().equals(nodes.localNodeId())) {
+                        if (request.operationThreaded()) {
+                            request.beforeLocalFork();
+                            threadPool.execute(new Runnable() {
+                                @Override public void run() {
+                                    try {
+                                        Response response = shardOperation(request, shard.id());
                                         listener.onResponse(response);
+                                    } catch (Exception e) {
+                                        onFailure(shard, e);
                                     }
-                                });
-                            } else {
-                                listener.onResponse(response);
-                            }
+                                }
+                            });
                             return;
-                        } catch (Exception e) {
-                            onFailure(shard, e);
+                        } else {
+                            try {
+                                final Response response = shardOperation(request, shard.id());
+                                if (request.listenerThreaded()) {
+                                    threadPool.execute(new Runnable() {
+                                        @Override public void run() {
+                                            listener.onResponse(response);
+                                        }
+                                    });
+                                } else {
+                                    listener.onResponse(response);
+                                }
+                                return;
+                            } catch (Exception e) {
+                                onFailure(shard, e);
+                            }
                         }
                     }
                 }
+            } else {
+                perform(null);
             }
             if (!shardsIt.hasNextActive()) {
                 // no local node get, go remote
@@ -162,7 +166,41 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
             while (shardsIt.hasNextActive()) {
                 final ShardRouting shard = shardsIt.nextActive();
                 // no need to check for local nodes, we tried them already in performFirstGet
-                if (!shard.currentNodeId().equals(nodes.localNodeId())) {
+                if (shard.currentNodeId().equals(nodes.localNodeId())) {
+                    // we don't prefer local shard, so try and do it here
+                    if (!request.preferLocalShard()) {
+                        if (request.operationThreaded()) {
+                            request.beforeLocalFork();
+                            threadPool.execute(new Runnable() {
+                                @Override public void run() {
+                                    try {
+                                        Response response = shardOperation(request, shard.id());
+                                        listener.onResponse(response);
+                                    } catch (Exception e) {
+                                        onFailure(shard, e);
+                                    }
+                                }
+                            });
+                            return;
+                        } else {
+                            try {
+                                final Response response = shardOperation(request, shard.id());
+                                if (request.listenerThreaded()) {
+                                    threadPool.execute(new Runnable() {
+                                        @Override public void run() {
+                                            listener.onResponse(response);
+                                        }
+                                    });
+                                } else {
+                                    listener.onResponse(response);
+                                }
+                                return;
+                            } catch (Exception e) {
+                                onFailure(shard, e);
+                            }
+                        }
+                    }
+                } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
                     transportService.sendRequest(node, transportShardAction(), new ShardSingleOperationRequest(request, shard.id()), new BaseTransportResponseHandler<Response>() {
                         @Override public Response newInstance() {

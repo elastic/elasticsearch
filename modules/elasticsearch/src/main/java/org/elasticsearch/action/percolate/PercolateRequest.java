@@ -150,6 +150,15 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return this;
     }
 
+    /**
+     * if this operation hits a node with a local relevant shard, should it be preferred
+     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
+     */
+    @Override public PercolateRequest preferLocal(boolean preferLocal) {
+        super.preferLocal(preferLocal);
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (index == null) {

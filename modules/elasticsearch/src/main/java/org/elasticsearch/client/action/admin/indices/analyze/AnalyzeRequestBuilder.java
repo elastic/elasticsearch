@@ -44,6 +44,15 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
         return this;
     }
 
+    /**
+     * if this operation hits a node with a local relevant shard, should it be preferred
+     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
+     */
+    public AnalyzeRequestBuilder setPreferLocal(boolean preferLocal) {
+        request.preferLocal(preferLocal);
+        return this;
+    }
+
     @Override protected void doExecute(ActionListener<AnalyzeResponse> listener) {
         client.analyze(request, listener);
     }

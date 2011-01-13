@@ -33,6 +33,7 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
 
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
+    private boolean preferLocal = true;
 
     protected SingleCustomOperationRequest() {
     }
@@ -68,15 +69,34 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
         return this;
     }
 
+    /**
+     * if this operation hits a node with a local relevant shard, should it be preferred
+     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
+     */
+    public SingleCustomOperationRequest preferLocal(boolean preferLocal) {
+        this.preferLocal = preferLocal;
+        return this;
+    }
+
+    /**
+     * if this operation hits a node with a local relevant shard, should it be preferred
+     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
+     */
+    public boolean preferLocalShard() {
+        return this.preferLocal;
+    }
+
     public void beforeLocalFork() {
 
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         // no need to pass threading over the network, they are always false when coming throw a thread pool
+        preferLocal = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(preferLocal);
     }
 }
 

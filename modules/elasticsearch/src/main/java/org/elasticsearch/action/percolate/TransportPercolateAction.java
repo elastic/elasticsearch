@@ -65,7 +65,7 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
 
     @Override protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
         request.index(clusterState.metaData().concreteIndex(request.index()));
-        return clusterState.routingTable().index(request.index()).allShardsIt();
+        return clusterState.routingTable().index(request.index()).randomAllShardsIt();
     }
 
     @Override protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {

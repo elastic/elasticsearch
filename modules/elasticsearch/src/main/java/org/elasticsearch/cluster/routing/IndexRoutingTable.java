@@ -153,7 +153,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     /**
      * An iterator over all shards (including replicas).
      */
-    public ShardsIterator allShardsIt() {
+    public ShardsIterator randomAllShardsIt() {
         return new PlainShardsIterator(allShards, Math.abs(counter.incrementAndGet()));
     }
 

@@ -101,11 +101,21 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
-        PercolateResponse percolate = client.preparePercolate("test").setSource(jsonBuilder().startObject().startObject("doc").startObject("type1")
-                .field("field1", "value1")
-                .endObject().endObject().endObject())
-                .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        for (int i = 0; i < 10; i++) {
+            PercolateResponse percolate = client.preparePercolate("test").setSource(jsonBuilder().startObject().startObject("doc").startObject("type1")
+                    .field("field1", "value1")
+                    .endObject().endObject().endObject())
+                    .execute().actionGet();
+            assertThat(percolate.matches().size(), equalTo(1));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            PercolateResponse percolate = client.preparePercolate("test").setPreferLocal(false).setSource(jsonBuilder().startObject().startObject("doc").startObject("type1")
+                    .field("field1", "value1")
+                    .endObject().endObject().endObject())
+                    .execute().actionGet();
+            assertThat(percolate.matches().size(), equalTo(1));
+        }
     }
 
     @Test public void dynamicAddingRemovingQueries() throws Exception {

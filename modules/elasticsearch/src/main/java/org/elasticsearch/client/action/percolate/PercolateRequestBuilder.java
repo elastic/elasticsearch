@@ -129,6 +129,15 @@ public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest
     }
 
     /**
+     * if this operation hits a node with a local relevant shard, should it be preferred
+     * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
+     */
+    public PercolateRequestBuilder setPreferLocal(boolean preferLocal) {
+        request.preferLocal(preferLocal);
+        return this;
+    }
+
+    /**
      * Controls if the operation will be executed on a separate thread when executed locally. Defaults
      * to <tt>true</tt> when running in embedded mode.
      */

@@ -74,14 +74,17 @@ public class LuceneUidScanBenchmark {
                             uid.next();
                             uid.nextPosition();
                             if (!uid.isPayloadAvailable()) {
+                                uid.close();
                                 System.err.println("no payload...");
                                 break;
                             }
                             byte[] payload = uid.getPayload(new byte[8], 0);
                             if (Numbers.bytesToLong(payload) != id) {
+                                uid.close();
                                 System.err.println("wrong id...");
                                 break;
                             }
+                            uid.close();
                         }
                     } catch (Exception e) {
                         e.printStackTrace();

@@ -55,6 +55,7 @@ public class RestPercolateAction extends BaseRestHandler {
         // we don't spawn, then fork if local
         percolateRequest.operationThreaded(true);
 
+        percolateRequest.preferLocal(request.paramAsBoolean("prefer_local", percolateRequest.preferLocalShard()));
         client.percolate(percolateRequest, new ActionListener<PercolateResponse>() {
             @Override public void onResponse(PercolateResponse response) {
                 try {

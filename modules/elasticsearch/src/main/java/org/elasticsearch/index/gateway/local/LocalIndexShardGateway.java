@@ -93,6 +93,19 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryStatus.index().updateVersion(version);
         recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
 
+        // since we recover from local, just fill the files and size
+        try {
+            int numberOfFiles = 0;
+            long totalSizeInBytes = 0;
+            for (String name : indexShard.store().directory().listAll()) {
+                numberOfFiles++;
+                totalSizeInBytes += indexShard.store().directory().fileLength(name);
+            }
+            recoveryStatus.index().files(numberOfFiles, totalSizeInBytes, numberOfFiles, totalSizeInBytes);
+        } catch (Exception e) {
+            // ignore
+        }
+
         recoveryStatus.translog().startTime(System.currentTimeMillis());
         if (version == -1) {
             // no translog files, bail

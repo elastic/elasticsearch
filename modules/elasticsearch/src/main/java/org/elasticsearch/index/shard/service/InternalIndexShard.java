@@ -56,6 +56,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.index.mapper.SourceToParse.*;
@@ -95,6 +96,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private RecoveryStatus peerRecoveryStatus;
 
+    private CopyOnWriteArrayList<OperationListener> listeners = null;
+
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
         super(shardId, indexSettings);
@@ -110,6 +113,23 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         logger.debug("state: [CREATED]");
 
         this.checkIndex = indexSettings.getAsBoolean("index.shard.check_index", false);
+    }
+
+    @Override public synchronized void addListener(OperationListener listener) {
+        if (listeners == null) {
+            listeners = new CopyOnWriteArrayList<OperationListener>();
+        }
+        listeners.add(listener);
+    }
+
+    @Override public synchronized void removeListener(OperationListener listener) {
+        if (listeners == null) {
+            return;
+        }
+        listeners.remove(listener);
+        if (listeners.isEmpty()) {
+            listeners = null;
+        }
     }
 
     public Store store() {
@@ -220,6 +240,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
         writeAllowed();
+        if (listeners != null) {
+            for (OperationListener listener : listeners) {
+                create = listener.beforeCreate(create);
+            }
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("index {}", create.doc());
         }
@@ -235,6 +260,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
         writeAllowed();
+        if (listeners != null) {
+            for (OperationListener listener : listeners) {
+                index = listener.beforeIndex(index);
+            }
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("index {}", index.doc());
         }
@@ -249,6 +279,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public void delete(Engine.Delete delete) throws ElasticSearchException {
         writeAllowed();
+        if (listeners != null) {
+            for (OperationListener listener : listeners) {
+                delete = listener.beforeDelete(delete);
+            }
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("delete [{}]", delete.uid().text());
         }
@@ -257,6 +292,34 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public EngineException[] bulk(Engine.Bulk bulk) throws ElasticSearchException {
         writeAllowed();
+        if (listeners != null) {
+            for (int i = 0; i < bulk.ops().length; i++) {
+                Engine.Operation op = bulk.ops()[i];
+                if (op == null) {
+                    continue;
+                }
+                switch (op.opType()) {
+                    case CREATE:
+                        Engine.Create create = (Engine.Create) op;
+                        for (OperationListener listener : listeners) {
+                            bulk.ops()[i] = listener.beforeCreate(create);
+                        }
+                        break;
+                    case INDEX:
+                        Engine.Index index = (Engine.Index) op;
+                        for (OperationListener listener : listeners) {
+                            bulk.ops()[i] = listener.beforeIndex(index);
+                        }
+                        break;
+                    case DELETE:
+                        Engine.Delete delete = (Engine.Delete) op;
+                        for (OperationListener listener : listeners) {
+                            bulk.ops()[i] = listener.beforeDelete(delete);
+                        }
+                        break;
+                }
+            }
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("bulk, items [{}]", bulk.ops().length);
         }

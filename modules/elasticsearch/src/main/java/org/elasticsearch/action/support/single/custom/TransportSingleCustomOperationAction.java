@@ -120,6 +120,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                 final ShardRouting shard = shardsIt.nextActive();
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     if (request.operationThreaded()) {
+                        request.beforeLocalFork();
                         threadPool.execute(new Runnable() {
                             @Override public void run() {
                                 try {

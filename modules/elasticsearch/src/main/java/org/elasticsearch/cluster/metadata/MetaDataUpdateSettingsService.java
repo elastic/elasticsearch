@@ -49,11 +49,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         if (!event.state().nodes().localNodeMaster()) {
             return;
         }
-        if (!event.nodesChanged()) {
-            return;
-        }
+        // TODO we only need to do that on first create of an index, or the number of nodes changed
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            String autoExpandReplicas = indexMetaData.settings().get("index.auto_expand_replicas");
+            String autoExpandReplicas = indexMetaData.settings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
             if (autoExpandReplicas != null) {
                 try {
                     final int numberOfReplicas = event.state().nodes().dataNodes().size() - 1;
@@ -65,6 +63,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         max = event.state().nodes().dataNodes().size() - 1;
                     } else {
                         max = Integer.parseInt(sMax);
+                    }
+
+                    // same value, nothing to do there
+                    if (numberOfReplicas == indexMetaData.numberOfReplicas()) {
+                        continue;
                     }
 
                     if (numberOfReplicas >= min && numberOfReplicas <= max) {

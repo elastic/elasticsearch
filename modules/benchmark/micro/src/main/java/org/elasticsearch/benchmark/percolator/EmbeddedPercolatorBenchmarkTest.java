@@ -20,6 +20,7 @@
 package org.elasticsearch.benchmark.percolator;
 
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -33,8 +34,7 @@ import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
-import org.elasticsearch.index.percolator.PercolatorModule;
-import org.elasticsearch.index.percolator.PercolatorService;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -69,22 +69,26 @@ public class EmbeddedPercolatorBenchmarkTest {
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
-                new PercolatorModule()
+                new AbstractModule() {
+                    @Override protected void configure() {
+                        bind(PercolatorExecutor.class).asEagerSingleton();
+                    }
+                }
         ).createInjector();
 
-        final PercolatorService percolatorService = injector.getInstance(PercolatorService.class);
+        final PercolatorExecutor percolatorExecutor = injector.getInstance(PercolatorExecutor.class);
 
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
                 .field("field1", 1)
                 .field("field2", "value")
                 .field("field3", "the quick brown fox jumped over the lazy dog")
-                .endObject();
+                .endObject().endObject().endObject();
         final byte[] source = doc.copiedBytes();
 
-        PercolatorService.Response percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
 
         for (int i = 0; i < NUMBER_OF_QUERIES; i++) {
-            percolatorService.addQuery("test" + i, termQuery("field3", "quick"));
+            percolatorExecutor.addQuery("test" + i, termQuery("field3", "quick"));
         }
 
 
@@ -92,7 +96,7 @@ public class EmbeddedPercolatorBenchmarkTest {
         StopWatch stopWatch = new StopWatch().start();
         System.out.println("Running " + 1000);
         for (long i = 0; i < 1000; i++) {
-            percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+            percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
         }
         System.out.println("[Warmup] Percolated in " + stopWatch.stop().totalTime() + " TP Millis " + (NUMBER_OF_ITERATIONS / stopWatch.totalTime().millisFrac()));
 
@@ -103,7 +107,7 @@ public class EmbeddedPercolatorBenchmarkTest {
             threads[i] = new Thread(new Runnable() {
                 @Override public void run() {
                     for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        PercolatorService.Response percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
                     }
                     latch.countDown();
                 }

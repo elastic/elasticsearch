@@ -108,6 +108,18 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(String name, ToXContent xContent) throws IOException {
+        field(name);
+        xContent.toXContent(this, ToXContent.EMPTY_PARAMS);
+        return this;
+    }
+
+    public XContentBuilder field(String name, ToXContent xContent, ToXContent.Params params) throws IOException {
+        field(name);
+        xContent.toXContent(this, params);
+        return this;
+    }
+
     public XContentBuilder startObject(String name) throws IOException {
         field(name);
         startObject();
@@ -588,6 +600,8 @@ public final class XContentBuilder {
             field(name, (float[]) value);
         } else if (value instanceof double[]) {
             field(name, (double[]) value);
+        } else if (value instanceof ToXContent) {
+            field(name, (ToXContent) value);
         } else {
             field(name, value.toString());
         }

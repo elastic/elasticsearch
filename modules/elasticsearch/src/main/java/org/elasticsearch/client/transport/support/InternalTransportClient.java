@@ -35,6 +35,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
+import org.elasticsearch.action.percolate.PercolateRequest;
+import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -49,6 +51,7 @@ import org.elasticsearch.client.transport.action.deletebyquery.ClientTransportDe
 import org.elasticsearch.client.transport.action.get.ClientTransportGetAction;
 import org.elasticsearch.client.transport.action.index.ClientTransportIndexAction;
 import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThisAction;
+import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -85,12 +88,14 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     private final ClientTransportMoreLikeThisAction moreLikeThisAction;
 
+    private final ClientTransportPercolateAction percolateAction;
+
     @Inject public InternalTransportClient(Settings settings, ThreadPool threadPool,
                                            TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
                                            ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction,
                                            ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                            ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
-                                           ClientTransportMoreLikeThisAction moreLikeThisAction) {
+                                           ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
@@ -104,6 +109,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
         this.moreLikeThisAction = moreLikeThisAction;
+        this.percolateAction = percolateAction;
     }
 
     @Override public void close() {
@@ -266,6 +272,23 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 moreLikeThisAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<PercolateResponse> percolate(final PercolateRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PercolateResponse>>() {
+            @Override public ActionFuture<PercolateResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return percolateAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void percolate(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                percolateAction.execute(node, request, listener);
                 return null;
             }
         });

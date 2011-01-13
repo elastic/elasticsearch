@@ -392,10 +392,12 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             context.reset(parser, new Document(), type, source.source(), source.flyweight(), listener);
 
             // will result in START_OBJECT
+            int countDownTokens = 0;
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new MapperException("Malformed content, must start with an object");
             }
+            countDownTokens++;
             token = parser.nextToken();
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new MapperException("Malformed content, after first object, either the type field or the actual properties should exist");
@@ -407,6 +409,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 // Note, in this case, we only handle plain value types, an object type will be analyzed as if it was the type itself
                 // and other same level fields will be ignored
                 token = parser.nextToken();
+                countDownTokens++;
                 // commented out, allow for same type with START_OBJECT, we do our best to handle it except for the above corner case
 //                if (token != XContentParser.Token.START_OBJECT) {
 //                    throw new MapperException("Malformed content, a field with the same name as the type must be an object with the properties/fields within it");
@@ -430,6 +433,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             indexFieldMapper.parse(context);
 
             rootObjectMapper.parse(context);
+
+            for (int i = 0; i < countDownTokens; i++) {
+                parser.nextToken();
+            }
 
             // if we did not get the id, we need to parse the uid into the document now, after it was added
             if (source.id() == null) {

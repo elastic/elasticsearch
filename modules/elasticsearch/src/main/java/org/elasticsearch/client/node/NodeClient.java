@@ -41,6 +41,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
+import org.elasticsearch.action.percolate.PercolateRequest;
+import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
@@ -76,11 +79,13 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     private final TransportMoreLikeThisAction moreLikeThisAction;
 
+    private final TransportPercolateAction percolateAction;
+
     @Inject public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
                               TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
                               TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
                               TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
-                              TransportMoreLikeThisAction moreLikeThisAction) {
+                              TransportMoreLikeThisAction moreLikeThisAction, TransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
         this.admin = admin;
         this.indexAction = indexAction;
@@ -92,6 +97,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
         this.moreLikeThisAction = moreLikeThisAction;
+        this.percolateAction = percolateAction;
     }
 
     @Override public ThreadPool threadPool() {
@@ -176,5 +182,13 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Override public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
         moreLikeThisAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<PercolateResponse> percolate(PercolateRequest request) {
+        return percolateAction.execute(request);
+    }
+
+    @Override public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
+        percolateAction.execute(request, listener);
     }
 }

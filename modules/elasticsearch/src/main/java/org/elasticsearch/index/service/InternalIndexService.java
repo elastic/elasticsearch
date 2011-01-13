@@ -45,6 +45,7 @@ import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardManagement;
@@ -91,6 +92,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
+    private final PercolatorService percolatorService;
+
     private final AnalysisService analysisService;
 
     private final MapperService mapperService;
@@ -114,13 +117,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final CleanCacheOnIndicesLifecycleListener cleanCacheOnIndicesLifecycleListener = new CleanCacheOnIndicesLifecycleListener();
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                        AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
+                                        PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
                                         IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
         super(index, indexSettings);
         this.injector = injector;
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indexSettings = indexSettings;
+        this.percolatorService = percolatorService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -178,6 +182,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override public IndexCache cache() {
         return indexCache;
+    }
+
+    @Override public PercolatorService percolateService() {
+        return this.percolatorService;
     }
 
     @Override public AnalysisService analysisService() {

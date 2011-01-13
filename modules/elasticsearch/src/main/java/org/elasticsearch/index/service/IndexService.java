@@ -29,6 +29,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -44,6 +45,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexGateway gateway();
 
     IndexCache cache();
+
+    PercolatorService percolateService();
 
     AnalysisService analysisService();
 

@@ -44,6 +44,8 @@ public class TransportActions {
 
     public static final String MORE_LIKE_THIS = "indices/moreLikeThis";
 
+    public static final String PERCOLATE = "indices/percolate";
+
     public static class Admin {
 
         public static class Indices {

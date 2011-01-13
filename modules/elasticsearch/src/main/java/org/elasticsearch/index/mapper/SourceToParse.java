@@ -30,6 +30,10 @@ public class SourceToParse {
         return new SourceToParse(source);
     }
 
+    public static SourceToParse source(XContentParser parser) {
+        return new SourceToParse(parser);
+    }
+
     private final byte[] source;
 
     private final XContentParser parser;

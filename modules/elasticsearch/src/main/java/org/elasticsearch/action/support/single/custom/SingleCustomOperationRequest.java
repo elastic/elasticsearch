@@ -68,6 +68,10 @@ public abstract class SingleCustomOperationRequest implements ActionRequest {
         return this;
     }
 
+    public void beforeLocalFork() {
+
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }

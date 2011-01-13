@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexComponent;
 
 /**
@@ -36,4 +37,6 @@ public interface IndexQueryParser extends IndexComponent {
     ParsedQuery parse(String source) throws ElasticSearchException;
 
     ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException;
+
+    ParsedQuery parse(XContentParser parser) throws ElasticSearchException;
 }

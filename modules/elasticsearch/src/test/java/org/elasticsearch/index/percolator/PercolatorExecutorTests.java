@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.percolator;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -47,9 +48,9 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 @Test
-public class SimplePercolatorTests {
+public class PercolatorExecutorTests {
 
-    private PercolatorService percolatorService;
+    private PercolatorExecutor percolatorExecutor;
 
     @BeforeTest public void buildPercolatorService() {
         Settings settings = ImmutableSettings.settingsBuilder()
@@ -67,46 +68,43 @@ public class SimplePercolatorTests {
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
-                new PercolatorModule()
+                new AbstractModule() {
+                    @Override protected void configure() {
+                        bind(PercolatorExecutor.class).asEagerSingleton();
+                    }
+                }
         ).createInjector();
 
-        percolatorService = injector.getInstance(PercolatorService.class);
+        percolatorExecutor = injector.getInstance(PercolatorExecutor.class);
     }
 
     @Test public void testSimplePercolator() throws Exception {
         // introduce the doc
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
                 .field("field1", 1)
                 .field("field2", "value")
-                .endObject();
+                .endObject().endObject().endObject();
         byte[] source = doc.copiedBytes();
 
-        PercolatorService.Response percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
         assertThat(percolate.matches(), hasSize(0));
 
         // add a query
-        percolatorService.addQuery("test1", termQuery("field2", "value"));
+        percolatorExecutor.addQuery("test1", termQuery("field2", "value"));
 
-        percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItem("test1"));
 
-        percolatorService.addQuery("test2", termQuery("field1", 1));
+        percolatorExecutor.addQuery("test2", termQuery("field1", 1));
 
-        percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
         assertThat(percolate.matches(), hasSize(2));
         assertThat(percolate.matches(), hasItems("test1", "test2"));
 
-        percolate = percolatorService.percolate(new PercolatorService.Request("type1", source).match("*2"));
-        assertThat(percolate.matches(), hasSize(1));
-        assertThat(percolate.matches(), hasItems("test2"));
 
-        percolate = percolatorService.percolate(new PercolatorService.Request("type1", source).match("*").unmatch("*1"));
-        assertThat(percolate.matches(), hasSize(1));
-        assertThat(percolate.matches(), hasItems("test2"));
-
-        percolatorService.removeQuery("test2");
-        percolate = percolatorService.percolate(new PercolatorService.Request("type1", source));
+        percolatorExecutor.removeQuery("test2");
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItems("test1"));
     }

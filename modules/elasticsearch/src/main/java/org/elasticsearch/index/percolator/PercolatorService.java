@@ -19,207 +19,203 @@
 
 package org.elasticsearch.index.percolator;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
-import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.regex.Regex;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.*;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.query.IndexQueryParser;
-import org.elasticsearch.index.query.IndexQueryParserMissingException;
-import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldSelector;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.OperationListener;
+import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.IndicesService;
 
-import javax.annotation.Nullable;
+import javax.inject.Inject;
 import java.io.IOException;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.SourceToParse.*;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class PercolatorService extends AbstractIndexComponent {
 
-    public static class Request {
-        private final String type;
-        private final byte[] source;
+    public static final String INDEX_NAME = "_percolator";
 
-        private String match;
-        private String unmatch;
+    private final IndicesService indicesService;
 
-        public Request(String type, byte[] source) {
-            this.type = type;
-            this.source = source;
-        }
+    private final PercolatorExecutor percolator;
 
-        public String type() {
-            return type;
-        }
+    private final ShardLifecycleListener shardLifecycleListener;
 
-        public byte[] source() {
-            return source;
-        }
+    private final Object mutex = new Object();
 
-        public String match() {
-            return this.match;
-        }
+    private boolean initialQueriesFetchDone = false;
 
-        public Request match(String match) {
-            this.match = match;
-            return this;
-        }
-
-        public String unmatch() {
-            return this.unmatch;
-        }
-
-        public Request unmatch(String unmatch) {
-            this.unmatch = unmatch;
-            return this;
-        }
-    }
-
-    public static final class Response {
-        private final List<String> matches;
-        private final boolean mappersAdded;
-
-        public Response(List<String> matches, boolean mappersAdded) {
-            this.matches = matches;
-            this.mappersAdded = mappersAdded;
-        }
-
-        public boolean mappersAdded() {
-            return this.mappersAdded;
-        }
-
-        public List<String> matches() {
-            return matches;
-        }
-    }
-
-    private final MapperService mapperService;
-
-    private final IndexQueryParserService queryParserService;
-
-    private volatile ImmutableMap<String, Query> queries = ImmutableMap.of();
-
-    @Inject public PercolatorService(Index index, @IndexSettings Settings indexSettings,
-                                     MapperService mapperService, IndexQueryParserService queryParserService) {
+    @Inject public PercolatorService(Index index, @IndexSettings Settings indexSettings, IndicesService indicesService,
+                                     PercolatorExecutor percolator) {
         super(index, indexSettings);
-        this.mapperService = mapperService;
-        this.queryParserService = queryParserService;
+        this.indicesService = indicesService;
+        this.percolator = percolator;
+        this.shardLifecycleListener = new ShardLifecycleListener();
+        this.indicesService.indicesLifecycle().addListener(shardLifecycleListener);
     }
 
-    public void addQuery(String name, QueryBuilder queryBuilder) {
-        addQuery(name, null, queryBuilder);
+    public void close() {
+        this.indicesService.indicesLifecycle().removeListener(shardLifecycleListener);
     }
 
-    public void addQuery(String name, @Nullable String queryParserName, QueryBuilder queryBuilder) {
-        FastByteArrayOutputStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
-        addQuery(name, queryParserName, unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size());
+    public PercolatorExecutor.Response percolate(PercolatorExecutor.Request request) throws PercolatorException {
+        IndexService percolatorIndex = indicesService.indexService(INDEX_NAME);
+        if (percolatorIndex == null) {
+            throw new PercolateIndexUnavailable(new Index(INDEX_NAME));
+        }
+        if (percolatorIndex.numberOfShards() == 0) {
+            throw new PercolateIndexUnavailable(new Index(INDEX_NAME));
+        }
+        IndexShard percolatorShard = percolatorIndex.shard(0);
+        return percolator.percolate(request, percolatorIndex, percolatorShard);
     }
 
-    public void addQuery(String name, @Nullable String queryParserName,
-                         byte[] querySource, int querySourceOffset, int querySourceLength) throws ElasticSearchException {
-        IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
-        if (queryParserName != null) {
-            queryParser = queryParserService.indexQueryParser(queryParserName);
-            if (queryParser == null) {
-                throw new IndexQueryParserMissingException(queryParserName);
-            }
+    private void loadQueries(String indexName) {
+        IndexService indexService = percolatorIndexService();
+        IndexShard shard = indexService.shard(0);
+        Engine.Searcher searcher = shard.searcher();
+        try {
+            // create a query to fetch all queries that are registered under the index name (which is the type
+            // in the percolator).
+            Query query = new DeletionAwareConstantScoreQuery(indexQueriesFilter(indexName));
+            searcher.searcher().search(query, new QueriesLoaderCollector());
+        } catch (IOException e) {
+            throw new PercolatorException(index, "failed to load queries from percolator index");
+        } finally {
+            searcher.release();
+        }
+    }
+
+    private Filter indexQueriesFilter(String indexName) {
+        return percolatorIndexService().cache().filter().cache(new TermFilter(new Term(TypeFieldMapper.NAME, indexName)));
+    }
+
+    private boolean percolatorAllocated() {
+        if (!indicesService.hasIndex(INDEX_NAME)) {
+            return false;
+        }
+        if (percolatorIndexService().numberOfShards() == 0) {
+            return false;
+        }
+        if (percolatorIndexService().shard(0).state() != IndexShardState.STARTED) {
+            return false;
+        }
+        return true;
+    }
+
+    private IndexService percolatorIndexService() {
+        return indicesService.indexService(INDEX_NAME);
+    }
+
+    class QueriesLoaderCollector extends Collector {
+
+        private FieldData fieldData;
+
+        private IndexReader reader;
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
         }
 
-        Query query = queryParser.parse(querySource, querySourceOffset, querySourceLength).query();
-        addQuery(name, query);
-    }
-
-    public synchronized void addQuery(String name, Query query) {
-        this.queries = MapBuilder.newMapBuilder(queries).put(name, query).immutableMap();
-    }
-
-    public synchronized void removeQuery(String name) {
-        this.queries = MapBuilder.newMapBuilder(queries).remove(name).immutableMap();
-    }
-
-    public Response percolate(Request request) throws ElasticSearchException {
-        // first, parse the source doc into a MemoryIndex
-        final MemoryIndex memoryIndex = new MemoryIndex();
-        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.type());
-        ParsedDocument doc = docMapper.parse(source(request.source()).type(request.type()).flyweight(true));
-
-        for (Fieldable field : doc.doc().getFields()) {
-            if (!field.isIndexed()) {
-                continue;
-            }
-            TokenStream tokenStream = field.tokenStreamValue();
-            if (tokenStream != null) {
-                memoryIndex.addField(field.name(), tokenStream, field.getBoost());
-            } else {
-                Reader reader = field.readerValue();
-                if (reader != null) {
-                    try {
-                        memoryIndex.addField(field.name(), doc.analyzer().reusableTokenStream(field.name(), reader), field.getBoost() * doc.doc().getBoost());
-                    } catch (IOException e) {
-                        throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
-                    }
-                } else {
-                    String value = field.stringValue();
-                    if (value != null) {
-                        try {
-                            memoryIndex.addField(field.name(), doc.analyzer().reusableTokenStream(field.name(), new FastStringReader(value)), field.getBoost() * doc.doc().getBoost());
-                        } catch (IOException e) {
-                            throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
-                        }
-                    }
-                }
-            }
-        }
-
-        Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-        List<String> matches = new ArrayList<String>();
-        IndexSearcher searcher = memoryIndex.createSearcher();
-        for (Map.Entry<String, Query> entry : queries.entrySet()) {
-            if (request.match() != null) {
-                if (!Regex.simpleMatch(request.match(), entry.getKey())) {
-                    continue;
-                }
-            }
-            if (request.unmatch() != null) {
-                if (Regex.simpleMatch(request.unmatch(), entry.getKey())) {
-                    continue;
-                }
-            }
-
+        @Override public void collect(int doc) throws IOException {
+            String id = fieldData.stringValue(doc);
+            // the _source is the query
+            Document document = reader.document(doc, SourceFieldSelector.INSTANCE);
+            byte[] source = document.getBinaryValue(SourceFieldMapper.NAME);
             try {
-                searcher.search(entry.getValue(), collector);
-            } catch (IOException e) {
-                logger.warn("[" + entry.getKey() + "] failed to execute query", e);
-            }
-
-            if (collector.exists()) {
-                matches.add(entry.getKey());
+                percolator.addQuery(id, source, 0, source.length);
+            } catch (Exception e) {
+                logger.warn("failed to add query [{}]", e, id);
             }
         }
 
-        return new Response(matches, doc.mappersAdded());
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+            this.reader = reader;
+            fieldData = percolatorIndexService().cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, IdFieldMapper.NAME);
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+    }
+
+    class ShardLifecycleListener extends IndicesLifecycle.Listener {
+
+        @Override public void afterIndexShardCreated(IndexShard indexShard) {
+            if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
+                indexShard.addListener(new RealTimePercolatorOperationListener());
+            }
+        }
+
+        @Override public void afterIndexShardStarted(IndexShard indexShard) {
+            if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
+                // percolator index has started, fetch what we can from it and initialize the indices
+                // we have
+                synchronized (mutex) {
+                    if (initialQueriesFetchDone) {
+                        return;
+                    }
+                    // we load the queries for all existing indices
+                    for (IndexService indexService : indicesService) {
+                        loadQueries(indexService.index().name());
+                    }
+                    initialQueriesFetchDone = true;
+                }
+            }
+            if (!indexShard.shardId().index().equals(index())) {
+                // not our index, bail
+                return;
+            }
+            if (!percolatorAllocated()) {
+                return;
+            }
+            // we are only interested when the first shard on this node has been created for an index
+            // when it does, fetch the relevant queries if not fetched already
+            if (indicesService.indexService(indexShard.shardId().index().name()).numberOfShards() != 1) {
+                return;
+            }
+            synchronized (mutex) {
+                if (initialQueriesFetchDone) {
+                    return;
+                }
+                // we load queries for this index
+                loadQueries(index.name());
+                initialQueriesFetchDone = true;
+            }
+        }
+    }
+
+    class RealTimePercolatorOperationListener extends OperationListener {
+
+        @Override public Engine.Create beforeCreate(Engine.Create create) {
+            percolator.addQuery(create.id(), create.source());
+            return create;
+        }
+
+        @Override public Engine.Index beforeIndex(Engine.Index index) {
+            percolator.addQuery(index.id(), index.source());
+            return index;
+        }
+
+        @Override public Engine.Delete beforeDelete(Engine.Delete delete) {
+            percolator.removeQuery(delete.id());
+            return delete;
+        }
     }
 }

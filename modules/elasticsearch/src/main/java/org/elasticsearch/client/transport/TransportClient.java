@@ -35,6 +35,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
+import org.elasticsearch.action.percolate.PercolateRequest;
+import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -312,5 +314,13 @@ public class TransportClient extends AbstractClient {
 
     @Override public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
         internalClient.moreLikeThis(request, listener);
+    }
+
+    @Override public ActionFuture<PercolateResponse> percolate(PercolateRequest request) {
+        return internalClient.percolate(request);
+    }
+
+    @Override public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
+        internalClient.percolate(request, listener);
     }
 }

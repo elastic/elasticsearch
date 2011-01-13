@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.shard.service;
 
-import org.apache.lucene.document.Document;
+import org.elasticsearch.index.engine.Engine;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public interface IdFieldMapper extends FieldMapper<String>, InternalMapper {
+public abstract class OperationListener {
 
-    public static final String NAME = "_id";
+    public Engine.Create beforeCreate(Engine.Create create) {
+        return create;
+    }
 
-    String value(Document document);
+    public Engine.Index beforeIndex(Engine.Index index) {
+        return index;
+    }
+
+    public Engine.Delete beforeDelete(Engine.Delete delete) {
+        return delete;
+    }
 }

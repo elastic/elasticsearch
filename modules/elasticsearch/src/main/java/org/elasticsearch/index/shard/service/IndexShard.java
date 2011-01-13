@@ -38,6 +38,10 @@ import javax.annotation.Nullable;
 @ThreadSafe
 public interface IndexShard extends IndexShardComponent {
 
+    void addListener(OperationListener listener);
+
+    void removeListener(OperationListener listener);
+
     ShardRouting routingEntry();
 
     IndexShardState state();

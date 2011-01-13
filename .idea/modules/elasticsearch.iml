@@ -28,13 +28,10 @@
     <orderEntry type="module-library" exported="">
       <library name="sigar">
         <CLASSES>
-          <root url="jar://$MODULE_DIR$/../../lib/sigar/sigar-1.6.3.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../lib/sigar/sigar-1.6.4.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES>
-          <root url="file://$USER_HOME$/opt/sigar/1.6.3-src/bindings/java/src" />
-          <root url="file://$USER_HOME$/opt/sigar/1.6.3-src/bindings/java/hyperic_jni/src" />
-        </SOURCES>
+        <SOURCES />
       </library>
     </orderEntry>
     <orderEntry type="module-library" exported="">

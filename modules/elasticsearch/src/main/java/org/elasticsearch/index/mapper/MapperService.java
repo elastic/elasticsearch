@@ -41,6 +41,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.InvalidTypeNameException;
+import org.elasticsearch.indices.TypeMissingException;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -237,10 +238,17 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     public Filter typesFilter(String... types) {
         if (types.length == 1) {
-            return documentMapper(types[0]).typeFilter();
+            DocumentMapper docMapper = documentMapper(types[0]);
+            if (docMapper == null) {
+                throw new TypeMissingException(index, types[0]);
+            }
+            return docMapper.typeFilter();
         }
         PublicTermsFilter termsFilter = new PublicTermsFilter();
         for (String type : types) {
+            if (!hasMapping(type)) {
+                throw new TypeMissingException(index, type);
+            }
             termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
         }
         return termsFilter;

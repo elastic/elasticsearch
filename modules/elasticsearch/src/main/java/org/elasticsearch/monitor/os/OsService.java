@@ -22,30 +22,45 @@ package org.elasticsearch.monitor.os;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.timer.TimerService;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class OsService extends AbstractComponent {
 
+    private final TimerService timerService;
+
     private final OsProbe probe;
 
     private final OsInfo info;
 
-    @Inject public OsService(Settings settings, OsProbe probe) {
+    private final TimeValue refreshInterval;
+
+    private OsStats cachedStats;
+
+    @Inject public OsService(Settings settings, OsProbe probe, TimerService timerService) {
         super(settings);
         this.probe = probe;
+        this.timerService = timerService;
 
         this.info = probe.osInfo();
 
-        logger.trace("Using probe [{}]", probe);
+        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(5));
+        this.cachedStats = probe.osStats();
+
+        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
     }
 
     public OsInfo info() {
         return this.info;
     }
 
-    public OsStats stats() {
-        return probe.osStats();
+    public synchronized OsStats stats() {
+        if ((timerService.estimatedTimeInMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
+            cachedStats = probe.osStats();
+        }
+        return cachedStats;
     }
 }

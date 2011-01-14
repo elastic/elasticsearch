@@ -38,7 +38,6 @@ import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 import twitter4j.*;
 
-import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -185,7 +184,8 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
             dropThreshold = 10;
         }
 
-        stream = new TwitterStreamFactory(new StatusHandler()).getInstance(user, password);
+        stream = new TwitterStreamFactory().getInstance(user, password);
+        stream.addListener(new StatusHandler());
     }
 
     @Override public void start() {
@@ -244,14 +244,15 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                 builder.field("source", status.getSource());
                 builder.field("truncated", status.isTruncated());
 
-
-                if (status.getUserMentions() != null) {
+                if (status.getUserMentionEntities() != null) {
                     builder.startArray("mention");
-                    for (User user : status.getUserMentions()) {
+                    for (UserMentionEntity user : status.getUserMentionEntities()) {
                         builder.startObject();
                         builder.field("id", user.getId());
                         builder.field("name", user.getName());
                         builder.field("screen_name", user.getScreenName());
+                        builder.field("start", user.getStart());
+                        builder.field("end", user.getEnd());
                         builder.endObject();
                     }
                     builder.endArray();
@@ -271,8 +272,16 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                     builder.endObject();
                 }
 
-                if (status.getHashtags() != null) {
-                    builder.array("hashtag", status.getHashtags());
+                if (status.getHashtagEntities() != null) {
+                    builder.startArray("hashtag");
+                    for (HashtagEntity hashtag : status.getHashtagEntities()) {
+                        builder.startObject();
+                        builder.field("text", hashtag.getText());
+                        builder.field("start", hashtag.getStart());
+                        builder.field("end", hashtag.getEnd());
+                        builder.endObject();
+                    }
+                    builder.endArray();
                 }
                 if (status.getContributors() != null) {
                     builder.array("contributor", status.getContributors());
@@ -295,11 +304,21 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                     builder.field("url", status.getPlace().getURL());
                     builder.endObject();
                 }
-                if (status.getURLs() != null) {
+                if (status.getURLEntities() != null) {
                     builder.startArray("link");
-                    for (URL url : status.getURLs()) {
+                    for (URLEntity url : status.getURLEntities()) {
                         if (url != null) {
-                            builder.value(url.toExternalForm());
+                            builder.startObject();
+                            builder.field("url", url.getURL().toExternalForm());
+                            if (url.getDisplayURL() != null) {
+                                builder.field("display_url", url.getDisplayURL());
+                            }
+                            if (url.getExpandedURL() != null) {
+                                builder.field("expand_url", url.getExpandedURL());
+                            }
+                            builder.field("start", url.getStart());
+                            builder.field("end", url.getEnd());
+                            builder.endObject();
                         }
                     }
                     builder.endArray();

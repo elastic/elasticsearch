@@ -1,0 +1,13 @@
+# Example of some settings with the default values set
+## Make the node a data node
+#node:
+#  data: true
+#
+## Cluster name
+#cluster:
+#  name: elasticsearch
+#
+## Bind to all network addresses
+#network:
+#  host: 0.0.0.0
+#

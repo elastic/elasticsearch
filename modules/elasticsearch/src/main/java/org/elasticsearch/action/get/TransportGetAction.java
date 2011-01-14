@@ -32,11 +32,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.FieldMappersFieldSelector;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -79,7 +84,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
         DocumentMapper docMapper = indexService.mapperService().documentMapper(request.type());
         if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + request.type() + "]");
+            throw new TypeMissingException(new Index(request.index()), request.type());
         }
 
         if (request.refresh()) {

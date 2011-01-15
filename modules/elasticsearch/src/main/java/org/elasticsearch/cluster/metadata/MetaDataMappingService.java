@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +41,7 @@ import org.elasticsearch.indices.InvalidTypeNameException;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
@@ -55,10 +58,13 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
-    @Inject public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
+    private final NodeMappingCreatedAction mappingCreatedAction;
+
+    @Inject public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeMappingCreatedAction mappingCreatedAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.mappingCreatedAction = mappingCreatedAction;
     }
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource) {
@@ -267,7 +273,35 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
-                listener.onResponse(new Response(true));
+                int counter = 0;
+                for (String index : request.indices) {
+                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+                    if (indexRoutingTable != null) {
+                        counter += indexRoutingTable.numberOfNodesShardsAreAllocatedOn();
+                    }
+                }
+
+                if (counter > 0) {
+                    counter = counter - 1; // we already added the mapping on the master here...
+                }
+                if (counter == 0) {
+                    listener.onResponse(new Response(true));
+                    return;
+                }
+
+                final AtomicInteger countDown = new AtomicInteger(counter);
+                mappingCreatedAction.add(new NodeMappingCreatedAction.Listener() {
+                    @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
+                        if (countDown.decrementAndGet() == 0) {
+                            mappingCreatedAction.remove(this);
+                            listener.onResponse(new Response(true));
+                        }
+                    }
+
+                    @Override public void onTimeout() {
+                        listener.onResponse(new Response(false));
+                    }
+                }, request.timeout);
             }
         });
     }

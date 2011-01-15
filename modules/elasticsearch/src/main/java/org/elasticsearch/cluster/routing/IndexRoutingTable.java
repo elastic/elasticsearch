@@ -102,6 +102,18 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return shards.values().iterator();
     }
 
+    public int numberOfNodesShardsAreAllocatedOn() {
+        Set<String> nodes = Sets.newHashSet();
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            for (ShardRouting shardRouting : shardRoutingTable) {
+                if (shardRouting.assignedToNode()) {
+                    nodes.add(shardRouting.currentNodeId());
+                }
+            }
+        }
+        return nodes.size();
+    }
+
     public ImmutableMap<Integer, IndexShardRoutingTable> shards() {
         return shards;
     }

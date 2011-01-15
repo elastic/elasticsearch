@@ -49,7 +49,7 @@ public interface Node {
     Node start();
 
     /**
-     * Stops the node. If the node is already started, this method is no-op.
+     * Stops the node. If the node is already stopped, this method is no-op.
      */
     Node stop();
 

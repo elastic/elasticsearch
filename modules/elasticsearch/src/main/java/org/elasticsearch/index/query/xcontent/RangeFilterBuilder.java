@@ -314,6 +314,15 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
+     * The to part of the filter query. Null indicates unbounded.
+     */
+    public RangeFilterBuilder lte(Object to) {
+        this.to = to;
+        this.includeUpper = true;
+        return this;
+    }
+
+    /**
      * Should the lower bound be included or not. Defaults to <tt>true</tt>.
      */
     public RangeFilterBuilder includeLower(boolean includeLower) {

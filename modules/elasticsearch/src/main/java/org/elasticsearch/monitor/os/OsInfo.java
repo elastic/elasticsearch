@@ -34,6 +34,8 @@ import java.io.Serializable;
  */
 public class OsInfo implements Streamable, Serializable, ToXContent {
 
+    long refreshInterval;
+
     Cpu cpu = null;
 
     Mem mem = null;
@@ -41,6 +43,14 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     Swap swap = null;
 
     OsInfo() {
+    }
+
+    public long refreshInterval() {
+        return this.refreshInterval;
+    }
+
+    public long getRefreshInterval() {
+        return this.refreshInterval;
     }
 
     public Cpu cpu() {
@@ -69,6 +79,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("os");
+        builder.field("refresh_interval", refreshInterval);
         if (cpu != null) {
             builder.startObject("cpu");
             builder.field("vendor", cpu.vendor());
@@ -104,6 +115,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        refreshInterval = in.readLong();
         if (in.readBoolean()) {
             cpu = Cpu.readCpu(in);
         }
@@ -116,6 +128,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(refreshInterval);
         if (cpu == null) {
             out.writeBoolean(false);
         } else {

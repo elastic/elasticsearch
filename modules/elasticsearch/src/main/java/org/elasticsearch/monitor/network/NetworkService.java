@@ -54,6 +54,7 @@ public class NetworkService extends AbstractComponent {
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
 
         this.info = probe.networkInfo();
+        this.info.refreshInterval = refreshInterval.millis();
         this.cachedStats = probe.networkStats();
 
         if (logger.isDebugEnabled()) {

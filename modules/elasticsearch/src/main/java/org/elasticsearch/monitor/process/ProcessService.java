@@ -48,6 +48,7 @@ public class ProcessService extends AbstractComponent {
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(5));
 
         this.info = probe.processInfo();
+        this.info.refreshInterval = refreshInterval.millis();
         this.cachedStats = probe.processStats();
 
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);

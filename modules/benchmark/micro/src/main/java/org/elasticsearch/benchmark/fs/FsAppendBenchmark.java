@@ -40,12 +40,12 @@ public class FsAppendBenchmark {
 
         boolean CHANNEL = true;
         int CHUNK = (int) ByteSizeValue.parseBytesSizeValue("1k").bytes();
-        long DATA = ByteSizeValue.parseBytesSizeValue("100mb").bytes();
+        long DATA = ByteSizeValue.parseBytesSizeValue("10gb").bytes();
 
         byte[] data = new byte[CHUNK];
         new Random().nextBytes(data);
 
-        StopWatch watch = new StopWatch().start();
+        StopWatch watch = new StopWatch().start("write");
         if (CHANNEL) {
             FileChannel channel = raf.getChannel();
             long position = 0;
@@ -53,6 +53,7 @@ public class FsAppendBenchmark {
                 channel.write(ByteBuffer.wrap(data), position);
                 position += data.length;
             }
+            watch.stop().start("flush");
             channel.force(true);
         } else {
             long position = 0;
@@ -60,11 +61,12 @@ public class FsAppendBenchmark {
                 raf.write(data);
                 position += data.length;
             }
+            watch.stop().start("flush");
             raf.getFD().sync();
         }
         raf.close();
         watch.stop();
-        System.out.println("Wrote [" + (new ByteSizeValue(DATA)) + "], chunk [" + (new ByteSizeValue(CHUNK)) + "], in " + watch.lastTaskTime());
+        System.out.println("Wrote [" + (new ByteSizeValue(DATA)) + "], chunk [" + (new ByteSizeValue(CHUNK)) + "], in " + watch);
     }
 
     private static final ByteBuffer fill = ByteBuffer.allocateDirect(1);

@@ -20,13 +20,13 @@
 package org.elasticsearch.script.search;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 
 /**

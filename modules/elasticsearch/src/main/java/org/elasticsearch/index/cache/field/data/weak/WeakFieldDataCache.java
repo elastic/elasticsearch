@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.field.data.weak;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
@@ -28,7 +29,6 @@ import org.elasticsearch.index.cache.field.data.support.AbstractConcurrentMapFie
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import javax.annotation.Nullable;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 

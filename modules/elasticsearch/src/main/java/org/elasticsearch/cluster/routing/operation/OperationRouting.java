@@ -22,10 +22,9 @@ package org.elasticsearch.cluster.routing.operation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.indices.IndexMissingException;
-
-import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

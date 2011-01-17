@@ -19,7 +19,8 @@
 
 package org.elasticsearch.monitor.dump;
 
-import javax.annotation.Nullable;
+import org.elasticsearch.common.Nullable;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Map;

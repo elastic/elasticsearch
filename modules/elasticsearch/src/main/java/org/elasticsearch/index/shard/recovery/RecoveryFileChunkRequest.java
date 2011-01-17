@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.shard.recovery;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**

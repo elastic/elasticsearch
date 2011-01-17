@@ -20,6 +20,9 @@ index :
         encoder : metaphone
       my :
         type : org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory
+      dict_dec :
+        type : dictionary_decompounder
+        word_list_path : /dev/null
     analyzer :
       standard :
         alias: alias1,alias2
@@ -41,3 +44,6 @@ index :
       czechAnalyzerWithStemmer :
         tokenizer : standard
         filter : [standard, lowercase, stop, czech_stem]
+      custom5 :
+        tokenizer : standard
+        filter : [dict_dec]

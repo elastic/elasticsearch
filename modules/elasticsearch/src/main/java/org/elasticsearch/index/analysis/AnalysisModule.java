@@ -28,6 +28,8 @@ import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
+import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
@@ -312,6 +314,10 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("edge_ngram", EdgeNGramTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("shingle", ShingleTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("phonetic", PhoneticTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("dictionaryDecompounder", DictionaryCompoundWordTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("dictionary_decompounder", DictionaryCompoundWordTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("hyphenationDecompounder", HyphenationCompoundWordTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("hypennation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);
         }
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {

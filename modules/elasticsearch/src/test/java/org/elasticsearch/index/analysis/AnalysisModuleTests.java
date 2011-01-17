@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
@@ -105,5 +106,12 @@ public class AnalysisModuleTests {
         assertThat(czechstemmeranalyzer.tokenFilters().length, equalTo(4));
         assertThat(czechstemmeranalyzer.tokenFilters()[3], instanceOf(CzechStemTokenFilterFactory.class));
 
+        // check dictionary decompounder
+        analyzer = analysisService.analyzer("custom5").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer dictionaryDecompounderAnalyze = (CustomAnalyzer) analyzer;
+        assertThat(dictionaryDecompounderAnalyze.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
+        assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
+        assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
     }
 }

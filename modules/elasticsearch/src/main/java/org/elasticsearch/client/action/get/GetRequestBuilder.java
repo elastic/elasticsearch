@@ -24,8 +24,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-
-import javax.annotation.Nullable;
+import org.elasticsearch.common.Nullable;
 
 /**
  * A get document action request builder.

@@ -20,9 +20,9 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 
-import javax.annotation.Nullable;
 import java.lang.reflect.Constructor;
 
 /**

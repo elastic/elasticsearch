@@ -22,11 +22,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
-
-import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

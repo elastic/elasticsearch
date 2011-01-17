@@ -19,9 +19,9 @@
 
 package org.elasticsearch.monitor.dump;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 
-import javax.annotation.Nullable;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Map;

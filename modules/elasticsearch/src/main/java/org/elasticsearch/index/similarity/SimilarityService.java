@@ -20,6 +20,7 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.Similarity;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -28,7 +29,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 
 import static org.elasticsearch.common.collect.Maps.*;

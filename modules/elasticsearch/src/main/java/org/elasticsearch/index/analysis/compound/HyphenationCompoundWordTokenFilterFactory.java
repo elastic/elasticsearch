@@ -1,0 +1,72 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.analysis.compound;
+
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
+import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
+import org.elasticsearch.index.settings.IndexSettings;
+
+import java.io.File;
+
+/**
+ * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.
+ *
+ * @author Edward Dale (scompt@scompt.com)
+ * @author kimchy (shay.banon)
+ * @see org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter
+ */
+@AnalysisSettingsRequired
+public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
+
+    private final HyphenationTree hyphenationTree;
+
+    @Inject public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettings, name, settings);
+
+        String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
+        if (hyphenationPatternsPath == null) {
+            throw new ElasticSearchIllegalArgumentException("hyphenation_patterns_path is a required setting.");
+        }
+
+        File hyphenationPatternsFile = new File(hyphenationPatternsPath);
+        if (!hyphenationPatternsFile.exists()) {
+            throw new ElasticSearchIllegalArgumentException("hyphenation_patterns_path file must exist.");
+        }
+
+        try {
+            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(hyphenationPatternsFile);
+        } catch (Exception e) {
+            throw new ElasticSearchIllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
+        }
+    }
+
+    @Override public TokenStream create(TokenStream tokenStream) {
+        return new HyphenationCompoundWordTokenFilter(tokenStream,
+                hyphenationTree, wordList,
+                minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
+    }
+}

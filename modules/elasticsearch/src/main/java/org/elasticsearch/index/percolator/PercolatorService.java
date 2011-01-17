@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -44,6 +45,7 @@ import org.elasticsearch.indices.IndicesService;
 
 import javax.inject.Inject;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -95,7 +97,9 @@ public class PercolatorService extends AbstractIndexComponent {
             // create a query to fetch all queries that are registered under the index name (which is the type
             // in the percolator).
             Query query = new DeletionAwareConstantScoreQuery(indexQueriesFilter(indexName));
-            searcher.searcher().search(query, new QueriesLoaderCollector());
+            QueriesLoaderCollector queries = new QueriesLoaderCollector();
+            searcher.searcher().search(query, queries);
+            percolator.addQueries(queries.queries());
         } catch (IOException e) {
             throw new PercolatorException(index, "failed to load queries from percolator index");
         } finally {
@@ -131,6 +135,12 @@ public class PercolatorService extends AbstractIndexComponent {
 
         private IndexReader reader;
 
+        private Map<String, Query> queries = Maps.newHashMap();
+
+        public Map<String, Query> queries() {
+            return this.queries;
+        }
+
         @Override public void setScorer(Scorer scorer) throws IOException {
         }
 
@@ -140,7 +150,7 @@ public class PercolatorService extends AbstractIndexComponent {
             Document document = reader.document(doc, SourceFieldSelector.INSTANCE);
             byte[] source = document.getBinaryValue(SourceFieldMapper.NAME);
             try {
-                percolator.addQuery(id, source, 0, source.length);
+                queries.put(id, percolator.parseQuery(id, source, 0, source.length));
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }

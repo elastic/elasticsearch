@@ -71,22 +71,15 @@ public class PercolatorService extends AbstractIndexComponent {
         this.percolator = percolator;
         this.shardLifecycleListener = new ShardLifecycleListener();
         this.indicesService.indicesLifecycle().addListener(shardLifecycleListener);
+        this.percolator.setIndicesLifecycle(indicesService.indicesLifecycle());
     }
 
     public void close() {
         this.indicesService.indicesLifecycle().removeListener(shardLifecycleListener);
     }
 
-    public PercolatorExecutor.Response percolate(PercolatorExecutor.Request request) throws PercolatorException {
-        IndexService percolatorIndex = indicesService.indexService(INDEX_NAME);
-        if (percolatorIndex == null) {
-            throw new PercolateIndexUnavailable(new Index(INDEX_NAME));
-        }
-        if (percolatorIndex.numberOfShards() == 0) {
-            throw new PercolateIndexUnavailable(new Index(INDEX_NAME));
-        }
-        IndexShard percolatorShard = percolatorIndex.shard(0);
-        return percolator.percolate(request, percolatorIndex, percolatorShard);
+    public PercolatorExecutor.Response percolate(PercolatorExecutor.SourceRequest request) throws PercolatorException {
+        return percolator.percolate(request);
     }
 
     private void loadQueries(String indexName) {
@@ -104,7 +97,6 @@ public class PercolatorService extends AbstractIndexComponent {
             throw new PercolatorException(index, "failed to load queries from percolator index");
         } finally {
             searcher.release();
-            indexService.cache().clear(searcher.reader());
         }
     }
 

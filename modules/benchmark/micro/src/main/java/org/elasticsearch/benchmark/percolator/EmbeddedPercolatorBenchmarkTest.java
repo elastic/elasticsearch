@@ -85,7 +85,7 @@ public class EmbeddedPercolatorBenchmarkTest {
                 .endObject().endObject().endObject();
         final byte[] source = doc.copiedBytes();
 
-        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
 
         for (int i = 0; i < NUMBER_OF_QUERIES; i++) {
             percolatorExecutor.addQuery("test" + i, termQuery("field3", "quick"));
@@ -96,7 +96,7 @@ public class EmbeddedPercolatorBenchmarkTest {
         StopWatch stopWatch = new StopWatch().start();
         System.out.println("Running " + 1000);
         for (long i = 0; i < 1000; i++) {
-            percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
         }
         System.out.println("[Warmup] Percolated in " + stopWatch.stop().totalTime() + " TP Millis " + (NUMBER_OF_ITERATIONS / stopWatch.totalTime().millisFrac()));
 
@@ -107,7 +107,7 @@ public class EmbeddedPercolatorBenchmarkTest {
             threads[i] = new Thread(new Runnable() {
                 @Override public void run() {
                     for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
                     }
                     latch.countDown();
                 }

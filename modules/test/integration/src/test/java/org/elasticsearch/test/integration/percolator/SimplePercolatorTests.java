@@ -57,6 +57,10 @@ public class SimplePercolatorTests extends AbstractNodesTests {
     @Test public void registerPercolatorAndThenCreateAnIndex() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
             client.admin().indices().prepareDelete("_percolator").execute().actionGet();
         } catch (Exception e) {
             // ignore
@@ -84,6 +88,10 @@ public class SimplePercolatorTests extends AbstractNodesTests {
     @Test public void createIndexAndThenRegisterPercolator() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
             client.admin().indices().prepareDelete("_percolator").execute().actionGet();
         } catch (Exception e) {
             // ignore
@@ -121,6 +129,10 @@ public class SimplePercolatorTests extends AbstractNodesTests {
     @Test public void dynamicAddingRemovingQueries() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
             client.admin().indices().prepareDelete("_percolator").execute().actionGet();
         } catch (Exception e) {
             // ignore

@@ -139,6 +139,10 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     }
 
     public void addQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
+        addQuery(name, parseQuery(name, source, sourceOffset, sourceLength));
+    }
+
+    public Query parseQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
@@ -155,7 +159,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
                 }
             }
-            addQuery(name, query);
+            return query;
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to add query [" + name + "]", e);
         } finally {
@@ -171,6 +175,10 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     public synchronized void removeQuery(String name) {
         this.queries = MapBuilder.newMapBuilder(queries).remove(name).immutableMap();
+    }
+
+    public synchronized void addQueries(Map<String, Query> queries) {
+        this.queries = MapBuilder.newMapBuilder(this.queries).putAll(queries).immutableMap();
     }
 
     public Response percolate(final Request request) throws ElasticSearchException {

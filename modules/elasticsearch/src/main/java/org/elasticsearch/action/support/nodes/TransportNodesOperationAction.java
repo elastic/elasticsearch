@@ -186,11 +186,11 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         }
 
         private void onFailure(String nodeId, Throwable t) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("failed to execute on node [{}]", t, nodeId);
+            }
             int idx = index.getAndIncrement();
             if (accumulateExceptions()) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to execute on node [{}]", t, nodeId);
-                }
                 responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             }
             if (counter.incrementAndGet() == responses.length()) {

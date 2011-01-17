@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.gateway.CommitPoint;
 import org.elasticsearch.index.gateway.CommitPoints;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 
-import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;

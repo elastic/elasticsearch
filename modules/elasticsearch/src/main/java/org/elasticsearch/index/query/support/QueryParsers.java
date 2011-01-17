@@ -22,13 +22,12 @@ package org.elasticsearch.index.query.support;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
-
-import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

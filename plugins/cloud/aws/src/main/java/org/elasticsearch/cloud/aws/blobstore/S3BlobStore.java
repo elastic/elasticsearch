@@ -22,6 +22,7 @@ package org.elasticsearch.cloud.aws.blobstore;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import javax.annotation.Nullable;
 import java.util.concurrent.Executor;
 
 /**

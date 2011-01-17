@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.dump;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,6 @@ import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;
 import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
 import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.util.Map;
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -37,7 +38,6 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;

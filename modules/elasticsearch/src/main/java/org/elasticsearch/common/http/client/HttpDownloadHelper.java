@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.http.client;
 
-import javax.annotation.Nullable;
+import org.elasticsearch.common.Nullable;
+
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;

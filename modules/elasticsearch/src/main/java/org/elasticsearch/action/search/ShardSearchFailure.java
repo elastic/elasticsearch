@@ -21,12 +21,12 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;

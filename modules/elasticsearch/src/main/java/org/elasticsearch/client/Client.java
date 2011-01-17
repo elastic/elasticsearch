@@ -48,8 +48,7 @@ import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
-
-import javax.annotation.Nullable;
+import org.elasticsearch.common.Nullable;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.

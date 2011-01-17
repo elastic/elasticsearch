@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.CompressedString;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 

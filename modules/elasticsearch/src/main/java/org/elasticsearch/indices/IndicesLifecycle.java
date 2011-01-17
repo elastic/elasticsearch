@@ -19,12 +19,11 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
-
-import javax.annotation.Nullable;
 
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and

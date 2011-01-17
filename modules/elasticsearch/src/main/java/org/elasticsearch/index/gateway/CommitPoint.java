@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.gateway;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 /**

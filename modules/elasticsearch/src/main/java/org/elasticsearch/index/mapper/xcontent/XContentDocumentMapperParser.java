@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.xcontent.ip.IpFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 

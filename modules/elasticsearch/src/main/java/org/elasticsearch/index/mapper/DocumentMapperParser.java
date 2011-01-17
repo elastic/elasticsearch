@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import javax.annotation.Nullable;
+import org.elasticsearch.common.Nullable;
 
 /**
  * @author kimchy (shay.banon)

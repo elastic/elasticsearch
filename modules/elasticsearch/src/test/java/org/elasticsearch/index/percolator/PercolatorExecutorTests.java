@@ -86,25 +86,25 @@ public class PercolatorExecutorTests {
                 .endObject().endObject().endObject();
         byte[] source = doc.copiedBytes();
 
-        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
         assertThat(percolate.matches(), hasSize(0));
 
         // add a query
         percolatorExecutor.addQuery("test1", termQuery("field2", "value"));
 
-        percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItem("test1"));
 
         percolatorExecutor.addQuery("test2", termQuery("field1", 1));
 
-        percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
         assertThat(percolate.matches(), hasSize(2));
         assertThat(percolate.matches(), hasItems("test1", "test2"));
 
 
         percolatorExecutor.removeQuery("test2");
-        percolate = percolatorExecutor.percolate(new PercolatorExecutor.Request(source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItems("test1"));
     }

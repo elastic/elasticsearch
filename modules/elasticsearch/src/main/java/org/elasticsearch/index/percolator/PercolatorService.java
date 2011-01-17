@@ -100,6 +100,7 @@ public class PercolatorService extends AbstractIndexComponent {
             throw new PercolatorException(index, "failed to load queries from percolator index");
         } finally {
             searcher.release();
+            indexService.cache().clear(searcher.reader());
         }
     }
 

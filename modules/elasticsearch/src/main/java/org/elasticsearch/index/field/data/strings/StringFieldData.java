@@ -43,7 +43,9 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
     @Override protected long computeSizeInBytes() {
         long size = RamUsage.NUM_BYTES_ARRAY_HEADER;
         for (String value : values) {
-            size += RamUsage.NUM_BYTES_OBJECT_HEADER + value.length() * RamUsage.NUM_BYTES_CHAR + (3 * RamUsage.NUM_BYTES_INT);
+            if (value != null) {
+                size += RamUsage.NUM_BYTES_OBJECT_HEADER + ((value.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT));
+            }
         }
         return size;
     }

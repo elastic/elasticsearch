@@ -106,6 +106,7 @@
       <w>nospawn</w>
       <w>param</w>
       <w>params</w>
+      <w>persistency</w>
       <w>pinger</w>
       <w>pluggable</w>
       <w>plugins</w>

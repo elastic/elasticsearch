@@ -44,8 +44,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private final ClusterService clusterService;
 
-    private volatile boolean performedStateRecovery = false;
-
     private volatile ExecutorService executor;
 
     public SharedStorageGateway(Settings settings, ClusterService clusterService) {
@@ -72,7 +70,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
     }
 
     @Override public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        performedStateRecovery = true;
         executor.execute(new Runnable() {
             @Override public void run() {
                 logger.debug("reading state from gateway {} ...", this);
@@ -99,9 +96,12 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         if (!lifecycle.started()) {
             return;
         }
-        if (!performedStateRecovery) {
+
+        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+        if (event.state().blocks().disableStatePersistence()) {
             return;
         }
+
         if (event.localNodeMaster()) {
             if (!event.metaDataChanged()) {
                 return;

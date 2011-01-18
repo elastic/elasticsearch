@@ -54,7 +54,7 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
-    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, ClusterBlockLevel.ALL);
+    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, ClusterBlockLevel.ALL);
 
     private final Gateway gateway;
 
@@ -107,7 +107,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (discoveryService.initialStateReceived()) {
             ClusterState clusterState = clusterService.state();
             DiscoveryNodes nodes = clusterState.nodes();
-            if (clusterState.nodes().localNodeMaster() && !clusterState.metaData().recoveredFromGateway()) {
+            if (clusterState.nodes().localNodeMaster() && clusterState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
                 if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
                     logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
                 } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
@@ -142,7 +142,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             return;
         }
         if (event.localNodeMaster()) {
-            if (!event.state().metaData().recoveredFromGateway()) {
+            if (event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
                 ClusterState clusterState = event.state();
                 DiscoveryNodes nodes = clusterState.nodes();
                 if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
@@ -228,8 +228,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 @Override public ClusterState execute(ClusterState currentState) {
                     MetaData.Builder metaDataBuilder = newMetaDataBuilder()
                             .metaData(currentState.metaData());
-                    // mark the metadata as read from gateway
-                    metaDataBuilder.markAsRecoveredFromGateway();
 
                     // add the index templates
                     for (Map.Entry<String, IndexTemplateMetaData> entry : recoveredState.metaData().templates().entrySet()) {
@@ -298,15 +296,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private void markMetaDataAsReadFromGateway(String reason) {
         clusterService.submitStateUpdateTask("gateway (marked as read, reason=" + reason + ")", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                        .metaData(currentState.metaData())
-                                // mark the metadata as read from gateway
-                        .markAsRecoveredFromGateway();
-
+                if (!currentState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
+                    return currentState;
+                }
                 // remove the block, since we recovered from gateway
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
-                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).blocks(blocks).build();
+                return newClusterStateBuilder().state(currentState).blocks(blocks).build();
             }
         });
     }

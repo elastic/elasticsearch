@@ -208,6 +208,47 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.count(), equalTo(2l));
     }
 
+    @Test public void testTermsFacetsMissing() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("bstag").field("type", "byte").endObject()
+                        .startObject("shstag").field("type", "short").endObject()
+                        .startObject("istag").field("type", "integer").endObject()
+                        .startObject("lstag").field("type", "long").endObject()
+                        .startObject("fstag").field("type", "float").endObject()
+                        .startObject("dstag").field("type", "double").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .field("bstag", 111)
+                .field("shstag", 111)
+                .field("istag", 111)
+                .field("lstag", 111)
+                .field("fstag", 111.1f)
+                .field("dstag", 111.1)
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("kuku", "kuku")
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("stag").size(10))
+                .execute().actionGet();
+
+        TermsFacet facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.missingCount(), equalTo(1l));
+    }
+
     @Test public void testTermsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

@@ -57,6 +57,7 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
+            proc.onMissing(docId);
             return;
         }
         proc.onValue(docId, Double.toString(values[loc]));
@@ -65,6 +66,7 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
+            proc.onMissing(docId);
             return;
         }
         proc.onValue(docId, values[loc]);
@@ -73,6 +75,7 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
     @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
+            proc.onMissing(docId);
             return;
         }
         proc.onValue(docId, values[loc]);

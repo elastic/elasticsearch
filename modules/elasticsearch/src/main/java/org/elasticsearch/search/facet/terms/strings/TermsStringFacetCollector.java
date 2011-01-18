@@ -128,7 +128,7 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
+            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -137,7 +137,7 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 
@@ -210,6 +210,8 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
 
         private final TObjectIntHashMap<String> facets;
 
+        private int missing = 0;
+
         public StaticAggregatorValueProc(TObjectIntHashMap<String> facets) {
             this.facets = facets;
         }
@@ -218,8 +220,16 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
             facets.adjustOrPutValue(value, 1, 1);
         }
 
+        @Override public void onMissing(int docId) {
+            missing++;
+        }
+
         public final TObjectIntHashMap<String> facets() {
             return facets;
+        }
+
+        public final int missing() {
+            return this.missing;
         }
     }
 }

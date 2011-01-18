@@ -112,6 +112,8 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
 
     int requiredSize;
 
+    long missing;
+
     Collection<ShortEntry> entries = ImmutableList.of();
 
     private ComparatorType comparatorType;
@@ -119,12 +121,13 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
     InternalShortTermsFacet() {
     }
 
-    public InternalShortTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<ShortEntry> entries) {
+    public InternalShortTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<ShortEntry> entries, long missing) {
         this.name = name;
         this.fieldName = fieldName;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
+        this.missing = missing;
     }
 
     @Override public String name() {
@@ -174,6 +177,13 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         return (Iterator) entries.iterator();
     }
 
+    @Override public long missingCount() {
+        return this.missing;
+    }
+
+    @Override public long getMissingCount() {
+        return missingCount();
+    }
 
     private static ThreadLocal<ThreadLocals.CleanableValue<TShortIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TShortIntHashMap>>() {
         @Override protected ThreadLocals.CleanableValue<TShortIntHashMap> initialValue() {
@@ -189,9 +199,10 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         InternalShortTermsFacet first = (InternalShortTermsFacet) facets.get(0);
         TShortIntHashMap aggregated = aggregateCache.get().get();
         aggregated.clear();
-
+        long missing = 0;
         for (Facet facet : facets) {
             InternalShortTermsFacet mFacet = (InternalShortTermsFacet) facet;
+            missing += mFacet.missingCount();
             for (ShortEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
             }
@@ -203,12 +214,14 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
             ordered.add(new ShortEntry(it.key(), it.value()));
         }
         first.entries = ordered;
+        first.missing = missing;
         return first;
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString MISSING = new XContentBuilderString("missing");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -218,6 +231,7 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
+        builder.field(Fields.MISSING, missing);
         builder.startArray(Fields.TERMS);
         for (ShortEntry entry : entries) {
             builder.startObject();
@@ -241,6 +255,7 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         fieldName = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
+        missing = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<ShortEntry>(size);
@@ -253,8 +268,8 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         out.writeUTF(name);
         out.writeUTF(fieldName);
         out.writeByte(comparatorType.id());
-
         out.writeVInt(requiredSize);
+        out.writeVLong(missing);
 
         out.writeVInt(entries.size());
         for (ShortEntry entry : entries) {

@@ -91,6 +91,8 @@ public abstract class FieldData<Doc extends DocFieldData> {
 
     public static interface StringValueInDocProc {
         void onValue(int docId, String value);
+
+        void onMissing(int docId);
     }
 
     /**

@@ -116,6 +116,8 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
         private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
+        private int missing;
+
         public HistogramProc(long interval, SearchScript valueScript) {
             this.interval = interval;
             this.valueScript = valueScript;
@@ -126,6 +128,10 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
             counts.adjustOrPutValue(bucket, 1, 1);
             double scriptValue = ((Number) valueScript.execute(docId)).doubleValue();
             totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
+        }
+
+        @Override public void onMissing(int docId) {
+            missing++;
         }
 
         public TLongLongHashMap counts() {

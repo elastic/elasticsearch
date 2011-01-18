@@ -71,11 +71,16 @@ public class MultiValueStringFieldData extends StringFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
+                found = true;
                 proc.onValue(docId, values[loc]);
             }
+        }
+        if (!found) {
+            proc.onMissing(docId);
         }
     }
 

@@ -25,7 +25,6 @@ import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
@@ -48,9 +47,9 @@ public class S3Gateway extends BlobStoreGateway {
 
     private final ExecutorService concurrentStreamPool;
 
-    @Inject public S3Gateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
+    @Inject public S3Gateway(Settings settings, ClusterService clusterService,
                              ClusterName clusterName, ThreadPool threadPool, AwsS3Service s3Service) throws IOException {
-        super(settings, clusterService, createIndexService);
+        super(settings, clusterService);
 
         String bucket = componentSettings.get("bucket");
         if (bucket == null) {

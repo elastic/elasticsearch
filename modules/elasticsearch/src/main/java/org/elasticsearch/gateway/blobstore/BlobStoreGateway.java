@@ -22,7 +22,6 @@ package org.elasticsearch.gateway.blobstore;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -55,8 +54,8 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     private volatile int currentIndex;
 
-    protected BlobStoreGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService) {
-        super(settings, clusterService, createIndexService);
+    protected BlobStoreGateway(Settings settings, ClusterService clusterService) {
+        super(settings, clusterService);
     }
 
     protected void initialize(BlobStore blobStore, ClusterName clusterName, @Nullable ByteSizeValue defaultChunkSize) throws IOException {

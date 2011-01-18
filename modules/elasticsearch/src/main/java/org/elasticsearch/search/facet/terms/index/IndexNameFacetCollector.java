@@ -56,6 +56,6 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalStringTermsFacet(facetName, "_index", comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.StringEntry(indexName, count)));
+        return new InternalStringTermsFacet(facetName, "_index", comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.StringEntry(indexName, count)), 0);
     }
 }

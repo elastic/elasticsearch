@@ -88,6 +88,8 @@ public class RangeFacetCollector extends AbstractFacetCollector {
 
         private final RangeFacet.Entry[] entries;
 
+        private int missing;
+
         public RangeProc(RangeFacet.Entry[] entries) {
             this.entries = entries;
         }
@@ -99,6 +101,10 @@ public class RangeFacetCollector extends AbstractFacetCollector {
                     entry.total += value;
                 }
             }
+        }
+
+        @Override public void onMissing(int docId) {
+            missing++;
         }
     }
 }

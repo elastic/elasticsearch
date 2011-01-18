@@ -111,6 +111,8 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
 
     public static interface ValueInDocProc {
         void onValue(int docId, int value);
+
+        void onMissing(int docId);
     }
 
     public static IntFieldData load(IndexReader reader, String field) throws IOException {

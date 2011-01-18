@@ -133,6 +133,8 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
 
     public static interface ValueInDocProc {
         void onValue(int docId, long value);
+
+        void onMissing(int docId);
     }
 
     public abstract void forEachValueInDoc(int docId, DateValueInDocProc proc);

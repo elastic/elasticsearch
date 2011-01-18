@@ -128,7 +128,7 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
         TFloatIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalFloatTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalFloatTermsFacet.FloatEntry>of());
+            return new InternalFloatTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalFloatTermsFacet.FloatEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalFloatTermsFacet.FloatEntry> ordered = new BoundedTreeSet<InternalFloatTermsFacet.FloatEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -137,7 +137,7 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalFloatTermsFacet.FloatEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalFloatTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalFloatTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 
@@ -198,6 +198,8 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
 
         private final TFloatIntHashMap facets;
 
+        private int missing;
+
         public StaticAggregatorValueProc(TFloatIntHashMap facets) {
             this.facets = facets;
         }
@@ -206,8 +208,16 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
             facets.adjustOrPutValue(value, 1, 1);
         }
 
+        @Override public void onMissing(int docId) {
+            missing++;
+        }
+
         public final TFloatIntHashMap facets() {
             return facets;
+        }
+
+        public final int missing() {
+            return this.missing;
         }
     }
 }

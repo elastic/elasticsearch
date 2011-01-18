@@ -129,7 +129,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         TLongIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalLongTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of());
+            return new InternalLongTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -138,7 +138,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalLongTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalLongTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 
@@ -199,6 +199,8 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         private final TLongIntHashMap facets;
 
+        private int missing;
+
         public StaticAggregatorValueProc(TLongIntHashMap facets) {
             this.facets = facets;
         }
@@ -207,8 +209,16 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             facets.adjustOrPutValue(value, 1, 1);
         }
 
+        @Override public void onMissing(int docId) {
+            missing++;
+        }
+
         public final TLongIntHashMap facets() {
             return facets;
+        }
+
+        public final int missing() {
+            return this.missing;
         }
     }
 }

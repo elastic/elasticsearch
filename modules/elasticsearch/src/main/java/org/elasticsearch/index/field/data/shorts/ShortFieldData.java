@@ -111,6 +111,8 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
 
     public static interface ValueInDocProc {
         void onValue(int docId, short value);
+
+        void onMissing(int docId);
     }
 
     public static ShortFieldData load(IndexReader reader, String field) throws IOException {

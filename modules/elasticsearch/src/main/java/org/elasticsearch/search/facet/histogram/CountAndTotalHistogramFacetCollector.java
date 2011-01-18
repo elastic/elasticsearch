@@ -107,6 +107,8 @@ public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector
 
         private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
+        private int missing;
+
         public HistogramProc(long interval) {
             this.interval = interval;
         }
@@ -115,6 +117,10 @@ public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector
             long bucket = bucket(value, interval);
             counts.adjustOrPutValue(bucket, 1, 1);
             totals.adjustOrPutValue(bucket, value, value);
+        }
+
+        @Override public void onMissing(int docId) {
+            missing++;
         }
 
         public TLongLongHashMap counts() {

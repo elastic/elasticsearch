@@ -112,6 +112,8 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
 
     int requiredSize;
 
+    long missing;
+
     Collection<ByteEntry> entries = ImmutableList.of();
 
     private ComparatorType comparatorType;
@@ -119,12 +121,13 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
     InternalByteTermsFacet() {
     }
 
-    public InternalByteTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<ByteEntry> entries) {
+    public InternalByteTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<ByteEntry> entries, long missing) {
         this.name = name;
         this.fieldName = fieldName;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
+        this.missing = missing;
     }
 
     @Override public String name() {
@@ -159,6 +162,14 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         return comparatorType();
     }
 
+    @Override public long missingCount() {
+        return this.missing;
+    }
+
+    @Override public long getMissingCount() {
+        return missingCount();
+    }
+
     @Override public List<ByteEntry> entries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);
@@ -190,8 +201,10 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         TByteIntHashMap aggregated = aggregateCache.get().get();
         aggregated.clear();
 
+        long missing = 0;
         for (Facet facet : facets) {
             InternalByteTermsFacet mFacet = (InternalByteTermsFacet) facet;
+            missing += mFacet.missingCount();
             for (ByteEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
             }
@@ -203,12 +216,14 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
             ordered.add(new ByteEntry(it.key(), it.value()));
         }
         first.entries = ordered;
+        first.missing = missing;
         return first;
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString MISSING = new XContentBuilderString("missing");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -218,6 +233,7 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
+        builder.field(Fields.MISSING, missing);
         builder.startArray(Fields.TERMS);
         for (ByteEntry entry : entries) {
             builder.startObject();
@@ -241,6 +257,7 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         fieldName = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
+        missing = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<ByteEntry>(size);
@@ -255,6 +272,7 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         out.writeByte(comparatorType.id());
 
         out.writeVInt(requiredSize);
+        out.writeVLong(missing);
 
         out.writeVInt(entries.size());
         for (ByteEntry entry : entries) {

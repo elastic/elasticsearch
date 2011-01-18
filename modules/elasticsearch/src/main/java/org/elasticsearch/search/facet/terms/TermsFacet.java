@@ -165,6 +165,16 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     ComparatorType getComparatorType();
 
     /**
+     * The number of docs missing a value.
+     */
+    long missingCount();
+
+    /**
+     * The number of docs missing a value.
+     */
+    long getMissingCount();
+
+    /**
      * The terms and counts.
      */
     List<? extends TermsFacet.Entry> entries();

@@ -111,6 +111,8 @@ public abstract class ByteFieldData extends NumericFieldData<ByteDocFieldData> {
 
     public static interface ValueInDocProc {
         void onValue(int docId, byte value);
+
+        void onMissing(int docID);
     }
 
     public static ByteFieldData load(IndexReader reader, String field) throws IOException {

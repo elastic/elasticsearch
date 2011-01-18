@@ -74,6 +74,7 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
+            proc.onMissing(docId);
             return;
         }
         proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));

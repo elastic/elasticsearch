@@ -97,6 +97,8 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
         private long count;
 
+        private int missing;
+
         @Override public void onValue(int docId, double value) {
             if (value < min || Double.isNaN(min)) {
                 min = value;
@@ -107,6 +109,10 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
             sumOfSquares += value * value;
             total += value;
             count++;
+        }
+
+        @Override public void onMissing(int docId) {
+            missing++;
         }
 
         public final double min() {

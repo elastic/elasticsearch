@@ -95,11 +95,16 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];
             if (loc != 0) {
+                found = true;
                 proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
             }
+        }
+        if (!found) {
+            proc.onMissing(docId);
         }
     }
 

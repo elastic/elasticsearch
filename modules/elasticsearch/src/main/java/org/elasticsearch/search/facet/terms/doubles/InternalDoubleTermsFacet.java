@@ -115,6 +115,8 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     int requiredSize;
 
+    long missing;
+
     Collection<DoubleEntry> entries = ImmutableList.of();
 
     private ComparatorType comparatorType;
@@ -122,12 +124,13 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
     InternalDoubleTermsFacet() {
     }
 
-    public InternalDoubleTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<DoubleEntry> entries) {
+    public InternalDoubleTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<DoubleEntry> entries, long missing) {
         this.name = name;
         this.fieldName = fieldName;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
+        this.missing = missing;
     }
 
     @Override public String name() {
@@ -177,6 +180,13 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         return (Iterator) entries.iterator();
     }
 
+    @Override public long missingCount() {
+        return this.missing;
+    }
+
+    @Override public long getMissingCount() {
+        return missingCount();
+    }
 
     private static ThreadLocal<ThreadLocals.CleanableValue<TDoubleIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TDoubleIntHashMap>>() {
         @Override protected ThreadLocals.CleanableValue<TDoubleIntHashMap> initialValue() {
@@ -192,9 +202,10 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         InternalDoubleTermsFacet first = (InternalDoubleTermsFacet) facets.get(0);
         TDoubleIntHashMap aggregated = aggregateCache.get().get();
         aggregated.clear();
-
+        long missing = 0;
         for (Facet facet : facets) {
             InternalDoubleTermsFacet mFacet = (InternalDoubleTermsFacet) facet;
+            missing += mFacet.missingCount();
             for (DoubleEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
             }
@@ -206,12 +217,14 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             ordered.add(new DoubleEntry(it.key(), it.value()));
         }
         first.entries = ordered;
+        first.missing = missing;
         return first;
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString MISSING = new XContentBuilderString("missing");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -221,6 +234,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
+        builder.field(Fields.MISSING, missing);
         builder.startArray(Fields.TERMS);
         for (DoubleEntry entry : entries) {
             builder.startObject();
@@ -244,6 +258,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         fieldName = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
+        missing = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<DoubleEntry>(size);
@@ -256,8 +271,8 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         out.writeUTF(name);
         out.writeUTF(fieldName);
         out.writeByte(comparatorType.id());
-
         out.writeVInt(requiredSize);
+        out.writeVLong(missing);
 
         out.writeVInt(entries.size());
         for (DoubleEntry entry : entries) {

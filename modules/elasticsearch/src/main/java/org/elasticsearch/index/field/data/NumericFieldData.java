@@ -96,5 +96,7 @@ public abstract class NumericFieldData<Doc extends NumericDocFieldData> extends 
 
     public static interface DoubleValueInDocProc {
         void onValue(int docId, double value);
+
+        void onMissing(int docId);
     }
 }

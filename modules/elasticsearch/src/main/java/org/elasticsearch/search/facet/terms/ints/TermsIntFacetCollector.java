@@ -128,7 +128,7 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
         TIntIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of());
+            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalIntTermsFacet.IntEntry> ordered = new BoundedTreeSet<InternalIntTermsFacet.IntEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -137,7 +137,7 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalIntTermsFacet.IntEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 
@@ -198,6 +198,8 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
 
         private final TIntIntHashMap facets;
 
+        private int missing;
+
         public StaticAggregatorValueProc(TIntIntHashMap facets) {
             this.facets = facets;
         }
@@ -206,8 +208,16 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
             facets.adjustOrPutValue(value, 1, 1);
         }
 
+        @Override public void onMissing(int docId) {
+            missing++;
+        }
+
         public final TIntIntHashMap facets() {
             return facets;
+        }
+
+        public final int missing() {
+            return this.missing;
         }
     }
 }

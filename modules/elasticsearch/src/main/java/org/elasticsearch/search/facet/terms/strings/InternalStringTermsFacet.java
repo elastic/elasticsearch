@@ -111,6 +111,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     int requiredSize;
 
+    long missing;
+
     Collection<StringEntry> entries = ImmutableList.of();
 
     private ComparatorType comparatorType;
@@ -118,12 +120,13 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     InternalStringTermsFacet() {
     }
 
-    public InternalStringTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<StringEntry> entries) {
+    public InternalStringTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<StringEntry> entries, long missing) {
         this.name = name;
         this.fieldName = fieldName;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
+        this.missing = missing;
     }
 
     @Override public String name() {
@@ -173,6 +176,13 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         return (Iterator) entries.iterator();
     }
 
+    @Override public long missingCount() {
+        return this.missing;
+    }
+
+    @Override public long getMissingCount() {
+        return missingCount();
+    }
 
     private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
         @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
@@ -188,9 +198,10 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         InternalStringTermsFacet first = (InternalStringTermsFacet) facets.get(0);
         TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
         aggregated.clear();
-
+        long missing = 0;
         for (Facet facet : facets) {
             InternalStringTermsFacet mFacet = (InternalStringTermsFacet) facet;
+            missing += mFacet.missingCount();
             for (InternalStringTermsFacet.StringEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
             }
@@ -202,12 +213,14 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             ordered.add(new StringEntry(it.key(), it.value()));
         }
         first.entries = ordered;
+        first.missing = missing;
         return first;
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
+        static final XContentBuilderString MISSING = new XContentBuilderString("missing");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -217,6 +230,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields._FIELD, fieldName);
+        builder.field(Fields.MISSING, missing);
         builder.startArray(Fields.TERMS);
         for (Entry entry : entries) {
             builder.startObject();
@@ -240,6 +254,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         fieldName = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
+        missing = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
@@ -252,8 +267,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         out.writeUTF(name);
         out.writeUTF(fieldName);
         out.writeByte(comparatorType.id());
-
         out.writeVInt(requiredSize);
+        out.writeVLong(missing);
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {

@@ -111,6 +111,8 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
 
     public static interface ValueInDocProc {
         void onValue(int docId, float value);
+
+        void onMissing(int docId);
     }
 
     public static FloatFieldData load(IndexReader reader, String field) throws IOException {

@@ -128,7 +128,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
         TDoubleIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalDoubleTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of());
+            return new InternalDoubleTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -137,7 +137,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalDoubleTermsFacet(facetName, fieldName, comparatorType, size, ordered);
+            return new InternalDoubleTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 
@@ -198,6 +198,8 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         private final TDoubleIntHashMap facets;
 
+        private int missing;
+
         public StaticAggregatorValueProc(TDoubleIntHashMap facets) {
             this.facets = facets;
         }
@@ -206,8 +208,16 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
             facets.adjustOrPutValue(value, 1, 1);
         }
 
+        @Override public void onMissing(int docId) {
+            missing++;
+        }
+
         public final TDoubleIntHashMap facets() {
             return facets;
+        }
+
+        public final int missing() {
+            return this.missing;
         }
     }
 }

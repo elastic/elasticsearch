@@ -56,6 +56,8 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
 
     private final TObjectIntHashMap<String> facets;
 
+    private int missing;
+
     public ScriptTermsStringFieldFacetCollector(String facetName, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
                                                 ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
@@ -78,26 +80,39 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     @Override protected void doCollect(int doc) throws IOException {
         Object o = script.execute(doc);
         if (o == null) {
+            missing++;
             return;
         }
         if (o instanceof Iterable) {
+            boolean found = false;
             for (Object o1 : ((Iterable) o)) {
                 String value = o1.toString();
                 if (match(value)) {
+                    found = true;
                     facets.adjustOrPutValue(value, 1, 1);
                 }
             }
+            if (!found) {
+                missing++;
+            }
         } else if (o instanceof Object[]) {
+            boolean found = false;
             for (Object o1 : ((Object[]) o)) {
                 String value = o1.toString();
                 if (match(value)) {
+                    found = true;
                     facets.adjustOrPutValue(value, 1, 1);
                 }
+            }
+            if (!found) {
+                missing++;
             }
         } else {
             String value = o.toString();
             if (match(value)) {
                 facets.adjustOrPutValue(value, 1, 1);
+            } else {
+                missing++;
             }
         }
     }
@@ -115,7 +130,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     @Override public Facet facet() {
         if (facets.isEmpty()) {
             TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of());
+            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing);
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -124,7 +139,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                 ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
             TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ordered);
+            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ordered, missing);
         }
     }
 }

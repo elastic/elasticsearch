@@ -111,6 +111,8 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
 
     public static interface ValueInDocProc {
         void onValue(int docId, double value);
+
+        void onMissing(int docId);
     }
 
     public static DoubleFieldData load(IndexReader reader, String field) throws IOException {

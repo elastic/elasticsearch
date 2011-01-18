@@ -209,6 +209,9 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 // we can't really allocate, so ignore it and continue
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}], required_number [{}]", shard.index(), shard.id(), numberOfAllocationsFound, requiredAllocation);
+                }
                 continue;
             }
 
@@ -216,7 +219,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             // check if we need to throttle, NOTE, we don't check on NO since it does not apply
             // since this is our master data!
             if (nodeAllocations.canAllocate(shard, node, allocation) == NodeAllocation.Decision.THROTTLE) {
-                if (logger.isTraceEnabled()) {
+                if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeWithHighestVersion);
                 }
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now

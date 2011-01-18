@@ -260,7 +260,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         response.status = ClusterHealthStatus.GREEN;
         if (!response.validationFailures().isEmpty()) {
             response.status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(GatewayService.NOT_RECOVERED_FROM_GATEWAY_BLOCK)) {
+        } else if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             response.status = ClusterHealthStatus.RED;
         } else {
             for (ClusterIndexHealth indexHealth : response) {

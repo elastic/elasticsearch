@@ -21,11 +21,10 @@ package org.elasticsearch.gateway.local;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -45,16 +44,11 @@ import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
 
 import java.io.*;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 
 /**
@@ -68,8 +62,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private final NodeEnvironment nodeEnv;
 
-    private final MetaDataCreateIndexService createIndexService;
-
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
     private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
@@ -82,11 +74,10 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private volatile boolean initialized = false;
 
-    @Inject public LocalGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
-                                NodeEnvironment nodeEnv, TransportNodesListGatewayMetaState listGatewayMetaState, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
+    @Inject public LocalGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
+                                TransportNodesListGatewayMetaState listGatewayMetaState, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
         super(settings);
         this.clusterService = clusterService;
-        this.createIndexService = createIndexService;
         this.nodeEnv = nodeEnv;
         this.listGatewayMetaState = listGatewayMetaState.initGateway(this);
         this.listGatewayStartedShards = listGatewayStartedShards.initGateway(this);
@@ -149,67 +140,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
         if (electedState == null) {
             logger.debug("no state elected");
-            listener.onSuccess();
-            return;
+            listener.onSuccess(ClusterState.builder().build());
+        } else {
+            logger.debug("elected state from [{}]", electedState.node());
+            listener.onSuccess(ClusterState.builder().version(electedState.state().version()).metaData(electedState.state().metaData()).build());
         }
-
-        logger.debug("elected state from [{}]", electedState.node());
-        final LocalGatewayMetaState state = electedState.state();
-        final AtomicInteger indicesCounter = new AtomicInteger(state.metaData().indices().size());
-        clusterService.submitStateUpdateTask("local-gateway-elected-state", new ProcessedClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                        .metaData(currentState.metaData());
-                // mark the metadata as read from gateway
-                metaDataBuilder.markAsRecoveredFromGateway();
-
-                // add the index templates
-                for (Map.Entry<String, IndexTemplateMetaData> entry : state.metaData().templates().entrySet()) {
-                    metaDataBuilder.put(entry.getValue());
-                }
-
-                return newClusterStateBuilder().state(currentState)
-                        .version(state.version())
-                        .metaData(metaDataBuilder).build();
-            }
-
-            @Override public void clusterStateProcessed(ClusterState clusterState) {
-                if (state.metaData().indices().isEmpty()) {
-                    listener.onSuccess();
-                    return;
-                }
-                // go over the meta data and create indices, we don't really need to copy over
-                // the meta data per index, since we create the index and it will be added automatically
-                for (final IndexMetaData indexMetaData : state.metaData()) {
-                    try {
-                        createIndexService.createIndex(new MetaDataCreateIndexService.Request(MetaDataCreateIndexService.Request.Origin.GATEWAY, "gateway", indexMetaData.index())
-                                .settings(indexMetaData.settings())
-                                .mappingsMetaData(indexMetaData.mappings())
-                                .state(indexMetaData.state())
-                                .timeout(timeValueSeconds(30)),
-
-                                new MetaDataCreateIndexService.Listener() {
-                                    @Override public void onResponse(MetaDataCreateIndexService.Response response) {
-                                        if (indicesCounter.decrementAndGet() == 0) {
-                                            listener.onSuccess();
-                                        }
-                                    }
-
-                                    @Override public void onFailure(Throwable t) {
-                                        logger.error("failed to create index [{}]", t, indexMetaData.index());
-                                        // we report success on index creation failure and do nothing
-                                        // should we disable writing the updated metadata?
-                                        if (indicesCounter.decrementAndGet() == 0) {
-                                            listener.onSuccess();
-                                        }
-                                    }
-                                });
-                    } catch (IOException e) {
-                        logger.error("failed to create index [{}]", e, indexMetaData.index());
-                    }
-                }
-            }
-        });
     }
 
     @Override public Class<? extends Module> suggestIndexGateway() {

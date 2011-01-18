@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.none;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -58,7 +59,7 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
 
     @Override public void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException {
         logger.debug("performing state recovery");
-        listener.onSuccess();
+        listener.onSuccess(ClusterState.builder().build());
     }
 
     @Override public Class<? extends Module> suggestIndexGateway() {

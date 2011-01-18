@@ -22,7 +22,6 @@ package org.elasticsearch.gateway.fs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -46,9 +45,9 @@ public class FsGateway extends BlobStoreGateway {
 
     private final ExecutorService concurrentStreamPool;
 
-    @Inject public FsGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
+    @Inject public FsGateway(Settings settings, ClusterService clusterService,
                              Environment environment, ClusterName clusterName, ThreadPool threadPool) throws IOException {
-        super(settings, clusterService, createIndexService);
+        super(settings, clusterService);
 
         File gatewayFile;
         String location = componentSettings.get("location");

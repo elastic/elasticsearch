@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.blobstore.hdfs.HdfsBlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -53,9 +52,9 @@ public class HdfsGateway extends BlobStoreGateway {
 
     private final ExecutorService concurrentStreamPool;
 
-    @Inject public HdfsGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
+    @Inject public HdfsGateway(Settings settings, ClusterService clusterService,
                                ClusterName clusterName, ThreadPool threadPool) throws IOException {
-        super(settings, clusterService, createIndexService);
+        super(settings, clusterService);
 
         this.closeFileSystem = componentSettings.getAsBoolean("close_fs", true);
         String uri = componentSettings.get("uri");

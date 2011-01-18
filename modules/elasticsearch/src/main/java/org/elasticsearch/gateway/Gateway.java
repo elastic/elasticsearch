@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 
@@ -36,7 +37,7 @@ public interface Gateway extends LifecycleComponent<Gateway> {
     void reset() throws Exception;
 
     interface GatewayStateRecoveredListener {
-        void onSuccess();
+        void onSuccess(ClusterState recoveredState);
 
         void onFailure(Throwable t);
     }

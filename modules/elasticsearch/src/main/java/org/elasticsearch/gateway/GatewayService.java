@@ -25,7 +25,10 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -35,12 +38,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -57,6 +64,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     private final DiscoveryService discoveryService;
 
+    private final MetaDataCreateIndexService createIndexService;
+
     private final TimeValue initialStateTimeout;
     private final TimeValue recoverAfterTime;
     private final int recoverAfterNodes;
@@ -70,11 +79,12 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final AtomicBoolean recovered = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
-    @Inject public GatewayService(Settings settings, Gateway gateway, ClusterService clusterService, DiscoveryService discoveryService, ThreadPool threadPool) {
+    @Inject public GatewayService(Settings settings, Gateway gateway, ClusterService clusterService, DiscoveryService discoveryService, MetaDataCreateIndexService createIndexService, ThreadPool threadPool) {
         super(settings);
         this.gateway = gateway;
         this.clusterService = clusterService;
         this.discoveryService = discoveryService;
+        this.createIndexService = createIndexService;
         this.threadPool = threadPool;
         this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
         // allow to control a delay of when indices will get created
@@ -176,17 +186,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     private void performStateRecovery(@Nullable TimeValue timeout, boolean ignoreTimeout) {
         final CountDownLatch latch = new CountDownLatch(1);
-        final Gateway.GatewayStateRecoveredListener recoveryListener = new Gateway.GatewayStateRecoveredListener() {
-            @Override public void onSuccess() {
-                markMetaDataAsReadFromGateway("success");
-                latch.countDown();
-            }
-
-            @Override public void onFailure(Throwable t) {
-                markMetaDataAsReadFromGateway("failure [" + t.getMessage() + "]");
-                latch.countDown();
-            }
-        };
+        final Gateway.GatewayStateRecoveredListener recoveryListener = new GatewayRecoveryListener(latch);
 
         if (!ignoreTimeout && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
@@ -211,6 +211,87 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             } catch (InterruptedException e) {
                 throw new ElasticSearchInterruptedException(e.getMessage(), e);
             }
+        }
+    }
+
+    class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {
+
+        private final CountDownLatch latch;
+
+        GatewayRecoveryListener(CountDownLatch latch) {
+            this.latch = latch;
+        }
+
+        @Override public void onSuccess(final ClusterState recoveredState) {
+            final AtomicInteger indicesCounter = new AtomicInteger(recoveredState.metaData().indices().size());
+            clusterService.submitStateUpdateTask("local-gateway-elected-state", new ProcessedClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    MetaData.Builder metaDataBuilder = newMetaDataBuilder()
+                            .metaData(currentState.metaData());
+                    // mark the metadata as read from gateway
+                    metaDataBuilder.markAsRecoveredFromGateway();
+
+                    // add the index templates
+                    for (Map.Entry<String, IndexTemplateMetaData> entry : recoveredState.metaData().templates().entrySet()) {
+                        metaDataBuilder.put(entry.getValue());
+                    }
+
+                    return newClusterStateBuilder().state(currentState)
+                            .version(recoveredState.version())
+                            .metaData(metaDataBuilder).build();
+                }
+
+                @Override public void clusterStateProcessed(ClusterState clusterState) {
+                    if (recoveredState.metaData().indices().isEmpty()) {
+                        markMetaDataAsReadFromGateway("success");
+                        latch.countDown();
+                        return;
+                    }
+                    // go over the meta data and create indices, we don't really need to copy over
+                    // the meta data per index, since we create the index and it will be added automatically
+                    for (final IndexMetaData indexMetaData : recoveredState.metaData()) {
+                        try {
+                            createIndexService.createIndex(new MetaDataCreateIndexService.Request(MetaDataCreateIndexService.Request.Origin.GATEWAY, "gateway", indexMetaData.index())
+                                    .settings(indexMetaData.settings())
+                                    .mappingsMetaData(indexMetaData.mappings())
+                                    .state(indexMetaData.state())
+                                    .timeout(timeValueSeconds(30)),
+
+                                    new MetaDataCreateIndexService.Listener() {
+                                        @Override public void onResponse(MetaDataCreateIndexService.Response response) {
+                                            if (indicesCounter.decrementAndGet() == 0) {
+                                                markMetaDataAsReadFromGateway("success");
+                                                latch.countDown();
+                                            }
+                                        }
+
+                                        @Override public void onFailure(Throwable t) {
+                                            logger.error("failed to create index [{}]", t, indexMetaData.index());
+                                            // we report success on index creation failure and do nothing
+                                            // should we disable writing the updated metadata?
+                                            if (indicesCounter.decrementAndGet() == 0) {
+                                                markMetaDataAsReadFromGateway("success");
+                                                latch.countDown();
+                                            }
+                                        }
+                                    });
+                        } catch (IOException e) {
+                            logger.error("failed to create index [{}]", e, indexMetaData.index());
+                            // we report success on index creation failure and do nothing
+                            // should we disable writing the updated metadata?
+                            if (indicesCounter.decrementAndGet() == 0) {
+                                markMetaDataAsReadFromGateway("success");
+                                latch.countDown();
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        @Override public void onFailure(Throwable t) {
+            // don't remove the block here, we don't want to allow anything in such a case
+            logger.error("failed recover state, blocking...", t);
         }
     }
 

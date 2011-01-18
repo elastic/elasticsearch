@@ -37,7 +37,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
@@ -156,20 +155,20 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {
-        // nothing to do until we actually recover from the gateway
-        if (!event.state().metaData().recoveredFromGateway()) {
+        // the location is set to null, so we should not store it (for example, its not a data/master node)
+        if (location == null) {
             return;
         }
 
-        // the location is set to null, so we should not store it (for example, its not a data/master node)
-        if (location == null) {
+        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+        if (event.state().blocks().disableStatePersistence()) {
             return;
         }
 
         // we only write the local metadata if this is a possible master node, the metadata has changed, and
         // we don't have a NO_MASTER block (in which case, the routing is cleaned, and we don't want to override what
         // we have now, since it might be needed when later on performing full state recovery)
-        if (event.state().nodes().localNode().masterNode() && event.metaDataChanged() && !event.state().blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+        if (event.state().nodes().localNode().masterNode() && event.metaDataChanged()) {
             executor.execute(new Runnable() {
                 @Override public void run() {
                     LocalGatewayMetaState.Builder builder = LocalGatewayMetaState.builder();

@@ -91,6 +91,18 @@ public class ClusterBlocks {
         return levelHolders[level.id()].indices();
     }
 
+    /**
+     * Returns <tt>true</tt> if one of the global blocks as its disable state persistence flag set.
+     */
+    public boolean disableStatePersistence() {
+        for (ClusterBlock clusterBlock : global) {
+            if (clusterBlock.disableStatePersistence()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean hasGlobalBlock(ClusterBlock block) {
         return global.contains(block);
     }

@@ -172,6 +172,11 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
                                     @Override public void onFailure(Throwable t) {
                                         logger.error("failed to create index [{}]", t, indexMetaData.index());
+                                        // we report success on index creation failure and do nothing
+                                        // should we disable writing the updated metadata?
+                                        if (indicesCounter.decrementAndGet() == 0) {
+                                            listener.onSuccess();
+                                        }
                                     }
                                 });
                     } catch (IOException e) {

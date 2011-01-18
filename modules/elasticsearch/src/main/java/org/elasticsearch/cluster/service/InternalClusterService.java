@@ -20,7 +20,10 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
@@ -74,6 +77,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 
+    private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder();
+
     private volatile ScheduledFuture reconnectToNodes;
 
     @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService, ThreadPool threadPool,
@@ -88,8 +93,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
     }
 
+    public void addInitialStateBlock(ClusterBlock block) throws ElasticSearchIllegalStateException {
+        if (lifecycle.started()) {
+            throw new ElasticSearchIllegalStateException("can't set initial block when started");
+        }
+        initialBlocks.addGlobalBlock(block);
+    }
+
     @Override protected void doStart() throws ElasticSearchException {
-        this.clusterState = newClusterStateBuilder().build();
+        this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.scheduleWithFixedDelay(new ReconnectToNodes(), reconnectInterval);
     }

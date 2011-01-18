@@ -47,7 +47,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
-    public static final ClusterBlock NOT_RECOVERED_FROM_GATEWAY_BLOCK = new ClusterBlock(1, "not recovered from gateway", true, ClusterBlockLevel.ALL);
+    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, ClusterBlockLevel.ALL);
 
     private final Gateway gateway;
 
@@ -85,6 +85,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.expectedDataNodes = componentSettings.getAsInt("expected_data_nodes", -1);
         this.recoverAfterMasterNodes = componentSettings.getAsInt("recover_after_master_nodes", -1);
         this.expectedMasterNodes = componentSettings.getAsInt("expected_master_nodes", -1);
+
+        // Add the not recovered as initial state block, we don't allow anything until
+        this.clusterService.addInitialStateBlock(STATE_NOT_RECOVERED_BLOCK);
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -96,21 +99,16 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             DiscoveryNodes nodes = clusterState.nodes();
             if (clusterState.nodes().localNodeMaster() && !clusterState.metaData().recoveredFromGateway()) {
                 if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
-                    updateClusterStateBlockedOnNotRecovered();
                     logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
                 } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
-                    updateClusterStateBlockedOnNotRecovered();
                     logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
                 } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
-                    updateClusterStateBlockedOnNotRecovered();
                     logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
                 } else if (recoverAfterTime != null) {
-                    updateClusterStateBlockedOnNotRecovered();
                     logger.debug("not recovering from gateway, recover_after_time [{}]", recoverAfterTime);
                 } else {
                     // first update the state that its blocked for not recovered, and then let recovery take its place
                     // that way, we can wait till it is resolved
-                    updateClusterStateBlockedOnNotRecovered();
                     performStateRecovery(initialStateTimeout);
                 }
             }
@@ -192,7 +190,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
         if (!ignoreTimeout && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
-                updateClusterStateBlockedOnNotRecovered();
                 logger.debug("delaying initial state recovery for [{}]", recoverAfterTime);
                 threadPool.schedule(new Runnable() {
                     @Override public void run() {
@@ -226,18 +223,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         .markAsRecoveredFromGateway();
 
                 // remove the block, since we recovered from gateway
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK);
+                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
                 return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).blocks(blocks).build();
-            }
-        });
-    }
-
-    private void updateClusterStateBlockedOnNotRecovered() {
-        clusterService.submitStateUpdateTask("gateway (block: not recovered from gateway)", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).addGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK).build();
-                return ClusterState.builder().state(currentState).blocks(blocks).build();
             }
         });
     }

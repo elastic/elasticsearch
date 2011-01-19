@@ -70,6 +70,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
         indexRequest.version(RestActions.parseVersion(request));
+        indexRequest.percolate(request.param("percolate", null));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {
@@ -99,16 +100,23 @@ public class RestIndexAction extends BaseRestHandler {
         // we don't spawn, then fork if local
         indexRequest.operationThreaded(true);
         client.index(indexRequest, new ActionListener<IndexResponse>() {
-            @Override public void onResponse(IndexResponse result) {
+            @Override public void onResponse(IndexResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields._INDEX, result.index())
-                            .field(Fields._TYPE, result.type())
-                            .field(Fields._ID, result.id())
-                            .field(Fields._VERSION, result.version())
-                            .endObject();
+                            .field(Fields._INDEX, response.index())
+                            .field(Fields._TYPE, response.type())
+                            .field(Fields._ID, response.id())
+                            .field(Fields._VERSION, response.version());
+                    if (response.matches() != null) {
+                        builder.startArray(Fields.MATCHES);
+                        for (String match : response.matches()) {
+                            builder.value(match);
+                        }
+                        builder.endArray();
+                    }
+                    builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
@@ -138,6 +146,7 @@ public class RestIndexAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
     }
 
 }

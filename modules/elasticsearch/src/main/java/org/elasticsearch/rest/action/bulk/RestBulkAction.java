@@ -24,6 +24,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -105,6 +106,16 @@ public class RestBulkAction extends BaseRestHandler {
                         } else {
                             builder.field(Fields.OK, true);
                         }
+                        if (itemResponse.response() instanceof IndexResponse) {
+                            IndexResponse indexResponse = itemResponse.response();
+                            if (indexResponse.matches() != null) {
+                                builder.startArray(Fields.MATCHES);
+                                for (String match : indexResponse.matches()) {
+                                    builder.value(match);
+                                }
+                                builder.endArray();
+                            }
+                        }
                         builder.endObject();
                         builder.endObject();
                     }
@@ -136,6 +147,7 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
     }
 
 }

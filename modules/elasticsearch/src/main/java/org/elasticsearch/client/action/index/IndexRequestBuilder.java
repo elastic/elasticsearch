@@ -285,6 +285,16 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
+     * Causes the index request document to be percolated. The parameter is the percolate query
+     * to use to reduce the percolated queries that are going to run against this doc. Can be
+     * set to <tt>*</tt> to indicate that all percolate queries should be run.
+     */
+    public IndexRequestBuilder setPercolate(String percolate) {
+        request.percolate(percolate);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     public IndexRequestBuilder setListenerThreaded(boolean listenerThreaded) {

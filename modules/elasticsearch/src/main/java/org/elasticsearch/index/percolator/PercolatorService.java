@@ -82,6 +82,10 @@ public class PercolatorService extends AbstractIndexComponent {
         return percolator.percolate(request);
     }
 
+    public PercolatorExecutor.Response percolate(PercolatorExecutor.DocAndSourceQueryRequest request) throws PercolatorException {
+        return percolator.percolate(request);
+    }
+
     private void loadQueries(String indexName) {
         IndexService indexService = percolatorIndexService();
         IndexShard shard = indexService.shard(0);

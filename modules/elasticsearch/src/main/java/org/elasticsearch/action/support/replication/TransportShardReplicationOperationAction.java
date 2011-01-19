@@ -105,9 +105,16 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract String transportAction();
 
-    protected abstract Response shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest);
+    protected abstract PrimaryResponse<Response> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest);
 
     protected abstract void shardOperationOnReplica(ShardOperationRequest shardRequest);
+
+    /**
+     * Called once replica operations have been dispatched on the
+     */
+    protected void postPrimaryOperation(Request request, PrimaryResponse<Response> response) {
+
+    }
 
     protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
 
@@ -418,7 +425,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, boolean alreadyThreaded, final ShardRouting shard, ClusterState clusterState) {
             try {
-                Response response = shardOperationOnPrimary(clusterState, new ShardOperationRequest(primaryShardId, request));
+                PrimaryResponse<Response> response = shardOperationOnPrimary(clusterState, new ShardOperationRequest(primaryShardId, request));
                 performReplicas(response, alreadyThreaded);
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here
@@ -433,14 +440,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        private void performReplicas(final Response response, boolean alreadyThreaded) {
+        private void performReplicas(final PrimaryResponse<Response> response, boolean alreadyThreaded) {
             if (ignoreReplicas() || shardIt.size() == 1 /* no replicas */) {
+                postPrimaryOperation(request, response);
                 if (alreadyThreaded || !request.listenerThreaded()) {
-                    listener.onResponse(response);
+                    listener.onResponse(response.response());
                 } else {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            listener.onResponse(response);
+                            listener.onResponse(response.response());
                         }
                     });
                 }
@@ -474,12 +482,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             if (replicaCounter == 0) {
+                postPrimaryOperation(request, response);
                 if (alreadyThreaded || !request.listenerThreaded()) {
-                    listener.onResponse(response);
+                    listener.onResponse(response.response());
                 } else {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            listener.onResponse(response);
+                            listener.onResponse(response.response());
                         }
                     });
                 }
@@ -487,19 +496,23 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             if (replicationType == ReplicationType.ASYNC) {
+                postPrimaryOperation(request, response);
                 // async replication, notify the listener
                 if (alreadyThreaded || !request.listenerThreaded()) {
-                    listener.onResponse(response);
+                    listener.onResponse(response.response());
                 } else {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            listener.onResponse(response);
+                            listener.onResponse(response.response());
                         }
                     });
                 }
                 // now, trick the counter so it won't decrease to 0 and notify the listeners
                 replicaCounter = -100;
             }
+
+            // we add one to the replica count to do the postPrimaryOperation
+            replicaCounter++;
 
             AtomicInteger counter = new AtomicInteger(replicaCounter);
             for (final ShardRouting shard : shardIt.reset()) {
@@ -528,19 +541,34 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     performOnReplica(response, alreadyThreaded, counter, shard, shard.relocatingNodeId());
                 }
             }
+
+            // now do the postPrimary operation, and check if the listener needs to be invoked
+            postPrimaryOperation(request, response);
+            // we also invoke here in case replicas finish before postPrimaryAction does
+            if (counter.decrementAndGet() == 0) {
+                if (alreadyThreaded || !request.listenerThreaded()) {
+                    listener.onResponse(response.response());
+                } else {
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            listener.onResponse(response.response());
+                        }
+                    });
+                }
+            }
         }
 
-        private void performOnReplica(final Response response, boolean alreadyThreaded, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
+        private void performOnReplica(final PrimaryResponse<Response> response, boolean alreadyThreaded, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
             if (!nodes.nodeExists(nodeId)) {
                 if (counter.decrementAndGet() == 0) {
                     if (alreadyThreaded || !request.listenerThreaded()) {
-                        listener.onResponse(response);
+                        listener.onResponse(response.response());
                     } else {
                         threadPool.execute(new Runnable() {
                             @Override public void run() {
-                                listener.onResponse(response);
+                                listener.onResponse(response.response());
                             }
                         });
                     }
@@ -569,11 +597,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             if (request.listenerThreaded()) {
                                 threadPool.execute(new Runnable() {
                                     @Override public void run() {
-                                        listener.onResponse(response);
+                                        listener.onResponse(response.response());
                                     }
                                 });
                             } else {
-                                listener.onResponse(response);
+                                listener.onResponse(response.response());
                             }
                         }
                     }
@@ -597,7 +625,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                listener.onResponse(response);
+                                listener.onResponse(response.response());
                             }
                         }
                     });
@@ -614,11 +642,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
-                                    listener.onResponse(response);
+                                    listener.onResponse(response.response());
                                 }
                             });
                         } else {
-                            listener.onResponse(response);
+                            listener.onResponse(response.response());
                         }
                     }
                 }
@@ -652,6 +680,24 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return true;
             }
             return false;
+        }
+    }
+
+    public static class PrimaryResponse<T> {
+        private final T response;
+        private final Object payload;
+
+        public PrimaryResponse(T response, Object payload) {
+            this.response = response;
+            this.payload = payload;
+        }
+
+        public T response() {
+            return response;
+        }
+
+        public Object payload() {
+            return payload;
         }
     }
 }

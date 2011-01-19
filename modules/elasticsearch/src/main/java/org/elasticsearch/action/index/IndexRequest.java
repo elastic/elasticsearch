@@ -125,6 +125,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private boolean refresh = false;
     private long version = 0;
+    private String percolate;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
@@ -533,6 +534,20 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.version;
     }
 
+    /**
+     * Causes the index request document to be percolated. The parameter is the percolate query
+     * to use to reduce the percolated queries that are going to run against this doc. Can be
+     * set to <tt>*</tt> to indicate that all percolate queries should be run.
+     */
+    public IndexRequest percolate(String percolate) {
+        this.percolate = percolate;
+        return this;
+    }
+
+    public String percolate() {
+        return this.percolate;
+    }
+
     public void processRouting(MappingMetaData mappingMd) throws ElasticSearchException {
         if (routing == null && mappingMd.routing().hasPath()) {
             XContentParser parser = null;
@@ -576,6 +591,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
         version = in.readLong();
+        if (in.readBoolean()) {
+            percolate = in.readUTF();
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -604,6 +622,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);
+        if (percolate == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(percolate);
+        }
     }
 
     @Override public String toString() {

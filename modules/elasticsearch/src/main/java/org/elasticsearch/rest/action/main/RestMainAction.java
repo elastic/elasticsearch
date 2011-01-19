@@ -64,10 +64,15 @@ public class RestMainAction extends BaseRestHandler {
         this.quotesSize = quotesSize;
 
         controller.registerHandler(GET, "/", this);
+        controller.registerHandler(HEAD, "/", this);
     }
 
     @Override public void handleRequest(RestRequest request, RestChannel channel) {
         try {
+            if (request.method() == RestRequest.Method.HEAD) {
+                channel.sendResponse(new StringRestResponse(RestResponse.Status.OK));
+                return;
+            }
             XContentBuilder builder = RestXContentBuilder.restContentBuilder(request).prettyPrint();
             builder.startObject();
             builder.field("ok", true);

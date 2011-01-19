@@ -1,0 +1,9 @@
+# Cluster Settings
+#cluster:
+#  name: elasticsearch
+
+# Gateway Settings
+#gateway:
+#  recover_after_nodes: 1
+#  recover_after_time: 5m
+#  expected_nodes: 2

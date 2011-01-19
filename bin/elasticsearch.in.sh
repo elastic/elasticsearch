@@ -20,7 +20,8 @@ JAVA_OPTS="$JAVA_OPTS -Xss128k"
 JAVA_OPTS="$JAVA_OPTS -Djline.enabled=true"
 
 # Enable aggressive optimizations in the JVM
-JAVA_OPTS="$JAVA_OPTS -XX:+AggressiveOpts"
+#    - Disabled by default as it might cause the JVM to crash
+# JAVA_OPTS="$JAVA_OPTS -XX:+AggressiveOpts"
 
 # Enable reference compression, reducing memory overhead on 64bit JVMs
 #    - Disabled by default as it is not stable for Sun JVM before 6u19

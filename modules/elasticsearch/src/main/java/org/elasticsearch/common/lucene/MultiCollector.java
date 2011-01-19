@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.Scorer;
 
 import java.io.IOException;
@@ -40,6 +41,9 @@ public class MultiCollector extends Collector {
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
+        if (collectors.length > 0) {
+            scorer = new ScoreCachingWrappingScorer(scorer);
+        }
         collector.setScorer(scorer);
         for (Collector collector : collectors) {
             collector.setScorer(scorer);

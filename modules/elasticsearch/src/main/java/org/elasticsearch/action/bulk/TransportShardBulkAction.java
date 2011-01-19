@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -98,7 +101,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         return clusterState.routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 
-    @Override protected BulkShardResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
+    @Override protected PrimaryResponse<BulkShardResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         IndexShard indexShard = indexShard(shardRequest);
         final BulkShardRequest request = shardRequest.request;
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
@@ -202,7 +205,39 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 }
             }
         }
-        return new BulkShardResponse(new ShardId(request.index(), request.shardId()), responses);
+        BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.shardId()), responses);
+        return new PrimaryResponse<BulkShardResponse>(response, ops);
+    }
+
+    @Override protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse> response) {
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        Engine.Operation[] ops = (Engine.Operation[]) response.payload();
+        for (int i = 0; i < ops.length; i++) {
+            BulkItemRequest itemRequest = request.items()[i];
+            BulkItemResponse itemResponse = response.response().responses()[i];
+            if (itemResponse.failed()) {
+                // failure, continue
+                continue;
+            }
+            if (itemRequest.request() instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) itemRequest.request();
+                if (!Strings.hasLength(indexRequest.percolate())) {
+                    continue;
+                }
+                ParsedDocument doc;
+                if (ops[i] instanceof Engine.Create) {
+                    doc = ((Engine.Create) ops[i]).parsedDoc();
+                } else {
+                    doc = ((Engine.Index) ops[i]).parsedDoc();
+                }
+                try {
+                    PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(doc, indexRequest.percolate()));
+                    ((IndexResponse) itemResponse.response()).matches(percolate.matches());
+                } catch (Exception e) {
+                    logger.warn("failed to percolate [{}]", e, itemRequest.request());
+                }
+            }
+        }
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {

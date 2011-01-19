@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -96,6 +98,25 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             return this.length;
         }
     }
+
+    public static class DocAndSourceQueryRequest {
+        private final ParsedDocument doc;
+        @Nullable private final String query;
+
+        public DocAndSourceQueryRequest(ParsedDocument doc, @Nullable String query) {
+            this.doc = doc;
+            this.query = query;
+        }
+
+        public ParsedDocument doc() {
+            return this.doc;
+        }
+
+        @Nullable String query() {
+            return this.query;
+        }
+    }
+
 
     public static class DocAndQueryRequest {
         private final ParsedDocument doc;
@@ -274,6 +295,15 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         return percolate(new DocAndQueryRequest(doc, query));
+    }
+
+    public Response percolate(DocAndSourceQueryRequest request) throws ElasticSearchException {
+        Query query = null;
+        if (Strings.hasLength(request.query()) && !request.query().equals("*")) {
+            IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
+            query = queryParser.parse(QueryBuilders.queryString(request.query())).query();
+        }
+        return percolate(new DocAndQueryRequest(request.doc(), query));
     }
 
     public Response percolate(DocAndQueryRequest request) throws ElasticSearchException {

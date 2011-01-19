@@ -19,8 +19,12 @@
 
 package org.elasticsearch.test.integration.percolator;
 
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -123,6 +127,66 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                     .endObject().endObject().endObject())
                     .execute().actionGet();
             assertThat(percolate.matches().size(), equalTo(1));
+        }
+    }
+
+    @Test public void percolateOnIndexOperation() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            client.admin().indices().prepareDelete("_percolator").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        logger.info("--> register a query");
+        client.prepareIndex("_percolator", "test", "kuku")
+                .setSource(jsonBuilder().startObject()
+                        .field("color", "blue")
+                        .field("query", termQuery("field1", "value1"))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
+                    .setPercolate("*").execute().actionGet();
+            assertThat(index.matches().size(), equalTo(1));
+            assertThat(index.matches(), hasItem("kuku"));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
+                    .setPercolate("color:blue").execute().actionGet();
+            assertThat(index.matches().size(), equalTo(1));
+            assertThat(index.matches(), hasItem("kuku"));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
+                    .setPercolate("color:green").execute().actionGet();
+            assertThat(index.matches().size(), equalTo(0));
+        }
+
+        // test bulk
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        for (int i = 0; i < 10; i++) {
+            bulkRequestBuilder.add(client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
+                    .setPercolate("*"));
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.execute().actionGet();
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            IndexResponse index = bulkItemResponse.response();
+            assertThat(index.matches().size(), equalTo(1));
+            assertThat(index.matches(), hasItem("kuku"));
         }
     }
 

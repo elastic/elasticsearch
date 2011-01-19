@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -148,7 +151,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }
 
-    @Override protected IndexResponse shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
+    @Override protected PrimaryResponse<IndexResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
@@ -185,7 +188,21 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         // update the version on the request, so it will be used for the replicas
         request.version(version);
 
-        return new IndexResponse(request.index(), request.type(), request.id(), version);
+        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version);
+        return new PrimaryResponse<IndexResponse>(response, doc);
+    }
+
+    @Override protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse> response) {
+        if (!Strings.hasLength(request.percolate())) {
+            return;
+        }
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        try {
+            PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest((ParsedDocument) response.payload(), request.percolate()));
+            response.response().matches(percolate.matches());
+        } catch (Exception e) {
+            logger.warn("failed to percolate [{}]", e, request);
+        }
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {

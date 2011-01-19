@@ -232,8 +232,8 @@ public class BulkItemResponse implements Streamable {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
      * case of failure.
      */
-    public ActionResponse response() {
-        return response;
+    public <T extends ActionResponse> T response() {
+        return (T) response;
     }
 
     /**

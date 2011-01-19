@@ -113,6 +113,7 @@ public class BulkRequest implements ActionRequest {
             String parent = null;
             String opType = null;
             long version = 0;
+            String percolate = null;
 
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -133,6 +134,8 @@ public class BulkRequest implements ActionRequest {
                         opType = parser.text();
                     } else if ("_version".equals(currentFieldName)) {
                         version = parser.longValue();
+                    } else if ("percolate".equals(currentFieldName)) {
+                        percolate = parser.textOrNull();
                     }
                 }
             }
@@ -148,16 +151,19 @@ public class BulkRequest implements ActionRequest {
                 if ("index".equals(action)) {
                     if (opType == null) {
                         add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
-                                .source(data, from, nextMarker - from, contentUnsafe));
+                                .source(data, from, nextMarker - from, contentUnsafe)
+                                .percolate(percolate));
                     } else {
                         add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                                 .create("create".equals(opType))
-                                .source(data, from, nextMarker - from, contentUnsafe));
+                                .source(data, from, nextMarker - from, contentUnsafe)
+                                .percolate(percolate));
                     }
                 } else if ("create".equals(action)) {
                     add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                             .create(true)
-                            .source(data, from, nextMarker - from, contentUnsafe));
+                            .source(data, from, nextMarker - from, contentUnsafe)
+                            .percolate(percolate));
                 }
                 // move pointers
                 from = nextMarker + 1;

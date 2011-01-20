@@ -74,10 +74,6 @@ jar << {
     }
 }
 
-javadoc {
-    maxMemory = "1g"
-}
-
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
     from sourceSets.main.allSource

@@ -1,10 +1,10 @@
-package org.apache.lucene.analysis.cz;
-
-import java.io.IOException;
+package org.elasticsearch.common.lucene.analysis.cz;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+
+import java.io.IOException;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -29,25 +29,25 @@ import org.apache.lucene.analysis.tokenattributes.TermAttribute;
  * <p><b>NOTE</b>: Input is expected to be in lowercase,
  * but with diacritical marks</p>
  */
-// LUCENE MONITOR
+// LUCENE MONITOR (remove once 3.1 is out)
 public final class CzechStemFilter extends TokenFilter {
-  private final CzechStemmer stemmer;
-  private final TermAttribute termAtt;
+    private final CzechStemmer stemmer;
+    private final TermAttribute termAtt;
 
-  public CzechStemFilter(TokenStream input) {
-    super(input);
-    stemmer = new CzechStemmer();
-    termAtt = addAttribute(TermAttribute.class);
-  }
-
-  @Override
-  public boolean incrementToken() throws IOException {
-    if (input.incrementToken()) {
-      int newlen = stemmer.stem(termAtt.termBuffer(), termAtt.termLength());
-      termAtt.setTermLength(newlen);
-      return true;
-    } else {
-      return false;
+    public CzechStemFilter(TokenStream input) {
+        super(input);
+        stemmer = new CzechStemmer();
+        termAtt = addAttribute(TermAttribute.class);
     }
-  }
+
+    @Override
+    public boolean incrementToken() throws IOException {
+        if (input.incrementToken()) {
+            int newlen = stemmer.stem(termAtt.termBuffer(), termAtt.termLength());
+            termAtt.setTermLength(newlen);
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

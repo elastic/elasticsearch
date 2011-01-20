@@ -208,6 +208,20 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             }
         }
 
+        if (requestsByShard.isEmpty()) {
+            // all failures, no shards to process, send a response
+            if (bulkRequest.listenerThreaded()) {
+                threadPool.execute(new Runnable() {
+                    @Override public void run() {
+                        listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+                    }
+                });
+            } else {
+                listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+            }
+            return;
+        }
+
         final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
             final ShardId shardId = entry.getKey();

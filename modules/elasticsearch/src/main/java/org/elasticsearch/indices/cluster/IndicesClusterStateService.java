@@ -142,8 +142,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (indexMetaData != null && indexMetaData.state() == IndexMetaData.State.CLOSE) {
                 IndexService indexService = indicesService.indexService(index);
                 for (Integer shardId : indexService.shardIds()) {
-                    logger.warn("[{}][{}] removing shard (index is closed)", index, shardId);
-                    indexService.removeShard(shardId, "removing shard (index is closed)");
+                    logger.debug("[{}][{}] removing shard (index is closed)", index, shardId);
+                    try {
+                        indexService.removeShard(shardId, "removing shard (index is closed)");
+                    } catch (Exception e) {
+                        logger.warn("[{}] failed to remove shard (index is closed)", e, index);
+                    }
                 }
             }
         }
@@ -156,7 +160,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     indicesService.cleanIndex(index, "cleaning index (no shards allocated)");
                 } catch (Exception e) {
-                    logger.warn("failed to clean index (no shards of that index are allocated on this node)", e);
+                    logger.warn("[{}] failed to clean index (no shards of that index are allocated on this node)", e, index);
                 }
             }
         }

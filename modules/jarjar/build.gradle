@@ -13,6 +13,8 @@ dependencies {
     runtime 'org.elasticsearch:es-trove:2.1.0'
     runtime 'org.elasticsearch:es-jsr166y:20100615'
 
+    runtime 'commons-codec:commons-codec:1.4'
+
     runtime 'joda-time:joda-time:1.6.1'
     runtime 'org.mvel:mvel2:2.0.19'
 
@@ -38,7 +40,7 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.runtime.files.findAll {file ->
-                ['inject', 'mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'javax.inject', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
+                ['inject', 'codec', 'mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'javax.inject', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")
@@ -51,6 +53,8 @@ jar << {
             rule pattern: "org.aopalliance.**", result: "org.elasticsearch.common.aopalliance.@1"
             rule pattern: "javax.inject.**", result: "org.elasticsearch.common.inject.jex.@1"
             rule pattern: "com.google.inject.**", result: "org.elasticsearch.common.inject.@1"
+
+            rule pattern: "org.apache.commons.codec.**", result: "org.elasticsearch.common.codec.@1"
 
             rule pattern: "org.mvel2.**", result: "org.elasticsearch.common.mvel2.@1"
 

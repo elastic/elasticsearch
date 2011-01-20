@@ -251,6 +251,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     return newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
                 } catch (Exception e) {
+                    logger.warn("[{}] failed to create", e, request.index);
                     listener.onFailure(e);
                     return currentState;
                 }

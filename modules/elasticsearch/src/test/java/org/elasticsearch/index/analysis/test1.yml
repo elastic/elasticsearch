@@ -15,6 +15,9 @@ index :
       stop2 :
         type : stop
         stopwords : [stop2-1, stop2-2]
+      metaphone :
+        type : phonetic
+        encoder : metaphone
     analyzer :
       standard :
         alias: alias1,alias2
@@ -27,6 +30,9 @@ index :
       custom2 :
         tokenizer : standard
         char_filter : [html_strip, my_html]
+      custom3 :
+        tokenizer : standard
+        filter : [metaphone]
       czechAnalyzerWithStemmer :
         tokenizer : standard
         filter : [standard, lowercase, stop, czech_stem]

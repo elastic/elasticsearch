@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.testng.annotations.Test;
 
@@ -82,6 +83,11 @@ public class AnalysisModuleTests {
         // verify aliases
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));
+
+        analyzer = analysisService.analyzer("custom3").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
+        PhoneticTokenFilterFactory metaphone = (PhoneticTokenFilterFactory) custom3.tokenFilters()[0];
 
         // verify Czech stemmer
         analyzer = analysisService.analyzer("czechAnalyzerWithStemmer").analyzer();

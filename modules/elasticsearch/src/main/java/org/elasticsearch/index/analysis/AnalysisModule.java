@@ -328,6 +328,8 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("arabic_stem", ArabicStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("brazilianStem", BrazilianStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("brazilian_stem", BrazilianStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("czechStem", CzechStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("czech_stem", CzechStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("dutchStem", DutchStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("dutch_stem", DutchStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("frenchStem", FrenchStemTokenFilterFactory.class);

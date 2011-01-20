@@ -82,5 +82,14 @@ public class AnalysisModuleTests {
         // verify aliases
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));
+
+        // verify Czech stemmer
+        analyzer = analysisService.analyzer("czechAnalyzerWithStemmer").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer czechstemmeranalyzer = (CustomAnalyzer) analyzer;
+        assertThat(czechstemmeranalyzer.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
+        assertThat(czechstemmeranalyzer.tokenFilters().length, equalTo(4));
+        assertThat(czechstemmeranalyzer.tokenFilters()[3], instanceOf(CzechStemTokenFilterFactory.class));
+
     }
 }

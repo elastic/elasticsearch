@@ -40,6 +40,16 @@ allprojects {
     plugins.withType(JavaPlugin).whenPluginAdded {
         sourceCompatibility = 1.6
         targetCompatibility = 1.6
+        compileJava {
+            sourceCompatibility = 1.6
+            targetCompatibility = 1.6
+            options.encoding = "UTF8"
+        }
+        javadoc {
+            maxMemory = "1g"
+            options.encoding = "UTF8"
+        }
+
 
         test {
             useTestNG()

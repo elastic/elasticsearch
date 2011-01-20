@@ -163,12 +163,30 @@ public class TransportClientNodesService extends AbstractComponent {
                 if (!transportService.nodeConnected(node)) {
                     try {
                         transportService.connectToNode(node);
-                        newNodes.add(node);
                     } catch (Exception e) {
                         logger.debug("Failed to connect to node " + node + ", removed from nodes list", e);
+                        continue;
                     }
-                } else {
-                    newNodes.add(node);
+                }
+                try {
+                    NodesInfoResponse nodeInfo = transportService.submitRequest(node, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_local"), new BaseTransportResponseHandler<NodesInfoResponse>() {
+                        @Override public NodesInfoResponse newInstance() {
+                            return new NodesInfoResponse();
+                        }
+
+                        @Override public void handleResponse(NodesInfoResponse response) {
+                        }
+
+                        @Override public void handleException(TransportException exp) {
+                        }
+                    }).txGet();
+                    if (!clusterName.equals(nodeInfo.clusterName())) {
+                        logger.warn("Node {} not part of the cluster {}, ignoring...", node, clusterName);
+                    } else {
+                        newNodes.add(node);
+                    }
+                } catch (Exception e) {
+                    logger.warn("failed to get node info for {}", e, node);
                 }
             }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();

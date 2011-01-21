@@ -92,7 +92,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
 
-        @Override protected ObjectMapper createMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers) {
+        @Override protected ObjectMapper createMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers) {
             FormatDateTimeFormatter[] dates = null;
             if (dateTimeFormatters == null) {
                 dates = new FormatDateTimeFormatter[0];
@@ -101,6 +101,10 @@ public class RootObjectMapper extends ObjectMapper {
                 dates = Defaults.DATE_TIME_FORMATTERS;
             } else {
                 dates = dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]);
+            }
+            // root dynamic must not be null, since its the default
+            if (dynamic == null) {
+                dynamic = Dynamic.TRUE;
             }
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
@@ -158,7 +162,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     private volatile DynamicTemplate dynamicTemplates[];
 
-    RootObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers,
+    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, XContentMapper> mappers,
                      FormatDateTimeFormatter[] dateTimeFormatters, DynamicTemplate dynamicTemplates[]) {
         super(name, enabled, dynamic, pathType, mappers);
         this.dynamicTemplates = dynamicTemplates;

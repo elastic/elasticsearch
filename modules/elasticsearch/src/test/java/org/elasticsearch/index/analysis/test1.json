@@ -25,6 +25,9 @@
                 "metaphone" : {
                     "type" : "phonetic",
                     "encoder" : "metaphone"
+                },
+                "my" : {
+                    "type" : "org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory"
                 }
             },
             "analyzer" : {
@@ -45,6 +48,10 @@
                 "custom3" : {
                     "tokenizer" : "standard",
                     "filter" : ["metaphone"]
+                },
+                "custom4" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["my"]
                 },
                 "czechAnalyzerWithStemmer" : {
                     "tokenizer" : "standard",

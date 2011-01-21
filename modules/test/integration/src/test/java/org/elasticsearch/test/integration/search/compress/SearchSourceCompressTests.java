@@ -61,7 +61,7 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
         verifySource(true);
     }
 
-    @Test public void testSourceFieldPlainExplciit() throws IOException {
+    @Test public void testSourceFieldPlainExplicit() throws IOException {
         verifySource(false);
     }
 

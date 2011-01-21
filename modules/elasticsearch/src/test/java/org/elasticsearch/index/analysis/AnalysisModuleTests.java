@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.testng.annotations.Test;
@@ -84,10 +85,17 @@ public class AnalysisModuleTests {
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));
 
+        // check phonetic
         analyzer = analysisService.analyzer("custom3").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
-        PhoneticTokenFilterFactory metaphone = (PhoneticTokenFilterFactory) custom3.tokenFilters()[0];
+        assertThat(custom3.tokenFilters()[0], instanceOf(PhoneticTokenFilterFactory.class));
+
+        // check custom class name (my)
+        analyzer = analysisService.analyzer("custom4").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom4 = (CustomAnalyzer) analyzer;
+        assertThat(custom4.tokenFilters()[0], instanceOf(MyFilterTokenFilterFactory.class));
 
         // verify Czech stemmer
         analyzer = analysisService.analyzer("czechAnalyzerWithStemmer").analyzer();

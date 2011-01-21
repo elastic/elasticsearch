@@ -18,6 +18,8 @@ index :
       metaphone :
         type : phonetic
         encoder : metaphone
+      my :
+        type : org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory
     analyzer :
       standard :
         alias: alias1,alias2
@@ -33,6 +35,9 @@ index :
       custom3 :
         tokenizer : standard
         filter : [metaphone]
+      custom4 :
+        tokenizer : standard
+        filter : [my]
       czechAnalyzerWithStemmer :
         tokenizer : standard
         filter : [standard, lowercase, stop, czech_stem]

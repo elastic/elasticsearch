@@ -1,13 +1,9 @@
-# Example of some settings with the default values set
-## Make the node a data node
-#node:
-#  data: true
-#
-## Cluster name
+# Cluster Settings
 #cluster:
 #  name: elasticsearch
-#
-## Bind to all network addresses
-#network:
-#  host: 0.0.0.0
-#
+
+# Gateway Settings
+#gateway:
+#  recover_after_nodes: 1
+#  recover_after_time: 5m
+#  expected_nodes: 2

@@ -306,7 +306,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                         this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(new File(location, "metadata-" + version))));
                     }
                 } catch (Exception e) {
-                    logger.warn("failed to read local state", e);
+                    logger.warn("failed to read local state (metadata)", e);
                 }
             }
 
@@ -317,7 +317,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                         this.currentStartedShards = readStartedShards(Streams.copyToByteArray(new FileInputStream(new File(location, "shards-" + version))));
                     }
                 } catch (Exception e) {
-                    logger.warn("failed to read local state", e);
+                    logger.warn("failed to read local state (started shards)", e);
                 }
             }
         }

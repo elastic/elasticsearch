@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -67,7 +68,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public FieldsTermsStringFacetCollector(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
+    public FieldsTermsStringFacetCollector(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                            ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
@@ -103,6 +104,19 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
             aggregator = new StaticAggregatorValueProc(TermsStringFacetCollector.popFacets());
         } else {
             aggregator = new AggregatorValueProc(TermsStringFacetCollector.popFacets(), excluded, pattern, this.script);
+        }
+
+        if (allTerms) {
+            try {
+                for (int i = 0; i < fieldsNames.length; i++) {
+                    for (IndexReader reader : context.searcher().subReaders()) {
+                        FieldData fieldData = fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
+                        fieldData.forEachValue(aggregator);
+                    }
+                }
+            } catch (Exception e) {
+                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
+            }
         }
     }
 
@@ -185,7 +199,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class StaticAggregatorValueProc implements FieldData.StringValueInDocProc {
+    public static class StaticAggregatorValueProc implements FieldData.StringValueInDocProc, FieldData.StringValueProc {
 
         private final TObjectIntHashMap<String> facets;
 
@@ -193,6 +207,10 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
         public StaticAggregatorValueProc(TObjectIntHashMap<String> facets) {
             this.facets = facets;
+        }
+
+        @Override public void onValue(String value) {
+            facets.putIfAbsent(value, 0);
         }
 
         @Override public void onValue(int docId, String value) {

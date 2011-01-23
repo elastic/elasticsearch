@@ -74,6 +74,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         String scriptLang = null;
         String script = null;
         Map<String, Object> params = null;
+        boolean allTerms = false;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -105,6 +106,8 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
+                } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {
+                    allTerms = parser.booleanValue();
                 } else if ("regex".equals(currentFieldName)) {
                     regex = parser.text();
                 } else if ("regex_flags".equals(currentFieldName) || "regexFlags".equals(currentFieldName)) {
@@ -128,7 +131,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
             pattern = Regex.compile(regex, regexFlags);
         }
         if (fieldsNames != null) {
-            return new FieldsTermsStringFacetCollector(facetName, fieldsNames, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+            return new FieldsTermsStringFacetCollector(facetName, fieldsNames, size, comparatorType, allTerms, context, excluded, pattern, scriptLang, script, params);
         }
         if (field == null && fieldsNames == null && script != null) {
             return new ScriptTermsStringFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
@@ -137,20 +140,20 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(field);
         if (fieldMapper != null) {
             if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
-                return new TermsLongFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+                return new TermsLongFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
-                return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+                return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
-                return new TermsIntFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+                return new TermsIntFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
-                return new TermsFloatFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+                return new TermsFloatFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.SHORT) {
-                return new TermsShortFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+                return new TermsShortFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.BYTE) {
-                return new TermsByteFacetCollector(facetName, field, size, comparatorType, context, scriptLang, script, params);
+                return new TermsByteFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             }
         }
-        return new TermsStringFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+        return new TermsStringFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, pattern, scriptLang, script, params);
     }
 
     @Override public Facet reduce(String name, List<Facet> facets) {

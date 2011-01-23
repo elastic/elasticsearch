@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -74,7 +75,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsLongFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, SearchContext context,
+    public TermsLongFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                    String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
@@ -111,6 +112,17 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
             aggregator = new AggregatorValueProc(popFacets(), this.script);
+        }
+
+        if (allTerms) {
+            try {
+                for (IndexReader reader : context.searcher().subReaders()) {
+                    LongFieldData fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                    fieldData.forEachValue(aggregator);
+                }
+            } catch (Exception e) {
+                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
+            }
         }
     }
 
@@ -195,7 +207,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class StaticAggregatorValueProc implements LongFieldData.ValueInDocProc {
+    public static class StaticAggregatorValueProc implements LongFieldData.ValueInDocProc, LongFieldData.ValueProc {
 
         private final TLongIntHashMap facets;
 
@@ -203,6 +215,10 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         public StaticAggregatorValueProc(TLongIntHashMap facets) {
             this.facets = facets;
+        }
+
+        @Override public void onValue(long value) {
+            facets.putIfAbsent(value, 0);
         }
 
         @Override public void onValue(int docId, long value) {

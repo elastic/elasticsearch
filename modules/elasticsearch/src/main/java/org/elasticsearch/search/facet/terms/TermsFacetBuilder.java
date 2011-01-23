@@ -38,6 +38,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String fieldName;
     private String[] fieldsNames;
     private int size = 10;
+    private Boolean allTerms;
     private String[] exclude;
     private String regex;
     private int regexFlags = 0;
@@ -176,6 +177,15 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Sets all possible terms to be loaded, even ones with 0 count. Note, this *should not* be used
+     * with a field that has many possible terms.
+     */
+    public TermsFacetBuilder allTerms(boolean allTerms) {
+        this.allTerms = allTerms;
+        return this;
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null && fieldsNames == null && script == null) {
             throw new SearchSourceBuilderException("field/fields/script must be set on terms facet for facet [" + name + "]");
@@ -208,6 +218,9 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         }
         if (comparatorType != null) {
             builder.field("order", comparatorType.name().toLowerCase());
+        }
+        if (allTerms != null) {
+            builder.field("all_terms", allTerms);
         }
 
         if (script != null) {

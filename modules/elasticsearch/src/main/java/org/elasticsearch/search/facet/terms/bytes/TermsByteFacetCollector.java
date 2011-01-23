@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -73,7 +74,7 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsByteFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, SearchContext context,
+    public TermsByteFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                    String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
@@ -110,6 +111,17 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
             aggregator = new AggregatorValueProc(popFacets(), this.script);
+        }
+
+        if (allTerms) {
+            try {
+                for (IndexReader reader : context.searcher().subReaders()) {
+                    ByteFieldData fieldData = (ByteFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                    fieldData.forEachValue(aggregator);
+                }
+            } catch (Exception e) {
+                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
+            }
         }
     }
 
@@ -194,7 +206,7 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class StaticAggregatorValueProc implements ByteFieldData.ValueInDocProc {
+    public static class StaticAggregatorValueProc implements ByteFieldData.ValueInDocProc, ByteFieldData.ValueProc {
 
         private final TByteIntHashMap facets;
 
@@ -202,6 +214,10 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
 
         public StaticAggregatorValueProc(TByteIntHashMap facets) {
             this.facets = facets;
+        }
+
+        @Override public void onValue(byte value) {
+            facets.putIfAbsent(value, 0);
         }
 
         @Override public void onValue(int docId, byte value) {

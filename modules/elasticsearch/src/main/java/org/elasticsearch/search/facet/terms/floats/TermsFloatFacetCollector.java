@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -73,7 +74,7 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    public TermsFloatFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, SearchContext context,
+    public TermsFloatFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                     String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
@@ -110,6 +111,17 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
             aggregator = new AggregatorValueProc(popFacets(), this.script);
+        }
+
+        if (allTerms) {
+            try {
+                for (IndexReader reader : context.searcher().subReaders()) {
+                    FloatFieldData fieldData = (FloatFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+                    fieldData.forEachValue(aggregator);
+                }
+            } catch (Exception e) {
+                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
+            }
         }
     }
 
@@ -194,7 +206,7 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class StaticAggregatorValueProc implements FloatFieldData.ValueInDocProc {
+    public static class StaticAggregatorValueProc implements FloatFieldData.ValueInDocProc, FloatFieldData.ValueProc {
 
         private final TFloatIntHashMap facets;
 
@@ -202,6 +214,10 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
 
         public StaticAggregatorValueProc(TFloatIntHashMap facets) {
             this.facets = facets;
+        }
+
+        @Override public void onValue(float value) {
+            facets.putIfAbsent(value, 0);
         }
 
         @Override public void onValue(int docId, float value) {

@@ -238,7 +238,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private final ReplicationType replicationType;
 
-        private AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
+        AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
 

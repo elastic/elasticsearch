@@ -1,8 +1,0 @@
-cluster:
-  routing:
-    schedule: 100ms
-    operation:
-      type: org.elasticsearch.test.integration.search.TwoInstanceUnbalancedShardsEmbeddedSearchTests$UnevenOperationRoutingModule
-index:
-  number_of_shards: 3
-  number_of_replicas: 0

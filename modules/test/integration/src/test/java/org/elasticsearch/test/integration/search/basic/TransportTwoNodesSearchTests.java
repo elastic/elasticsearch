@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.search;
+package org.elasticsearch.test.integration.search.basic;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -44,6 +44,7 @@ import java.util.Set;
 
 import static org.elasticsearch.action.search.SearchType.*;
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
@@ -54,7 +55,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportTwoServersSearchTests extends AbstractNodesTests {
+public class TransportTwoNodesSearchTests extends AbstractNodesTests {
 
     private Client client;
 
@@ -63,7 +64,11 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
         startNode("server2");
         client = getClient();
 
-        client.admin().indices().create(createIndexRequest("test")).actionGet();
+        client.admin().indices().create(createIndexRequest("test")
+                .settings(settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).put("routing.hash.type", "simple")))
+                .actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);

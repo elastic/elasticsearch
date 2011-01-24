@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.search;
+package org.elasticsearch.test.integration.search.basic;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -37,6 +37,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -53,7 +54,11 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
     @Test public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         startNode("server1");
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        client("server1").admin().indices().create(createIndexRequest("test")
+                .settings(settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 2).put("routing.hash.type", "simple")))
+                .actionGet();
+
+        client("server1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);

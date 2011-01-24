@@ -23,13 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.integration.search.TransportTwoServersSearchTests;
+import org.elasticsearch.test.integration.search.basic.TransportTwoNodesSearchTests;
 import org.elasticsearch.transport.TransportService;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ClientTransportTwoServersSearchTests extends TransportTwoServersSearchTests {
+public class ClientTransportTwoNodesSearchTests extends TransportTwoNodesSearchTests {
 
     @Override protected Client getClient() {
         TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();

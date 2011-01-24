@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.search;
+package org.elasticsearch.test.integration.search.embedded;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.*;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -61,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
@@ -71,8 +71,6 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
-
-    private IndicesService indicesService;
 
     private ClusterService clusterService;
 
@@ -85,8 +83,9 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         startNode("server2");
 
         clusterService = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class);
-        indicesService = ((InternalNode) node("server1")).injector().getInstance(IndicesService.class);
-        client("server1").admin().indices().create(Requests.createIndexRequest("test")).actionGet();
+        client("server1").admin().indices().create(Requests.createIndexRequest("test")
+                .settings(settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0)))
+                .actionGet();
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);

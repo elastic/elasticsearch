@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.search;
+package org.elasticsearch.test.integration.search.embedded;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
@@ -49,6 +49,7 @@ import java.util.Map;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -66,7 +67,10 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
     @BeforeClass public void createNodeAndInitWithData() throws Exception {
         startNode("server1");
 
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        client("server1").admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 0))
+                .execute().actionGet();
+        client("server1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         index(client("server1"), "1", "test1", 1);
         index(client("server1"), "2", "test2", 2);
         index(client("server1"), "3", "test3", 2);

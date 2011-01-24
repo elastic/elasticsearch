@@ -223,6 +223,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                     // TODO, do this in parallel (and wait)
                     for (DiscoveryNode node : nodesDelta.addedNodes()) {
+                        if (!nodeRequiresConnection(node)) {
+                            continue;
+                        }
                         try {
                             transportService.connectToNode(node);
                         } catch (Exception e) {
@@ -292,6 +295,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (lifecycle.stoppedOrClosed()) {
                     return;
                 }
+                if (!nodeRequiresConnection(node)) {
+                    continue;
+                }
                 if (clusterState.nodes().nodeExists(node.id())) { // we double check existence of node since connectToNode might take time...
                     if (!transportService.nodeConnected(node)) {
                         try {
@@ -308,5 +314,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
             }
         }
+    }
+
+    private boolean nodeRequiresConnection(DiscoveryNode node) {
+        if (localNode().clientNode()) {
+            if (node.clientNode()) {
+                return false;
+            }
+        }
+        return true;
     }
 }

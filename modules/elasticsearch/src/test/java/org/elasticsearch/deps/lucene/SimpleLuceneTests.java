@@ -21,9 +21,7 @@ package org.elasticsearch.deps.lucene;
 
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.NumericUtils;
@@ -35,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -93,6 +92,48 @@ public class SimpleLuceneTests {
         assertThat(fieldsOrder.get(1), equalTo("#id"));
 
         indexWriter.close();
+    }
+
+    @Test public void testCollectorOrdering() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        for (int i = 0; i < 5000; i++) {
+            indexWriter.addDocument(doc()
+                    .add(field("_id", Integer.toString(i))).build());
+            if ((i % 131) == 0) {
+                indexWriter.commit();
+            }
+        }
+        IndexReader reader = indexWriter.getReader();
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        for (int i = 0; i < 5000; i++) {
+            final int index = i;
+            final AtomicInteger docId = new AtomicInteger();
+            searcher.search(new MatchAllDocsQuery(), new Collector() {
+                int counter = 0;
+                int docBase = 0;
+
+                @Override public void setScorer(Scorer scorer) throws IOException {
+                }
+
+                @Override public void collect(int doc) throws IOException {
+                    if (counter++ == index) {
+                        docId.set(docBase + doc);
+                    }
+                }
+
+                @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+                    this.docBase = docBase;
+                }
+
+                @Override public boolean acceptsDocsOutOfOrder() {
+                    return true;
+                }
+            });
+            Document doc = searcher.doc(docId.get());
+            assertThat(doc.get("_id"), equalTo(Integer.toString(i)));
+        }
     }
 
     @Test public void testBoost() throws Exception {

@@ -57,10 +57,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -324,7 +321,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
             NodeChannels nodeChannels = it.next();
             it.remove();
-            nodeChannels.closeAndWait();
+            nodeChannels.close();
         }
 
         if (clientBootstrap != null) {
@@ -598,35 +595,21 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         }
 
-        public void close() {
-            closeChannels(low);
-            closeChannels(med);
-            closeChannels(high);
-        }
-
-        private void closeChannels(Channel[] channels) {
-            for (Channel channel : channels) {
-                try {
-                    if (channel != null && channel.isOpen()) {
-                        channel.close();
-                    }
-                } catch (Exception e) {
-                    //ignore
-                }
+        public synchronized void close() {
+            List<ChannelFuture> futures = new ArrayList<ChannelFuture>();
+            closeChannelsAndWait(low, futures);
+            closeChannelsAndWait(med, futures);
+            closeChannelsAndWait(high, futures);
+            for (ChannelFuture future : futures) {
+                future.awaitUninterruptibly();
             }
         }
 
-        public void closeAndWait() {
-            closeChannelsAndWait(low);
-            closeChannelsAndWait(med);
-            closeChannelsAndWait(high);
-        }
-
-        private void closeChannelsAndWait(Channel[] channels) {
+        private void closeChannelsAndWait(Channel[] channels, List<ChannelFuture> futures) {
             for (Channel channel : channels) {
                 try {
                     if (channel != null && channel.isOpen()) {
-                        channel.close().awaitUninterruptibly();
+                        futures.add(channel.close());
                     }
                 } catch (Exception e) {
                     //ignore

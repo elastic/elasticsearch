@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -150,13 +151,41 @@ public class MetaData implements Iterable<IndexMetaData> {
         if (indices == null || indices.length == 0) {
             return concreteAllIndices();
         }
+        // optimize for single element index (common case)
         if (indices.length == 1) {
-            if (indices[0].length() == 0) {
+            String index = indices[0];
+            if (index.length() == 0) {
                 return concreteAllIndices();
             }
-            if (indices[0].equals("_all")) {
+            if (index.equals("_all")) {
                 return concreteAllIndices();
             }
+            // if a direct index name, just return the array provided
+            if (this.indices.containsKey(index)) {
+                return indices;
+            }
+            String[] actualLst = aliasAndIndexToIndexMap.get(index);
+            if (actualLst == null) {
+                if (!ignoreMissing) {
+                    throw new IndexMissingException(new Index(index));
+                } else {
+                    return Strings.EMPTY_ARRAY;
+                }
+            } else {
+                return actualLst;
+            }
+        }
+
+        // check if its a possible aliased index, if not, just return the
+        // passed array
+        boolean possiblyAliased = false;
+        for (String index : indices) {
+            if (!this.indices.containsKey(index)) {
+                possiblyAliased = true;
+            }
+        }
+        if (!possiblyAliased) {
+            return indices;
         }
 
         ArrayList<String> actualIndices = Lists.newArrayListWithCapacity(indices.length);

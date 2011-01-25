@@ -423,6 +423,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private static final int[] EMPTY_DOC_IDS = new int[0];
 
+    /**
+     * Shortcut ids to load, we load only "from" and up to "size". The phase controller
+     * handles this as well since the result is always size * shards for Q_A_F
+     */
     private void shortcutDocIdsToLoad(SearchContext context) {
         TopDocs topDocs = context.queryResult().topDocs();
         if (topDocs.scoreDocs.length < context.from()) {

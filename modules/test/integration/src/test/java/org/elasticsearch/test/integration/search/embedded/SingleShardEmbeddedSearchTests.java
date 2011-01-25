@@ -20,13 +20,11 @@
 package org.elasticsearch.test.integration.search.embedded;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.*;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
@@ -40,12 +38,14 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.collect.Lists.*;
@@ -58,25 +58,28 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
+public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
 
     private SearchService searchService;
 
     private SearchPhaseController searchPhaseController;
 
+    private Client client;
+
     @BeforeClass public void createNodeAndInitWithData() throws Exception {
         startNode("server1");
+        client = client("server1");
 
-        client("server1").admin().indices().prepareCreate("test")
+        client.admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 0))
                 .execute().actionGet();
         client("server1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        index(client("server1"), "1", "test1", 1);
-        index(client("server1"), "2", "test2", 2);
-        index(client("server1"), "3", "test3", 2);
-        index(client("server1"), "4", "test4", 2);
-        index(client("server1"), "5", "test5", 2);
-        client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        index("1", "test1", 1);
+        index("2", "test2", 2);
+        index("3", "test3", 3);
+        index("4", "test4", 4);
+        index("5", "test5", 5);
+        client.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         searchService = ((InternalNode) node("server1")).injector().getInstance(SearchService.class);
         searchPhaseController = ((InternalNode) node("server1")).injector().getInstance(SearchPhaseController.class);
@@ -125,6 +128,58 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
 
+    @Test public void testQueryThenFetchIterateWithFrom() throws Exception {
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC)));
+        assertThat(queryResult.topDocs().totalHits, equalTo(5));
+
+        Set<String> idsLoaded = Sets.newHashSet();
+
+        ShardDoc[] sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(2));
+
+        FetchSearchResult fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+        assertThat(fetchResult.hits().hits().length, equalTo(2));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // iterate to the next 2
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2).sort("age", SortOrder.DESC)));
+        assertThat(queryResult.topDocs().totalHits, equalTo(5));
+
+        sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(2));
+
+        fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+        assertThat(fetchResult.hits().hits().length, equalTo(2));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // iterate to the next 2
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2).sort("age", SortOrder.DESC)));
+        assertThat(queryResult.topDocs().totalHits, equalTo(5));
+
+        sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(1));
+
+        fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+        assertThat(fetchResult.hits().hits().length, equalTo(1));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // verify all ids were loaded
+        Set<String> expectedIds = Sets.newHashSet("1", "2", "3", "4", "5");
+        assertThat(idsLoaded, equalTo(expectedIds));
+    }
+
     @Test public void testQueryAndFetch() throws Exception {
         QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
         FetchSearchResult fetchResult = result.fetchResult();
@@ -157,7 +212,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
                         .facet(FacetBuilders.queryFacet("age1", termQuery("age", 1)))
                         .facet(FacetBuilders.queryFacet("age2", termQuery("age", 2)))
         ));
-        assertThat(queryResult.facets().facet(QueryFacet.class, "age2").count(), equalTo(4l));
+        assertThat(queryResult.facets().facet(QueryFacet.class, "age2").count(), equalTo(1l));
         assertThat(queryResult.facets().facet(QueryFacet.class, "age1").count(), equalTo(1l));
     }
 
@@ -186,7 +241,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
         return new InternalSearchRequest("test", 0, 1).source(builder.buildAsBytes());
     }
 
-    private void index(Client client, String id, String nameValue, int age) {
+    private void index(String id, String nameValue, int age) {
         client.index(indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 

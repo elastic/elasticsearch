@@ -98,6 +98,7 @@ public class SearchPhaseController {
         int queueSize = queryResultProvider.queryResult().from() + queryResultProvider.queryResult().size();
         if (queryResultProvider.includeFetch()) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
+            // this is also important since we shortcut and fetch only docs from "from" and up to "size"
             queueSize *= results.size();
         }
         PriorityQueue queue;
@@ -173,6 +174,8 @@ public class SearchPhaseController {
             return EMPTY;
         }
 
+        // we only pop the first, this handles "from" nicely since the "from" are down the queue
+        // that we already fetched, so we are actually popping the "from" and up to "size"
         ShardDoc[] shardDocs = new ShardDoc[resultDocsSize];
         for (int i = resultDocsSize - 1; i >= 0; i--)      // put docs in array
             shardDocs[i] = (ShardDoc) queue.pop();

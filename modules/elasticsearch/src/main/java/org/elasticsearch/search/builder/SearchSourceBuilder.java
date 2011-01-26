@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -68,6 +69,10 @@ public class SearchSourceBuilder implements ToXContent {
     private XContentQueryBuilder queryBuilder;
 
     private byte[] queryBinary;
+
+    private XContentFilterBuilder filterBuilder;
+
+    private byte[] filterBinary;
 
     private int from = -1;
 
@@ -119,6 +124,33 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder query(String queryString) {
         this.queryBinary = Unicode.fromStringAsBytes(queryString);
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchSourceBuilder filter(XContentFilterBuilder filter) {
+        this.filterBuilder = filter;
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchSourceBuilder filter(String filterString) {
+        this.filterBinary = Unicode.fromStringAsBytes(filterString);
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchSourceBuilder filter(byte[] filter) {
+        this.filterBinary = filter;
         return this;
     }
 
@@ -354,6 +386,19 @@ public class SearchSourceBuilder implements ToXContent {
                 builder.rawField("query", queryBinary);
             } else {
                 builder.field("query_binary", queryBinary);
+            }
+        }
+
+        if (filterBuilder != null) {
+            builder.field("filter");
+            filterBuilder.toXContent(builder, params);
+        }
+
+        if (filterBinary != null) {
+            if (XContentFactory.xContentType(queryBinary) == builder.contentType()) {
+                builder.rawField("filter", filterBinary);
+            } else {
+                builder.field("filter_binary", queryBinary);
             }
         }
 

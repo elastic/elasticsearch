@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
@@ -28,16 +27,10 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryBinaryParseElement implements SearchParseElement {
+public class FilterParseElement implements SearchParseElement {
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        byte[] querySource = parser.binaryValue();
-        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-        try {
-            context.parsedQuery(indexQueryParser.parse(qSourceParser));
-        } finally {
-            qSourceParser.close();
-        }
+        context.parsedFilter(indexQueryParser.parseInnerFilter(parser));
     }
 }

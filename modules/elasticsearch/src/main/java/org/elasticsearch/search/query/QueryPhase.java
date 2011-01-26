@@ -57,6 +57,9 @@ public class QueryPhase implements SearchPhase {
                 .put("query", new QueryParseElement())
                 .put("queryBinary", new QueryBinaryParseElement())
                 .put("query_binary", new QueryBinaryParseElement())
+                .put("filter", new FilterParseElement())
+                .put("filterBinary", new FilterBinaryParseElement())
+                .put("filter_binary", new FilterBinaryParseElement())
                 .put("sort", new SortParseElement())
                 .putAll(facetPhase.parseElements());
         return parseElements.build();
@@ -73,6 +76,7 @@ public class QueryPhase implements SearchPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        // set the filter on the searcher
         if (searchContext.parsedQuery().scopePhases().length > 0) {
             // we have scoped queries, refresh the id cache
             try {

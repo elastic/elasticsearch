@@ -73,6 +73,58 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         return client("server1");
     }
 
+    @Test public void testSearchFilter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("tag", "green")
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("tag", "blue")
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("tag").size(10))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().hits().length, equalTo(2));
+        TermsFacet facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
+        assertThat(facet.entries().get(0).count(), equalTo(1));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(termFilter("tag", "blue"))
+                .addFacet(termsFacet("facet1").field("tag").size(10))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
+        assertThat(facet.entries().get(0).count(), equalTo(1));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
+    }
+
     @Test public void testFacetsWithSize0() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

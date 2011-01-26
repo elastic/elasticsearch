@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
@@ -114,6 +115,8 @@ public class SearchContext implements Releasable {
     private ParsedQuery originalQuery;
 
     private Query query;
+
+    private Filter filter;
 
     private int[] docIdsToLoad;
 
@@ -289,6 +292,15 @@ public class SearchContext implements Releasable {
 
     public Sort sort() {
         return this.sort;
+    }
+
+    public SearchContext parsedFilter(Filter filter) {
+        this.filter = filter;
+        return this;
+    }
+
+    public Filter parsedFilter() {
+        return this.filter;
     }
 
     public String queryParserName() {

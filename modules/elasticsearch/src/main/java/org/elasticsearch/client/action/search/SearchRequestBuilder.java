@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -198,6 +199,33 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder setQuery(byte[] queryBinary) {
         sourceBuilder().query(queryBinary);
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchRequestBuilder setFilter(XContentFilterBuilder filter) {
+        sourceBuilder().filter(filter);
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchRequestBuilder setFilter(String filter) {
+        sourceBuilder().filter(filter);
+        return this;
+    }
+
+    /**
+     * Sets a filter on the query executed that only applies to the search query
+     * (and not facets for example).
+     */
+    public SearchRequestBuilder setFilter(byte[] filter) {
+        sourceBuilder().filter(filter);
         return this;
     }
 

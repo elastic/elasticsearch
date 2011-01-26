@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
+import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 
@@ -116,6 +117,11 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     }
 
     @Override public void search(Weight weight, Filter filter, Collector collector) throws IOException {
+        if (searchContext.parsedFilter() != null) {
+            // this will only get applied to the actual search collector and not
+            // to any scoped collectors
+            collector = new FilteredCollector(collector, searchContext.parsedFilter());
+        }
         if (searchContext.timeout() != null) {
             collector = new TimeLimitingCollector(collector, searchContext.timeout().millis());
         }

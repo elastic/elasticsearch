@@ -62,5 +62,10 @@ public class UidFieldTests {
         reader = writer.getReader();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(2l));
         assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(2l));
+
+        writer.deleteDocuments(new Term("_uid", "1"));
+        reader = writer.getReader();
+        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(-1l));
+        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(-1l));
     }
 }

@@ -90,7 +90,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private volatile IndexShardState state;
 
-    private ScheduledFuture refreshScheduledFuture;
+    private volatile ScheduledFuture refreshScheduledFuture;
+
+    private volatile ScheduledFuture optimizeScheduleFuture;
 
     private volatile ShardRouting shardRouting;
 
@@ -212,7 +214,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 checkIndex(true);
             }
             engine.start();
-            scheduleRefresherIfNeeded();
+            startScheduledTasksIfNeeded();
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.STARTED, reason);
             state = IndexShardState.STARTED;
         }
@@ -459,6 +461,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture.cancel(true);
                     refreshScheduledFuture = null;
                 }
+                if (optimizeScheduleFuture != null) {
+                    optimizeScheduleFuture.cancel(true);
+                    optimizeScheduleFuture = null;
+                }
             }
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
             state = IndexShardState.CLOSED;
@@ -499,7 +505,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
         }
-        scheduleRefresherIfNeeded();
+        startScheduledTasksIfNeeded();
         engine.refresh(new Engine.Refresh(true));
 
         // clear unreferenced files
@@ -562,13 +568,24 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private void scheduleRefresherIfNeeded() {
+    private void startScheduledTasksIfNeeded() {
         if (engine instanceof ScheduledRefreshableEngine) {
             TimeValue refreshInterval = ((ScheduledRefreshableEngine) engine).refreshInterval();
             if (refreshInterval.millis() > 0) {
                 refreshScheduledFuture = threadPool.scheduleWithFixedDelay(new EngineRefresher(), refreshInterval);
-                logger.debug("Scheduling refresher every {}", refreshInterval);
+                logger.debug("scheduling refresher every {}", refreshInterval);
+            } else {
+                logger.debug("scheduled refresher disabled");
             }
+        }
+        // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
+        // so, make sure we periodically call it
+        TimeValue optimizeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(30));
+        if (optimizeInterval.millis() > 0) {
+            optimizeScheduleFuture = threadPool.scheduleWithFixedDelay(new EngineOptimizer(), optimizeInterval);
+            logger.debug("scheduling optimizer / merger every {}", optimizeInterval);
+        } else {
+            logger.debug("scheduled optimizer / merger disabled");
         }
     }
 
@@ -597,6 +614,29 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 }
             } catch (Exception e) {
                 logger.warn("Failed to perform scheduled engine refresh", e);
+            }
+        }
+    }
+
+    private class EngineOptimizer implements Runnable {
+        @Override public void run() {
+            try {
+                // -1 means maybe merge
+                engine.optimize(new Engine.Optimize().maxNumSegments(-1).waitForMerge(false));
+            } catch (EngineClosedException e) {
+                // we are being closed, ignore
+            } catch (OptimizeFailedEngineException e) {
+                if (e.getCause() instanceof InterruptedException) {
+                    // ignore, we are being shutdown
+                } else if (e.getCause() instanceof ClosedByInterruptException) {
+                    // ignore, we are being shutdown
+                } else if (e.getCause() instanceof ThreadInterruptedException) {
+                    // ignore, we are being shutdown
+                } else {
+                    logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to perform scheduled engine optimize/merge", e);
             }
         }
     }

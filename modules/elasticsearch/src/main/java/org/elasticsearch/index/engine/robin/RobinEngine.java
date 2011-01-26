@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine.robin;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -628,14 +628,25 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             throw new FlushNotAllowedEngineException(shardId, "Already flushing...");
         }
 
+        // We can't do prepareCommit here, since we rely on the the segment version for the translog version
+
         // call maybeMerge outside of the write lock since it gets called anyhow within commit/refresh
         // and we want not to suffer this cost within the write lock
-        // We can't do prepareCommit here, since we rely on the the segment version for the translog version
+        // only do it if we don't have an async merging going on, otherwise, we know that we won't do any
+        // merge operation
         try {
+            if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
+                ((EnableMergePolicy) indexWriter.getMergePolicy()).enableMerge();
+            }
             indexWriter.maybeMerge();
         } catch (Exception e) {
             flushing.set(false);
             throw new FlushFailedEngineException(shardId, e);
+        } finally {
+            // don't allow merge when committing under write lock
+            if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
+                ((EnableMergePolicy) indexWriter.getMergePolicy()).disableMerge();
+            }
         }
         rwl.writeLock().lock();
         try {
@@ -680,7 +691,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             rwl.writeLock().unlock();
             flushing.set(false);
         }
-        // we flush anyhow before...
+        // we refresh anyhow before...
 //        if (flush.refresh()) {
 //            refresh(new Refresh(false));
 //        }
@@ -693,31 +704,33 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                 if (indexWriter == null) {
                     throw new EngineClosedException(shardId);
                 }
-                int maxNumberOfSegments = optimize.maxNumSegments();
-                if (maxNumberOfSegments == -1) {
-                    // not set, optimize down to half the configured number of segments
-                    if (indexWriter.getMergePolicy() instanceof LogMergePolicy) {
-                        maxNumberOfSegments = ((LogMergePolicy) indexWriter.getMergePolicy()).getMergeFactor() / 2;
-                        if (maxNumberOfSegments < 0) {
-                            maxNumberOfSegments = 1;
-                        }
-                    }
+                if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
+                    ((EnableMergePolicy) indexWriter.getMergePolicy()).enableMerge();
                 }
                 if (optimize.onlyExpungeDeletes()) {
-                    indexWriter.expungeDeletes(optimize.waitForMerge());
+                    indexWriter.expungeDeletes(false);
+                } else if (optimize.maxNumSegments() <= 0) {
+                    indexWriter.maybeMerge();
                 } else {
-                    indexWriter.optimize(maxNumberOfSegments, optimize.waitForMerge());
+                    indexWriter.optimize(optimize.maxNumSegments(), false);
                 }
-                // once we did the optimization, we are "dirty" since we removed deletes potentially which
-                // affects TermEnum
-                dirty = true;
             } catch (Exception e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
+                if (indexWriter != null && indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
+                    ((EnableMergePolicy) indexWriter.getMergePolicy()).disableMerge();
+                }
                 rwl.readLock().unlock();
                 optimizeMutex.set(false);
             }
         }
+        // wait for the merges outside of the read lock
+        if (optimize.waitForMerge()) {
+            indexWriter.waitForMerges();
+        }
+        // once we did the optimization, we are "dirty" since we removed deletes potentially which
+        // affects TermEnum
+        dirty = true;
         if (optimize.flush()) {
             flush(new Flush());
         }

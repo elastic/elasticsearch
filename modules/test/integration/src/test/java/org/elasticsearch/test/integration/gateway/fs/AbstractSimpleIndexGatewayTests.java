@@ -257,8 +257,8 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         client("server1").admin().indices().prepareRefresh().execute().actionGet();
         assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
 
-        logger.info("--> indexing 12345 docs");
-        for (long i = 0; i < 12345; i++) {
+        logger.info("--> indexing 1234 docs");
+        for (long i = 0; i < 1234; i++) {
             client("server1").prepareIndex("test", "type1", Long.toString(i))
                     .setCreate(true) // make sure we use create, so if we recover wrongly, we will get increments...
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
@@ -267,11 +267,15 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
             if ((i % 11) == 0) {
                 client("server1").admin().indices().prepareGatewaySnapshot().execute().actionGet();
             }
+            // flush every once is a while, so we get different data
+            if ((i % 55) == 0) {
+                client("server1").admin().indices().prepareFlush().execute().actionGet();
+            }
         }
 
         logger.info("--> refreshing and checking count");
         client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(12345l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
 
 
         logger.info("--> closing the server");
@@ -291,7 +295,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("--> checking count");
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(12345l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
 
         logger.info("--> checking reuse / recovery status");
         IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().execute().actionGet();

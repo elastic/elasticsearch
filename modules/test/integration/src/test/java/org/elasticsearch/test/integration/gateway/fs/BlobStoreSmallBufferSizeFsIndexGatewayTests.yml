@@ -4,7 +4,7 @@ cluster:
 gateway:
   type: fs
   fs:
-    buffer_size: 3b
+    buffer_size: 1kb
 index:
   number_of_shards: 1
   number_of_replicas: 1

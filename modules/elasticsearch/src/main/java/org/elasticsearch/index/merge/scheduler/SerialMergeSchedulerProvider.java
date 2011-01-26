@@ -19,13 +19,18 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,6 +43,19 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
     }
 
     @Override public MergeScheduler newMergeScheduler() {
-        return new SerialMergeScheduler();
+        return new CustomSerialMergeScheduler();
+    }
+
+    public static class CustomSerialMergeScheduler extends SerialMergeScheduler {
+
+        @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
+            // if merge is not enabled, don't do any merging...
+            if (writer.getMergePolicy() instanceof EnableMergePolicy) {
+                if (!((EnableMergePolicy) writer.getMergePolicy()).isMergeEnabled()) {
+                    return;
+                }
+            }
+            super.merge(writer);
+        }
     }
 }

@@ -301,7 +301,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
                     if (fullRecovery || !isPersistentStorage()) {
                         assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), equalTo(0l));
                     } else {
-                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.gatewayRecoveryStatus().indexSize().bytes() - 4098 /* segments file */));
+                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.gatewayRecoveryStatus().indexSize().bytes() - 8196 /* segments file and others */));
                     }
                 }
             }

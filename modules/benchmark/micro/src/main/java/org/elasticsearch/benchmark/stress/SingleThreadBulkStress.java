@@ -50,7 +50,8 @@ public class SingleThreadBulkStress {
 
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
-                .put("index.engine.robin.refreshInterval", "-1")
+                .put("index.refresh_interval", "-1")
+                .put("index.merge.async", true)
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)

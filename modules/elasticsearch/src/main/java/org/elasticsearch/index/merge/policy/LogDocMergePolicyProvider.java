@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.*;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
+
+import java.io.IOException;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -35,6 +37,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
     private final int maxMergeDocs;
     private final int mergeFactor;
     private final boolean calibrateSizeByDeletes;
+    private boolean asyncMerge;
 
     @Inject public LogDocMergePolicyProvider(Store store) {
         super(store.shardId(), store.indexSettings());
@@ -44,16 +47,73 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
         this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
-        logger.debug("using [log_doc] merge policy with merge_factor[{}] min_merge_docs[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}]",
-                mergeFactor, minMergeDocs, maxMergeDocs, calibrateSizeByDeletes);
+        this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
+        logger.debug("using [log_doc] merge policy with merge_factor[{}], min_merge_docs[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}], async_merge[{}]",
+                mergeFactor, minMergeDocs, maxMergeDocs, calibrateSizeByDeletes, asyncMerge);
     }
 
     @Override public LogDocMergePolicy newMergePolicy(IndexWriter indexWriter) {
-        LogDocMergePolicy mergePolicy = new LogDocMergePolicy(indexWriter);
+        LogDocMergePolicy mergePolicy;
+        if (asyncMerge) {
+            mergePolicy = new EnableMergeLogDocMergePolicy(indexWriter);
+        } else {
+            mergePolicy = new LogDocMergePolicy(indexWriter);
+        }
         mergePolicy.setMinMergeDocs(minMergeDocs);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
         return mergePolicy;
+    }
+
+    public static class EnableMergeLogDocMergePolicy extends LogDocMergePolicy implements EnableMergePolicy {
+
+        private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
+            @Override protected Boolean initialValue() {
+                return Boolean.FALSE;
+            }
+        };
+
+        public EnableMergeLogDocMergePolicy(IndexWriter writer) {
+            super(writer);
+        }
+
+        @Override public void enableMerge() {
+            enableMerge.set(Boolean.TRUE);
+        }
+
+        @Override public void disableMerge() {
+            enableMerge.set(Boolean.FALSE);
+        }
+
+        @Override public boolean isMergeEnabled() {
+            return enableMerge.get() == Boolean.TRUE;
+        }
+
+        @Override public void close() {
+            enableMerge.remove();
+            super.close();
+        }
+
+        @Override public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
+            if (enableMerge.get() == Boolean.FALSE) {
+                return null;
+            }
+            return super.findMerges(infos);
+        }
+
+        @Override public MergeSpecification findMergesToExpungeDeletes(SegmentInfos segmentInfos) throws CorruptIndexException, IOException {
+            if (enableMerge.get() == Boolean.FALSE) {
+                return null;
+            }
+            return super.findMergesToExpungeDeletes(segmentInfos);
+        }
+
+        @Override public MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxNumSegments, Set<SegmentInfo> segmentsToOptimize) throws IOException {
+            if (enableMerge.get() == Boolean.FALSE) {
+                return null;
+            }
+            return super.findMergesForOptimize(infos, maxNumSegments, segmentsToOptimize);
+        }
     }
 }

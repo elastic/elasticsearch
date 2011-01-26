@@ -82,24 +82,24 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
             writers[i].start();
         }
 
-        logger.info("--> waiting for 20000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
+        logger.info("--> waiting for 2000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 20000 docs indexed");
+        logger.info("--> 2000 docs indexed");
 
         logger.info("--> flushing the index ....");
         // now flush, just to make sure we have some data in the index, not just translog
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 
 
-        logger.info("--> waiting for 40000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
+        logger.info("--> waiting for 4000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 4000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 40000 docs indexed");
+        logger.info("--> 4000 docs indexed");
 
         logger.info("--> starting [node2] ...");
         // now start another node, while we index
@@ -109,12 +109,12 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         // make sure the cluster state is green, and all has been recovered
         assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
 
-        logger.info("--> waiting for 100000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 100000) {
+        logger.info("--> waiting for 10000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 10000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 100000 docs indexed");
+        logger.info("--> 10000 docs indexed");
 
         logger.info("--> marking and waiting for indexing threads to stop ...");
         stop.set(true);
@@ -165,24 +165,24 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
             writers[i].start();
         }
 
-        logger.info("--> waiting for 20000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
+        logger.info("--> waiting for 2000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 20000 docs indexed");
+        logger.info("--> 2000 docs indexed");
 
         logger.info("--> flushing the index ....");
         // now flush, just to make sure we have some data in the index, not just translog
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 
 
-        logger.info("--> waiting for 40000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
+        logger.info("--> waiting for 4000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 4000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 40000 docs indexed");
+        logger.info("--> 4000 docs indexed");
 
         logger.info("--> starting [node2] ...");
         startNode("node2");
@@ -195,12 +195,12 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet().timedOut(), equalTo(false));
 
 
-        logger.info("--> waiting for 150000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 150000) {
+        logger.info("--> waiting for 15000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 15000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 150000 docs indexed");
+        logger.info("--> 15000 docs indexed");
 
         stop.set(true);
         stopLatch.await();
@@ -256,24 +256,24 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
             writers[i].start();
         }
 
-        logger.info("--> waiting for 20000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
+        logger.info("--> waiting for 2000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 20000 docs indexed");
+        logger.info("--> 2000 docs indexed");
 
         logger.info("--> flushing the index ....");
         // now flush, just to make sure we have some data in the index, not just translog
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 
 
-        logger.info("--> waiting for 40000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
+        logger.info("--> waiting for 4000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 4000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 40000 docs indexed");
+        logger.info("--> 4000 docs indexed");
 
         // now start more nodes, while we index
         logger.info("--> starting [node3] ...");
@@ -285,12 +285,12 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet().timedOut(), equalTo(false));
 
 
-        logger.info("--> waiting for 100000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 100000) {
+        logger.info("--> waiting for 10000 docs to be indexed ...");
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 10000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
-        logger.info("--> 100000 docs indexed");
+        logger.info("--> 10000 docs indexed");
 
         // now, shutdown nodes
         logger.info("--> shutting down [node1] ...");

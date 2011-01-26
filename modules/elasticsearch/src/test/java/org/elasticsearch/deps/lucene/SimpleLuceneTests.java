@@ -44,6 +44,25 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleLuceneTests {
 
+    @Test public void testAddDocAfterPrepareCommit() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        indexWriter.addDocument(doc()
+                .add(field("_id", "1")).build());
+        IndexReader reader = indexWriter.getReader();
+        assertThat(reader.numDocs(), equalTo(1));
+
+        indexWriter.prepareCommit();
+        reader = indexWriter.getReader();
+        assertThat(reader.numDocs(), equalTo(1));
+
+        indexWriter.addDocument(doc()
+                .add(field("_id", "2")).build());
+        indexWriter.commit();
+        reader = indexWriter.getReader();
+        assertThat(reader.numDocs(), equalTo(2));
+    }
+
     @Test public void testSimpleNumericOps() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);

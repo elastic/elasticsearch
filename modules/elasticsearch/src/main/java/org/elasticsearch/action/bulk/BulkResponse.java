@@ -119,6 +119,7 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
         for (int i = 0; i < responses.length; i++) {
             responses[i] = BulkItemResponse.readBulkItem(in);
         }
+        tookInMillis = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -126,5 +127,6 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
         for (BulkItemResponse response : responses) {
             response.writeTo(out);
         }
+        out.writeVLong(tookInMillis);
     }
 }

@@ -212,11 +212,11 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             if (bulkRequest.listenerThreaded()) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+                        listener.onResponse(new BulkResponse(responses));
                     }
                 });
             } else {
-                listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+                listener.onResponse(new BulkResponse(responses));
             }
             return;
         }

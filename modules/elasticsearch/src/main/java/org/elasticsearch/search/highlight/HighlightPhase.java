@@ -35,14 +35,12 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.SearchHitPhase;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -128,7 +126,11 @@ public class HighlightPhase implements SearchHitPhase {
                             Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
                             TokenStream tokenStream = analyzer.reusableTokenStream(mapper.names().indexName(), new FastStringReader(text));
                             TextFragment[] bestTextFragments = highlighter.getBestTextFragments(tokenStream, text, false, field.numberOfFragments());
-                            Collections.addAll(fragsList, bestTextFragments);
+                            for (TextFragment bestTextFragment : bestTextFragments) {
+                                if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
+                                    fragsList.add(bestTextFragment);
+                                }
+                            }
                         }
                     } catch (Exception e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);

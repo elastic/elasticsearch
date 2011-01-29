@@ -22,7 +22,7 @@ package org.elasticsearch.search.dfs;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.THashSet;
+import org.elasticsearch.common.trove.set.hash.THashSet;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;

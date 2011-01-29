@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data.doubles;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.trove.TDoubleArrayList;
+import org.elasticsearch.common.trove.list.array.TDoubleArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -134,11 +134,11 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
         }
 
         @Override public DoubleFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueDoubleFieldData(field, ordinals, terms.toNativeArray());
+            return new SingleValueDoubleFieldData(field, ordinals, terms.toArray());
         }
 
         @Override public DoubleFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueDoubleFieldData(field, ordinals, terms.toNativeArray());
+            return new MultiValueDoubleFieldData(field, ordinals, terms.toArray());
         }
     }
 }

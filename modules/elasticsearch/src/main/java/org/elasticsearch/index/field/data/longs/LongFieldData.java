@@ -25,7 +25,7 @@ import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.TLongArrayList;
+import org.elasticsearch.common.trove.list.array.TLongArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -164,11 +164,11 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         }
 
         @Override public LongFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueLongFieldData(field, ordinals, terms.toNativeArray());
+            return new SingleValueLongFieldData(field, ordinals, terms.toArray());
         }
 
         @Override public LongFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueLongFieldData(field, ordinals, terms.toNativeArray());
+            return new MultiValueLongFieldData(field, ordinals, terms.toArray());
         }
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.trove;
 
+import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
+
 /**
  * @author kimchy (Shay Banon)
  */
 public class ExtTObjectIntHasMap<T> extends TObjectIntHashMap<T> {
-
-    private int defaultReturnValue = 0;
 
     public ExtTObjectIntHasMap() {
     }
@@ -37,21 +37,8 @@ public class ExtTObjectIntHasMap<T> extends TObjectIntHashMap<T> {
         super(initialCapacity, loadFactor);
     }
 
-    public ExtTObjectIntHasMap(TObjectHashingStrategy<T> ttObjectHashingStrategy) {
-        super(ttObjectHashingStrategy);
-    }
-
-    public ExtTObjectIntHasMap(int initialCapacity, TObjectHashingStrategy<T> ttObjectHashingStrategy) {
-        super(initialCapacity, ttObjectHashingStrategy);
-    }
-
-    public ExtTObjectIntHasMap(int initialCapacity, float loadFactor, TObjectHashingStrategy<T> ttObjectHashingStrategy) {
-        super(initialCapacity, loadFactor, ttObjectHashingStrategy);
-    }
-
-    public ExtTObjectIntHasMap<T> defaultReturnValue(int defaultReturnValue) {
-        this.defaultReturnValue = defaultReturnValue;
-        return this;
+    public ExtTObjectIntHasMap(int initialCapacity, float loadFactor, int noEntryValue) {
+        super(initialCapacity, loadFactor, noEntryValue);
     }
 
     /**
@@ -60,10 +47,5 @@ public class ExtTObjectIntHasMap<T> extends TObjectIntHashMap<T> {
     public T key(T key) {
         int index = index(key);
         return index < 0 ? null : (T) _set[index];
-    }
-
-    @Override public final int get(T key) {
-        int index = index(key);
-        return index < 0 ? defaultReturnValue : _values[index];
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
@@ -236,7 +237,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
     }
 
     static class TypeBuilder {
-        final ExtTObjectIntHasMap<BytesWrap> idToDoc = new ExtTObjectIntHasMap<BytesWrap>().defaultReturnValue(-1);
+        final ExtTObjectIntHasMap<BytesWrap> idToDoc = new ExtTObjectIntHasMap<BytesWrap>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
         final ArrayList<BytesWrap> parentIdsValues = new ArrayList<BytesWrap>();
         final int[] parentIdsOrdinals;
 

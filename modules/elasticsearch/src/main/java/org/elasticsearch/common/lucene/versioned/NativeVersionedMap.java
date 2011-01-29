@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.lucene.versioned;
 
-import org.elasticsearch.common.trove.ExtTIntIntHashMap;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.map.hash.TIntIntHashMap;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * An implementation of {@link VersionedMap} based on trove {@link org.elasticsearch.common.trove.TIntIntHashMap}.
+ * An implementation of {@link VersionedMap} based on trove.
  *
  * @author kimchy (Shay Banon)
  */
@@ -140,10 +141,10 @@ public class NativeVersionedMap implements VersionedMap {
 
     private static class Segment {
         final ReadWriteLock rwl = new ReentrantReadWriteLock();
-        final ExtTIntIntHashMap map = new ExtTIntIntHashMap();
+        final TIntIntHashMap map = new TIntIntHashMap(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 0, -1);
 
         private Segment() {
-            map.defaultReturnValue(-1);
+
         }
     }
 }

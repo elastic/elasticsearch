@@ -27,7 +27,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.common.trove.TIntObjectHashMap;
+import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -157,7 +157,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
         this.parentDocs = new HashMap<Object, ParentDoc[]>();
         for (Map.Entry<Object, TIntObjectHashMap<ParentDoc>> entry : parentDocsPerReader.entrySet()) {
-            ParentDoc[] values = entry.getValue().getValues(new ParentDoc[entry.getValue().size()]);
+            ParentDoc[] values = entry.getValue().values(new ParentDoc[entry.getValue().size()]);
             Arrays.sort(values, PARENT_DOC_COMP);
             parentDocs.put(entry.getKey(), values);
         }

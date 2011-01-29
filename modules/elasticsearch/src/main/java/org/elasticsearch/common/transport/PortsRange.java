@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.common.trove.TIntArrayList;
+import org.elasticsearch.common.trove.list.array.TIntArrayList;
 
 import java.util.StringTokenizer;
 
@@ -42,7 +42,7 @@ public class PortsRange {
                 return false;
             }
         });
-        return ports.toNativeArray();
+        return ports.toArray(new int[ports.size()]);
     }
 
     public boolean iterate(PortCallback callback) throws NumberFormatException {

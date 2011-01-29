@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data.bytes;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.trove.TByteArrayList;
+import org.elasticsearch.common.trove.list.array.TByteArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -134,11 +134,11 @@ public abstract class ByteFieldData extends NumericFieldData<ByteDocFieldData> {
         }
 
         @Override public ByteFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueByteFieldData(field, ordinals, terms.toNativeArray());
+            return new SingleValueByteFieldData(field, ordinals, terms.toArray());
         }
 
         @Override public ByteFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueByteFieldData(field, ordinals, terms.toNativeArray());
+            return new MultiValueByteFieldData(field, ordinals, terms.toArray());
         }
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ public class HandlesStreamOutput extends StreamOutput {
 
     private StreamOutput out;
 
-    private final TObjectIntHashMap<String> handles = new ExtTObjectIntHasMap<String>().defaultReturnValue(-1);
+    private final TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
     private final HandleTable identityHandles = new HandleTable(10, (float) 3.00);
 

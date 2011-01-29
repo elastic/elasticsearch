@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.common.trove.ExtTObjectFloatHashMap;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -67,7 +68,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private List<String> fields;
 
-    private ExtTObjectFloatHashMap<String> fieldsBoosts;
+    private TObjectFloatHashMap<String> fieldsBoosts;
 
     private Boolean useDisMax;
 
@@ -106,7 +107,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new ExtTObjectFloatHashMap<String>().defaultReturnValue(-1);
+            fieldsBoosts = new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
         }
         fieldsBoosts.put(field, boost);
         return this;

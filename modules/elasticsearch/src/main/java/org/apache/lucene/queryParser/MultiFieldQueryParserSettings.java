@@ -19,7 +19,7 @@
 
 package org.apache.lucene.queryParser;
 
-import org.elasticsearch.common.trove.ExtTObjectFloatHashMap;
+import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 
 import java.util.List;
 
@@ -29,7 +29,7 @@ import java.util.List;
 public class MultiFieldQueryParserSettings extends QueryParserSettings {
 
     List<String> fields = null;
-    ExtTObjectFloatHashMap<String> boosts = null;
+    TObjectFloatHashMap<String> boosts = null;
     float tieBreaker = 0.0f;
     boolean useDisMax = true;
 
@@ -41,11 +41,11 @@ public class MultiFieldQueryParserSettings extends QueryParserSettings {
         this.fields = fields;
     }
 
-    public ExtTObjectFloatHashMap<String> boosts() {
+    public TObjectFloatHashMap<String> boosts() {
         return boosts;
     }
 
-    public void boosts(ExtTObjectFloatHashMap<String> boosts) {
+    public void boosts(TObjectFloatHashMap<String> boosts) {
         this.boosts = boosts;
     }
 

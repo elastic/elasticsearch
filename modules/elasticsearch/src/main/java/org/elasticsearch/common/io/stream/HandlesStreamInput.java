@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.trove.TIntObjectHashMap;
+import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
 
 import java.io.IOException;
 

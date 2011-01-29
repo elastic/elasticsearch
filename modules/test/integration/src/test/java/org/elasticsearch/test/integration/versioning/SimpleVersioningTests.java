@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -43,8 +45,10 @@ public class SimpleVersioningTests extends AbstractNodesTests {
     private Client client2;
 
     @BeforeClass public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
+        // make sure we use bloom filters here!
+        Settings settings = ImmutableSettings.settingsBuilder().put("index.engine.robin.async_load_bloom", false).build();
+        startNode("server1", settings);
+        startNode("server2", settings);
         client = client("server1");
         client2 = client("server2");
     }
@@ -68,6 +72,72 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
         assertThat(indexResponse.version(), equalTo(2l));
+
+        try {
+            client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        try {
+            client2.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        try {
+            client.prepareIndex("test", "type", "1").setCreate(true).setSource("field1", "value1_1").setVersion(1).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        try {
+            client2.prepareIndex("test", "type", "1").setCreate(true).setSource("field1", "value1_1").setVersion(1).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        try {
+            client.prepareDelete("test", "type", "1").setVersion(1).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        try {
+            client2.prepareDelete("test", "type", "1").setVersion(1).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+        }
+    }
+
+    @Test public void testSimpleVersioningWithFlush() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
+        assertThat(indexResponse.version(), equalTo(1l));
+
+        client.admin().indices().prepareFlush().execute().actionGet();
+
+        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
+        assertThat(indexResponse.version(), equalTo(2l));
+
+        client.admin().indices().prepareFlush().execute().actionGet();
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute().actionGet();

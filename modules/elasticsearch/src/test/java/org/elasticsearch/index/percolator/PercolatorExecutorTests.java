@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
@@ -59,6 +60,7 @@ public class PercolatorExecutorTests {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
+                new ThreadPoolModule(settings),
                 new ScriptModule(),
                 new MapperServiceModule(),
                 new IndexSettingsModule(settings),

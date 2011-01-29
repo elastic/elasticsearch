@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
@@ -49,15 +50,18 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     private final IdCache idCache;
 
+    private final BloomCache bloomCache;
+
     private ClusterService clusterService;
 
     @Inject public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache,
-                              QueryParserCache queryParserCache, IdCache idCache) {
+                              QueryParserCache queryParserCache, IdCache idCache, BloomCache bloomCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.fieldDataCache = fieldDataCache;
         this.queryParserCache = queryParserCache;
         this.idCache = idCache;
+        this.bloomCache = bloomCache;
     }
 
     @Inject(optional = true)
@@ -89,6 +93,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         fieldDataCache.close();
         idCache.close();
         queryParserCache.close();
+        bloomCache.close();
         if (clusterService != null) {
             clusterService.remove(this);
         }
@@ -98,6 +103,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         filterCache.clear(reader);
         fieldDataCache.clear(reader);
         idCache.clear(reader);
+        bloomCache.clear(reader);
     }
 
     public void clear() {
@@ -105,12 +111,14 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         fieldDataCache.clear();
         idCache.clear();
         queryParserCache.clear();
+        bloomCache.clear();
     }
 
     public void clearUnreferenced() {
         filterCache.clearUnreferenced();
         fieldDataCache.clearUnreferenced();
         idCache.clearUnreferenced();
+        bloomCache.clearUnreferenced();
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {

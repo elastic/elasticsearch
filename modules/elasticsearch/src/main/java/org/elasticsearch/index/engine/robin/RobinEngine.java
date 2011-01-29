@@ -579,7 +579,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         rwl.readLock().lock();
         try {
             long bytes = IndexWriters.estimateRamSize(indexWriter);
-            bytes += translog.estimateMemorySize().bytes();
+            bytes += translog.memorySizeInBytes();
             return new ByteSizeValue(bytes);
         } catch (Exception e) {
             return null;

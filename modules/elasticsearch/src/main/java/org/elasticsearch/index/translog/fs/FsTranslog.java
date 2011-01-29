@@ -23,8 +23,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -91,8 +89,12 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return operationCounter.get();
     }
 
-    @Override public ByteSizeValue estimateMemorySize() {
-        return new ByteSizeValue(0, ByteSizeUnit.BYTES);
+    @Override public long memorySizeInBytes() {
+        return 0;
+    }
+
+    @Override public long translogSizeInBytes() {
+        return lastWrittenPosition.get();
     }
 
     @Override public void clearUnreferenced() {

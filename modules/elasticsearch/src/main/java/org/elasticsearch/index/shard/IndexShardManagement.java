@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -97,7 +98,7 @@ public class IndexShardManagement extends AbstractIndexShardComponent implements
 
     @ManagedAttribute(description = "Estimated size in memory the transaction log takes")
     public String getTranslogSize() {
-        return translog.estimateMemorySize().toString();
+        return new ByteSizeValue(translog.memorySizeInBytes()).toString();
     }
 
     @ManagedAttribute(description = "The state of the shard")

@@ -622,7 +622,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         @Override public void run() {
             try {
                 // -1 means maybe merge
-                engine.optimize(new Engine.Optimize().maxNumSegments(-1).waitForMerge(false));
+                engine.optimize(new Engine.Optimize().maxNumSegments(-1).waitForMerge(false).flush(false).refresh(false));
             } catch (EngineClosedException e) {
                 // we are being closed, ignore
             } catch (OptimizeFailedEngineException e) {

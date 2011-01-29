@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.trove.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.TLongLongHashMap;
+import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
+import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;

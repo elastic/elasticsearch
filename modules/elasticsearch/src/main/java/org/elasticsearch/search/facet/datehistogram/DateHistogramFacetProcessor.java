@@ -28,8 +28,8 @@ import org.elasticsearch.common.joda.time.DateTimeField;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -50,7 +50,7 @@ import java.util.Map;
 public class DateHistogramFacetProcessor extends AbstractComponent implements FacetProcessor {
 
     private final ImmutableMap<String, DateFieldParser> dateFieldParsers;
-    private final TObjectIntHashMap<String> rounding = new ExtTObjectIntHasMap<String>().defaultReturnValue(MutableDateTime.ROUND_FLOOR);
+    private final TObjectIntHashMap<String> rounding = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, MutableDateTime.ROUND_FLOOR);
 
     @Inject public DateHistogramFacetProcessor(Settings settings) {
         super(settings);

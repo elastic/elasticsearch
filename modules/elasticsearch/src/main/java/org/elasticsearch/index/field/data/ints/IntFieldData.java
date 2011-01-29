@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data.ints;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.trove.TIntArrayList;
+import org.elasticsearch.common.trove.list.array.TIntArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -134,11 +134,11 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
         }
 
         @Override public IntFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueIntFieldData(field, ordinals, terms.toNativeArray());
+            return new SingleValueIntFieldData(field, ordinals, terms.toArray());
         }
 
         @Override public IntFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueIntFieldData(field, ordinals, terms.toNativeArray());
+            return new MultiValueIntFieldData(field, ordinals, terms.toArray());
         }
     }
 }

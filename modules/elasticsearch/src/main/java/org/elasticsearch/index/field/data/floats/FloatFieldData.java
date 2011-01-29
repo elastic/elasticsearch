@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data.floats;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.trove.TFloatArrayList;
+import org.elasticsearch.common.trove.list.array.TFloatArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -134,11 +134,11 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
         }
 
         @Override public FloatFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueFloatFieldData(field, ordinals, terms.toNativeArray());
+            return new SingleValueFloatFieldData(field, ordinals, terms.toArray());
         }
 
         @Override public FloatFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueFloatFieldData(field, ordinals, terms.toNativeArray());
+            return new MultiValueFloatFieldData(field, ordinals, terms.toArray());
         }
     }
 }

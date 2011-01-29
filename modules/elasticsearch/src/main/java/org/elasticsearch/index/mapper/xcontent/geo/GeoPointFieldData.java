@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.xcontent.geo;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.TDoubleArrayList;
+import org.elasticsearch.common.trove.list.array.TDoubleArrayList;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -166,11 +166,11 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
         }
 
         @Override public GeoPointFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueGeoPointFieldData(field, ordinals, lat.toNativeArray(), lon.toNativeArray());
+            return new SingleValueGeoPointFieldData(field, ordinals, lat.toArray(), lon.toArray());
         }
 
         @Override public GeoPointFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueGeoPointFieldData(field, ordinals, lat.toNativeArray(), lon.toNativeArray());
+            return new MultiValueGeoPointFieldData(field, ordinals, lat.toArray(), lon.toArray());
         }
     }
 }

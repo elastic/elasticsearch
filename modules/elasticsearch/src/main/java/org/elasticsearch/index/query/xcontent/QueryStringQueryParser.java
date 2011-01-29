@@ -29,7 +29,8 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTObjectFloatHashMap;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -102,7 +103,7 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
                                 qpSettings.fields().add(field);
                                 if (fBoost != -1) {
                                     if (qpSettings.boosts() == null) {
-                                        qpSettings.boosts(new ExtTObjectFloatHashMap<String>().defaultReturnValue(1.0f));
+                                        qpSettings.boosts(new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 1.0f));
                                     }
                                     qpSettings.boosts().put(field, fBoost);
                                 }
@@ -111,7 +112,7 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
                             qpSettings.fields().add(fField);
                             if (fBoost != -1) {
                                 if (qpSettings.boosts() == null) {
-                                    qpSettings.boosts(new ExtTObjectFloatHashMap<String>().defaultReturnValue(1.0f));
+                                    qpSettings.boosts(new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 1.0f));
                                 }
                                 qpSettings.boosts().put(fField, fBoost);
                             }

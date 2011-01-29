@@ -17,7 +17,7 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.elasticsearch.common.trove.TIntIntHashMap;
+import org.elasticsearch.common.trove.map.hash.TIntIntHashMap;
 
 /**
  * Utilities for encoding and decoding geohashes. Based on

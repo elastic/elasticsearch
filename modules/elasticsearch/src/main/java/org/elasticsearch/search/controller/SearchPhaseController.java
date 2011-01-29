@@ -29,7 +29,8 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Ordering;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -73,7 +74,7 @@ public class SearchPhaseController {
     }
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
-        ExtTObjectIntHasMap<Term> dfMap = new ExtTObjectIntHasMap<Term>().defaultReturnValue(-1);
+        TObjectIntHashMap<Term> dfMap = new TObjectIntHashMap<Term>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
         long aggMaxDoc = 0;
         for (DfsSearchResult result : results) {
             for (int i = 0; i < result.freqs().length; i++) {

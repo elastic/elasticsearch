@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.common.trove.TObjectIntIterator;
+import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.trove.iterator.TObjectIntIterator;
+import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 
 import java.io.IOException;
 
@@ -33,7 +35,7 @@ import java.io.IOException;
  */
 public class AggregatedDfs implements Streamable {
 
-    private ExtTObjectIntHasMap<Term> dfMap;
+    private TObjectIntHashMap<Term> dfMap;
 
     private long maxDoc;
 
@@ -41,12 +43,12 @@ public class AggregatedDfs implements Streamable {
 
     }
 
-    public AggregatedDfs(ExtTObjectIntHasMap<Term> dfMap, long maxDoc) {
-        this.dfMap = dfMap.defaultReturnValue(-1);
+    public AggregatedDfs(TObjectIntHashMap<Term> dfMap, long maxDoc) {
+        this.dfMap = dfMap;
         this.maxDoc = maxDoc;
     }
 
-    public ExtTObjectIntHasMap<Term> dfMap() {
+    public TObjectIntHashMap<Term> dfMap() {
         return dfMap;
     }
 
@@ -62,7 +64,7 @@ public class AggregatedDfs implements Streamable {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        dfMap = new ExtTObjectIntHasMap<Term>(size).defaultReturnValue(-1);
+        dfMap = new ExtTObjectIntHasMap<Term>(size, Constants.DEFAULT_LOAD_FACTOR, -1);
         for (int i = 0; i < size; i++) {
             dfMap.put(new Term(in.readUTF(), in.readUTF()), in.readVInt());
         }

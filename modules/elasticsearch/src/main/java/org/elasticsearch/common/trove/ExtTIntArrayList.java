@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.trove;
 
+import org.elasticsearch.common.trove.list.array.TIntArrayList;
+
 /**
  * @author kimchy (Shay Banon)
  */

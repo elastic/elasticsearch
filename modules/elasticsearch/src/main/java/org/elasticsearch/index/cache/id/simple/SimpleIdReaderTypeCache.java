@@ -39,7 +39,7 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
     public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<BytesWrap> idToDoc,
                                    BytesWrap[] parentIdsValues, int[] parentIdsOrdinals) {
         this.type = type;
-        this.idToDoc = idToDoc.defaultReturnValue(-1);
+        this.idToDoc = idToDoc;
         this.idToDoc.trimToSize();
         this.parentIdsValues = parentIdsValues;
         this.parentIdsOrdinals = parentIdsOrdinals;

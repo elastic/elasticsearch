@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.data.shorts;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.trove.TShortArrayList;
+import org.elasticsearch.common.trove.list.array.TShortArrayList;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
@@ -134,11 +134,11 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         }
 
         @Override public ShortFieldData buildSingleValue(String field, int[] ordinals) {
-            return new SingleValueShortFieldData(field, ordinals, terms.toNativeArray());
+            return new SingleValueShortFieldData(field, ordinals, terms.toArray());
         }
 
         @Override public ShortFieldData buildMultiValue(String field, int[][] ordinals) {
-            return new MultiValueShortFieldData(field, ordinals, terms.toNativeArray());
+            return new MultiValueShortFieldData(field, ordinals, terms.toArray());
         }
     }
 }

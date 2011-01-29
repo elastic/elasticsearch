@@ -24,7 +24,9 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.field.data.DocFieldData;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.NumericDocFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -64,6 +66,14 @@ public class DocLookup implements Map {
 
     public void setNextDocId(int docId) {
         this.docId = docId;
+    }
+
+    public <T extends DocFieldData> T field(String key) {
+        return (T) get(key);
+    }
+
+    public <T extends NumericDocFieldData> T numeric(String key) {
+        return (T) get(key);
     }
 
     @Override public Object get(Object key) {

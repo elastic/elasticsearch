@@ -68,6 +68,6 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalStatisticalFacet(facetName, "_na", min, max, total, sumOfSquares, count);
+        return new InternalStatisticalFacet(facetName, min, max, total, sumOfSquares, count);
     }
 }

@@ -131,11 +131,6 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
 
     private String name;
 
-    private String keyFieldName;
-    private String valueFieldName;
-
-    private long interval;
-
     private ComparatorType comparatorType;
 
     TLongLongHashMap counts;
@@ -147,11 +142,8 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
     private InternalCountAndTotalHistogramFacet() {
     }
 
-    public InternalCountAndTotalHistogramFacet(String name, String keyFieldName, String valueFieldName, long interval, ComparatorType comparatorType, TLongLongHashMap counts, TLongDoubleHashMap totals) {
+    public InternalCountAndTotalHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, TLongDoubleHashMap totals) {
         this.name = name;
-        this.keyFieldName = keyFieldName;
-        this.valueFieldName = valueFieldName;
-        this.interval = interval;
         this.comparatorType = comparatorType;
         this.counts = counts;
         this.totals = totals;
@@ -163,22 +155,6 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
 
     @Override public String getName() {
         return name();
-    }
-
-    @Override public String keyFieldName() {
-        return this.keyFieldName;
-    }
-
-    @Override public String getKeyFieldName() {
-        return keyFieldName();
-    }
-
-    @Override public String valueFieldName() {
-        return this.valueFieldName;
-    }
-
-    @Override public String getValueFieldName() {
-        return valueFieldName();
     }
 
     @Override public String type() {
@@ -264,10 +240,6 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _KEY_FIELD = new XContentBuilderString("_key_field");
-        static final XContentBuilderString _VALUE_FIELD = new XContentBuilderString("_value_field");
-        static final XContentBuilderString _COMPARATOR = new XContentBuilderString("_comparator");
-        static final XContentBuilderString _INTERVAL = new XContentBuilderString("_interval");
         static final XContentBuilderString ENTRIES = new XContentBuilderString("entries");
         static final XContentBuilderString KEY = new XContentBuilderString("key");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -278,10 +250,6 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
-        builder.field(Fields._KEY_FIELD, keyFieldName);
-        builder.field(Fields._VALUE_FIELD, valueFieldName);
-        builder.field(Fields._COMPARATOR, comparatorType.description());
-        builder.field(Fields._INTERVAL, interval);
         builder.startArray(Fields.ENTRIES);
         for (Entry entry : computeEntries()) {
             builder.startObject();
@@ -304,9 +272,6 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        keyFieldName = in.readUTF();
-        valueFieldName = in.readUTF();
-        interval = in.readVLong();
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
@@ -326,9 +291,6 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeUTF(keyFieldName);
-        out.writeUTF(valueFieldName);
-        out.writeVLong(interval);
         out.writeByte(comparatorType.id());
         // optimize the write, since we know we have the same buckets as keys
         out.writeVInt(counts.size());

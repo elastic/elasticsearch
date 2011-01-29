@@ -22,7 +22,6 @@ package org.elasticsearch.search.facet.geodistance;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -55,22 +54,13 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     private String name;
 
-    private String fieldName;
-
-    private String valueFieldName;
-
-    private DistanceUnit unit;
-
     Entry[] entries;
 
     InternalGeoDistanceFacet() {
     }
 
-    public InternalGeoDistanceFacet(String name, String fieldName, String valueFieldName, DistanceUnit unit, Entry[] entries) {
+    public InternalGeoDistanceFacet(String name, Entry[] entries) {
         this.name = name;
-        this.fieldName = fieldName;
-        this.valueFieldName = valueFieldName;
-        this.unit = unit;
         this.entries = entries;
     }
 
@@ -88,30 +78,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override public String getType() {
         return type();
-    }
-
-    @Override public String fieldName() {
-        return this.fieldName;
-    }
-
-    @Override public String getFieldName() {
-        return fieldName();
-    }
-
-    @Override public String valueFieldName() {
-        return this.valueFieldName;
-    }
-
-    @Override public String getValueFieldName() {
-        return valueFieldName();
-    }
-
-    @Override public DistanceUnit unit() {
-        return this.unit;
-    }
-
-    @Override public DistanceUnit getUnit() {
-        return unit();
     }
 
     @Override public List<Entry> entries() {
@@ -134,9 +100,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        fieldName = in.readUTF();
-        valueFieldName = in.readUTF();
-        unit = DistanceUnit.readDistanceUnit(in);
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             entries[i] = new Entry(in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble());
@@ -145,9 +108,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeUTF(fieldName);
-        out.writeUTF(valueFieldName);
-        DistanceUnit.writeDistanceUnit(out, unit);
         out.writeVInt(entries.length);
         for (Entry entry : entries) {
             out.writeDouble(entry.from);
@@ -160,9 +120,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
-        static final XContentBuilderString _VALUE_FIELD = new XContentBuilderString("_value_field");
-        static final XContentBuilderString _UNIT = new XContentBuilderString("_unit");
         static final XContentBuilderString RANGES = new XContentBuilderString("ranges");
         static final XContentBuilderString FROM = new XContentBuilderString("from");
         static final XContentBuilderString TO = new XContentBuilderString("to");
@@ -174,9 +131,6 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, GeoDistanceFacet.TYPE);
-        builder.field(Fields._FIELD, fieldName);
-        builder.field(Fields._VALUE_FIELD, valueFieldName);
-        builder.field(Fields._UNIT, unit);
         builder.startArray(Fields.RANGES);
         for (Entry entry : entries) {
             builder.startObject();

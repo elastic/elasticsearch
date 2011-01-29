@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.facet.Facet;
 
 import java.util.List;
@@ -33,18 +32,6 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
      * The type of the filter facet.
      */
     public static final String TYPE = "geo_distance";
-
-    String fieldName();
-
-    String getFieldName();
-
-    String valueFieldName();
-
-    String getValueFieldName();
-
-    DistanceUnit unit();
-
-    DistanceUnit getUnit();
 
     /**
      * An ordered list of geo distance facet entries.

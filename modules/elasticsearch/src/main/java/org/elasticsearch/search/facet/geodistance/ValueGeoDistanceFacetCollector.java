@@ -37,8 +37,6 @@ import java.io.IOException;
  */
 public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
-    private final String valueFieldName;
-
     private final String indexValueFieldName;
 
     private final FieldDataType valueFieldDataType;
@@ -48,7 +46,6 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     public ValueGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                           GeoDistanceFacet.Entry[] entries, SearchContext context, String valueFieldName) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
-        this.valueFieldName = valueFieldName;
 
         FieldMapper mapper = context.mapperService().smartNameFieldMapper(valueFieldName);
         if (mapper == null) {
@@ -106,6 +103,6 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalGeoDistanceFacet(facetName, fieldName, valueFieldName, unit, entries);
+        return new InternalGeoDistanceFacet(facetName, entries);
     }
 }

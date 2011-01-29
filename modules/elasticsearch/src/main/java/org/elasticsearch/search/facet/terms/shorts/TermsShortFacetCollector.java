@@ -56,8 +56,6 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
-    private final String fieldName;
-
     private final String indexFieldName;
 
     private final TermsFacet.ComparatorType comparatorType;
@@ -81,8 +79,6 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        this.fieldName = fieldName;
 
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -140,7 +136,7 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
         TShortIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalShortTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalShortTermsFacet.ShortEntry>of(), aggregator.missing());
+            return new InternalShortTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalShortTermsFacet.ShortEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalShortTermsFacet.ShortEntry> ordered = new BoundedTreeSet<InternalShortTermsFacet.ShortEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -149,7 +145,7 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalShortTermsFacet.ShortEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalShortTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
+            return new InternalShortTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 

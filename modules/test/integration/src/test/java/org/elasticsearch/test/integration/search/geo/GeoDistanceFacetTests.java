@@ -132,8 +132,6 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().totalHits(), equalTo(7l));
         GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.fieldName(), equalTo("location"));
-        assertThat(facet.unit(), equalTo(DistanceUnit.KILOMETERS));
         assertThat(facet.entries().size(), equalTo(4));
 
         assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
@@ -167,8 +165,6 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().totalHits(), equalTo(7l));
         facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.fieldName(), equalTo("location"));
-        assertThat(facet.unit(), equalTo(DistanceUnit.KILOMETERS));
         assertThat(facet.entries().size(), equalTo(4));
 
         assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
@@ -201,8 +197,6 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().totalHits(), equalTo(7l));
         facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.fieldName(), equalTo("location"));
-        assertThat(facet.unit(), equalTo(DistanceUnit.KILOMETERS));
         assertThat(facet.entries().size(), equalTo(4));
 
         assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));

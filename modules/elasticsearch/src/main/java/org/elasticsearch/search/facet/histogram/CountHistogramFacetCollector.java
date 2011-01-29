@@ -41,11 +41,7 @@ import java.io.IOException;
  */
 public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String fieldName;
-
     private final String indexFieldName;
-
-    private final long interval;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
@@ -59,8 +55,6 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
     public CountHistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.fieldName = fieldName;
-        this.interval = interval;
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
 
@@ -91,7 +85,7 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalCountHistogramFacet(facetName, fieldName, fieldName, interval, comparatorType, histoProc.counts());
+        return new InternalCountHistogramFacet(facetName, comparatorType, histoProc.counts());
     }
 
     public static long bucket(double value, long interval) {

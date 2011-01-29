@@ -37,10 +37,8 @@ import java.io.IOException;
  */
 public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
 
-    private final String keyFieldName;
     private final String keyIndexFieldName;
 
-    private final String valueFieldName;
     private final String valueIndexFieldName;
 
     private final FieldDataCache fieldDataCache;
@@ -55,8 +53,6 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
 
     public KeyValueRangeFacetCollector(String facetName, String keyFieldName, String valueFieldName, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.keyFieldName = keyFieldName;
-        this.valueFieldName = valueFieldName;
         this.entries = entries;
         this.fieldDataCache = context.fieldDataCache();
 
@@ -139,6 +135,6 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalRangeFacet(facetName, keyFieldName, valueFieldName, entries);
+        return new InternalRangeFacet(facetName, entries);
     }
 }

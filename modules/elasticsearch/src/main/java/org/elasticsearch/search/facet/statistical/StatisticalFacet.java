@@ -34,16 +34,6 @@ public interface StatisticalFacet extends Facet {
     public static final String TYPE = "statistical";
 
     /**
-     * The field name of the facet.
-     */
-    String fieldName();
-
-    /**
-     * The field name of the facet.
-     */
-    String getFieldName();
-
-    /**
      * The number of values counted.
      */
     long count();

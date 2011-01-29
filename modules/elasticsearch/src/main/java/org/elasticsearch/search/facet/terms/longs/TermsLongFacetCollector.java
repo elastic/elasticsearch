@@ -57,8 +57,6 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
-    private final String fieldName;
-
     private final String indexFieldName;
 
     private final TermsFacet.ComparatorType comparatorType;
@@ -82,8 +80,6 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        this.fieldName = fieldName;
 
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -141,7 +137,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         TLongIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalLongTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), aggregator.missing());
+            return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -150,7 +146,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalLongTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
+            return new InternalLongTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 

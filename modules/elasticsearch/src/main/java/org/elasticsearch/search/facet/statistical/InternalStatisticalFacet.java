@@ -51,8 +51,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     private String name;
 
-    private String fieldName;
-
     private double min;
 
     private double max;
@@ -66,9 +64,8 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
     private InternalStatisticalFacet() {
     }
 
-    public InternalStatisticalFacet(String name, String fieldName, double min, double max, double total, double sumOfSquares, long count) {
+    public InternalStatisticalFacet(String name, double min, double max, double total, double sumOfSquares, long count) {
         this.name = name;
-        this.fieldName = fieldName;
         this.min = min;
         this.max = max;
         this.total = total;
@@ -82,14 +79,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override public String getName() {
         return name();
-    }
-
-    @Override public String fieldName() {
-        return this.fieldName;
-    }
-
-    @Override public String getFieldName() {
-        return fieldName();
     }
 
     @Override public String type() {
@@ -166,7 +155,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString MIN = new XContentBuilderString("min");
@@ -180,7 +168,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, StatisticalFacet.TYPE);
-        builder.field(Fields._FIELD, fieldName);
         builder.field(Fields.COUNT, count());
         builder.field(Fields.TOTAL, total());
         builder.field(Fields.MIN, min());
@@ -201,7 +188,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        fieldName = in.readUTF();
         count = in.readVLong();
         total = in.readDouble();
         min = in.readDouble();
@@ -211,7 +197,6 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeUTF(fieldName);
         out.writeVLong(count);
         out.writeDouble(total);
         out.writeDouble(min);

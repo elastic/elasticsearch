@@ -46,8 +46,6 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
 
     private final int numberOfShards;
 
-    private final String sScript;
-
     private final SearchScript script;
 
     private final Matcher matcher;
@@ -64,7 +62,6 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-        this.sScript = script;
         this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
 
         this.excluded = excluded;
@@ -130,7 +127,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     @Override public Facet facet() {
         if (facets.isEmpty()) {
             TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing);
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -139,7 +136,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                 ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
             TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, sScript, comparatorType, size, ordered, missing);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing);
         }
     }
 }

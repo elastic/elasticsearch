@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -37,8 +36,6 @@ import java.io.IOException;
  */
 public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
-    private final String[] fieldsNames;
-
     private final String[] indexFieldsNames;
 
     private final FieldDataCache fieldDataCache;
@@ -51,7 +48,6 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
     public StatisticalFieldsFacetCollector(String facetName, String[] fieldsNames, SearchContext context) {
         super(facetName);
-        this.fieldsNames = fieldsNames;
         this.fieldDataCache = context.fieldDataCache();
 
         fieldsDataType = new FieldDataType[fieldsNames.length];
@@ -76,13 +72,13 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        for (int i = 0; i < fieldsNames.length; i++) {
+        for (int i = 0; i < indexFieldsNames.length; i++) {
             fieldsData[i] = (NumericFieldData) fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
         }
     }
 
     @Override public Facet facet() {
-        return new InternalStatisticalFacet(facetName, Strings.arrayToCommaDelimitedString(fieldsNames), statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
+        return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
     public static class StatsProc implements NumericFieldData.DoubleValueInDocProc {

@@ -22,13 +22,16 @@ package org.elasticsearch.index.engine.robin;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.IndexWriters;
 import org.elasticsearch.common.lucene.ReaderSearcherHolder;
+import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -36,9 +39,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.resource.AcquirableResource;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -95,6 +100,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private final SimilarityService similarityService;
 
+    private final BloomCache bloomCache;
+
+    private final boolean asyncLoadBloomFilter;
+
     // no need for volatile, its always used under a lock
     private IndexWriter indexWriter;
 
@@ -107,6 +116,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private volatile int disableFlushCounter = 0;
 
+    private volatile Searcher postFlushSearcher;
+
     private final AtomicBoolean flushing = new AtomicBoolean();
 
     private final ConcurrentMap<String, VersionValue> versionMap;
@@ -115,7 +126,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                                MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
-                               AnalysisService analysisService, SimilarityService similarityService) throws EngineException {
+                               AnalysisService analysisService, SimilarityService similarityService,
+                               BloomCache bloomCache) throws EngineException {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the engine");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
@@ -126,6 +138,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
         this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", indexSettings.getAsBoolean("index.merge.policy.use_compound_file", store == null ? false : store.suggestUseCompoundFile()));
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", indexSettings.getAsTime("index.refresh_interval", timeValueSeconds(1)));
+        this.asyncLoadBloomFilter = componentSettings.getAsBoolean("async_load_bloom", true); // Here for testing, should always be true
 
         this.store = store;
         this.deletionPolicy = deletionPolicy;
@@ -134,6 +147,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         this.mergeScheduler = mergeScheduler;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
+        this.bloomCache = bloomCache;
 
         this.versionMap = new ConcurrentHashMap<String, VersionValue>(1000);
         this.dirtyLocks = new Object[componentSettings.getAsInt("concurrency", 10000)];
@@ -178,6 +192,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             try {
                 translog.newTranslog(newTransactionLogId());
                 this.nrtResource = buildNrtResource(indexWriter);
+                if (postFlushSearcher != null) {
+                    postFlushSearcher.release();
+                }
+                postFlushSearcher = searcher();
             } catch (IOException e) {
                 try {
                     indexWriter.rollback();
@@ -590,7 +608,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                         AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                         IndexReader newReader = current.resource().reader().reopen(true);
                         if (newReader != current.resource().reader()) {
-                            IndexSearcher indexSearcher = new IndexSearcher(newReader);
+                            ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(newReader);
                             indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
                             nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
                             current.markForClose();
@@ -687,6 +705,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             dirty = true; // force a refresh
             // we need to do a refresh here so we sync versioning support
             refresh(new Refresh(true));
+            if (postFlushSearcher != null) {
+                postFlushSearcher.release();
+            }
+            // only need to load for this flush version searcher, since we keep a map for all
+            // the changes since the previous flush in memory
+            postFlushSearcher = searcher();
         } finally {
             rwl.writeLock().unlock();
             flushing.set(false);
@@ -838,6 +862,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         rwl.writeLock().lock();
         this.versionMap.clear();
         try {
+            if (postFlushSearcher != null) {
+                postFlushSearcher.release();
+                postFlushSearcher = null;
+            }
             if (nrtResource != null) {
                 this.nrtResource.forceClose();
             }
@@ -862,13 +890,22 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     }
 
     private long loadCurrentVersionFromIndex(Term uid) {
+        UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(uid.text());
         // no version, get the version from the index
-        Searcher searcher = searcher();
-        try {
-            return UidField.loadVersion(searcher.reader(), uid);
-        } finally {
-            searcher.release();
+        Searcher searcher = postFlushSearcher;
+        for (IndexReader reader : searcher.searcher().subReaders()) {
+            BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, asyncLoadBloomFilter);
+            // we know that its not there...
+            if (!filter.isPresent(utf8.result, 0, utf8.length)) {
+                continue;
+            }
+            long version = UidField.loadVersion(reader, uid);
+            // either -2 (its there, but no version associated), or an actual version
+            if (version != -1) {
+                return version;
+            }
         }
+        return -1;
     }
 
     private IndexWriter createWriter() throws IOException {
@@ -898,7 +935,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private AcquirableResource<ReaderSearcherHolder> buildNrtResource(IndexWriter indexWriter) throws IOException {
         IndexReader indexReader = indexWriter.getReader();
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(indexReader);
         indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
         return newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
     }
@@ -923,7 +960,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             return nrtHolder.resource().reader();
         }
 
-        @Override public IndexSearcher searcher() {
+        @Override public ExtendedIndexSearcher searcher() {
             return nrtHolder.resource().searcher();
         }
 

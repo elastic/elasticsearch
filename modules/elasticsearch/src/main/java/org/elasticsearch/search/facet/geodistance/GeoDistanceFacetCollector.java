@@ -38,8 +38,6 @@ import java.io.IOException;
  */
 public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
-    protected final String fieldName;
-
     protected final String indexFieldName;
 
     protected final double lat;
@@ -59,7 +57,6 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
     public GeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                      GeoDistanceFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.fieldName = fieldName;
         this.lat = lat;
         this.lon = lon;
         this.unit = unit;
@@ -116,6 +113,6 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalGeoDistanceFacet(facetName, fieldName, fieldName, unit, entries);
+        return new InternalGeoDistanceFacet(facetName, entries);
     }
 }

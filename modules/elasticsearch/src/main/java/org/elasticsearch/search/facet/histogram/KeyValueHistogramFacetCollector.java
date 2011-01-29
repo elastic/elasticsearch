@@ -41,10 +41,8 @@ import java.io.IOException;
  */
 public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String keyFieldName;
     private final String keyIndexFieldName;
 
-    private final String valueFieldName;
     private final String valueIndexFieldName;
 
     private final long interval;
@@ -64,8 +62,6 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
 
     public KeyValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.keyFieldName = keyFieldName;
-        this.valueFieldName = valueFieldName;
         this.interval = interval;
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
@@ -135,6 +131,6 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, keyFieldName, valueFieldName, interval, comparatorType, counts, totals);
+        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, counts, totals);
     }
 }

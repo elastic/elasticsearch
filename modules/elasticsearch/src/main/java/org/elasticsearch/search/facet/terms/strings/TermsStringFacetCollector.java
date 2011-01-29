@@ -59,8 +59,6 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
-    private final String fieldName;
-
     private final String indexFieldName;
 
     private final TermsFacet.ComparatorType comparatorType;
@@ -84,8 +82,6 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        this.fieldName = fieldName;
 
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -140,7 +136,7 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), aggregator.missing());
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -149,7 +145,7 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 

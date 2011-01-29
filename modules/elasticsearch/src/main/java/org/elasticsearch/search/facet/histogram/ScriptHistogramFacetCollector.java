@@ -74,7 +74,7 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, "_na", "_na", -1, comparatorType, counts, totals);
+        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, counts, totals);
     }
 
     public static long bucket(double value, long interval) {

@@ -122,6 +122,6 @@ public class StatisticalFacetProcessor extends AbstractComponent implements Face
             count += statsFacet.count();
         }
 
-        return new InternalStatisticalFacet(name, ((InternalStatisticalFacet) facets.get(0)).fieldName(), min, max, total, sumOfSquares, count);
+        return new InternalStatisticalFacet(name, min, max, total, sumOfSquares, count);
     }
 }

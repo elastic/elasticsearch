@@ -38,26 +38,6 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
     public static final String TYPE = "histogram";
 
     /**
-     * The key field name used with this facet.
-     */
-    String keyFieldName();
-
-    /**
-     * The key field name used with this facet.
-     */
-    String getKeyFieldName();
-
-    /**
-     * The value field name used with this facet.
-     */
-    String valueFieldName();
-
-    /**
-     * The value field name used with this facet.
-     */
-    String getValueFieldName();
-
-    /**
      * An ordered list of histogram facet entries.
      */
     List<? extends Entry> entries();

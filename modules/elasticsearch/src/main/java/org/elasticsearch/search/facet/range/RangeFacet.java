@@ -34,26 +34,6 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
     public static final String TYPE = "range";
 
     /**
-     * The key field name used with this facet.
-     */
-    String keyFieldName();
-
-    /**
-     * The key field name used with this facet.
-     */
-    String getKeyFieldName();
-
-    /**
-     * The value field name used with this facet.
-     */
-    String valueFieldName();
-
-    /**
-     * The value field name used with this facet.
-     */
-    String getValueFieldName();
-
-    /**
      * An ordered list of range facet entries.
      */
     List<Entry> entries();

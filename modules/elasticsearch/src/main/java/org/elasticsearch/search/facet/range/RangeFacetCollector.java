@@ -36,8 +36,6 @@ import java.io.IOException;
  */
 public class RangeFacetCollector extends AbstractFacetCollector {
 
-    private final String fieldName;
-
     private final String indexFieldName;
 
     private final FieldDataCache fieldDataCache;
@@ -52,7 +50,6 @@ public class RangeFacetCollector extends AbstractFacetCollector {
 
     public RangeFacetCollector(String facetName, String fieldName, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.fieldName = fieldName;
         this.fieldDataCache = context.fieldDataCache();
         this.entries = entries;
 
@@ -81,7 +78,7 @@ public class RangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalRangeFacet(facetName, fieldName, fieldName, entries);
+        return new InternalRangeFacet(facetName, entries);
     }
 
     public static class RangeProc implements NumericFieldData.DoubleValueInDocProc {

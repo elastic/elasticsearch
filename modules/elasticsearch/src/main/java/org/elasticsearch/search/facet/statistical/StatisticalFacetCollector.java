@@ -36,8 +36,6 @@ import java.io.IOException;
  */
 public class StatisticalFacetCollector extends AbstractFacetCollector {
 
-    private final String fieldName;
-
     private final String indexFieldName;
 
     private final FieldDataCache fieldDataCache;
@@ -50,7 +48,6 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
 
     public StatisticalFacetCollector(String facetName, String fieldName, SearchContext context) {
         super(facetName);
-        this.fieldName = fieldName;
         this.fieldDataCache = context.fieldDataCache();
 
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
@@ -76,7 +73,7 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalStatisticalFacet(facetName, fieldName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
+        return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
     public static class StatsProc implements NumericFieldData.DoubleValueInDocProc {

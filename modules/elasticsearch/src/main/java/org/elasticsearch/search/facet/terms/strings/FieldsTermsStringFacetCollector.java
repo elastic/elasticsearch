@@ -41,16 +41,12 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.Strings.*;
-
 /**
  * @author kimchy (shay.banon)
  */
 public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
-
-    private final String[] fieldsNames;
 
     private final String[] indexFieldsNames;
 
@@ -75,8 +71,6 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        this.fieldsNames = fieldsNames;
 
         fieldsDataType = new FieldDataType[fieldsNames.length];
         fieldsData = new FieldData[fieldsNames.length];
@@ -121,7 +115,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        for (int i = 0; i < fieldsNames.length; i++) {
+        for (int i = 0; i < indexFieldsNames.length; i++) {
             fieldsData[i] = fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
         }
         if (script != null) {
@@ -139,7 +133,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), aggregator.missing());
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -148,7 +142,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
             }
             TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, arrayToCommaDelimitedString(fieldsNames), comparatorType, size, ordered, aggregator.missing());
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 

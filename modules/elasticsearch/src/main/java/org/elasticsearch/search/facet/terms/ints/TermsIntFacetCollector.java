@@ -56,8 +56,6 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataCache fieldDataCache;
 
-    private final String fieldName;
-
     private final String indexFieldName;
 
     private final TermsFacet.ComparatorType comparatorType;
@@ -81,8 +79,6 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        this.fieldName = fieldName;
 
         MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -140,7 +136,7 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
         TIntIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of(), aggregator.missing());
+            return new InternalIntTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of(), aggregator.missing());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalIntTermsFacet.IntEntry> ordered = new BoundedTreeSet<InternalIntTermsFacet.IntEntry>(comparatorType.comparator(), size * numberOfShards);
@@ -149,7 +145,7 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalIntTermsFacet.IntEntry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalIntTermsFacet(facetName, fieldName, comparatorType, size, ordered, aggregator.missing());
+            return new InternalIntTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
         }
     }
 

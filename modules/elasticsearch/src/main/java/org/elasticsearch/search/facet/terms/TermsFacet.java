@@ -145,26 +145,6 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     }
 
     /**
-     * The field name the terms were extracted from.
-     */
-    String fieldName();
-
-    /**
-     * The field name the terms were extracted from.
-     */
-    String getFieldName();
-
-    /**
-     * The ordering of the results.
-     */
-    ComparatorType comparatorType();
-
-    /**
-     * The ordering of the results.
-     */
-    ComparatorType getComparatorType();
-
-    /**
      * The number of docs missing a value.
      */
     long missingCount();

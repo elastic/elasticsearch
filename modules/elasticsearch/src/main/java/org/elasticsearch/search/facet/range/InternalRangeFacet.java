@@ -54,19 +54,13 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     private String name;
 
-    private String keyFieldName;
-
-    private String valueFieldName;
-
     Entry[] entries;
 
     InternalRangeFacet() {
     }
 
-    public InternalRangeFacet(String name, String keyFieldName, String valueFieldName, Entry[] entries) {
+    public InternalRangeFacet(String name, Entry[] entries) {
         this.name = name;
-        this.keyFieldName = keyFieldName;
-        this.valueFieldName = valueFieldName;
         this.entries = entries;
     }
 
@@ -84,22 +78,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override public String getType() {
         return RangeFacet.TYPE;
-    }
-
-    @Override public String keyFieldName() {
-        return this.keyFieldName;
-    }
-
-    @Override public String getKeyFieldName() {
-        return keyFieldName();
-    }
-
-    @Override public String valueFieldName() {
-        return this.valueFieldName;
-    }
-
-    @Override public String getValueFieldName() {
-        return valueFieldName();
     }
 
     @Override public List<Entry> entries() {
@@ -122,8 +100,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        keyFieldName = in.readUTF();
-        valueFieldName = in.readUTF();
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             Entry entry = new Entry();
@@ -143,8 +119,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeUTF(keyFieldName);
-        out.writeUTF(valueFieldName);
         out.writeVInt(entries.length);
         for (Entry entry : entries) {
             out.writeDouble(entry.from);
@@ -168,8 +142,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _KEY_FIELD = new XContentBuilderString("_key_field");
-        static final XContentBuilderString _VALUE_FIELD = new XContentBuilderString("_value_field");
         static final XContentBuilderString RANGES = new XContentBuilderString("ranges");
         static final XContentBuilderString FROM = new XContentBuilderString("from");
         static final XContentBuilderString FROM_STR = new XContentBuilderString("from_str");
@@ -183,8 +155,6 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, "range");
-        builder.field(Fields._KEY_FIELD, keyFieldName);
-        builder.field(Fields._VALUE_FIELD, valueFieldName);
         builder.startArray(Fields.RANGES);
         for (Entry entry : entries) {
             builder.startObject();

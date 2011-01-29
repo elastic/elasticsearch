@@ -111,22 +111,19 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
 
     private String name;
 
-    private String fieldName;
-
     int requiredSize;
 
     long missing;
 
     Collection<FloatEntry> entries = ImmutableList.of();
 
-    private ComparatorType comparatorType;
+    ComparatorType comparatorType;
 
     InternalFloatTermsFacet() {
     }
 
-    public InternalFloatTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<FloatEntry> entries, long missing) {
+    public InternalFloatTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<FloatEntry> entries, long missing) {
         this.name = name;
-        this.fieldName = fieldName;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
@@ -141,28 +138,12 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
         return this.name;
     }
 
-    @Override public String fieldName() {
-        return this.fieldName;
-    }
-
-    @Override public String getFieldName() {
-        return fieldName();
-    }
-
     @Override public String type() {
         return TYPE;
     }
 
     @Override public String getType() {
         return type();
-    }
-
-    @Override public ComparatorType comparatorType() {
-        return comparatorType;
-    }
-
-    @Override public ComparatorType getComparatorType() {
-        return comparatorType();
     }
 
     @Override public List<FloatEntry> entries() {
@@ -212,7 +193,7 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
             }
         }
 
-        BoundedTreeSet<FloatEntry> ordered = new BoundedTreeSet<FloatEntry>(first.comparatorType().comparator(), first.requiredSize);
+        BoundedTreeSet<FloatEntry> ordered = new BoundedTreeSet<FloatEntry>(first.comparatorType.comparator(), first.requiredSize);
         for (TFloatIntIterator it = aggregated.iterator(); it.hasNext();) {
             it.advance();
             ordered.add(new FloatEntry(it.key(), it.value()));
@@ -224,7 +205,6 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _FIELD = new XContentBuilderString("_field");
         static final XContentBuilderString MISSING = new XContentBuilderString("missing");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
@@ -234,7 +214,6 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
-        builder.field(Fields._FIELD, fieldName);
         builder.field(Fields.MISSING, missing);
         builder.startArray(Fields.TERMS);
         for (FloatEntry entry : entries) {
@@ -256,7 +235,6 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        fieldName = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -270,7 +248,6 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeUTF(fieldName);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);

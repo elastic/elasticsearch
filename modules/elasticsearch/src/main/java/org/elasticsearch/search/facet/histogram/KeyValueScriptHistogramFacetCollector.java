@@ -44,11 +44,7 @@ import java.util.Map;
  */
 public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String fieldName;
-
     private final String indexFieldName;
-
-    private final long interval;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
@@ -64,8 +60,6 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
     public KeyValueScriptHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.fieldName = fieldName;
-        this.interval = interval;
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
 
@@ -99,7 +93,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, fieldName, fieldName, interval, comparatorType, histoProc.counts(), histoProc.totals());
+        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, histoProc.counts(), histoProc.totals());
     }
 
     public static long bucket(double value, long interval) {

@@ -5,10 +5,6 @@
 @rem                                                                         ##
 @rem ##########################################################################
 
-@rem
-@rem $Revision: 10602 $ $Date: 2008-01-25 02:49:54 +0100 (ven., 25 janv. 2008) $
-@rem
-
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 
@@ -19,68 +15,28 @@ set GRADLE_OPTS=%GRADLE_OPTS% -Xmx512m
 set DIRNAME=%~dp0
 if "%DIRNAME%" == "" set DIRNAME=.\
 
-@rem Determine the command interpreter to execute the "CD" later
-set COMMAND_COM="cmd.exe"
-if exist "%SystemRoot%\system32\cmd.exe" set COMMAND_COM="%SystemRoot%\system32\cmd.exe"
-if exist "%SystemRoot%\command.com" set COMMAND_COM="%SystemRoot%\command.com"
+@rem Find java.exe
+set JAVA_EXE=java.exe
+if not defined JAVA_HOME goto init
 
-@rem Use explicit find.exe to prevent cygwin and others find.exe from being used
-set FIND_EXE="find.exe"
-if exist "%SystemRoot%\system32\find.exe" set FIND_EXE="%SystemRoot%\system32\find.exe"
-if exist "%SystemRoot%\command\find.exe" set FIND_EXE="%SystemRoot%\command\find.exe"
+set JAVA_HOME=%JAVA_HOME:"=%
+set JAVA_EXE=%JAVA_HOME%/bin/java.exe
 
-:check_JAVA_HOME
-@rem Make sure we have a valid JAVA_HOME
-if not "%JAVA_HOME%" == "" goto have_JAVA_HOME
+if exist "%JAVA_EXE%" goto init
 
 echo.
-echo ERROR: Environment variable JAVA_HOME has not been set.
+echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME%
 echo.
 echo Please set the JAVA_HOME variable in your environment to match the
 echo location of your Java installation.
 echo.
 goto end
 
-:have_JAVA_HOME
-@rem Validate JAVA_HOME
-%COMMAND_COM% /C DIR "%JAVA_HOME%" 2>&1 | %FIND_EXE% /I /C "%JAVA_HOME%" >nul
-if not errorlevel 1 goto init
-
-echo.
-echo ERROR: JAVA_HOME might be set to an invalid directory: %JAVA_HOME%
-echo.
-echo Please set the JAVA_HOME variable in your environment to match the
-echo location of your Java installation if there are problems.
-echo.
-
 :init
-@rem get name of script to launch with full path
 @rem Get command-line arguments, handling Windowz variants
-SET _marker=%JAVA_HOME: =%
-@rem IF NOT "%_marker%" == "%JAVA_HOME%" ECHO JAVA_HOME "%JAVA_HOME%" contains spaces. Please change to a location without spaces if this causes problems.
 
 if not "%OS%" == "Windows_NT" goto win9xME_args
 if "%eval[2+2]" == "4" goto 4NT_args
-
-IF "%_marker%" == "%JAVA_HOME%" goto :win9xME_args
-
-set _FIXPATH=
-call :fixpath "%JAVA_HOME%"
-set JAVA_HOME=%_FIXPATH:~1%
-
-goto win9xME_args
-
-:fixpath
-if not %1.==. (
-for /f "tokens=1* delims=;" %%a in (%1) do (
-call :shortfilename "%%a" & call :fixpath "%%b"
-)
-)
-goto :EOF
-:shortfilename
-for %%i in (%1) do set _FIXPATH=%_FIXPATH%;%%~fsi
-goto :EOF
-
 
 :win9xME_args
 @rem Slurp the command line arguments.
@@ -103,10 +59,10 @@ set CMD_LINE_ARGS=%$
 set STARTER_MAIN_CLASS=org.gradle.wrapper.GradleWrapperMain
 set CLASSPATH=%DIRNAME%\gradle\wrapper\gradle-wrapper.jar
 set WRAPPER_PROPERTIES=%DIRNAME%\gradle\wrapper\gradle-wrapper.properties
-set JAVA_EXE=%JAVA_HOME%\bin\java.exe
 
 set GRADLE_OPTS=%JAVA_OPTS% %GRADLE_OPTS% -Dorg.gradle.wrapper.properties="%WRAPPER_PROPERTIES%"
 
+@rem Execute Gradle
 "%JAVA_EXE%" %GRADLE_OPTS% -classpath "%CLASSPATH%" %STARTER_MAIN_CLASS% %CMD_LINE_ARGS%
 
 :end

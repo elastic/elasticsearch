@@ -34,7 +34,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -96,7 +96,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         if (context == null) {
             throw new ElasticSearchIllegalStateException("No search context on going...");
         }
-        SearchScript searchScript = new SearchScript(context.lookup(), scriptLang, script, vars, parseContext.scriptService());
+        ExecutableSearchScript searchScript = new ExecutableSearchScript(context.lookup(), scriptLang, script, vars, parseContext.scriptService());
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
@@ -104,11 +104,11 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
 
     public static class ScriptScoreFunction implements ScoreFunction {
 
-        private final SearchScript script;
+        private final ExecutableSearchScript script;
 
         private Map<String, Object> vars = Maps.newHashMapWithExpectedSize(2);
 
-        private ScriptScoreFunction(SearchScript script) {
+        private ScriptScoreFunction(ExecutableSearchScript script) {
             this.script = script;
         }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.trove.iterator.TObjectIntIterator;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -46,7 +46,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
 
     private final int numberOfShards;
 
-    private final SearchScript script;
+    private final ExecutableSearchScript script;
 
     private final Matcher matcher;
 
@@ -62,7 +62,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-        this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+        this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
 
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;

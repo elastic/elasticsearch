@@ -31,7 +31,7 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -70,7 +70,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
     private final StaticAggregatorValueProc aggregator;
 
-    private final SearchScript script;
+    private final ExecutableSearchScript script;
 
     public TermsDoubleFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                      String scriptLang, String script, Map<String, Object> params) {
@@ -98,7 +98,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+            this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
         } else {
             this.script = null;
         }
@@ -169,11 +169,11 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
     public static class AggregatorValueProc extends StaticAggregatorValueProc {
 
-        private final SearchScript script;
+        private final ExecutableSearchScript script;
 
         private final Map<String, Object> scriptParams;
 
-        public AggregatorValueProc(TDoubleIntHashMap facets, SearchScript script) {
+        public AggregatorValueProc(TDoubleIntHashMap facets, ExecutableSearchScript script) {
             super(facets);
             this.script = script;
             if (script != null) {

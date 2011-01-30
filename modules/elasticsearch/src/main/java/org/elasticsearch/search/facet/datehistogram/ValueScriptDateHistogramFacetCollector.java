@@ -28,7 +28,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -57,7 +57,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     private LongFieldData fieldData;
 
-    private final SearchScript valueScript;
+    private final ExecutableSearchScript valueScript;
 
     private final DateHistogramProc histoProc;
 
@@ -77,7 +77,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
-        this.valueScript = new SearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
+        this.valueScript = new ExecutableSearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
 
         FieldMapper mapper = smartMappers.mapper();
 
@@ -106,13 +106,13 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
 
-        protected final SearchScript valueScript;
+        protected final ExecutableSearchScript valueScript;
 
         protected final TLongLongHashMap counts = new TLongLongHashMap();
 
         protected final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-        public DateHistogramProc(SearchScript valueScript) {
+        public DateHistogramProc(ExecutableSearchScript valueScript) {
             this.valueScript = valueScript;
         }
 
@@ -137,7 +137,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
         private final long interval;
 
-        public IntervalDateHistogramProc(long interval, SearchScript valueScript) {
+        public IntervalDateHistogramProc(long interval, ExecutableSearchScript valueScript) {
             super(valueScript);
             this.interval = interval;
         }

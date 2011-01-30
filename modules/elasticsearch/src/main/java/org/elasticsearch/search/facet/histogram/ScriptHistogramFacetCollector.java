@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet.histogram;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,9 +35,9 @@ import java.util.Map;
  */
 public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final SearchScript keyScript;
+    private final ExecutableSearchScript keyScript;
 
-    private final SearchScript valueScript;
+    private final ExecutableSearchScript valueScript;
 
     private final long interval;
 
@@ -49,8 +49,8 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     public ScriptHistogramFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.keyScript = new SearchScript(context.lookup(), scriptLang, keyScript, params, context.scriptService());
-        this.valueScript = new SearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
+        this.keyScript = new ExecutableSearchScript(context.lookup(), scriptLang, keyScript, params, context.scriptService());
+        this.valueScript = new ExecutableSearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
         this.interval = interval > 0 ? interval : 0;
         this.comparatorType = comparatorType;
     }

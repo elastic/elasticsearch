@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.function.sort;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 
 import java.io.IOException;
 
@@ -32,15 +32,15 @@ import java.io.IOException;
 // LUCENE MONITOR: Monitor against FieldComparator.Double
 public class DoubleFieldsFunctionDataComparator extends FieldComparator {
 
-    public static FieldComparatorSource comparatorSource(SearchScript script) {
+    public static FieldComparatorSource comparatorSource(ExecutableSearchScript script) {
         return new InnerSource(script);
     }
 
     private static class InnerSource extends FieldComparatorSource {
 
-        private final SearchScript script;
+        private final ExecutableSearchScript script;
 
-        private InnerSource(SearchScript script) {
+        private InnerSource(ExecutableSearchScript script) {
             this.script = script;
         }
 
@@ -49,12 +49,12 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
         }
     }
 
-    private final SearchScript script;
+    private final ExecutableSearchScript script;
 
     private final double[] values;
     private double bottom;
 
-    public DoubleFieldsFunctionDataComparator(int numHits, SearchScript script) {
+    public DoubleFieldsFunctionDataComparator(int numHits, ExecutableSearchScript script) {
         this.script = script;
         values = new double[numHits];
     }

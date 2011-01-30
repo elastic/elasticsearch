@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 
 import java.util.List;
 
@@ -31,10 +31,10 @@ public class ScriptFieldsContext {
 
     public static class ScriptField {
         private final String name;
-        private final SearchScript script;
+        private final ExecutableSearchScript script;
         private final boolean ignoreException;
 
-        public ScriptField(String name, SearchScript script, boolean ignoreException) {
+        public ScriptField(String name, ExecutableSearchScript script, boolean ignoreException) {
             this.name = name;
             this.script = script;
             this.ignoreException = ignoreException;
@@ -44,7 +44,7 @@ public class ScriptFieldsContext {
             return name;
         }
 
-        public SearchScript script() {
+        public ExecutableSearchScript script() {
             return this.script;
         }
 

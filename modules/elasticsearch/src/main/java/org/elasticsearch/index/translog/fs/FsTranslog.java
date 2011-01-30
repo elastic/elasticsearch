@@ -85,7 +85,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return this.id;
     }
 
-    @Override public int size() {
+    @Override public int numberOfOperations() {
         return operationCounter.get();
     }
 

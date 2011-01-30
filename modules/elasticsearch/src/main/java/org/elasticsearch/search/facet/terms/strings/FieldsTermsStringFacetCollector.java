@@ -30,7 +30,7 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -62,7 +62,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     private final StaticAggregatorValueProc aggregator;
 
-    private final SearchScript script;
+    private final ExecutableSearchScript script;
 
     public FieldsTermsStringFacetCollector(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                            ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
@@ -89,7 +89,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+            this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
         } else {
             this.script = null;
         }
@@ -152,11 +152,11 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
         private final Matcher matcher;
 
-        private final SearchScript script;
+        private final ExecutableSearchScript script;
 
         private final Map<String, Object> scriptParams;
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, SearchScript script) {
+        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, ExecutableSearchScript script) {
             super(facets);
             this.excluded = excluded;
             this.matcher = pattern != null ? pattern.matcher("") : null;

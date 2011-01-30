@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,7 +33,7 @@ import java.util.Map;
  */
 public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
-    private final SearchScript script;
+    private final ExecutableSearchScript script;
 
     private double min = Double.NaN;
 
@@ -47,7 +47,7 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {
         super(facetName);
-        this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+        this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
     }
 
     @Override protected void doCollect(int doc) throws IOException {

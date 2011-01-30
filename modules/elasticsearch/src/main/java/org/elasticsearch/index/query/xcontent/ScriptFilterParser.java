@@ -32,8 +32,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.search.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -110,7 +110,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
 
         private final Map<String, Object> params;
 
-        private final SearchScript searchScript;
+        private final ExecutableSearchScript searchScript;
 
         private ScriptFilter(String scriptLang, String script, Map<String, Object> params, ScriptService scriptService) {
             this.script = script;
@@ -121,7 +121,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
                 throw new ElasticSearchIllegalStateException("No search context on going...");
             }
 
-            this.searchScript = new SearchScript(context.lookup(), scriptLang, script, params, scriptService);
+            this.searchScript = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, scriptService);
         }
 
         @Override public String toString() {
@@ -157,9 +157,9 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
 
         static class ScriptDocSet extends GetDocSet {
 
-            private final SearchScript searchScript;
+            private final ExecutableSearchScript searchScript;
 
-            public ScriptDocSet(IndexReader reader, SearchScript searchScript) {
+            public ScriptDocSet(IndexReader reader, ExecutableSearchScript searchScript) {
                 super(reader.maxDoc());
                 this.searchScript = searchScript;
             }

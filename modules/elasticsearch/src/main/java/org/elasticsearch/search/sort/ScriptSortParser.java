@@ -24,7 +24,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.function.sort.DoubleFieldsFunctionDataComparator;
 import org.elasticsearch.index.field.function.sort.StringFieldsFunctionDataComparator;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -74,7 +74,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        SearchScript searchScript = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+        ExecutableSearchScript searchScript = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
         FieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
             fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(searchScript);

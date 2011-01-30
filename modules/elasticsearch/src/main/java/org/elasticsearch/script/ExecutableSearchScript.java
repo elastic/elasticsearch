@@ -17,14 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.script.search;
+package org.elasticsearch.script;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -32,24 +30,18 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class SearchScript {
+public class ExecutableSearchScript {
 
     private final SearchLookup searchLookup;
 
     private final ExecutableScript script;
 
-    public SearchScript(SearchLookup searchLookup, ExecutableScript script) {
-        this.searchLookup = searchLookup;
-        this.script = script;
+    public ExecutableSearchScript(String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
+        this(new SearchLookup(mapperService, fieldDataCache), lang, script, params, scriptService);
     }
 
-    public SearchScript(SearchLookup searchLookup, String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService) {
+    public ExecutableSearchScript(SearchLookup searchLookup, String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService) {
         this.searchLookup = searchLookup;
-        this.script = scriptService.executable(lang, script, searchLookup.processAsMap(params));
-    }
-
-    public SearchScript(String lang, String script, @Nullable Map<String, Object> params, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
-        this.searchLookup = new SearchLookup(mapperService, fieldDataCache);
         this.script = scriptService.executable(lang, script, searchLookup.processAsMap(params));
     }
 

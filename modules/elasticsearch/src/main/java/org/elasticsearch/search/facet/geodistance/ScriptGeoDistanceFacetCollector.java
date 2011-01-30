@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.script.search.SearchScript;
+import org.elasticsearch.script.ExecutableSearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,14 +34,14 @@ import java.util.Map;
  */
 public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
-    private final SearchScript script;
+    private final ExecutableSearchScript script;
 
     public ScriptGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                            GeoDistanceFacet.Entry[] entries, SearchContext context,
                                            String scriptLang, String script, Map<String, Object> params) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
 
-        this.script = new SearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+        this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

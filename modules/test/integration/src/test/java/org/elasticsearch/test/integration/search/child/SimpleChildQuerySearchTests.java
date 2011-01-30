@@ -80,9 +80,46 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
+        // TEST FETCHING _parent from child
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(termQuery("child._id", "c1"))
+                .addFields("_parent")
+                .execute().actionGet();
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("c1"));
+        assertThat(searchResponse.hits().getAt(0).field("_parent").value().toString(), equalTo("p1"));
+
+        // TEST matching on parent
+        searchResponse = client.prepareSearch("test")
+                .setQuery(termQuery("child._parent", "p1"))
+                .addFields("_parent")
+                .execute().actionGet();
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
+        assertThat(searchResponse.hits().getAt(0).field("_parent").value().toString(), equalTo("p1"));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("c1"), equalTo("c2")));
+        assertThat(searchResponse.hits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
+
+
         // TOP CHILDREN QUERY
 
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
+        searchResponse = client.prepareSearch("test")
+                .setQuery(topChildrenQuery("child", termQuery("c_field", "yellow")))
+                .execute().actionGet();
         if (searchResponse.failedShards() > 0) {
             logger.warn("Failed shards:");
             for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {

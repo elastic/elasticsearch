@@ -116,6 +116,18 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements org.e
         return field.stringValue();
     }
 
+    @Override public Object valueForSearch(Fieldable field) {
+        String fieldValue = field.stringValue();
+        if (fieldValue == null) {
+            return null;
+        }
+        int index = fieldValue.indexOf(Uid.DELIMITER);
+        if (index == -1) {
+            return fieldValue;
+        }
+        return fieldValue.substring(index + 1);
+    }
+
     @Override public String indexedValue(String value) {
         if (value.indexOf(Uid.DELIMITER) == -1) {
             return Uid.createUid(type, value);

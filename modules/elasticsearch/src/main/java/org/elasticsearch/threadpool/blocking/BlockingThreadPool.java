@@ -62,7 +62,7 @@ public class BlockingThreadPool extends AbstractThreadPool {
         // capacity is set to 0 as it might cause starvation in blocking mode
         this.capacity = (int) componentSettings.getAsSize("capacity", new SizeValue(0)).singles();
         this.waitTime = componentSettings.getAsTime("wait_time", timeValueSeconds(60));
-        this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
+        this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueMinutes(60));
         logger.debug("initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", getType(), min, max, keepAlive, capacity, waitTime, scheduledSize);
 //        executorService = TransferThreadPoolExecutor.newBlockingExecutor(min, max, keepAlive.millis(), TimeUnit.MILLISECONDS, waitTime.millis(), TimeUnit.MILLISECONDS, capacity, EsExecutors.daemonThreadFactory(settings, "[tp]"));
         executorService = DynamicExecutors.newBlockingThreadPool(min, max, keepAlive.millis(), capacity, waitTime.millis(), EsExecutors.daemonThreadFactory(settings, "[tp]"));

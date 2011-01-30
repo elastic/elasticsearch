@@ -52,7 +52,7 @@ public class ScalingThreadPool extends AbstractThreadPool {
         super(settings);
         this.min = componentSettings.getAsInt("min", 10);
         this.max = componentSettings.getAsInt("max", 100);
-        this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
+        this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueMinutes(60));
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], scheduled_size[{}]", getType(), min, max, keepAlive, scheduledSize);
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, EsExecutors.daemonThreadFactory(settings, "[sc]"));

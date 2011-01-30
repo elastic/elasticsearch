@@ -276,6 +276,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         try {
             MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
             final DocumentMapper documentMapper = mapperService.documentMapper(request.type());
+            if (documentMapper == null) { // should not happen
+                return;
+            }
             documentMapper.refreshSource();
 
             mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {

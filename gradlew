@@ -12,15 +12,19 @@ GRADLE_OPTS="$GRADLE_OPTS -Xmx512m"
 
 GRADLE_APP_NAME=Gradle
 
+# Use the maximum available, or set MAX_FD != -1 to use that value.
+MAX_FD="maximum"
+
 warn ( ) {
-    echo "${PROGNAME}: $*"
+    echo "$*"
 }
 
 die ( ) {
-    warn "$*"
+    echo
+    echo "$*"
+    echo
     exit 1
 }
-
 
 # OS specific support (must be 'true' or 'false').
 cygwin=false
@@ -79,10 +83,29 @@ if [ -z "$JAVACMD" ] ; then
     fi
 fi
 if [ ! -x "$JAVACMD" ] ; then
-    die "JAVA_HOME is not defined correctly, can not execute: $JAVACMD"
+    die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
 fi
 if [ -z "$JAVA_HOME" ] ; then
     warn "JAVA_HOME environment variable is not set"
+fi
+
+# Increase the maximum file descriptors if we can.
+if [ "$cygwin" = "false" -a "$darwin" = "false" ] ; then
+    MAX_FD_LIMIT=`ulimit -H -n`
+    if [ $? -eq 0 ] ; then
+        if [ "$MAX_FD" = "maximum" -o "$MAX_FD" = "max" ] ; then
+            MAX_FD="$MAX_FD_LIMIT"
+        fi
+        ulimit -n $MAX_FD
+        if [ $? -ne 0 ] ; then
+            warn "Could not set maximum file descriptor limit: $MAX_FD"
+        fi
+    else
+        warn "Could not query businessSystem maximum file descriptor limit: $MAX_FD_LIMIT"
+    fi
 fi
 
 # For Darwin, add GRADLE_APP_NAME to the JAVA_OPTS as -Xdock:name
@@ -137,7 +160,7 @@ fi
 
 GRADLE_APP_BASE_NAME=`basename "$0"`
 
-"$JAVACMD" $JAVA_OPTS $GRADLE_OPTS \
+exec "$JAVACMD" $JAVA_OPTS $GRADLE_OPTS \
         -classpath "$CLASSPATH" \
         -Dorg.gradle.appname="$GRADLE_APP_BASE_NAME" \
         -Dorg.gradle.wrapper.properties="$WRAPPER_PROPERTIES" \

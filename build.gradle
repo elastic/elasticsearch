@@ -176,5 +176,5 @@ task release(dependsOn: [zip, tar]) << {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '0.9.1'
+    gradleVersion = '0.9.2'
 }

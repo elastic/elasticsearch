@@ -579,7 +579,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
         }
         // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
-        // so, make sure we periodically call it
+        // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
+        // happen and reduce the number of segments
         TimeValue optimizeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
         if (optimizeInterval.millis() > 0) {
             optimizeScheduleFuture = threadPool.scheduleWithFixedDelay(new EngineOptimizer(), optimizeInterval);

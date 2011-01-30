@@ -30,7 +30,8 @@ import org.elasticsearch.index.IndexComponent;
 public interface BloomCache extends IndexComponent, CloseableComponent {
 
     /**
-     * *Async* loads a bloom filter for the field name.
+     * *Async* loads a bloom filter for the field name. Note, this one only supports
+     * for fields that have a single term per doc.
      */
     BloomFilter filter(IndexReader reader, String fieldName, boolean asyncLoad);
 

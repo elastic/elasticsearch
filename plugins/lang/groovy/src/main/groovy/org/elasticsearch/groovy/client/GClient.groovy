@@ -133,6 +133,12 @@ class GClient {
         SearchRequestBuilder.metaClass.filter = {Closure c ->
             delegate.setFilter(new GXContentBuilder().buildAsBytes(c, contentType))
         }
+        SearchRequestBuilder.metaClass.setFacets = {Closure c ->
+            delegate.setFilter(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        SearchRequestBuilder.metaClass.facets = {Closure c ->
+            delegate.setFilter(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
 
         MoreLikeThisRequest.metaClass.setSearchSource = {Closure c ->
             delegate.searchSource(new GXContentBuilder().buildAsBytes(c, contentType))

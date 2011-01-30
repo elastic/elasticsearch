@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
 import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
@@ -71,6 +72,49 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     protected Client getClient() {
         return client("server1");
+    }
+
+    @Test public void testBinaryFacet() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("tag", "green")
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("tag", "blue")
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFacets(XContentFactory.jsonBuilder().startObject()
+                        .startObject("facet1")
+                        .startObject("terms")
+                        .field("field", "tag")
+                        .endObject()
+                        .endObject()
+                        .endObject().copiedBytes())
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().hits().length, equalTo(2));
+        TermsFacet facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
+        assertThat(facet.entries().get(0).count(), equalTo(1));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
     }
 
     @Test public void testSearchFilter() throws Exception {

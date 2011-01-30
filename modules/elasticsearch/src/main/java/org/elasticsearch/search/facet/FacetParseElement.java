@@ -83,7 +83,7 @@ public class FacetParseElement implements SearchParseElement {
                         } else {
                             FacetProcessor facetProcessor = facetProcessors.processor(facetFieldName);
                             if (facetProcessor == null) {
-                                throw new SearchParseException(context, "No facet type for [" + facetFieldName + "]");
+                                throw new SearchParseException(context, "No facet type found for [" + facetFieldName + "]");
                             }
                             facet = facetProcessor.parse(topLevelFieldName, parser, context);
                         }

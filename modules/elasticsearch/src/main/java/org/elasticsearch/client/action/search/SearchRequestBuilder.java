@@ -368,6 +368,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Sets a raw (xcontent) binary representation of facets to use.
+     */
+    public SearchRequestBuilder setFacets(byte[] facets) {
+        sourceBuilder().facets(facets);
+        return this;
+    }
+
+    /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5.
      *

@@ -90,6 +90,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private List<AbstractFacetBuilder> facets;
 
+    private byte[] facetsBinary;
+
     private HighlightBuilder highlightBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
@@ -225,6 +227,14 @@ public class SearchSourceBuilder implements ToXContent {
             facets = Lists.newArrayList();
         }
         facets.add(facet);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent / json) facets.
+     */
+    public SearchSourceBuilder facets(byte[] facetsBinary) {
+        this.facetsBinary = facetsBinary;
         return this;
     }
 
@@ -461,6 +471,14 @@ public class SearchSourceBuilder implements ToXContent {
                 facet.toXContent(builder, params);
             }
             builder.endObject();
+        }
+
+        if (facetsBinary != null) {
+            if (XContentFactory.xContentType(facetsBinary) == builder.contentType()) {
+                builder.rawField("facets", facetsBinary);
+            } else {
+                builder.field("facets_binary", facetsBinary);
+            }
         }
 
         if (highlightBuilder != null) {

@@ -44,12 +44,15 @@ public class FacetPhase implements SearchPhase {
 
     private final FacetParseElement facetParseElement;
 
-    @Inject public FacetPhase(FacetParseElement facetParseElement) {
+    private final FacetBinaryParseElement facetBinaryParseElement;
+
+    @Inject public FacetPhase(FacetParseElement facetParseElement, FacetBinaryParseElement facetBinaryParseElement) {
         this.facetParseElement = facetParseElement;
+        this.facetBinaryParseElement = facetBinaryParseElement;
     }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("facets", facetParseElement);
+        return ImmutableMap.of("facets", facetParseElement, "facets_binary", facetBinaryParseElement, "facetsBinary", facetBinaryParseElement);
     }
 
     @Override public void preProcess(SearchContext context) {

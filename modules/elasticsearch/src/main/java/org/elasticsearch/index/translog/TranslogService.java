@@ -21,6 +21,8 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
@@ -47,7 +49,11 @@ public class TranslogService extends AbstractIndexShardComponent {
 
     private final Translog translog;
 
-    private final int flushThreshold;
+    private final int flushThresholdOperations;
+
+    private final ByteSizeValue flushThresholdSize;
+
+    private final TimeValue flushThresholdPeriod;
 
     private final TimeValue interval;
 
@@ -59,7 +65,9 @@ public class TranslogService extends AbstractIndexShardComponent {
         this.indexShard = indexShard;
         this.translog = translog;
 
-        this.flushThreshold = componentSettings.getAsInt("flush_threshold", 5000);
+        this.flushThresholdOperations = componentSettings.getAsInt("flush_threshold_ops", componentSettings.getAsInt("flush_threshold", 20000));
+        this.flushThresholdSize = componentSettings.getAsBytesSize("flush_threshold_size", new ByteSizeValue(500, ByteSizeUnit.MB));
+        this.flushThresholdPeriod = componentSettings.getAsTime("flush_threshold_period", TimeValue.timeValueMinutes(60));
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(1000));
 
         this.future = threadPool.scheduleWithFixedDelay(new TranslogBasedFlush(), interval);
@@ -71,24 +79,46 @@ public class TranslogService extends AbstractIndexShardComponent {
     }
 
     private class TranslogBasedFlush implements Runnable {
+
+        private volatile long lastFlushTime = System.currentTimeMillis();
+
         @Override public void run() {
             if (indexShard.state() != IndexShardState.STARTED) {
                 return;
             }
 
-            int currentSize = translog.size();
-            if (currentSize > flushThreshold) {
-                logger.trace("flushing translog, operations [{}], breached [{}]", currentSize, flushThreshold);
-                try {
-                    indexShard.flush(new Engine.Flush());
-                } catch (EngineClosedException e) {
-                    // we are being closed, ignore
-                } catch (FlushNotAllowedEngineException e) {
-                    // ignore this exception, we are not allowed to perform flush
-                } catch (Exception e) {
-                    logger.warn("failed to flush shard on translog threshold", e);
-                }
+            int currentNumberOfOperations = translog.numberOfOperations();
+            if (currentNumberOfOperations > flushThresholdOperations) {
+                logger.trace("flushing translog, operations [{}], breached [{}]", currentNumberOfOperations, flushThresholdOperations);
+                flush();
+                return;
             }
+
+            long sizeInBytes = translog.translogSizeInBytes();
+            if (sizeInBytes > flushThresholdSize.bytes()) {
+                logger.trace("flushing translog, size [{}], breached [{}]", new ByteSizeValue(sizeInBytes), flushThresholdSize);
+                flush();
+                return;
+            }
+
+            if ((System.currentTimeMillis() - lastFlushTime) > flushThresholdPeriod.millis()) {
+                logger.trace("flushing translog, last_flush_time [{}], breached [{}]", lastFlushTime, flushThresholdPeriod);
+                flush();
+                return;
+            }
+        }
+
+        private void flush() {
+            try {
+                indexShard.flush(new Engine.Flush());
+            } catch (EngineClosedException e) {
+                // we are being closed, ignore
+            } catch (FlushNotAllowedEngineException e) {
+                // ignore this exception, we are not allowed to perform flush
+            } catch (Exception e) {
+                logger.warn("failed to flush shard on translog threshold", e);
+            }
+            lastFlushTime = System.currentTimeMillis();
         }
     }
 }

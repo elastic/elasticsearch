@@ -48,13 +48,16 @@ public interface Translog extends IndexShardComponent {
     /**
      * Returns the number of operations in the transaction log.
      */
-    int size();
+    int numberOfOperations();
 
     /**
      * The estimated memory size this translog is taking.
      */
     long memorySizeInBytes();
 
+    /**
+     * Returns the size in bytes of the translog.
+     */
     long translogSizeInBytes();
 
     /**

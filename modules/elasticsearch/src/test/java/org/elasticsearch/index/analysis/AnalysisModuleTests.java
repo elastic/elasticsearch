@@ -31,7 +31,13 @@ import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilt
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -107,11 +113,46 @@ public class AnalysisModuleTests {
         assertThat(czechstemmeranalyzer.tokenFilters()[3], instanceOf(CzechStemTokenFilterFactory.class));
 
         // check dictionary decompounder
-        analyzer = analysisService.analyzer("custom5").analyzer();
+        analyzer = analysisService.analyzer("decompoundingAnalyzer").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer dictionaryDecompounderAnalyze = (CustomAnalyzer) analyzer;
         assertThat(dictionaryDecompounderAnalyze.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
         assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
         assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
+
+        Set<String> wordList = Analysis.getWordList(settings, "index.analysis.filter.dict_dec.word_list");
+        MatcherAssert.assertThat(wordList.size(), equalTo(6));
+        MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
+
+    @Test public void testWordListPath() throws Exception {
+        String[] words = new String[] {"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
+
+        File wordListFile = generateWordList(words);
+        Settings settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.getAbsolutePath()).build();
+
+        Set<String> wordList = Analysis.getWordList(settings, "index.word_list");
+        MatcherAssert.assertThat(wordList.size(), equalTo(6));
+        MatcherAssert.assertThat(wordList, hasItems(words));
+    }
+
+    private File generateWordList(String[] words) throws Exception {
+        File wordListFile = File.createTempFile("wordlist", ".txt");
+        wordListFile.deleteOnExit();
+
+        BufferedWriter writer = null;
+        try {
+            writer = new BufferedWriter(new FileWriter(wordListFile));
+            for (String word : words) {
+                writer.write(word);
+                writer.write('\n');
+            }
+        } finally {
+            if (writer != null) {
+                writer.close();
+            }
+        }
+        return wordListFile;
+    }
+
 }

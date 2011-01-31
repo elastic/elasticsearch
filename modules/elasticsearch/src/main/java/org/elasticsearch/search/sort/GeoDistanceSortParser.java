@@ -53,9 +53,9 @@ public class GeoDistanceSortParser implements SortParser {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 token = parser.nextToken();
-                lat = parser.doubleValue();
-                token = parser.nextToken();
                 lon = parser.doubleValue();
+                token = parser.nextToken();
+                lat = parser.doubleValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                 }

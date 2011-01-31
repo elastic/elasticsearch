@@ -232,7 +232,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
         if (geohash != null) {
             builder.field(fieldName, geohash);
         } else {
-            builder.startArray(fieldName).value(lat).value(lon).endArray();
+            builder.startArray(fieldName).value(lon).value(lat).endArray();
         }
 
         if (valueFieldName != null) {

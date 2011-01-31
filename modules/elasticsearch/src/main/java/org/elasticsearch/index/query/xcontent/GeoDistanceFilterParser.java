@@ -82,9 +82,9 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 token = parser.nextToken();
-                lat = parser.doubleValue();
-                token = parser.nextToken();
                 lon = parser.doubleValue();
+                token = parser.nextToken();
+                lat = parser.doubleValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                 }
@@ -152,9 +152,9 @@ public class GeoDistanceFilterParser extends AbstractIndexComponent implements X
         }
 
         if (vDistance instanceof Number) {
-            distance = unit.toMiles(((Number)vDistance).doubleValue());
+            distance = unit.toMiles(((Number) vDistance).doubleValue());
         } else {
-            distance = DistanceUnit.parse((String)vDistance, unit, DistanceUnit.MILES);
+            distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.MILES);
         }
 
         MapperService mapperService = parseContext.mapperService();

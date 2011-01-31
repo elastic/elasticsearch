@@ -83,9 +83,9 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
 
                         if (point != null) {
                             token = parser.nextToken();
-                            point.lat = parser.doubleValue();
-                            token = parser.nextToken();
                             point.lon = parser.doubleValue();
+                            token = parser.nextToken();
+                            point.lat = parser.doubleValue();
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                             }

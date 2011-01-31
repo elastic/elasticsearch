@@ -44,6 +44,13 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         this.name = name;
     }
 
+    /**
+     * Adds a point with lat and lon
+     *
+     * @param lat The latitude
+     * @param lon The longitude
+     * @return
+     */
     public GeoPolygonFilterBuilder addPoint(double lat, double lon) {
         points.add(new GeoPolygonFilter.Point(lat, lon));
         return this;
@@ -76,7 +83,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         builder.startObject(name);
         builder.startArray("points");
         for (GeoPolygonFilter.Point point : points) {
-            builder.startArray().value(point.lat).value(point.lon).endArray();
+            builder.startArray().value(point.lon).value(point.lat).endArray();
         }
         builder.endArray();
         builder.endObject();

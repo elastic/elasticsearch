@@ -95,9 +95,9 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
                                     token = parser.nextToken();
-                                    point.lat = parser.doubleValue();
-                                    token = parser.nextToken();
                                     point.lon = parser.doubleValue();
+                                    token = parser.nextToken();
+                                    point.lat = parser.doubleValue();
                                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                                     }

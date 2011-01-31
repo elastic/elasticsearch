@@ -76,6 +76,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
+                .setRefresh(true)
                 .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(2).execute().actionGet();
 

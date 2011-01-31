@@ -19,18 +19,15 @@
 
 package org.elasticsearch.index.analysis.compound;
 
-import org.apache.lucene.analysis.WordlistLoader;
 import org.apache.lucene.analysis.compound.CompoundWordTokenFilterBase;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -54,21 +51,6 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         minSubwordSize = settings.getAsInt("min_subword_size", CompoundWordTokenFilterBase.DEFAULT_MIN_SUBWORD_SIZE);
         maxSubwordSize = settings.getAsInt("max_subword_size", CompoundWordTokenFilterBase.DEFAULT_MAX_SUBWORD_SIZE);
         onlyLongestMatch = settings.getAsBoolean("only_longest_max", false);
-
-        String wordListPath = settings.get("word_list_path", null);
-        if (wordListPath == null) {
-            throw new ElasticSearchIllegalArgumentException("word_list_path is a required setting.");
-        }
-
-        File wordListFile = new File(wordListPath);
-        if (!wordListFile.exists()) {
-            throw new ElasticSearchIllegalArgumentException("word_list_path file must exist.");
-        }
-
-        try {
-            wordList = WordlistLoader.getWordSet(wordListFile);
-        } catch (IOException ioe) {
-            throw new ElasticSearchIllegalArgumentException("IOException while reading word_list_path: " + ioe.getMessage());
-        }
+        wordList = Analysis.getWordList(settings, "word_list");
     }
 }

@@ -36,14 +36,11 @@ import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
+import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -51,43 +48,9 @@ import static org.hamcrest.Matchers.*;
  */
 public class CompoundAnalysisTests {
 
-    private File generateWordList() throws Exception {
-        File wordListFile = File.createTempFile("wordlist", ".txt");
-        wordListFile.deleteOnExit();
-
-        BufferedWriter writer = null;
-        try {
-            writer = new BufferedWriter(new FileWriter(wordListFile));
-            writer.write("donau\ndampf\nschiff\n");
-            writer.write("spargel\ncreme\nsuppe");
-        } finally {
-            if (writer != null) {
-                writer.close();
-            }
-        }
-        return wordListFile;
-    }
-
-    private Settings generateSettings(File wordListFile) throws Exception {
-        StringBuilder settingsStr = new StringBuilder();
-
-        settingsStr.append("index : \n");
-        settingsStr.append("  analysis :\n");
-        settingsStr.append("    analyzer :\n");
-        settingsStr.append("      myAnalyzer2 :\n");
-        settingsStr.append("        tokenizer : standard\n");
-        settingsStr.append("        filter : [dict_dec, standard, lowercase, stop]\n");
-        settingsStr.append("    filter :\n");
-        settingsStr.append("      dict_dec :\n");
-        settingsStr.append("        type : dictionary_decompounder\n");
-        settingsStr.append("        word_list_path : ").append(wordListFile.getAbsolutePath()).append('\n');
-
-        return settingsBuilder().loadFromSource(settingsStr.toString()).build();
-    }
-
     @Test public void testDefaultsCompoundAnalysis() throws Exception {
         Index index = new Index("test");
-        Settings settings = generateSettings(generateWordList());
+        Settings settings = getJsonSettings();
 
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(settings),
@@ -101,9 +64,16 @@ public class CompoundAnalysisTests {
     }
 
     @Test public void testDictionaryDecompounder() throws Exception {
-        Index index = new Index("test");
-        Settings settings = generateSettings(generateWordList());
+        Settings[] settingsArr = new Settings[] {getJsonSettings(), getYamlSettings()};
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "decompoundingAnalyzer", "donaudampfschiff spargelcremesuppe");
+            MatcherAssert.assertThat(terms.size(), equalTo(8));
+            MatcherAssert.assertThat(terms, hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe"));
+        }
+    }
 
+    private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
+        Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(settings),
                 new IndexNameModule(index),
@@ -111,11 +81,10 @@ public class CompoundAnalysisTests {
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
-        Analyzer analyzer = analysisService.analyzer("myAnalyzer2").analyzer();
+        Analyzer analyzer = analysisService.analyzer(analyzerName).analyzer();
 
         AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "donaudampfschiff", 1.0f);
-        allEntries.addText("field2", "spargelcremesuppe", 1.0f);
+        allEntries.addText("field1", text, 1.0f);
         allEntries.reset();
 
         TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
@@ -126,7 +95,14 @@ public class CompoundAnalysisTests {
             String tokText = termAtt.term();
             terms.add(tokText);
         }
-        MatcherAssert.assertThat(terms.size(), equalTo(8));
-        MatcherAssert.assertThat(terms, hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe"));
+        return terms;
+    }
+
+    private Settings getJsonSettings() {
+        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.json").build();
+    }
+
+    private Settings getYamlSettings() {
+        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml").build();
     }
 }

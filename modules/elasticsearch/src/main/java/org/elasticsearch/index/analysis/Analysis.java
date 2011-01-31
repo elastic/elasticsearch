@@ -19,11 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.WordlistLoader;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -50,6 +56,39 @@ public class Analysis {
             return ImmutableSet.copyOf(Iterators.forArray(stopWords));
         } else {
             return defaultStopWords;
+        }
+    }
+
+    /**
+     * Fetches a list of words from the specified settings file. The list should either be available at the key
+     * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
+     *
+     * @throws ElasticSearchIllegalArgumentException If the word list cannot be found at either key.
+     */
+    public static Set<String> getWordList(Settings settings, String settingPrefix) {
+        String wordListPath = settings.get(settingPrefix + "_path", null);
+
+        if (wordListPath == null) {
+            String[] explicitWordList = settings.getAsArray(settingPrefix, null);
+            if(explicitWordList == null) {
+                String message = String.format("%s or %s_path must be provided.", settingPrefix, settingPrefix);
+                throw new ElasticSearchIllegalArgumentException(message);
+            } else {
+
+                return new HashSet<String>(Arrays.asList(explicitWordList));
+            }
+        }
+
+        File wordListFile = new File(wordListPath);
+        if (!wordListFile.exists()) {
+            throw new ElasticSearchIllegalArgumentException(settingPrefix + "_path file must exist.");
+        }
+
+        try {
+            return WordlistLoader.getWordSet(wordListFile);
+        } catch (IOException ioe) {
+            String message = String.format("IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
+            throw new ElasticSearchIllegalArgumentException(message);
         }
     }
 }

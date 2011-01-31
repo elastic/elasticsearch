@@ -48,6 +48,12 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         this.name = name;
     }
 
+    /**
+     * Adds top left point.
+     *
+     * @param lat The latitude
+     * @param lon The longitude
+     */
     public GeoBoundingBoxFilterBuilder topLeft(double lat, double lon) {
         topLeft = new GeoBoundingBoxFilter.Point();
         topLeft.lat = lat;
@@ -55,6 +61,12 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Adds bottom right point.
+     *
+     * @param lat The latitude
+     * @param lon The longitude
+     */
     public GeoBoundingBoxFilterBuilder bottomRight(double lat, double lon) {
         bottomRight = new GeoBoundingBoxFilter.Point();
         bottomRight.lat = lat;
@@ -95,7 +107,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         if (topLeftGeohash != null) {
             builder.field("top_left", topLeftGeohash);
         } else if (topLeft != null) {
-            builder.startArray("top_left").value(topLeft.lat).value(topLeft.lon).endArray();
+            builder.startArray("top_left").value(topLeft.lon).value(topLeft.lat).endArray();
         } else {
             throw new QueryBuilderException("geo_bounding_box requires 'top_left' to be set");
         }
@@ -103,7 +115,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         if (bottomRightGeohash != null) {
             builder.field("bottom_right", bottomRightGeohash);
         } else if (bottomRight != null) {
-            builder.startArray("bottom_right").value(bottomRight.lat).value(bottomRight.lon).endArray();
+            builder.startArray("bottom_right").value(bottomRight.lon).value(bottomRight.lat).endArray();
         } else {
             throw new QueryBuilderException("geo_bounding_box requires 'bottom_right' to be set");
         }

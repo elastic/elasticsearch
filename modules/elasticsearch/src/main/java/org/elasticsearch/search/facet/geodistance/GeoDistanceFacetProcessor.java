@@ -94,9 +94,9 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                     }
                 } else {
                     token = parser.nextToken();
-                    lat = parser.doubleValue();
-                    token = parser.nextToken();
                     lon = parser.doubleValue();
+                    token = parser.nextToken();
+                    lat = parser.doubleValue();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                     }

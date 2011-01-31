@@ -107,7 +107,7 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         if (geohash != null) {
             builder.field(name, geohash);
         } else {
-            builder.startArray(name).value(lat).value(lon).endArray();
+            builder.startArray(name).value(lon).value(lat).endArray();
         }
         builder.field("distance", distance);
         if (geoDistance != null) {

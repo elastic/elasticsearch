@@ -185,7 +185,7 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().get("point"), notNullValue());
     }
 
-    @Test public void testLatLonArray() throws Exception {
+    @Test public void testLonLatArray() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
@@ -194,7 +194,7 @@ public class LatLonMappingGeoPointTests {
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .startArray("point").value(1.2).value(1.3).endArray()
+                .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
                 .copiedBytes());
 
@@ -205,7 +205,7 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test public void testLatLonArrayStored() throws Exception {
+    @Test public void testLonLatArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
@@ -214,7 +214,7 @@ public class LatLonMappingGeoPointTests {
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .startArray("point").value(1.2).value(1.3).endArray()
+                .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
                 .copiedBytes());
 
@@ -225,7 +225,7 @@ public class LatLonMappingGeoPointTests {
         assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test public void testLatLonArrayArrayStored() throws Exception {
+    @Test public void testLonLatArrayArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
@@ -235,8 +235,8 @@ public class LatLonMappingGeoPointTests {
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("point")
-                .startArray().value(1.2).value(1.3).endArray()
-                .startArray().value(1.4).value(1.5).endArray()
+                .startArray().value(1.3).value(1.2).endArray()
+                .startArray().value(1.5).value(1.4).endArray()
                 .endArray()
                 .endObject()
                 .copiedBytes());

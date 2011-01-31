@@ -227,12 +227,12 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
         if (token == XContentParser.Token.START_ARRAY) {
             token = context.parser().nextToken();
             if (token == XContentParser.Token.START_ARRAY) {
-                // its an array of array of lat/lon [ [1.2, 1.3], [1.4, 1.5] ]
+                // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
                 while (token != XContentParser.Token.END_ARRAY) {
                     token = context.parser().nextToken();
-                    Double lat = context.parser().doubleValue();
-                    token = context.parser().nextToken();
                     Double lon = context.parser().doubleValue();
+                    token = context.parser().nextToken();
+                    Double lat = context.parser().doubleValue();
                     while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
 
                     }
@@ -242,9 +242,9 @@ public class GeoPointFieldMapper implements XContentMapper, ArrayValueMapperPars
             } else {
                 // its an array of other possible values
                 if (token == XContentParser.Token.VALUE_NUMBER) {
-                    Double lat = context.parser().doubleValue();
-                    token = context.parser().nextToken();
                     Double lon = context.parser().doubleValue();
+                    token = context.parser().nextToken();
+                    Double lat = context.parser().doubleValue();
                     while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
 
                     }

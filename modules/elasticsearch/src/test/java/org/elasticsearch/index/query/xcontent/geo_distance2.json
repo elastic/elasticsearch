@@ -6,7 +6,7 @@
         "filter" : {
             "geo_distance" : {
                 "distance" : "12mi",
-                "person.location" : [40, -70]
+                "person.location" : [-70, 40]
             }
         }
     }

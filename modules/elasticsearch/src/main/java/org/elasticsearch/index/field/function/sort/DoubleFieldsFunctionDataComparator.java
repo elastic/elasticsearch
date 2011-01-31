@@ -22,7 +22,7 @@ package org.elasticsearch.index.field.function.sort;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 
@@ -32,15 +32,15 @@ import java.io.IOException;
 // LUCENE MONITOR: Monitor against FieldComparator.Double
 public class DoubleFieldsFunctionDataComparator extends FieldComparator {
 
-    public static FieldComparatorSource comparatorSource(ExecutableSearchScript script) {
+    public static FieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
     }
 
     private static class InnerSource extends FieldComparatorSource {
 
-        private final ExecutableSearchScript script;
+        private final SearchScript script;
 
-        private InnerSource(ExecutableSearchScript script) {
+        private InnerSource(SearchScript script) {
             this.script = script;
         }
 
@@ -49,12 +49,12 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
         }
     }
 
-    private final ExecutableSearchScript script;
+    private final SearchScript script;
 
     private final double[] values;
     private double bottom;
 
-    public DoubleFieldsFunctionDataComparator(int numHits, ExecutableSearchScript script) {
+    public DoubleFieldsFunctionDataComparator(int numHits, SearchScript script) {
         this.script = script;
         values = new double[numHits];
     }
@@ -76,7 +76,8 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override public int compareBottom(int doc) {
-        final double v2 = ((Number) script.execute(doc)).doubleValue();
+        script.setNextDocId(doc);
+        final double v2 = script.runAsDouble();
         if (bottom > v2) {
             return 1;
         } else if (bottom < v2) {
@@ -87,7 +88,8 @@ public class DoubleFieldsFunctionDataComparator extends FieldComparator {
     }
 
     @Override public void copy(int slot, int doc) {
-        values[slot] = ((Number) script.execute(doc)).doubleValue();
+        script.setNextDocId(doc);
+        values[slot] = script.runAsDouble();
     }
 
     @Override public void setBottom(final int bottom) {

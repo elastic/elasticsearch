@@ -19,11 +19,15 @@
 
 package org.elasticsearch.script.python;
 
+import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.python.core.Py;
 import org.python.core.PyCode;
 import org.python.core.PyObject;
@@ -62,6 +66,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return new PythonExecutableScript((PyCode) compiledScript, vars);
     }
 
+    @Override public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        return new PythonSearchScript((PyCode) compiledScript, vars, lookup);
+    }
+
     @Override public Object execute(Object compiledScript, Map<String, Object> vars) {
         PyObject pyVars = Py.java2py(vars);
         interp.setLocals(pyVars);
@@ -94,19 +102,11 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
             }
         }
 
-        @Override public Object run() {
-            interp.setLocals(pyVars);
-            PyObject ret = interp.eval(code);
-            if (ret == null) {
-                return null;
-            }
-            return ret.__tojava__(Object.class);
+        @Override public void setNextVar(String name, Object value) {
+            pyVars.__setitem__(name, Py.java2py(value));
         }
 
-        @Override public Object run(Map<String, Object> vars) {
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
-            }
+        @Override public Object run() {
             interp.setLocals(pyVars);
             PyObject ret = interp.eval(code);
             if (ret == null) {
@@ -117,6 +117,66 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
 
         @Override public Object unwrap(Object value) {
             return unwrapValue(value);
+        }
+    }
+
+    public class PythonSearchScript implements SearchScript {
+
+        private final PyCode code;
+
+        private final PyStringMap pyVars;
+
+        private final SearchLookup lookup;
+
+        public PythonSearchScript(PyCode code, Map<String, Object> vars, SearchLookup lookup) {
+            this.code = code;
+            this.pyVars = new PyStringMap();
+            for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
+                pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
+            }
+            if (vars != null) {
+                for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                    pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
+                }
+            }
+            this.lookup = lookup;
+        }
+
+        @Override public void setNextReader(IndexReader reader) {
+            lookup.setNextReader(reader);
+        }
+
+        @Override public void setNextDocId(int doc) {
+            lookup.setNextDocId(doc);
+        }
+
+        @Override public void setNextScore(float score) {
+            pyVars.__setitem__("_score", Py.java2py(score));
+        }
+
+        @Override public void setNextVar(String name, Object value) {
+            pyVars.__setitem__(name, Py.java2py(value));
+        }
+
+        @Override public Object run() {
+            interp.setLocals(pyVars);
+            PyObject ret = interp.eval(code);
+            if (ret == null) {
+                return null;
+            }
+            return ret.__tojava__(Object.class);
+        }
+
+        @Override public float runAsFloat() {
+            return ((Number) run()).floatValue();
+        }
+
+        @Override public long runAsLong() {
+            return ((Number) run()).longValue();
+        }
+
+        @Override public double runAsDouble() {
+            return ((Number) run()).doubleValue();
         }
     }
 

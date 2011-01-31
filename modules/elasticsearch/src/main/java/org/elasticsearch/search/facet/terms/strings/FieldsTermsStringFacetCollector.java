@@ -23,14 +23,13 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.trove.iterator.TObjectIntIterator;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -62,7 +61,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
     private final StaticAggregatorValueProc aggregator;
 
-    private final ExecutableSearchScript script;
+    private final SearchScript script;
 
     public FieldsTermsStringFacetCollector(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                            ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
@@ -89,7 +88,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+            this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
         } else {
             this.script = null;
         }
@@ -152,20 +151,13 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
 
         private final Matcher matcher;
 
-        private final ExecutableSearchScript script;
+        private final SearchScript script;
 
-        private final Map<String, Object> scriptParams;
-
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, ExecutableSearchScript script) {
+        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern, SearchScript script) {
             super(facets);
             this.excluded = excluded;
             this.matcher = pattern != null ? pattern.matcher("") : null;
             this.script = script;
-            if (script != null) {
-                scriptParams = Maps.newHashMapWithExpectedSize(4);
-            } else {
-                scriptParams = null;
-            }
         }
 
         @Override public void onValue(int docId, String value) {
@@ -176,8 +168,9 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
                 return;
             }
             if (script != null) {
-                scriptParams.put("term", value);
-                Object scriptValue = script.execute(docId, scriptParams);
+                script.setNextDocId(docId);
+                script.setNextVar("term", value);
+                Object scriptValue = script.run();
                 if (scriptValue == null) {
                     return;
                 }

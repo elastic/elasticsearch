@@ -61,7 +61,10 @@ public class SimpleBench {
         stopWatch = new StopWatch().start();
         executableScript = se.executable(compiled, vars);
         for (long i = 0; i < ITER; i++) {
-            executableScript.run(vars);
+            for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                executableScript.setNextVar(entry.getKey(), entry.getValue());
+            }
+            executableScript.run();
         }
         System.out.println("Executable (vars) Took: " + stopWatch.stop().lastTaskTime());
     }

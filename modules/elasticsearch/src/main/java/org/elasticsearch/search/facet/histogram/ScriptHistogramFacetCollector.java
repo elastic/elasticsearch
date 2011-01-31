@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet.histogram;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,9 +35,9 @@ import java.util.Map;
  */
 public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final ExecutableSearchScript keyScript;
+    private final SearchScript keyScript;
 
-    private final ExecutableSearchScript valueScript;
+    private final SearchScript valueScript;
 
     private final long interval;
 
@@ -49,21 +49,22 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     public ScriptHistogramFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.keyScript = new ExecutableSearchScript(context.lookup(), scriptLang, keyScript, params, context.scriptService());
-        this.valueScript = new ExecutableSearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
+        this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.interval = interval > 0 ? interval : 0;
         this.comparatorType = comparatorType;
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        Number keyValue = (Number) keyScript.execute(doc);
+        keyScript.setNextDocId(doc);
+        valueScript.setNextDocId(doc);
         long bucket;
         if (interval == 0) {
-            bucket = keyValue.longValue();
+            bucket = keyScript.runAsLong();
         } else {
-            bucket = bucket(keyValue.doubleValue(), interval);
+            bucket = bucket(keyScript.runAsDouble(), interval);
         }
-        double value = ((Number) valueScript.execute(doc)).doubleValue();
+        double value = valueScript.runAsDouble();
         counts.adjustOrPutValue(bucket, 1, 1);
         totals.adjustOrPutValue(bucket, value, value);
     }

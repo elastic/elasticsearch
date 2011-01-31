@@ -73,7 +73,6 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
     private final TimeValue bulkTimeout;
 
     private final ExecutableScript script;
-    private final Map<String, Object> scriptParams = Maps.newHashMap();
 
     private volatile Thread slurperThread;
     private volatile Thread indexerThread;
@@ -203,9 +202,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
         }
 
         if (script != null) {
-            scriptParams.put("ctx", ctx);
+            script.setNextVar("ctx", ctx);
             try {
-                script.run(scriptParams);
+                script.run();
             } catch (Exception e) {
                 logger.warn("failed to script process {}, ignoring", e, ctx);
                 return seq;

@@ -102,12 +102,11 @@ public class GroovyScriptMultiThreadedTest {
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
                         ExecutableScript script = se.executable(compiled, vars);
-                        Map<String, Object> runtimeVars = new HashMap<String, Object>();
                         for (int i = 0; i < 100000; i++) {
                             long y = ThreadLocalRandom.current().nextInt();
                             long addition = x + y;
-                            runtimeVars.put("y", y);
-                            long result = ((Number) script.run(runtimeVars)).longValue();
+                            script.setNextVar("y", y);
+                            long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Throwable t) {

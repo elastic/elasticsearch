@@ -124,12 +124,12 @@ public class PythonScriptEngineTests {
         Object compiledScript = se.compile("value");
 
         ExecutableScript script = se.executable(compiledScript, vars);
-        ctx.put("value", 1);
-        Object o = script.run(ctx);
+        script.setNextVar("value", 1);
+        Object o = script.run();
         assertThat(((Number) o).intValue(), equalTo(1));
 
-        ctx.put("value", 2);
-        o = script.run(ctx);
+        script.setNextVar("value", 2);
+        o = script.run();
         assertThat(((Number) o).intValue(), equalTo(2));
     }
 }

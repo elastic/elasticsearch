@@ -233,10 +233,10 @@ public class GroovyScriptSearchTests {
         assertThat(response.hits().getAt(0).id(), equalTo("2"));
         assertThat(response.hits().getAt(1).id(), equalTo("1"));
 
-        logger.info("running doc['num1'].value * score");
+        logger.info("running doc['num1'].value * _score");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * score").lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * _score").lang("groovy")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));
@@ -245,10 +245,10 @@ public class GroovyScriptSearchTests {
         assertThat(response.hits().getAt(0).id(), equalTo("2"));
         assertThat(response.hits().getAt(1).id(), equalTo("1"));
 
-        logger.info("running param1 * param2 * score");
+        logger.info("running param1 * param2 * _score");
         response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * score").param("param1", 2).param("param2", 2).lang("groovy")))
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2).lang("groovy")))
         ).actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(2l));

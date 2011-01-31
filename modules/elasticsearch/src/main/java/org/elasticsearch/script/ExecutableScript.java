@@ -21,8 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
-import java.util.Map;
-
 /**
  * An executable script, can't be used concurrently.
  *
@@ -31,15 +29,12 @@ import java.util.Map;
 @NotThreadSafe
 public interface ExecutableScript {
 
-    /**
-     * Executes the script.
-     */
-    Object run();
+    void setNextVar(String name, Object value);
 
     /**
      * Executes the script.
      */
-    Object run(Map<String, Object> vars);
+    Object run();
 
     /**
      * Unwraps a possible script value. For example, when passing vars and expecting the returned value to

@@ -24,7 +24,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
@@ -34,7 +33,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -96,7 +95,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         if (context == null) {
             throw new ElasticSearchIllegalStateException("No search context on going...");
         }
-        ExecutableSearchScript searchScript = new ExecutableSearchScript(context.lookup(), scriptLang, script, vars, parseContext.scriptService());
+        SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
@@ -104,11 +103,9 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
 
     public static class ScriptScoreFunction implements ScoreFunction {
 
-        private final ExecutableSearchScript script;
+        private final SearchScript script;
 
-        private Map<String, Object> vars = Maps.newHashMapWithExpectedSize(2);
-
-        private ScriptScoreFunction(ExecutableSearchScript script) {
+        private ScriptScoreFunction(SearchScript script) {
             this.script = script;
         }
 
@@ -117,8 +114,9 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         }
 
         @Override public float score(int docId, float subQueryScore) {
-            vars.put("_score", subQueryScore);
-            return ((Number) script.execute(docId, vars)).floatValue();
+            script.setNextDocId(docId);
+            script.setNextScore(subQueryScore);
+            return script.runAsFloat();
         }
 
         @Override public Explanation explain(int docId, Explanation subQueryExpl) {

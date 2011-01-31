@@ -20,12 +20,9 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.MapperService;
-
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,7 +35,7 @@ public class SearchLookup {
 
     final FieldsLookup fieldsLookup;
 
-    final Map<String, Object> asMap;
+    final ImmutableMap<String, Object> asMap;
 
     public SearchLookup(MapperService mapperService, FieldDataCache fieldDataCache) {
         docMap = new DocLookup(mapperService, fieldDataCache);
@@ -47,15 +44,8 @@ public class SearchLookup {
         asMap = ImmutableMap.<String, Object>of("doc", docMap, "_doc", docMap, "_source", sourceLookup, "_fields", fieldsLookup);
     }
 
-    public Map<String, Object> processAsMap(@Nullable Map<String, Object> params) {
-        if (params == null) {
-            return asMap;
-        }
-        params.put("doc", docMap);
-        params.put("_doc", docMap);
-        params.put("_source", sourceLookup);
-        params.put("_fields", fieldsLookup);
-        return params;
+    public ImmutableMap<String, Object> asMap() {
+        return this.asMap;
     }
 
     public SourceLookup source() {

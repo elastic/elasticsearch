@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,29 +19,26 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.lookup.SearchLookup;
-
-import java.util.Map;
+import org.apache.lucene.index.IndexReader;
 
 /**
- * @author kimchy (shay.banon)
+ * A search script.
  */
-public interface ScriptEngineService {
+public interface SearchScript {
 
-    String[] types();
+    void setNextReader(IndexReader reader);
 
-    String[] extensions();
+    void setNextDocId(int doc);
 
-    Object compile(String script);
+    void setNextScore(float score);
 
-    ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars);
+    void setNextVar(String name, Object value);
 
-    SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
+    Object run();
 
-    Object execute(Object compiledScript, Map<String, Object> vars);
+    float runAsFloat();
 
-    Object unwrap(Object value);
+    long runAsLong();
 
-    void close();
+    double runAsDouble();
 }

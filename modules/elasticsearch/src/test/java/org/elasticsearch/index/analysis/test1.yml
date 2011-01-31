@@ -22,7 +22,7 @@ index :
         type : org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory
       dict_dec :
         type : dictionary_decompounder
-        word_list_path : /dev/null
+        word_list : [donau, dampf, schiff, spargel, creme, suppe]
     analyzer :
       standard :
         alias: alias1,alias2
@@ -44,6 +44,6 @@ index :
       czechAnalyzerWithStemmer :
         tokenizer : standard
         filter : [standard, lowercase, stop, czech_stem]
-      custom5 :
+      decompoundingAnalyzer :
         tokenizer : standard
         filter : [dict_dec]

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.range;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,16 +33,16 @@ import java.util.Map;
  */
 public class ScriptRangeFacetCollector extends AbstractFacetCollector {
 
-    private final ExecutableSearchScript keyScript;
+    private final SearchScript keyScript;
 
-    private final ExecutableSearchScript valueScript;
+    private final SearchScript valueScript;
 
     private final RangeFacet.Entry[] entries;
 
     public ScriptRangeFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.keyScript = new ExecutableSearchScript(context.lookup(), scriptLang, keyScript, params, context.scriptService());
-        this.valueScript = new ExecutableSearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
+        this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.entries = entries;
     }
 
@@ -52,8 +52,10 @@ public class ScriptRangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        double key = ((Number) keyScript.execute(doc)).doubleValue();
-        double value = ((Number) valueScript.execute(doc)).doubleValue();
+        keyScript.setNextDocId(doc);
+        valueScript.setNextDocId(doc);
+        double key = keyScript.runAsDouble();
+        double value = valueScript.runAsDouble();
 
         for (RangeFacet.Entry entry : entries) {
             if (key >= entry.getFrom() && key < entry.getTo()) {

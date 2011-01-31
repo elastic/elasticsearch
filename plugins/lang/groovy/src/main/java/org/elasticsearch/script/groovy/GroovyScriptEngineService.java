@@ -22,12 +22,16 @@ package org.elasticsearch.script.groovy;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
+import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -78,6 +82,22 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
+    @Override public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        try {
+            Class scriptClass = (Class) compiledScript;
+            Script scriptObject = (Script) scriptClass.newInstance();
+            Binding binding = new Binding();
+            binding.getVariables().putAll(lookup.asMap());
+            if (vars != null) {
+                binding.getVariables().putAll(vars);
+            }
+            scriptObject.setBinding(binding);
+            return new GroovySearchScript(scriptObject, lookup);
+        } catch (Exception e) {
+            throw new ScriptException("failed to build search script", e);
+        }
+    }
+
     @Override public Object execute(Object compiledScript, Map<String, Object> vars) {
         try {
             Class scriptClass = (Class) compiledScript;
@@ -106,18 +126,60 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.script = script;
         }
 
-        @Override public Object run() {
-            return script.run();
+        @Override public void setNextVar(String name, Object value) {
+            script.getBinding().getVariables().put(name, value);
         }
 
-        @SuppressWarnings({"unchecked"})
-        @Override public Object run(Map<String, Object> vars) {
-            script.getBinding().getVariables().putAll(vars);
+        @Override public Object run() {
             return script.run();
         }
 
         @Override public Object unwrap(Object value) {
             return value;
+        }
+    }
+
+    public static class GroovySearchScript implements SearchScript {
+
+        private final Script script;
+
+        private final SearchLookup lookup;
+
+        public GroovySearchScript(Script script, SearchLookup lookup) {
+            this.script = script;
+            this.lookup = lookup;
+        }
+
+        @Override public void setNextReader(IndexReader reader) {
+            lookup.setNextReader(reader);
+        }
+
+        @Override public void setNextDocId(int doc) {
+            lookup.setNextDocId(doc);
+        }
+
+        @Override public void setNextScore(float score) {
+            script.getBinding().getVariables().put("_score", score);
+        }
+
+        @Override public void setNextVar(String name, Object value) {
+            script.getBinding().getVariables().put(name, value);
+        }
+
+        @Override public Object run() {
+            return script.run();
+        }
+
+        @Override public float runAsFloat() {
+            return ((Number) run()).floatValue();
+        }
+
+        @Override public long runAsLong() {
+            return ((Number) run()).longValue();
+        }
+
+        @Override public double runAsDouble() {
+            return ((Number) run()).doubleValue();
         }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapMaker;
@@ -29,7 +30,10 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.mvel.MvelScriptEngineService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -156,6 +160,18 @@ public class ScriptService extends AbstractComponent {
 
     public ExecutableScript executable(CompiledScript compiledScript, Map vars) {
         return scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);
+    }
+
+    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        return scriptEngines.get(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
+    }
+
+    public SearchScript search(SearchLookup lookup, String lang, String script, @Nullable Map<String, Object> vars) {
+        return search(compile(lang, script), lookup, vars);
+    }
+
+    public SearchScript search(MapperService mapperService, FieldDataCache fieldDataCache, String lang, String script, @Nullable Map<String, Object> vars) {
+        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataCache), vars);
     }
 
     public Object execute(CompiledScript compiledScript, Map vars) {

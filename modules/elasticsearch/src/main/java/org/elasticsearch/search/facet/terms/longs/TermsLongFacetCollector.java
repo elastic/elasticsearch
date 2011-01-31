@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TLongIntIterator;
 import org.elasticsearch.common.trove.map.hash.TLongIntHashMap;
@@ -31,7 +30,7 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -71,7 +70,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     private final StaticAggregatorValueProc aggregator;
 
-    private final ExecutableSearchScript script;
+    private final SearchScript script;
 
     public TermsLongFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                    String scriptLang, String script, Map<String, Object> params) {
@@ -99,7 +98,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         }
 
         if (script != null) {
-            this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+            this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
         } else {
             this.script = null;
         }
@@ -170,24 +169,18 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     public static class AggregatorValueProc extends StaticAggregatorValueProc {
 
-        private final ExecutableSearchScript script;
+        private final SearchScript script;
 
-        private final Map<String, Object> scriptParams;
-
-        public AggregatorValueProc(TLongIntHashMap facets, ExecutableSearchScript script) {
+        public AggregatorValueProc(TLongIntHashMap facets, SearchScript script) {
             super(facets);
             this.script = script;
-            if (script != null) {
-                scriptParams = Maps.newHashMapWithExpectedSize(4);
-            } else {
-                scriptParams = null;
-            }
         }
 
         @Override public void onValue(int docId, long value) {
             if (script != null) {
-                scriptParams.put("term", value);
-                Object scriptValue = script.execute(docId, scriptParams);
+                script.setNextDocId(docId);
+                script.setNextVar("term", value);
+                Object scriptValue = script.run();
                 if (scriptValue == null) {
                     return;
                 }

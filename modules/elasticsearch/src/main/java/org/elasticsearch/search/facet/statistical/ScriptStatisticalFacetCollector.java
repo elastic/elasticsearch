@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,7 +33,7 @@ import java.util.Map;
  */
 public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
-    private final ExecutableSearchScript script;
+    private final SearchScript script;
 
     private double min = Double.NaN;
 
@@ -47,11 +47,12 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {
         super(facetName);
-        this.script = new ExecutableSearchScript(context.lookup(), scriptLang, script, params, context.scriptService());
+        this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        double value = ((Number) script.execute(doc)).doubleValue();
+        script.setNextDocId(doc);
+        double value = script.runAsDouble();
         if (value < min || Double.isNaN(min)) {
             min = value;
         }

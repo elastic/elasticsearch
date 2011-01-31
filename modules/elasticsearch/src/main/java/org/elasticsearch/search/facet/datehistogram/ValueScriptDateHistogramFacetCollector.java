@@ -28,7 +28,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -57,7 +57,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     private LongFieldData fieldData;
 
-    private final ExecutableSearchScript valueScript;
+    private final SearchScript valueScript;
 
     private final DateHistogramProc histoProc;
 
@@ -77,7 +77,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
-        this.valueScript = new ExecutableSearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
 
         FieldMapper mapper = smartMappers.mapper();
 
@@ -106,20 +106,22 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
 
-        protected final ExecutableSearchScript valueScript;
+        protected final SearchScript valueScript;
 
         protected final TLongLongHashMap counts = new TLongLongHashMap();
 
         protected final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-        public DateHistogramProc(ExecutableSearchScript valueScript) {
+        public DateHistogramProc(SearchScript valueScript) {
             this.valueScript = valueScript;
         }
 
         @Override public void onValue(int docId, MutableDateTime dateTime) {
+            valueScript.setNextDocId(docId);
+
             long time = dateTime.getMillis();
             counts.adjustOrPutValue(time, 1, 1);
-            double scriptValue = ((Number) valueScript.execute(docId)).doubleValue();
+            double scriptValue = valueScript.runAsDouble();
             totals.adjustOrPutValue(time, scriptValue, scriptValue);
         }
 
@@ -137,16 +139,18 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
         private final long interval;
 
-        public IntervalDateHistogramProc(long interval, ExecutableSearchScript valueScript) {
+        public IntervalDateHistogramProc(long interval, SearchScript valueScript) {
             super(valueScript);
             this.interval = interval;
         }
 
 
         @Override public void onValue(int docId, MutableDateTime dateTime) {
+            valueScript.setNextDocId(docId);
+
             long bucket = CountDateHistogramFacetCollector.bucket(dateTime.getMillis(), interval);
             counts.adjustOrPutValue(bucket, 1, 1);
-            double scriptValue = ((Number) valueScript.execute(docId)).doubleValue();
+            double scriptValue = valueScript.runAsDouble();
             totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
         }
 

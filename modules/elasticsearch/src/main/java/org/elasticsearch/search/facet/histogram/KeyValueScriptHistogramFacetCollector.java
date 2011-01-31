@@ -27,7 +27,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -54,7 +54,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
     private NumericFieldData fieldData;
 
-    private final ExecutableSearchScript valueScript;
+    private final SearchScript valueScript;
 
     private final HistogramProc histoProc;
 
@@ -73,7 +73,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
-        this.valueScript = new ExecutableSearchScript(context.lookup(), scriptLang, valueScript, params, context.scriptService());
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
 
         FieldMapper mapper = smartMappers.mapper();
 
@@ -104,7 +104,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
         private final long interval;
 
-        private final ExecutableSearchScript valueScript;
+        private final SearchScript valueScript;
 
         private final TLongLongHashMap counts = new TLongLongHashMap();
 
@@ -112,15 +112,17 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
         private int missing;
 
-        public HistogramProc(long interval, ExecutableSearchScript valueScript) {
+        public HistogramProc(long interval, SearchScript valueScript) {
             this.interval = interval;
             this.valueScript = valueScript;
         }
 
         @Override public void onValue(int docId, double value) {
+            valueScript.setNextDocId(docId);
+
             long bucket = bucket(value, interval);
             counts.adjustOrPutValue(bucket, 1, 1);
-            double scriptValue = ((Number) valueScript.execute(docId)).doubleValue();
+            double scriptValue = valueScript.runAsDouble();
             totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
         }
 

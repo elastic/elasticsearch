@@ -67,6 +67,7 @@ public class RollingRestartStressTest {
     private Node client;
 
     private AtomicLong indexCounter = new AtomicLong();
+    private AtomicLong idCounter = new AtomicLong();
 
 
     public RollingRestartStressTest numberOfNodes(int numberOfNodes) {
@@ -253,7 +254,8 @@ public class RollingRestartStressTest {
 
         json.endObject();
 
-        client.client().prepareIndex("test", "type1")
+        client.client().prepareIndex("test", "type1", Long.toString(idCounter.incrementAndGet()))
+                .setCreate(true)
                 .setSource(json)
                 .execute().actionGet();
         indexCounter.incrementAndGet();

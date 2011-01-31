@@ -322,6 +322,11 @@ public class AnalysisModule extends AbstractModule {
             tokenizersBindings.processTokenizer("whitespace", WhitespaceTokenizerFactory.class);
             tokenizersBindings.processTokenizer("russian_letter", RussianLetterTokenizerFactory.class);
             tokenizersBindings.processTokenizer("russianLetter", RussianLetterTokenizerFactory.class);
+
+            tokenizersBindings.processTokenizer("nGram", NGramTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("ngram", NGramTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("edgeNGram", EdgeNGramTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("edge_ngram", EdgeNGramTokenizerFactory.class);
         }
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
@@ -356,10 +361,6 @@ public class AnalysisModule extends AbstractModule {
         }
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
-            tokenizersBindings.processTokenizer("nGram", NGramTokenizerFactory.class);
-            tokenizersBindings.processTokenizer("ngram", NGramTokenizerFactory.class);
-            tokenizersBindings.processTokenizer("edgeNGram", EdgeNGramTokenizerFactory.class);
-            tokenizersBindings.processTokenizer("edge_ngram", EdgeNGramTokenizerFactory.class);
         }
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {

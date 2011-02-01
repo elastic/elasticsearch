@@ -124,6 +124,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (!indicesService.changesAllowed())
             return;
 
+        if (!lifecycle.started()) {
+            return;
+        }
+
         synchronized (mutex) {
             applyNewIndices(event);
             applyMappings(event);

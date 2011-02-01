@@ -204,6 +204,16 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
         }
+        // stop any changes happening as a result of cluster state changes
+        injector.getInstance(IndicesClusterStateService.class).stop();
+        // we close indices first, so operations won't be allowed on it
+        injector.getInstance(IndicesService.class).stop();
+        // sleep a bit to let operations finish with indices service
+//        try {
+//            Thread.sleep(500);
+//        } catch (InterruptedException e) {
+//            // ignore
+//        }
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(DiscoveryService.class).stop();
@@ -211,8 +221,6 @@ public final class InternalNode implements Node {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(RiversManager.class).stop();
-        injector.getInstance(IndicesClusterStateService.class).stop();
-        injector.getInstance(IndicesService.class).stop();
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
         injector.getInstance(JmxService.class).close();
@@ -244,6 +252,10 @@ public final class InternalNode implements Node {
         }
         stopWatch.stop().start("client");
         injector.getInstance(Client.class).close();
+        stopWatch.stop().start("indices_cluster");
+        injector.getInstance(IndicesClusterStateService.class).close();
+        stopWatch.stop().start("indices");
+        injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("routing");
         injector.getInstance(RoutingService.class).close();
         stopWatch.stop().start("cluster");
@@ -258,10 +270,6 @@ public final class InternalNode implements Node {
         injector.getInstance(SearchService.class).close();
         stopWatch.stop().start("indexers");
         injector.getInstance(RiversManager.class).close();
-        stopWatch.stop().start("indices_cluster");
-        injector.getInstance(IndicesClusterStateService.class).close();
-        stopWatch.stop().start("indices");
-        injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("rest");
         injector.getInstance(RestController.class).close();
         stopWatch.stop().start("transport");

@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.search.IndexReaderPurgedListener;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -209,6 +210,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticSearchException {
+        if (!lifecycle.started()) {
+            throw new ElasticSearchIllegalStateException("Can't create an index [" + sIndexName + "] is closed");
+        }
         Index index = new Index(sIndexName);
         if (indicesInjectors.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);

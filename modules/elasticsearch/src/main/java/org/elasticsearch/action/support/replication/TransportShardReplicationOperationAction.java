@@ -313,7 +313,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 }
 
                 if (!primaryOperationStarted.compareAndSet(false, true)) {
-                    return false;
+                    return true;
                 }
 
                 foundPrimary = true;

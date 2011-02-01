@@ -302,61 +302,55 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        if (serverChannel != null) {
-            try {
-                serverChannel.close().awaitUninterruptibly();
-            } finally {
-                serverChannel = null;
-            }
-        }
+        final CountDownLatch latch = new CountDownLatch(1);
+        // make sure we run it on another thread than a possible IO handler thread
+        threadPool.cached().execute(new Runnable() {
+            @Override public void run() {
+                try {
+                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
+                        NodeChannels nodeChannels = it.next();
+                        it.remove();
+                        nodeChannels.close();
+                    }
 
-        if (serverOpenChannels != null) {
-            serverOpenChannels.close();
-            serverOpenChannels = null;
-        }
+                    if (serverChannel != null) {
+                        try {
+                            serverChannel.close().awaitUninterruptibly();
+                        } finally {
+                            serverChannel = null;
+                        }
+                    }
 
-        if (serverBootstrap != null) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
-                    try {
+                    if (serverOpenChannels != null) {
+                        serverOpenChannels.close();
+                        serverOpenChannels = null;
+                    }
+
+                    if (serverBootstrap != null) {
                         serverBootstrap.releaseExternalResources();
-                    } finally {
-                        latch.countDown();
+                        serverBootstrap = null;
                     }
-                }
-            });
-            try {
-                latch.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                // ignore
-            }
-            serverBootstrap = null;
-        }
 
-        for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
-            NodeChannels nodeChannels = it.next();
-            it.remove();
-            nodeChannels.close();
-        }
+                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
+                        NodeChannels nodeChannels = it.next();
+                        it.remove();
+                        nodeChannels.close();
+                    }
 
-        if (clientBootstrap != null) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            threadPool.cached().execute(new Runnable() {
-                @Override public void run() {
-                    try {
+                    if (clientBootstrap != null) {
                         clientBootstrap.releaseExternalResources();
-                    } finally {
-                        latch.countDown();
+                        clientBootstrap = null;
                     }
+                } finally {
+                    latch.countDown();
                 }
-            });
-            try {
-                latch.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                // ignore
             }
-            clientBootstrap = null;
+        });
+
+        try {
+            latch.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // ignore
         }
     }
 

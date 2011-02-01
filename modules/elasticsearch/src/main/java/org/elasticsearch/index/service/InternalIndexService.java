@@ -20,6 +20,7 @@
 package org.elasticsearch.index.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -113,6 +114,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private volatile ImmutableMap<Integer, Injector> shardsInjectors = ImmutableMap.of();
 
     private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
+
+    private volatile boolean closed = false;
 
     private final CleanCacheOnIndicesLifecycleListener cleanCacheOnIndicesLifecycleListener = new CleanCacheOnIndicesLifecycleListener();
 
@@ -209,6 +212,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     public void close(final boolean delete, final String reason) {
+        synchronized (this) {
+            closed = true;
+        }
         try {
             Set<Integer> shardIds = shardIds();
             final CountDownLatch latch = new CountDownLatch(shardIds.size());
@@ -248,6 +254,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override public synchronized IndexShard createShard(int sShardId) throws ElasticSearchException {
+        if (closed) {
+            throw new ElasticSearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+        }
         ShardId shardId = new ShardId(index, sShardId);
         if (shardsInjectors.containsKey(shardId.id())) {
             throw new IndexShardAlreadyExistsException(shardId + " already exists");

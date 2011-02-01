@@ -202,7 +202,7 @@ public class RollingRestartStressTest {
         // check the count
         for (int i = 0; i < (nodes.length * 5); i++) {
             CountResponse count = client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            logger.info("indexed [{}], count [{}]", count.count(), indexCounter.get());
+            logger.info("indexed [{}], count [{}], [{}]", count.count(), indexCounter.get(), count.count() == indexCounter.get() ? "OK" : "FAIL");
             if (count.count() != indexCounter.get()) {
                 logger.warn("count does not match!");
             }
@@ -254,7 +254,9 @@ public class RollingRestartStressTest {
 
         json.endObject();
 
-        client.client().prepareIndex("test", "type1", Long.toString(idCounter.incrementAndGet()))
+        String id = Long.toString(idCounter.incrementAndGet());
+        logger.info("indexing " + id);
+        client.client().prepareIndex("test", "type1", id)
                 .setCreate(true)
                 .setSource(json)
                 .execute().actionGet();

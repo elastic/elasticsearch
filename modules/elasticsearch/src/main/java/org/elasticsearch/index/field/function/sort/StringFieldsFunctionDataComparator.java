@@ -22,6 +22,7 @@ package org.elasticsearch.index.field.function.sort;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -61,6 +62,10 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
         script.setNextReader(reader);
+    }
+
+    @Override public void setScorer(Scorer scorer) {
+        script.setScorer(scorer);
     }
 
     @Override public int compare(int slot1, int slot2) {

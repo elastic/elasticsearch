@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -62,6 +63,10 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
         sumOfSquares += value * value;
         total += value;
         count++;
+    }
+
+    @Override public void setScorer(Scorer scorer) throws IOException {
+        script.setScorer(scorer);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

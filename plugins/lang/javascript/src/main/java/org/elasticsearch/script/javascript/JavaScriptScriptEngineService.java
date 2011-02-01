@@ -20,6 +20,7 @@
 package org.elasticsearch.script.javascript;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -199,6 +200,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
             this.script = script;
             this.scope = scope;
             this.lookup = lookup;
+        }
+
+        @Override public void setScorer(Scorer scorer) {
+            lookup.setScorer(scorer);
         }
 
         @Override public void setNextReader(IndexReader reader) {

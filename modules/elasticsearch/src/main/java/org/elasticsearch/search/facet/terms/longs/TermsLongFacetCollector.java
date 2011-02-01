@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.terms.longs;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -118,6 +119,12 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             } catch (Exception e) {
                 throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
             }
+        }
+    }
+
+    @Override public void setScorer(Scorer scorer) throws IOException {
+        if (script != null) {
+            script.setScorer(scorer);
         }
     }
 

@@ -110,6 +110,8 @@ public class SearchContext implements Releasable {
 
     private Sort sort;
 
+    private boolean trackScores = false; // when sorting, track scores as well...
+
     private String queryParserName;
 
     private ParsedQuery originalQuery;
@@ -292,6 +294,15 @@ public class SearchContext implements Releasable {
 
     public Sort sort() {
         return this.sort;
+    }
+
+    public SearchContext trackScores(boolean trackScores) {
+        this.trackScores = trackScores;
+        return this;
+    }
+
+    public boolean trackScores() {
+        return this.trackScores;
     }
 
     public SearchContext parsedFilter(Filter filter) {

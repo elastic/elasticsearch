@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
@@ -43,7 +44,9 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         public static final String NA = "_na_";
     }
 
-    private SearchContext searchContext;
+    private final SearchContext searchContext;
+
+    private final IndexReader reader;
 
     private CachedDfSource dfSource;
 
@@ -54,6 +57,7 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.searcher());
         this.searchContext = searchContext;
+        this.reader = searcher.searcher().getIndexReader();
     }
 
     public void dfSource(CachedDfSource dfSource) {
@@ -114,6 +118,18 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             return super.createWeight(query);
         }
         return query.weight(dfSource);
+    }
+
+    // override from the Searcher to allow to control if scores will be tracked or not
+    @Override public TopFieldDocs search(Weight weight, Filter filter, int nDocs,
+                                         Sort sort, boolean fillFields) throws IOException {
+
+        nDocs = Math.min(nDocs, reader.maxDoc());
+
+        TopFieldCollector collector = TopFieldCollector.create(sort, nDocs,
+                fillFields, searchContext.trackScores(), searchContext.trackScores(), !weight.scoresDocsOutOfOrder());
+        search(weight, filter, collector);
+        return (TopFieldDocs) collector.topDocs();
     }
 
     @Override public void search(Weight weight, Filter filter, Collector collector) throws IOException {

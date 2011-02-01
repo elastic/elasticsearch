@@ -22,12 +22,15 @@ package org.elasticsearch.test.integration.search.sort;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.sort.SortBuilders.*;
@@ -42,8 +45,9 @@ public class SimpleSortTests extends AbstractNodesTests {
     private Client client;
 
     @BeforeClass public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
+        Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        startNode("server1", settings);
+        startNode("server2", settings);
         client = getClient();
     }
 
@@ -54,6 +58,54 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     protected Client getClient() {
         return client("server1");
+    }
+
+    @Test public void testTrackScores() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("id", "1")
+                .field("svalue", "aaa")
+                .field("ivalue", 100)
+                .field("dvalue", 0.1)
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("id", "2")
+                .field("svalue", "bbb")
+                .field("ivalue", 200)
+                .field("dvalue", 0.2)
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("svalue", SortOrder.ASC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getMaxScore(), equalTo(Float.NaN));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.getScore(), equalTo(Float.NaN));
+        }
+
+        // now check with score tracking
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("svalue", SortOrder.ASC)
+                .setTrackScores(true)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getMaxScore(), not(equalTo(Float.NaN)));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.getScore(), not(equalTo(Float.NaN)));
+        }
     }
 
     @Test public void testSimpleSorts() throws Exception {

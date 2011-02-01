@@ -351,6 +351,15 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Applies when sorting, and controls if scores will be tracked as well. Defaults to
+     * <tt>false</tt>.
+     */
+    public SearchRequestBuilder setTrackScores(boolean trackScores) {
+        sourceBuilder().trackScores(trackScores);
+        return this;
+    }
+
+    /**
      * Adds the fields to load and return as part of the search request. If none are specified,
      * the source of the document will be returned.
      */

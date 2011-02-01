@@ -84,6 +84,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private List<SortBuilder> sorts;
 
+    private boolean trackScores = false;
+
     private List<String> fieldNames;
 
     private List<ScriptField> scriptFields;
@@ -216,6 +218,15 @@ public class SearchSourceBuilder implements ToXContent {
             sorts = Lists.newArrayList();
         }
         sorts.add(sort);
+        return this;
+    }
+
+    /**
+     * Applies when sorting, and controls if scores will be tracked as well. Defaults to
+     * <tt>false</tt>.
+     */
+    public SearchSourceBuilder trackScores(boolean trackScores) {
+        this.trackScores = trackScores;
         return this;
     }
 
@@ -453,6 +464,9 @@ public class SearchSourceBuilder implements ToXContent {
                 builder.endObject();
             }
             builder.endArray();
+            if (trackScores) {
+                builder.field("track_scores", trackScores);
+            }
         }
 
         if (indexBoost != null) {

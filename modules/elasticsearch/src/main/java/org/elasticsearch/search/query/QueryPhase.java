@@ -33,6 +33,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
+import org.elasticsearch.search.sort.TrackScoresParseElement;
 
 import java.util.Map;
 
@@ -61,6 +62,8 @@ public class QueryPhase implements SearchPhase {
                 .put("filterBinary", new FilterBinaryParseElement())
                 .put("filter_binary", new FilterBinaryParseElement())
                 .put("sort", new SortParseElement())
+                .put("trackScores", new TrackScoresParseElement())
+                .put("track_scores", new TrackScoresParseElement())
                 .putAll(facetPhase.parseElements());
         return parseElements.build();
     }

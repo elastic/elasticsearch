@@ -59,7 +59,9 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -314,7 +316,21 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         if (serverBootstrap != null) {
-            serverBootstrap.releaseExternalResources();
+            final CountDownLatch latch = new CountDownLatch(1);
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        serverBootstrap.releaseExternalResources();
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+            try {
+                latch.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
             serverBootstrap = null;
         }
 
@@ -325,7 +341,21 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         if (clientBootstrap != null) {
-            clientBootstrap.releaseExternalResources();
+            final CountDownLatch latch = new CountDownLatch(1);
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        clientBootstrap.releaseExternalResources();
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+            try {
+                latch.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
             clientBootstrap = null;
         }
     }

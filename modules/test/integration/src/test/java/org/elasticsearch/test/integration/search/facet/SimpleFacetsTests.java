@@ -25,6 +25,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
@@ -60,8 +62,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     private Client client;
 
     @BeforeClass public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
+        Settings settings = ImmutableSettings.settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        startNode("server1", settings);
+        startNode("server2", settings);
         client = getClient();
     }
 
@@ -889,6 +892,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(histogramFacet("stats5").field("date").interval(1, TimeUnit.MINUTES))
                 .addFacet(histogramScriptFacet("stats6").keyField("num").valueScript("doc['num'].value").interval(100))
                 .addFacet(histogramFacet("stats7").field("num").interval(100))
+                .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("doc.score").interval(100))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -982,6 +986,18 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(-1d));
         assertThat(facet.entries().get(1).mean(), equalTo(-1d));
+
+        facet = searchResponse.facets().facet("stats8");
+        assertThat(facet.name(), equalTo("stats8"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(1000l));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).total(), equalTo(2d));
+        assertThat(facet.entries().get(0).mean(), equalTo(1d));
+        assertThat(facet.entries().get(1).key(), equalTo(1100l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).total(), equalTo(1d));
+        assertThat(facet.entries().get(1).mean(), equalTo(1d));
     }
 
     @Test public void testRangeFacets() throws Exception {

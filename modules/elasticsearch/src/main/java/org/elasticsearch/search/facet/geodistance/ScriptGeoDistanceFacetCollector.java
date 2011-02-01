@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.geodistance;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
 import org.elasticsearch.index.search.geo.GeoDistance;
@@ -42,6 +43,10 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
 
         this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
+    }
+
+    @Override public void setScorer(Scorer scorer) throws IOException {
+        script.setScorer(scorer);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.terms.strings;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -68,6 +69,10 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
         this.matcher = pattern != null ? pattern.matcher("") : null;
 
         this.facets = TermsStringFacetCollector.popFacets();
+    }
+
+    @Override public void setScorer(Scorer scorer) throws IOException {
+        script.setScorer(scorer);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

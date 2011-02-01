@@ -20,6 +20,7 @@
 package org.elasticsearch.script.python;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -140,6 +141,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
                 }
             }
             this.lookup = lookup;
+        }
+
+        @Override public void setScorer(Scorer scorer) {
+            lookup.setScorer(scorer);
         }
 
         @Override public void setNextReader(IndexReader reader) {

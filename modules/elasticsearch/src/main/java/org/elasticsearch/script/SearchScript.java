@@ -20,11 +20,14 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 
 /**
  * A search script.
  */
 public interface SearchScript {
+
+    void setScorer(Scorer scorer);
 
     void setNextReader(IndexReader reader);
 

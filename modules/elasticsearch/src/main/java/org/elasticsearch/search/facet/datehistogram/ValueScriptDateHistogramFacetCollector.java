@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
@@ -93,6 +94,10 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     @Override protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, dateTime, histoProc);
+    }
+
+    @Override public void setScorer(Scorer scorer) throws IOException {
+        valueScript.setScorer(scorer);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

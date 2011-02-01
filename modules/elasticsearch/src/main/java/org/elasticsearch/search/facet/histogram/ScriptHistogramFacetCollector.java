@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.script.SearchScript;
@@ -67,6 +68,11 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
         double value = valueScript.runAsDouble();
         counts.adjustOrPutValue(bucket, 1, 1);
         totals.adjustOrPutValue(bucket, value, value);
+    }
+
+    @Override public void setScorer(Scorer scorer) throws IOException {
+        keyScript.setScorer(scorer);
+        valueScript.setScorer(scorer);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

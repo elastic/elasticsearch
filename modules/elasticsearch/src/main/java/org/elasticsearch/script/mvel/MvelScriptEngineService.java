@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mvel;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -141,6 +142,10 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
             for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
                 resolver.createVariable(entry.getKey(), entry.getValue());
             }
+        }
+
+        @Override public void setScorer(Scorer scorer) {
+            lookup.setScorer(scorer);
         }
 
         @Override public void setNextReader(IndexReader reader) {

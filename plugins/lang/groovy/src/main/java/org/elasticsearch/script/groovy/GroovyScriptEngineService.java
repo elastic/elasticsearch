@@ -23,6 +23,7 @@ import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -148,6 +149,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         public GroovySearchScript(Script script, SearchLookup lookup) {
             this.script = script;
             this.lookup = lookup;
+        }
+
+        @Override public void setScorer(Scorer scorer) {
+            lookup.setScorer(scorer);
         }
 
         @Override public void setNextReader(IndexReader reader) {

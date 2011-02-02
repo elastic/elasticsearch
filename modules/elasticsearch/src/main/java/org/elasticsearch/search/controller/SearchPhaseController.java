@@ -27,7 +27,9 @@ import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Ordering;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
@@ -53,7 +55,7 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class SearchPhaseController {
+public class SearchPhaseController extends AbstractComponent {
 
     public static Ordering<QuerySearchResultProvider> QUERY_RESULT_ORDERING = new Ordering<QuerySearchResultProvider>() {
         @Override public int compare(@Nullable QuerySearchResultProvider o1, @Nullable QuerySearchResultProvider o2) {
@@ -69,8 +71,16 @@ public class SearchPhaseController {
 
     private final FacetProcessors facetProcessors;
 
-    @Inject public SearchPhaseController(FacetProcessors facetProcessors) {
+    private final boolean optimizeSingleShard;
+
+    @Inject public SearchPhaseController(Settings settings, FacetProcessors facetProcessors) {
+        super(settings);
         this.facetProcessors = facetProcessors;
+        this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
+    }
+
+    public boolean optimizeSingleShard() {
+        return optimizeSingleShard;
     }
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
@@ -88,6 +98,52 @@ public class SearchPhaseController {
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results1) {
         if (results1.isEmpty()) {
             return EMPTY;
+        }
+
+        if (optimizeSingleShard) {
+            boolean canOptimize = false;
+            QuerySearchResult result = null;
+            if (results1.size() == 1) {
+                canOptimize = true;
+                result = results1.iterator().next().queryResult();
+            } else {
+                // lets see if we only got hits from a single shard, if so, we can optimize...
+                for (QuerySearchResultProvider queryResult : results1) {
+                    if (queryResult.queryResult().topDocs().scoreDocs.length > 0) {
+                        if (result != null) { // we already have one, can't really optimize
+                            canOptimize = false;
+                            break;
+                        }
+                        canOptimize = true;
+                        result = queryResult.queryResult();
+                    }
+                }
+            }
+            if (canOptimize) {
+                ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
+                if (scoreDocs.length < result.from()) {
+                    return EMPTY;
+                }
+                int resultDocsSize = result.size();
+                if ((scoreDocs.length - result.from()) < resultDocsSize) {
+                    resultDocsSize = scoreDocs.length - result.from();
+                }
+                if (result.topDocs() instanceof TopFieldDocs) {
+                    ShardDoc[] docs = new ShardDoc[resultDocsSize];
+                    for (int i = 0; i < resultDocsSize; i++) {
+                        ScoreDoc scoreDoc = scoreDocs[result.from() + i];
+                        docs[i] = new ShardFieldDoc(result.shardTarget(), scoreDoc.doc, scoreDoc.score, ((FieldDoc) scoreDoc).fields);
+                    }
+                    return docs;
+                } else {
+                    ShardDoc[] docs = new ShardDoc[resultDocsSize];
+                    for (int i = 0; i < resultDocsSize; i++) {
+                        ScoreDoc scoreDoc = scoreDocs[result.from() + i];
+                        docs[i] = new ShardScoreDoc(result.shardTarget(), scoreDoc.doc, scoreDoc.score);
+                    }
+                    return docs;
+                }
+            }
         }
 
         List<? extends QuerySearchResultProvider> results = QUERY_RESULT_ORDERING.sortedCopy(results1);

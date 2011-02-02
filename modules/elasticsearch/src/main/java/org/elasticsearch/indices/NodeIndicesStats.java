@@ -35,7 +35,7 @@ import java.io.Serializable;
  *
  * @author kimchy (shay.banon)
  */
-public class IndicesStats implements Streamable, Serializable, ToXContent {
+public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private ByteSizeValue storeSize;
 
@@ -45,11 +45,11 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
 
     private long fieldCacheEvictions;
 
-    IndicesStats() {
+    NodeIndicesStats() {
     }
 
-    public IndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
-                        long fieldCacheEvictions) {
+    public NodeIndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
+                            long fieldCacheEvictions) {
         this.storeSize = storeSize;
         this.fieldCacheSize = fieldCacheSize;
         this.filterCacheSize = filterCacheSize;
@@ -94,8 +94,8 @@ public class IndicesStats implements Streamable, Serializable, ToXContent {
         return fieldCacheEvictions();
     }
 
-    public static IndicesStats readIndicesStats(StreamInput in) throws IOException {
-        IndicesStats stats = new IndicesStats();
+    public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {
+        NodeIndicesStats stats = new NodeIndicesStats();
         stats.readFrom(in);
         return stats;
     }

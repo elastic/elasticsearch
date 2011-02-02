@@ -87,6 +87,35 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return settings();
     }
 
+    /**
+     * Returns only the primary shards store size in bytes.
+     */
+    public ByteSizeValue primaryStoreSize() {
+        long bytes = -1;
+        for (IndexShardStatus shard : this) {
+            if (shard.primaryStoreSize() != null) {
+                if (bytes == -1) {
+                    bytes = 0;
+                }
+                bytes += shard.primaryStoreSize().bytes();
+            }
+        }
+        if (bytes == -1) {
+            return null;
+        }
+        return new ByteSizeValue(bytes);
+    }
+
+    /**
+     * Returns only the primary shards store size in bytes.
+     */
+    public ByteSizeValue getPrimaryStoreSize() {
+        return primaryStoreSize();
+    }
+
+    /**
+     * Returns the full store size in bytes, of both primaries and replicas.
+     */
     public ByteSizeValue storeSize() {
         long bytes = -1;
         for (IndexShardStatus shard : this) {
@@ -103,6 +132,9 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return new ByteSizeValue(bytes);
     }
 
+    /**
+     * Returns the full store size in bytes, of both primaries and replicas.
+     */
     public ByteSizeValue getStoreSize() {
         return storeSize();
     }

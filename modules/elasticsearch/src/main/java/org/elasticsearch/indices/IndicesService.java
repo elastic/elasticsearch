@@ -38,7 +38,7 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
      */
     public boolean changesAllowed();
 
-    IndicesStats stats();
+    NodeIndicesStats stats();
 
     boolean hasIndex(String index);
 

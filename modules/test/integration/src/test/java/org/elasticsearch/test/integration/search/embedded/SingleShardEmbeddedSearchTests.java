@@ -66,7 +66,12 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
 
     private Client client;
 
+    protected boolean optimizeSingleShard() {
+        return true;
+    }
+
     @BeforeClass public void createNodeAndInitWithData() throws Exception {
+        putDefaultSettings(settingsBuilder().put("search.controller.optimize_single_shard", optimizeSingleShard()));
         startNode("server1");
         client = client("server1");
 
@@ -87,6 +92,10 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
 
     @AfterClass public void closeNode() {
         closeAllNodes();
+    }
+
+    @Test public void verifyOptimizeSingleShardSetting() {
+        assertThat(searchPhaseController.optimizeSingleShard(), equalTo(optimizeSingleShard()));
     }
 
     @Test public void testDirectDfs() throws Exception {

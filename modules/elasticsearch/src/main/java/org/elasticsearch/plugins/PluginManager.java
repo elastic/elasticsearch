@@ -111,9 +111,9 @@ public class PluginManager {
 
         if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    -url     [plugins location]    : Downloads and installs listed plugins");
-            System.out.println("    -install [plugin name]: Downloads and installs listed plugins");
-            System.out.println("    -remove  [plugin name]: Removes listed plugins");
+            System.out.println("    -url     [plugins location]  : Set URL to download plugins from");
+            System.out.println("    -install [plugin name]       : Downloads and installs listed plugins");
+            System.out.println("    -remove  [plugin name]       : Removes listed plugins");
         }
         for (int c = 0; c < args.length; c++) {
             String command = args[c];

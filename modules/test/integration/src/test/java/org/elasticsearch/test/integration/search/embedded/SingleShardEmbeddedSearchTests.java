@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.embedded;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortOrder;
@@ -195,6 +197,50 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(fetchResult.hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(fetchResult.hits().hits()[0].id(), equalTo("1"));
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
+    }
+
+    @Test public void testQueryAndFetchIterateWithFrom() throws Exception {
+        QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC)));
+        assertThat(result.queryResult().topDocs().totalHits, equalTo(5));
+
+        Set<String> idsLoaded = Sets.newHashSet();
+
+        ShardDoc[] sortedShardList = searchPhaseController.sortDocs(newArrayList(result));
+        Map<SearchShardTarget, QueryFetchSearchResult> queryResults = Maps.newHashMap();
+        queryResults.put(result.queryResult().shardTarget(), result);
+        InternalSearchResponse searchResponse = searchPhaseController.merge(sortedShardList, queryResults, queryResults);
+
+        for (SearchHit hit : searchResponse.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // iterate to the next 2
+        result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2).sort("age", SortOrder.DESC)));
+        assertThat(result.queryResult().topDocs().totalHits, equalTo(5));
+
+        sortedShardList = searchPhaseController.sortDocs(newArrayList(result));
+        queryResults = Maps.newHashMap();
+        queryResults.put(result.queryResult().shardTarget(), result);
+        searchResponse = searchPhaseController.merge(sortedShardList, queryResults, queryResults);
+
+        for (SearchHit hit : searchResponse.hits()) {
+            idsLoaded.add(hit.id());
+        }
+        result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2).sort("age", SortOrder.DESC)));
+        assertThat(result.queryResult().topDocs().totalHits, equalTo(5));
+
+        sortedShardList = searchPhaseController.sortDocs(newArrayList(result));
+        queryResults = Maps.newHashMap();
+        queryResults.put(result.queryResult().shardTarget(), result);
+        searchResponse = searchPhaseController.merge(sortedShardList, queryResults, queryResults);
+
+        for (SearchHit hit : searchResponse.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // verify all ids were loaded
+        Set<String> expectedIds = Sets.newHashSet("1", "2", "3", "4", "5");
+        assertThat(idsLoaded, equalTo(expectedIds));
     }
 
     @Test public void testDfsQueryThenFetch() throws Exception {

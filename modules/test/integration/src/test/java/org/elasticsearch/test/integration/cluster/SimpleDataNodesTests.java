@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.datanode;
+package org.elasticsearch.test.integration.cluster;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.index.IndexResponse;

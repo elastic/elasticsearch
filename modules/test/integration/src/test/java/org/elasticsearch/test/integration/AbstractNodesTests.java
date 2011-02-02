@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 
@@ -39,6 +40,16 @@ public abstract class AbstractNodesTests {
     private Map<String, Node> nodes = newHashMap();
 
     private Map<String, Client> clients = newHashMap();
+
+    private Settings defaultSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+
+    public void putDefaultSettings(Settings.Builder settings) {
+        putDefaultSettings(settings.build());
+    }
+
+    public void putDefaultSettings(Settings settings) {
+        defaultSettings = ImmutableSettings.settingsBuilder().put(defaultSettings).put(settings).build();
+    }
 
     public Node startNode(String id) {
         return buildNode(id).start();
@@ -64,6 +75,7 @@ public abstract class AbstractNodesTests {
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
         Settings finalSettings = settingsBuilder()
                 .loadFromClasspath(settingsSource)
+                .put(defaultSettings)
                 .put(settings)
                 .put("name", id)
                 .build();

@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.masternode;
+package org.elasticsearch.test.integration.cluster;
 
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -31,7 +30,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SpecificMasterNodesTests extends AbstractNodesTests {
+public class SpecificMasterNodesTests extends AbstractZenNodesTests {
 
     @AfterMethod public void closeNodes() {
         closeAllNodes();

@@ -44,6 +44,21 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleLuceneTests {
 
+    @Test public void testSortValues() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        for (int i = 0; i < 10; i++) {
+            indexWriter.addDocument(doc().add(field("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}))).build());
+        }
+        IndexReader reader = indexWriter.getReader();
+        IndexSearcher searcher = new IndexSearcher(reader);
+        TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), null, 10, new Sort(new SortField("str", SortField.STRING)));
+        for (int i = 0; i < 10; i++) {
+            FieldDoc fieldDoc = (FieldDoc) docs.scoreDocs[i];
+            assertThat(fieldDoc.fields[0].toString(), equalTo(new String(new char[]{(char) (97 + i), (char) (97 + i)})));
+        }
+    }
+
     @Test public void testAddDocAfterPrepareCommit() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);

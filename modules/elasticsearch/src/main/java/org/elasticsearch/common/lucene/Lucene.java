@@ -151,6 +151,10 @@ public class Lucene {
                         cFields[j] = in.readDouble();
                     } else if (type == 6) {
                         cFields[j] = in.readByte();
+                    } else if (type == 7) {
+                        cFields[j] = in.readShort();
+                    } else if (type == 8) {
+                        cFields[j] = in.readBoolean();
                     } else {
                         throw new IOException("Can't match type [" + type + "]");
                     }
@@ -226,6 +230,12 @@ public class Lucene {
                         } else if (type == Byte.class) {
                             out.writeByte((byte) 6);
                             out.writeByte((Byte) field);
+                        } else if (type == Short.class) {
+                            out.writeByte((byte) 7);
+                            out.writeShort((Short) field);
+                        } else if (type == Boolean.class) {
+                            out.writeByte((byte) 8);
+                            out.writeBoolean((Boolean) field);
                         } else {
                             throw new IOException("Can't handle sort field value of type [" + type + "]");
                         }

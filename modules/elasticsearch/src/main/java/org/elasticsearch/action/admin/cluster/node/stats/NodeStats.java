@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.indices.IndicesStats;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
@@ -40,7 +40,7 @@ import java.io.IOException;
  */
 public class NodeStats extends NodeOperationResponse {
 
-    private IndicesStats indices;
+    private NodeIndicesStats indices;
 
     private OsStats os;
 
@@ -57,7 +57,7 @@ public class NodeStats extends NodeOperationResponse {
     NodeStats() {
     }
 
-    public NodeStats(DiscoveryNode node, IndicesStats indices,
+    public NodeStats(DiscoveryNode node, NodeIndicesStats indices,
                      OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
                      ThreadPoolStats threadPool, TransportStats transport) {
         super(node);
@@ -73,14 +73,14 @@ public class NodeStats extends NodeOperationResponse {
     /**
      * Indices level stats.
      */
-    public IndicesStats indices() {
+    public NodeIndicesStats indices() {
         return this.indices;
     }
 
     /**
      * Indices level stats.
      */
-    public IndicesStats getIndices() {
+    public NodeIndicesStats getIndices() {
         return indices();
     }
 
@@ -171,7 +171,7 @@ public class NodeStats extends NodeOperationResponse {
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            indices = IndicesStats.readIndicesStats(in);
+            indices = NodeIndicesStats.readIndicesStats(in);
         }
         if (in.readBoolean()) {
             os = OsStats.readOsStats(in);

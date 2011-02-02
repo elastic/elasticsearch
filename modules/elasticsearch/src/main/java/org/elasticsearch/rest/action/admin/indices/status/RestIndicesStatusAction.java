@@ -85,12 +85,18 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                         }
                         builder.endObject();
 
+                        builder.startObject("index");
                         if (indexStatus.storeSize() != null) {
-                            builder.field("store_size", indexStatus.storeSize().toString());
-                            builder.field("store_size_in_bytes", indexStatus.storeSize().bytes());
+                            builder.field("primary_size", indexStatus.primaryStoreSize().toString());
+                            builder.field("primary_size_in_bytes", indexStatus.primaryStoreSize().bytes());
+                            builder.field("size", indexStatus.storeSize().toString());
+                            builder.field("size_in_bytes", indexStatus.storeSize().bytes());
                         }
+                        builder.endObject();
                         if (indexStatus.translogOperations() != -1) {
-                            builder.field("translog_operations", indexStatus.translogOperations());
+                            builder.startObject("translog");
+                            builder.field("operations", indexStatus.translogOperations());
+                            builder.endObject();
                         }
 
                         if (indexStatus.docs() != null) {

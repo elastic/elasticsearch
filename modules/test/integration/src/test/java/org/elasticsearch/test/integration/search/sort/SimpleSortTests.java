@@ -22,7 +22,9 @@ package org.elasticsearch.test.integration.search.sort;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -33,7 +35,6 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
-import static org.elasticsearch.search.sort.SortBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -108,136 +109,250 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testSimpleSorts() throws Exception {
+    @Test public void testSimpleSortsSingleShard() throws Exception {
+        testSimpleSorts(1);
+    }
+
+    @Test public void testSimpleSortsTwoShards() throws Exception {
+        testSimpleSorts(2);
+    }
+
+    @Test public void testSimpleSortsThreeShards() throws Exception {
+        testSimpleSorts(3);
+    }
+
+    private void testSimpleSorts(int numberOfShards) throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", numberOfShards).put("number_of_replicas", 0))
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("str_value").field("type", "string").endObject()
+                        .startObject("boolean_value").field("type", "boolean").endObject()
+                        .startObject("byte_value").field("type", "byte").endObject()
+                        .startObject("short_value").field("type", "short").endObject()
+                        .startObject("integer_value").field("type", "integer").endObject()
+                        .startObject("long_value").field("type", "long").endObject()
+                        .startObject("float_value").field("type", "float").endObject()
+                        .startObject("double_value").field("type", "double").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
-                .field("id", "1")
-                .field("svalue", "aaa")
-                .field("ivalue", 100)
-                .field("dvalue", 0.1)
-                .endObject()).execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+                    .field("str_value", new String(new char[]{(char) (97 + i), (char) (97 + i)}))
+                    .field("boolean_value", true)
+                    .field("byte_value", i)
+                    .field("short_value", i)
+                    .field("integer_value", i)
+                    .field("long_value", i)
+                    .field("float_value", 0.1 * i)
+                    .field("double_value", 0.1 * i)
+                    .endObject()).execute().actionGet();
+        }
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
-                .field("id", "2")
-                .field("svalue", "bbb")
-                .field("ivalue", 200)
-                .field("dvalue", 0.2)
-                .endObject()).execute().actionGet();
+//        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        // STRING
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SortOrder.ASC)
+                .setSize(10)
+                .addSort("str_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat(searchResponse.hits().getAt(0).sortValues()[0].toString(), equalTo("aaa"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
-        assertThat(searchResponse.hits().getAt(1).sortValues()[0].toString(), equalTo("bbb"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(searchResponse.hits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + i), (char) (97 + i)})));
+        }
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort(scriptSort("doc['svalue'].value", "string").order(SortOrder.ASC))
+                .setSize(10)
+                .addSort("str_value", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(searchResponse.hits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + (9 - i)), (char) (97 + (9 - i))})));
+        }
+
+        // BYTE
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SortOrder.DESC)
+                .setSize(10)
+                .addSort("byte_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).byteValue(), equalTo((byte) i));
+        }
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort(scriptSort("doc['svalue'].value", "string").order(SortOrder.DESC))
+                .setSize(10)
+                .addSort("byte_value", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).byteValue(), equalTo((byte) (9 - i)));
+        }
+
+        // SHORT
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort("ivalue", SortOrder.ASC)
+                .setSize(10)
+                .addSort("short_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(100l));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
-        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(200l));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).shortValue(), equalTo((short) i));
+        }
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort(scriptSort("doc['ivalue'].value", "number").order(SortOrder.ASC))
+                .setSize(10)
+                .addSort("short_value", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).shortValue(), equalTo((short) (9 - i)));
+        }
+
+        // INTEGER
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort("ivalue", SortOrder.DESC)
+                .setSize(10)
+                .addSort("integer_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(200l));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
-        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(100l));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).intValue(), equalTo((int) i));
+        }
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort(scriptSort("doc['ivalue'].value", "string").order(SortOrder.DESC))
+                .setSize(10)
+                .addSort("integer_value", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).intValue(), equalTo((int) (9 - i)));
+        }
+
+        // LONG
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort("dvalue", SortOrder.ASC)
+                .setSize(10)
+                .addSort("long_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).longValue(), equalTo((long) i));
+        }
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", "doc['id'].value")
-                .addSort("dvalue", SortOrder.DESC)
+                .setSize(10)
+                .addSort("long_value", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
-        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).longValue(), equalTo((long) (9 - i)));
+        }
+
+        // FLOAT
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort("float_value", SortOrder.ASC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * i, 0.000001d));
+        }
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort("float_value", SortOrder.DESC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
+        }
+
+        // DOUBLE
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort("double_value", SortOrder.ASC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * i, 0.000001d));
+        }
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort("double_value", SortOrder.DESC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.hits().hits().length, equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
+        }
     }
 
     @Test public void testDocumentsWithNullValue() throws Exception {

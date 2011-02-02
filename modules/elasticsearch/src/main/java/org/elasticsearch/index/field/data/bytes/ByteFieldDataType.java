@@ -24,7 +24,6 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.shorts.ShortFieldDataComparator;
 
 import java.io.IOException;
 
@@ -36,7 +35,7 @@ public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
     @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new ShortFieldDataComparator(numHits, fieldname, cache);
+                return new ByteFieldDataComparator(numHits, fieldname, cache);
             }
         };
     }

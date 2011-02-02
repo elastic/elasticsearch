@@ -504,6 +504,10 @@ public class InternalSearchHit implements SearchHit {
                     sortValues[i] = in.readDouble();
                 } else if (type == 6) {
                     sortValues[i] = in.readByte();
+                } else if (type == 7) {
+                    sortValues[i] = in.readShort();
+                } else if (type == 8) {
+                    sortValues[i] = in.readBoolean();
                 } else {
                     throw new IOException("Can't match type [" + type + "]");
                 }
@@ -595,6 +599,12 @@ public class InternalSearchHit implements SearchHit {
                     } else if (type == Byte.class) {
                         out.writeByte((byte) 6);
                         out.writeByte((Byte) sortValue);
+                    } else if (type == Short.class) {
+                        out.writeByte((byte) 7);
+                        out.writeShort((Short) sortValue);
+                    } else if (type == Boolean.class) {
+                        out.writeByte((byte) 8);
+                        out.writeBoolean((Boolean) sortValue);
                     } else {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }

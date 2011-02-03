@@ -78,7 +78,6 @@ allprojects {
 
     repositories {
         mavenCentral()
-        mavenRepo urls: 'http://snapshots.repository.codehaus.org/'
         mavenRepo urls: 'https://repository.jboss.org/nexus/content/groups/public'
         mavenRepo urls: 'http://repository.codehaus.org/'
         mavenRepo urls: 'http://elasticsearch.googlecode.com/svn/maven'

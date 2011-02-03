@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -67,8 +66,8 @@ public class MetaDataMappingService extends AbstractComponent {
         this.mappingCreatedAction = mappingCreatedAction;
     }
 
-    public void updateMapping(final String index, final String type, final CompressedString mappingSource) {
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
+    public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
+        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
                     // first, check if it really needs to be updated
@@ -124,7 +123,13 @@ public class MetaDataMappingService extends AbstractComponent {
                 } catch (Exception e) {
                     logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
                     return currentState;
+                } finally {
+                    listener.onResponse(new Response(true));
                 }
+            }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                listener.onResponse(new Response(true));
             }
         });
     }

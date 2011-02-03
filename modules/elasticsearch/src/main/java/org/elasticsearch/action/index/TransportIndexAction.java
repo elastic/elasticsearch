@@ -53,6 +53,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Performs the index operation.
@@ -76,6 +78,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     private final MappingUpdatedAction mappingUpdatedAction;
 
+    private final boolean waitForMappingChange;
+
     @Inject public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                         TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction) {
@@ -84,6 +88,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
+        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", true);
     }
 
     @Override protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
@@ -226,6 +231,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     private void updateMappingOnMaster(final IndexRequest request) {
+        final CountDownLatch latch = new CountDownLatch(1);
         try {
             MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
             final DocumentMapper documentMapper = mapperService.documentMapper(request.type());
@@ -237,9 +243,11 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                     // all is well
+                    latch.countDown();
                 }
 
                 @Override public void onFailure(Throwable e) {
+                    latch.countDown();
                     try {
                         logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + documentMapper.mappingSource().string() + "]", e);
                     } catch (IOException e1) {
@@ -248,7 +256,16 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 }
             });
         } catch (Exception e) {
+            latch.countDown();
             logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "]", e);
+        }
+
+        if (waitForMappingChange) {
+            try {
+                latch.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
         }
     }
 }

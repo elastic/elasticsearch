@@ -457,6 +457,19 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return this;
     }
 
+    /**
+     * Sets the source builder to be used with this request. Note, any operations done
+     * on this require builder before are discarded as this internal builder replaces
+     * what has been built up until this point.
+     */
+    public SearchRequestBuilder internalBuilder(SearchSourceBuilder sourceBuilder) {
+        this.sourceBuilder = sourceBuilder;
+        return this;
+    }
+
+    /**
+     * Returns the internal search source builder used to construct the request.
+     */
     public SearchSourceBuilder internalBuilder() {
         return sourceBuilder();
     }

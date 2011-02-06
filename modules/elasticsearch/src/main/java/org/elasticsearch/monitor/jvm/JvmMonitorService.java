@@ -93,7 +93,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         }
 
         @Override public void run() {
-            monitorDeadlock();
+//            monitorDeadlock();
             monitorLongGc();
         }
 

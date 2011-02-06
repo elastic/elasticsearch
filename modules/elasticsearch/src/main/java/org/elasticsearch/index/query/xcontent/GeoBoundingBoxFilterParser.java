@@ -43,14 +43,14 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  */
 public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implements XContentFilterParser {
 
-    public static final String NAME = "geo_bounding_box";
+    public static final String NAME = "geo_bbox";
 
     @Inject public GeoBoundingBoxFilterParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
     @Override public String[] names() {
-        return new String[]{NAME, "geoBoundingBox"};
+        return new String[]{NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
     }
 
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {

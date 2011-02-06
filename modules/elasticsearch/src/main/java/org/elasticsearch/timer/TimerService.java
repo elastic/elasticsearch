@@ -30,7 +30,6 @@ import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -48,10 +47,6 @@ public class TimerService extends AbstractComponent {
 
     private final ThreadPool threadPool;
 
-    private final TimeEstimator timeEstimator;
-
-    private final ScheduledFuture timeEstimatorFuture;
-
     private final Timer timer;
 
     private final TimeValue tickDuration;
@@ -66,9 +61,6 @@ public class TimerService extends AbstractComponent {
         super(settings);
         this.threadPool = threadPool;
 
-        this.timeEstimator = new TimeEstimator();
-        this.timeEstimatorFuture = threadPool.scheduleWithFixedDelay(timeEstimator, 50, 50, TimeUnit.MILLISECONDS);
-
         this.tickDuration = componentSettings.getAsTime("tick_duration", timeValueMillis(100));
         this.ticksPerWheel = componentSettings.getAsInt("ticks_per_wheel", 1024);
 
@@ -76,12 +68,12 @@ public class TimerService extends AbstractComponent {
     }
 
     public void close() {
-        timeEstimatorFuture.cancel(true);
         timer.stop();
     }
 
     public long estimatedTimeInMillis() {
-        return timeEstimator.time();
+        // don't use the scheduled estimator so we won't wake up a thread each time
+        return System.currentTimeMillis();
     }
 
     public Timeout newTimeout(TimerTask task, TimeValue delay, ExecutionType executionType) {

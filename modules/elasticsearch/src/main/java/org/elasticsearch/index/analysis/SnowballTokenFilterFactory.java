@@ -30,6 +30,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  * Real work actually done here by Sebastian on the ElasticSearch mailing list
  * http://elasticsearch-users.115913.n3.nabble.com/Using-the-Snowball-stemmers-tp2126106p2127111.html
+ *
  * @author harryf (Harry Fuecks)
  */
 public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -38,7 +39,7 @@ public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        this.language = settings.get("language");
+        this.language = settings.get("language", "English");
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.xcontent.ip.IpFieldMapper;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -440,20 +439,21 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                         }
                     }
                 }
+                // DON'T do automatic ip detection logic, since it messes up with docs that have hosts and ips
                 // check if its an ip
-                if (!resolved && text.indexOf('.') != -1) {
-                    try {
-                        IpFieldMapper.ipToLong(text);
-                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "ip");
-                        if (builder == null) {
-                            builder = ipField(currentFieldName);
-                        }
-                        mapper = builder.build(builderContext);
-                        resolved = true;
-                    } catch (Exception e) {
-                        // failure to parse, not ip...
-                    }
-                }
+//                if (!resolved && text.indexOf('.') != -1) {
+//                    try {
+//                        IpFieldMapper.ipToLong(text);
+//                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "ip");
+//                        if (builder == null) {
+//                            builder = ipField(currentFieldName);
+//                        }
+//                        mapper = builder.build(builderContext);
+//                        resolved = true;
+//                    } catch (Exception e) {
+//                        // failure to parse, not ip...
+//                    }
+//                }
                 if (!resolved) {
                     XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
                     if (builder == null) {

@@ -145,6 +145,7 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
                 .setSource(jsonBuilder().startObject()
                         .startObject("obj1").field("test", "something").endObject()
                         .startObject("obj2").startArray("arr2").value("arr_value1").value("arr_value2").endArray().endObject()
+                        .startArray("arr3").startObject().field("arr3_field1", "arr3_value1").endObject().endArray()
                         .endObject())
                 .execute().actionGet();
         client.admin().indices().refresh(refreshRequest()).actionGet();
@@ -156,6 +157,7 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
                 .addScriptField("s_obj1_test", "_source.obj1.test")
                 .addScriptField("s_obj2", "_source.obj2")
                 .addScriptField("s_obj2_arr2", "_source.obj2.arr2")
+                .addScriptField("s_arr3", "_source.arr3")
                 .execute().actionGet();
 
         Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("_source.obj1").value();
@@ -176,5 +178,8 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
+
+        List sObj2Arr3 = (List) response.hits().getAt(0).field("s_arr3").value();
+        assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 }

@@ -84,6 +84,10 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         return this.idCache;
     }
 
+    public BloomCache bloomCache() {
+        return this.bloomCache;
+    }
+
     public QueryParserCache queryParserCache() {
         return this.queryParserCache;
     }

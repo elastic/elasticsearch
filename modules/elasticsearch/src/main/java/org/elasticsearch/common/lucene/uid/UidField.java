@@ -43,10 +43,12 @@ public class UidField extends AbstractField {
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
+        public final IndexReader reader;
 
-        public DocIdAndVersion(int docId, long version) {
+        public DocIdAndVersion(int docId, long version, IndexReader reader) {
             this.docId = docId;
             this.version = version;
+            this.reader = reader;
         }
     }
 
@@ -56,20 +58,20 @@ public class UidField extends AbstractField {
         try {
             uid = reader.termPositions(term);
             if (!uid.next()) {
-                return new DocIdAndVersion(Lucene.NO_DOC, -1);
+                return new DocIdAndVersion(Lucene.NO_DOC, -1, reader);
             }
             docId = uid.doc();
             uid.nextPosition();
             if (!uid.isPayloadAvailable()) {
-                return new DocIdAndVersion(docId, -2);
+                return new DocIdAndVersion(docId, -2, reader);
             }
             if (uid.getPayloadLength() < 8) {
-                return new DocIdAndVersion(docId, -2);
+                return new DocIdAndVersion(docId, -2, reader);
             }
             byte[] payload = uid.getPayload(new byte[8], 0);
-            return new DocIdAndVersion(docId, Numbers.bytesToLong(payload));
+            return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), reader);
         } catch (Exception e) {
-            return new DocIdAndVersion(docId, -2);
+            return new DocIdAndVersion(docId, -2, reader);
         } finally {
             if (uid != null) {
                 try {

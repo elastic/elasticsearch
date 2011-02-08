@@ -48,16 +48,38 @@ public class XContentFactory {
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
+     *
+     * <p>Note, this should be passed directly to an API, if its going to be used around, make sure you use
+     * {@link #safeJsonBuilder()}.
      */
     public static XContentBuilder jsonBuilder() throws IOException {
         return contentBuilder(XContentType.JSON);
     }
 
     /**
+     * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}
+     * that can be used outside of the scope of passing it directly to an API call.
+     */
+    public static XContentBuilder safeJsonBuilder() throws IOException {
+        return unCachedContentBuilder(XContentType.JSON);
+    }
+
+    /**
      * Returns a content builder using SMILE format ({@link org.elasticsearch.common.xcontent.XContentType#SMILE}.
+     *
+     * <p>Note, this should be passed directly to an API, if its going to be used around, make sure you use
+     * {@link #safeSmileBuilder()}.
      */
     public static XContentBuilder smileBuilder() throws IOException {
         return contentBuilder(XContentType.SMILE);
+    }
+
+    /**
+     * Returns a content builder using SMILE format ({@link org.elasticsearch.common.xcontent.XContentType#SMILE}
+     * that can be used outside of the scope of passing it directly to an API call.
+     */
+    public static XContentBuilder safeSmileBuilder() throws IOException {
+        return unCachedContentBuilder(XContentType.SMILE);
     }
 
     /**

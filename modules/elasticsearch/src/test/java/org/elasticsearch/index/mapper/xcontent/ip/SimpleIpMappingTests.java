@@ -19,38 +19,30 @@
 
 package org.elasticsearch.index.mapper.xcontent.ip;
 
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.xcontent.MapperTests;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.testng.annotations.Test;
-
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
-
 /**
  * @author kimchy (shay.banon)
  */
 public class SimpleIpMappingTests {
 
-    @Test public void testAutoIpDetection() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").endObject()
-                .endObject().endObject().string();
-
-        XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
-
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("ip1", "127.0.0.1")
-                .field("ip2", "0.1")
-                .field("ip3", "127.0.0.1.2")
-                .endObject()
-                .copiedBytes());
-
-        assertThat(doc.doc().getFieldable("ip1"), notNullValue());
-        assertThat(doc.doc().get("ip1"), nullValue()); // its numeric
-        assertThat(doc.doc().get("ip2"), equalTo("0.1"));
-        assertThat(doc.doc().get("ip3"), equalTo("127.0.0.1.2"));
-    }
+    // No Longer enabled...
+//    @Test public void testAutoIpDetection() throws Exception {
+//        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+//                .startObject("properties").endObject()
+//                .endObject().endObject().string();
+//
+//        XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+//
+//        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+//                .startObject()
+//                .field("ip1", "127.0.0.1")
+//                .field("ip2", "0.1")
+//                .field("ip3", "127.0.0.1.2")
+//                .endObject()
+//                .copiedBytes());
+//
+//        assertThat(doc.doc().getFieldable("ip1"), notNullValue());
+//        assertThat(doc.doc().get("ip1"), nullValue()); // its numeric
+//        assertThat(doc.doc().get("ip2"), equalTo("0.1"));
+//        assertThat(doc.doc().get("ip3"), equalTo("127.0.0.1.2"));
+//    }
 }

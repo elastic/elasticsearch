@@ -44,6 +44,10 @@ public class VersionSearchHitPhase implements SearchHitPhase {
     }
 
     @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+        if (!context.version()) {
+            hitContext.hit().version(-1);
+            return;
+        }
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...

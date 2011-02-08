@@ -82,6 +82,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private Boolean explain;
 
+    private Boolean version;
+
     private List<SortBuilder> sorts;
 
     private boolean trackScores = false;
@@ -186,8 +188,17 @@ public class SearchSourceBuilder implements ToXContent {
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
      * explanation of the hit (ranking).
      */
-    public SearchSourceBuilder explain(Boolean explain) {
+    public SearchSourceBuilder explain(boolean explain) {
         this.explain = explain;
+        return this;
+    }
+
+    /**
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with a version
+     * associated with it.
+     */
+    public SearchSourceBuilder version(boolean version) {
+        this.version = version;
         return this;
     }
 
@@ -421,6 +432,10 @@ public class SearchSourceBuilder implements ToXContent {
             } else {
                 builder.field("filter_binary", queryBinary);
             }
+        }
+
+        if (version != null) {
+            builder.field("version", version);
         }
 
         if (explain != null) {

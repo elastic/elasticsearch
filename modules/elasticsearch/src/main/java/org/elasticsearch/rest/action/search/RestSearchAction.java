@@ -176,6 +176,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         searchSourceBuilder.queryParserName(request.param("query_parser_name"));
         searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
+        searchSourceBuilder.version(request.paramAsBoolean("version", null));
 
         String sField = request.param("fields");
         if (sField != null) {

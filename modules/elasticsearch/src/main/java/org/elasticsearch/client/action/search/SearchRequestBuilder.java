@@ -263,6 +263,15 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with its
+     * version.
+     */
+    public SearchRequestBuilder setVersion(boolean version) {
+        sourceBuilder().version(version);
+        return this;
+    }
+
+    /**
      * Sets the boost a specific index will receive when the query is executeed against it.
      *
      * @param index      The index to apply the boost against

@@ -100,6 +100,8 @@ public class SearchContext implements Releasable {
 
     private boolean explain;
 
+    private boolean version = false; // by default, we don't return versions
+
     private List<String> fieldNames;
 
     private int from = -1;
@@ -396,6 +398,14 @@ public class SearchContext implements Releasable {
 
     public void explain(boolean explain) {
         this.explain = explain;
+    }
+
+    public boolean version() {
+        return version;
+    }
+
+    public void version(boolean version) {
+        this.version = version;
     }
 
     public int[] docIdsToLoad() {

@@ -115,7 +115,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
             assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
         }
     }
@@ -181,7 +181,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
             assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
         }
     }

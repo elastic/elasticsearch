@@ -19,14 +19,12 @@
 
 package org.elasticsearch.search.fetch.explain;
 
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.SearchHitPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.fetch.version.VersionParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,7 +36,7 @@ import java.util.Map;
 public class ExplainSearchHitPhase implements SearchHitPhase {
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("explain", new ExplainParseElement());
+        return ImmutableMap.of("explain", new ExplainParseElement(), "version", new VersionParseElement());
     }
 
     @Override public boolean executionNeeded(SearchContext context) {

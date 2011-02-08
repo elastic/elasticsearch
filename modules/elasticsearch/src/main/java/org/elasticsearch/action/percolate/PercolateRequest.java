@@ -43,6 +43,7 @@ import static org.elasticsearch.action.Actions.*;
 public class PercolateRequest extends SingleCustomOperationRequest {
 
     private String index;
+    private String type;
 
     private byte[] source;
     private int sourceOffset;
@@ -57,9 +58,11 @@ public class PercolateRequest extends SingleCustomOperationRequest {
      * Constructs a new percolate request.
      *
      * @param index The index name
+     * @param type  The document type
      */
-    public PercolateRequest(String index) {
+    public PercolateRequest(String index, String type) {
         this.index = index;
+        this.type = type;
     }
 
     public PercolateRequest index(String index) {
@@ -67,8 +70,17 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return this;
     }
 
+    public PercolateRequest type(String type) {
+        this.type = type;
+        return this;
+    }
+
     public String index() {
         return this.index;
+    }
+
+    public String type() {
+        return this.type;
     }
 
     /**
@@ -164,6 +176,9 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
         }
+        if (type == null) {
+            validationException = addValidationError("type is missing", validationException);
+        }
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
@@ -173,6 +188,7 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readUTF();
+        type = in.readUTF();
 
         sourceUnsafe = false;
         sourceOffset = 0;
@@ -184,6 +200,7 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(index);
+        out.writeUTF(type);
 
         out.writeVInt(sourceLength);
         out.writeBytes(source, sourceOffset, sourceLength);

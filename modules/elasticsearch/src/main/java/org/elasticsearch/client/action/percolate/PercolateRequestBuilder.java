@@ -24,7 +24,6 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -35,15 +34,23 @@ import java.util.Map;
  */
 public class PercolateRequestBuilder extends BaseRequestBuilder<PercolateRequest, PercolateResponse> {
 
-    public PercolateRequestBuilder(Client client, @Nullable String index) {
-        super(client, new PercolateRequest(index));
+    public PercolateRequestBuilder(Client client, String index, String type) {
+        super(client, new PercolateRequest(index, type));
     }
 
     /**
-     * Sets the index to index the document to.
+     * Sets the index to percolate the document against.
      */
     public PercolateRequestBuilder setIndex(String index) {
         request.index(index);
+        return this;
+    }
+
+    /**
+     * Sets the type of the document to percolate.
+     */
+    public PercolateRequestBuilder setType(String type) {
+        request.type(type);
         return this;
     }
 

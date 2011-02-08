@@ -80,14 +80,14 @@ public class EmbeddedPercolatorBenchmarkTest {
 
         final PercolatorExecutor percolatorExecutor = injector.getInstance(PercolatorExecutor.class);
 
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .field("field1", 1)
                 .field("field2", "value")
                 .field("field3", "the quick brown fox jumped over the lazy dog")
-                .endObject().endObject().endObject();
+                .endObject().endObject();
         final byte[] source = doc.copiedBytes();
 
-        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
 
         for (int i = 0; i < NUMBER_OF_QUERIES; i++) {
             percolatorExecutor.addQuery("test" + i, termQuery("field3", "quick"));
@@ -98,7 +98,7 @@ public class EmbeddedPercolatorBenchmarkTest {
         StopWatch stopWatch = new StopWatch().start();
         System.out.println("Running " + 1000);
         for (long i = 0; i < 1000; i++) {
-            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         }
         System.out.println("[Warmup] Percolated in " + stopWatch.stop().totalTime() + " TP Millis " + (NUMBER_OF_ITERATIONS / stopWatch.totalTime().millisFrac()));
 
@@ -109,7 +109,7 @@ public class EmbeddedPercolatorBenchmarkTest {
             threads[i] = new Thread(new Runnable() {
                 @Override public void run() {
                     for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
                     }
                     latch.countDown();
                 }

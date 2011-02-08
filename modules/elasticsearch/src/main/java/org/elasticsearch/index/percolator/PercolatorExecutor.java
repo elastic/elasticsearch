@@ -73,18 +73,24 @@ import static org.elasticsearch.index.mapper.SourceToParse.*;
 public class PercolatorExecutor extends AbstractIndexComponent {
 
     public static class SourceRequest {
+        private final String type;
         private final byte[] source;
         private final int offset;
         private final int length;
 
-        public SourceRequest(byte[] source) {
-            this(source, 0, source.length);
+        public SourceRequest(String type, byte[] source) {
+            this(type, source, 0, source.length);
         }
 
-        public SourceRequest(byte[] source, int offset, int length) {
+        public SourceRequest(String type, byte[] source, int offset, int length) {
+            this.type = type;
             this.source = source;
             this.offset = offset;
             this.length = length;
+        }
+
+        public String type() {
+            return this.type;
         }
 
         public byte[] source() {
@@ -268,17 +274,16 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                    // we need to check the "doc" here, so the next token will be START_OBJECT which is
+                    // the actual document starting
+                    if ("doc".equals(currentFieldName)) {
+                        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.type());
+                        doc = docMapper.parse(source(parser).type(request.type()).flyweight(true));
+                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
                         query = queryParser.parse(parser).query();
-                    } else if ("doc".equals(currentFieldName)) {
-                        // the first level should be the type
-                        token = parser.nextToken();
-                        assert token == XContentParser.Token.FIELD_NAME;
-                        String type = parser.currentName();
-                        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
-                        doc = docMapper.parse(source(parser).type(type).flyweight(true));
                     }
                 } else if (token == null) {
                     break;

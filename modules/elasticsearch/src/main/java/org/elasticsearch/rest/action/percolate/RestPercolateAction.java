@@ -42,12 +42,12 @@ public class RestPercolateAction extends BaseRestHandler {
 
     @Inject public RestPercolateAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/{index}/_percolate", this);
-        controller.registerHandler(POST, "/{index}/_percolate", this);
+        controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
+        controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        PercolateRequest percolateRequest = new PercolateRequest(request.param("index"));
+        PercolateRequest percolateRequest = new PercolateRequest(request.param("index"), request.param("type"));
         percolateRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
 
         // we just send a response, no need to fork

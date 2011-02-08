@@ -329,6 +329,9 @@ public interface Client {
 
     /**
      * Percolates a request returning the matches documents.
+     *
+     * @param index The index to percolate the doc
+     * @param type  The type of the doc
      */
-    PercolateRequestBuilder preparePercolate(String index);
+    PercolateRequestBuilder preparePercolate(String index, String type);
 }

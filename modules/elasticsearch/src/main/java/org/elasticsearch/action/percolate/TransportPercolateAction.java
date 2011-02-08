@@ -72,7 +72,7 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         PercolatorService percolatorService = indexService.percolateService();
 
-        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.source()));
+        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.type(), request.source()));
         return new PercolateResponse(percolate.matches());
     }
 }

@@ -397,7 +397,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new MapperException("Malformed content, must start with an object");
             }
-            countDownTokens++;
             token = parser.nextToken();
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new MapperException("Malformed content, after first object, either the type field or the actual properties should exist");

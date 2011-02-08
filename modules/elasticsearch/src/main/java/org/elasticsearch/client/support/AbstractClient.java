@@ -84,7 +84,7 @@ public abstract class AbstractClient implements InternalClient {
         return new CountRequestBuilder(this).setIndices(indices);
     }
 
-    @Override public PercolateRequestBuilder preparePercolate(String index) {
-        return new PercolateRequestBuilder(this, index);
+    @Override public PercolateRequestBuilder preparePercolate(String index, String type) {
+        return new PercolateRequestBuilder(this, index, type);
     }
 }

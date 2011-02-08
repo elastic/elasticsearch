@@ -77,7 +77,7 @@ public class SinglePercolatorStressBenchmark {
         System.out.println("Percolating [" + COUNT + "] ...");
         int i = 1;
         for (; i <= COUNT; i++) {
-            PercolateResponse percolate = client1.preparePercolate("test").setSource(source(Integer.toString(i), "value"))
+            PercolateResponse percolate = client1.preparePercolate("test", "type1").setSource(source(Integer.toString(i), "value"))
                     .execute().actionGet();
             if (percolate.matches().size() != QUERIES) {
                 System.err.println("No matching number of queries");
@@ -98,7 +98,7 @@ public class SinglePercolatorStressBenchmark {
 
     private static XContentBuilder source(String id, String nameValue) throws IOException {
         long time = System.currentTimeMillis();
-        return jsonBuilder().startObject().startObject("doc").startObject("type1")
+        return jsonBuilder().startObject().startObject("doc")
                 .field("id", id)
                 .field("numeric1", time)
                 .field("numeric2", time)
@@ -111,6 +111,6 @@ public class SinglePercolatorStressBenchmark {
                 .field("numeric9", time)
                 .field("numeric10", time)
                 .field("name", nameValue)
-                .endObject().endObject().endObject();
+                .endObject().endObject();
     }
 }

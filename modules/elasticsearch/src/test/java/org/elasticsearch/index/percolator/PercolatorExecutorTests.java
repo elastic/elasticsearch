@@ -82,31 +82,41 @@ public class PercolatorExecutorTests {
 
     @Test public void testSimplePercolator() throws Exception {
         // introduce the doc
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject();
+        byte[] source = doc.copiedBytes();
+
+        XContentBuilder docWithType = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
                 .field("field1", 1)
                 .field("field2", "value")
                 .endObject().endObject().endObject();
-        byte[] source = doc.copiedBytes();
+        byte[] sourceWithType = docWithType.copiedBytes();
 
-        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(0));
 
         // add a query
         percolatorExecutor.addQuery("test1", termQuery("field2", "value"));
 
-        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
+        assertThat(percolate.matches(), hasSize(1));
+        assertThat(percolate.matches(), hasItem("test1"));
+
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", sourceWithType));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItem("test1"));
 
         percolatorExecutor.addQuery("test2", termQuery("field1", 1));
 
-        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(2));
         assertThat(percolate.matches(), hasItems("test1", "test2"));
 
 
         percolatorExecutor.removeQuery("test2");
-        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest(source));
+        percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItems("test1"));
     }

@@ -22,22 +22,25 @@ package org.elasticsearch.action.get;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.FieldMappersFieldSelector;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -80,6 +83,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
+        BloomCache bloomCache = indexService.cache().bloomCache();
         IndexShard indexShard = indexService.shardSafe(shardId);
 
         DocumentMapper docMapper = indexService.mapperService().documentMapper(request.type());
@@ -97,15 +101,15 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         Map<String, GetField> fields = null;
         long version = -1;
         try {
-            UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(searcher.reader(), docMapper.uidMapper().term(request.type(), request.id()));
-            if (docIdAndVersion.docId != Lucene.NO_DOC) {
+            UidField.DocIdAndVersion docIdAndVersion = loadCurrentVersionFromIndex(bloomCache, searcher, docMapper.uidMapper().term(request.type(), request.id()));
+            if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
                 if (docIdAndVersion.version > 0) {
                     version = docIdAndVersion.version;
                 }
                 exists = true;
                 FieldSelector fieldSelector = buildFieldSelectors(docMapper, request.fields());
                 if (fieldSelector != null) {
-                    Document doc = searcher.reader().document(docIdAndVersion.docId, fieldSelector);
+                    Document doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
                     source = extractSource(doc, docMapper);
 
                     for (Object oField : doc.getFields()) {
@@ -178,6 +182,23 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
             doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;
+    }
+
+    private UidField.DocIdAndVersion loadCurrentVersionFromIndex(BloomCache bloomCache, Engine.Searcher searcher, Term uid) {
+        UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(uid.text());
+        for (IndexReader reader : searcher.searcher().subReaders()) {
+            BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
+            // we know that its not there...
+            if (!filter.isPresent(utf8.result, 0, utf8.length)) {
+                continue;
+            }
+            UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(reader, uid);
+            // either -2 (its there, but no version associated), or an actual version
+            if (docIdAndVersion.docId != -1) {
+                return docIdAndVersion;
+            }
+        }
+        return null;
     }
 
     @Override protected GetRequest newRequest() {

@@ -21,7 +21,6 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -100,12 +99,6 @@ public interface ThreadPool extends Executor {
     void execute(Runnable command);
 
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit);
-
-    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit);
-
-    public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit);
-
-    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit);
 
     public ScheduledFuture<?> schedule(Runnable command, TimeValue delay);
 

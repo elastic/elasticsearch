@@ -38,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -136,7 +135,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                     }
                 }
             }
-        }, request.delay.millis(), TimeUnit.MILLISECONDS);
+        }, request.delay);
         return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
     }
 

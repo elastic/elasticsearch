@@ -45,12 +45,18 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     }
 
     @Override public MergeScheduler newMergeScheduler() {
-        ConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler();
+        ConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(shardId);
         concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
         return concurrentMergeScheduler;
     }
 
-    private class CustomConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+    private static class CustomConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+
+        private final ShardId shardId;
+
+        private CustomConcurrentMergeScheduler(ShardId shardId) {
+            this.shardId = shardId;
+        }
 
         @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
             // if merge is not enabled, don't do any merging...

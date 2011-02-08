@@ -23,6 +23,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
@@ -49,11 +50,18 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
     public static class CustomSerialMergeScheduler extends SerialMergeScheduler {
 
         @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
-            // if merge is not enabled, don't do any merging...
-            if (writer.getMergePolicy() instanceof EnableMergePolicy) {
-                if (!((EnableMergePolicy) writer.getMergePolicy()).isMergeEnabled()) {
-                    return;
+            try {
+                // if merge is not enabled, don't do any merging...
+                if (writer.getMergePolicy() instanceof EnableMergePolicy) {
+                    if (!((EnableMergePolicy) writer.getMergePolicy()).isMergeEnabled()) {
+                        return;
+                    }
                 }
+            } catch (AlreadyClosedException e) {
+                // called writer#getMergePolicy can cause an AlreadyClosed failure, so ignore it
+                // since we are doing it on close, return here and don't do the actual merge
+                // since we do it outside of a lock in the RobinEngine
+                return;
             }
             super.merge(writer);
         }

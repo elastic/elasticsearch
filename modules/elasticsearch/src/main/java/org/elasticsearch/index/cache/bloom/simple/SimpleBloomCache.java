@@ -32,6 +32,8 @@ import org.elasticsearch.common.bloom.BloomFilterFactory;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -50,6 +52,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
 
     private final ThreadPool threadPool;
 
+    private final long maxSize;
+
     private final ConcurrentMap<Object, ConcurrentMap<String, BloomFilterEntry>> cache;
 
     private final Object creationMutex = new Object();
@@ -57,6 +61,9 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
     @Inject public SimpleBloomCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(index, indexSettings);
         this.threadPool = threadPool;
+
+        this.maxSize = indexSettings.getAsSize("index.cache.bloom.max_size", new SizeValue(500, SizeUnit.MEGA)).singles();
+
         // weak keys is fine, it will only be cleared once IndexReader references will be removed
         // (assuming clear(...) will not be called)
         this.cache = new MapMaker().weakKeys().makeMap();
@@ -124,22 +131,24 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
             synchronized (fieldCache) {
                 filter = fieldCache.get(fieldName);
                 if (filter == null) {
-                    filter = new BloomFilterEntry(reader.numDocs(), BloomFilter.NONE);
+                    filter = new BloomFilterEntry(currentNumDocs, BloomFilter.NONE);
                     filter.loading.set(true);
                     fieldCache.put(fieldName, filter);
                     // now, do the async load of it...
-                    BloomFilterLoader loader = new BloomFilterLoader(reader, fieldName);
-                    if (asyncLoad) {
-                        threadPool.cached().execute(loader);
-                    } else {
-                        loader.run();
-                        filter = fieldCache.get(fieldName);
+                    if (currentNumDocs < maxSize) {
+                        BloomFilterLoader loader = new BloomFilterLoader(reader, fieldName);
+                        if (asyncLoad) {
+                            threadPool.cached().execute(loader);
+                        } else {
+                            loader.run();
+                            filter = fieldCache.get(fieldName);
+                        }
                     }
                 }
             }
         }
         // if we too many deletes, we need to reload the bloom filter so it will be more effective
-        if (filter.numDocs > 1000 && (currentNumDocs / filter.numDocs) < 0.6) {
+        if (filter.numDocs > 1000 && filter.numDocs < maxSize && (currentNumDocs / filter.numDocs) < 0.6) {
             if (filter.loading.compareAndSet(false, true)) {
                 // do the async loading
                 BloomFilterLoader loader = new BloomFilterLoader(reader, fieldName);

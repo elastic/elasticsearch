@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.ip;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -60,6 +61,13 @@ public class IpSearchTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.admin().indices().preparePutMapping("test").setType("type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("from").field("type", "ip").endObject()
+                        .startObject("to").field("type", "ip").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefresh(true).execute().actionGet();
 

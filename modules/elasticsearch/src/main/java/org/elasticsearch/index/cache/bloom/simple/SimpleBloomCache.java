@@ -132,10 +132,10 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                 filter = fieldCache.get(fieldName);
                 if (filter == null) {
                     filter = new BloomFilterEntry(currentNumDocs, BloomFilter.NONE);
-                    filter.loading.set(true);
                     fieldCache.put(fieldName, filter);
                     // now, do the async load of it...
                     if (currentNumDocs < maxSize) {
+                        filter.loading.set(true);
                         BloomFilterLoader loader = new BloomFilterLoader(reader, fieldName);
                         if (asyncLoad) {
                             threadPool.cached().execute(loader);

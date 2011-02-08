@@ -94,7 +94,9 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
             } else {
                 throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
             }
-            client.setEndpoint(endpoint);
+            if (endpoint != null) {
+                client.setEndpoint(endpoint);
+            }
         }
 
         return this.client;

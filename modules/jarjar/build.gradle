@@ -11,7 +11,7 @@ dependencies {
 
     runtime 'com.google.guava:guava:r07'
     runtime 'org.elasticsearch:es-trove:3.0.0rc1'
-    runtime 'org.elasticsearch:es-jsr166y:20100615'
+    runtime 'org.elasticsearch:es-jsr166y:20110209'
 
     runtime 'commons-codec:commons-codec:1.4'
 

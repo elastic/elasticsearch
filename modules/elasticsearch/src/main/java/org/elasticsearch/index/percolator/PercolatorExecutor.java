@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -243,6 +244,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     }
 
     public synchronized void addQuery(String name, Query query) {
+        Preconditions.checkArgument(query != null, "query must be provided for percolate request");
         this.queries = MapBuilder.newMapBuilder(queries).put(name, query).immutableMap();
     }
 

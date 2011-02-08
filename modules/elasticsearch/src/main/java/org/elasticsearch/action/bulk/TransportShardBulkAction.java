@@ -269,7 +269,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
-        indexShard.bulk(new Engine.Bulk(ops));
+        indexShard.bulk(new Engine.Bulk(ops).refresh(request.refresh()));
     }
 
     private void updateMappingOnMaster(final IndexRequest request) {

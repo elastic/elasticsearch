@@ -68,20 +68,8 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return scheduledExecutorService.schedule(command, delay, unit);
     }
 
-    @Override public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-        return scheduledExecutorService.schedule(callable, delay, unit);
-    }
-
-    @Override public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-        return scheduledExecutorService.scheduleAtFixedRate(command, initialDelay, period, unit);
-    }
-
-    @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        return scheduledExecutorService.scheduleWithFixedDelay(command, initialDelay, delay, unit);
-    }
-
     @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
-        return scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
+        return scheduledExecutorService.scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override public void shutdown() {

@@ -103,7 +103,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override protected void doStart() throws ElasticSearchException {
         this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
-        this.reconnectToNodes = threadPool.scheduleWithFixedDelay(new ReconnectToNodes(), reconnectInterval);
+        this.reconnectToNodes = threadPool.schedule(new ReconnectToNodes(), reconnectInterval, ThreadPool.ExecutionType.THREADED);
     }
 
     @Override protected void doStop() throws ElasticSearchException {
@@ -312,6 +312,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         }
                     }
                 }
+            }
+            if (lifecycle.started()) {
+                reconnectToNodes = threadPool.schedule(this, reconnectInterval, ThreadPool.ExecutionType.THREADED);
             }
         }
     }

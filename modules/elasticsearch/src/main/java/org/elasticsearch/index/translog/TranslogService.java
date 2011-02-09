@@ -70,7 +70,7 @@ public class TranslogService extends AbstractIndexShardComponent {
         this.flushThresholdPeriod = componentSettings.getAsTime("flush_threshold_period", TimeValue.timeValueMinutes(60));
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(1000));
 
-        this.future = threadPool.scheduleWithFixedDelay(new TranslogBasedFlush(), interval);
+        this.future = threadPool.schedule(new TranslogBasedFlush(), interval, ThreadPool.ExecutionType.THREADED);
     }
 
 
@@ -106,6 +106,8 @@ public class TranslogService extends AbstractIndexShardComponent {
                 flush();
                 return;
             }
+
+            future = threadPool.schedule(this, interval, ThreadPool.ExecutionType.THREADED);
         }
 
         private void flush() {

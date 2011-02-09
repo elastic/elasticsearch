@@ -70,9 +70,11 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final Runnable nodesSampler;
 
-    private final ScheduledFuture nodesSamplerFuture;
+    private volatile ScheduledFuture nodesSamplerFuture;
 
     private final AtomicInteger randomNodeGenerator = new AtomicInteger();
+
+    private volatile boolean closed;
 
     @Inject public TransportClientNodesService(Settings settings, ClusterName clusterName,
                                                TransportService transportService, ThreadPool threadPool) {
@@ -92,7 +94,7 @@ public class TransportClientNodesService extends AbstractComponent {
         } else {
             this.nodesSampler = new ScheduledConnectNodeSampler();
         }
-        this.nodesSamplerFuture = threadPool.scheduleWithFixedDelay(nodesSampler, nodesSamplerInterval);
+        this.nodesSamplerFuture = threadPool.schedule(nodesSampler, nodesSamplerInterval, ThreadPool.ExecutionType.THREADED);
 
         // we want the transport service to throw connect exceptions, so we can retry
         transportService.throwConnectException(true);
@@ -151,6 +153,7 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public void close() {
+        closed = true;
         nodesSamplerFuture.cancel(true);
         for (DiscoveryNode listedNode : listedNodes)
             transportService.disconnectFromNode(listedNode);
@@ -158,6 +161,9 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private class ScheduledConnectNodeSampler implements Runnable {
         @Override public synchronized void run() {
+            if (closed) {
+                return;
+            }
             HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
             for (DiscoveryNode node : listedNodes) {
                 if (!transportService.nodeConnected(node)) {
@@ -190,12 +196,19 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
             }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
+
+            if (!closed) {
+                nodesSamplerFuture = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.ExecutionType.THREADED);
+            }
         }
     }
 
     private class ScheduledSniffNodesSampler implements Runnable {
 
         @Override public synchronized void run() {
+            if (closed) {
+                return;
+            }
             ImmutableList<DiscoveryNode> listedNodes = TransportClientNodesService.this.listedNodes;
             final CountDownLatch latch = new CountDownLatch(listedNodes.size());
             final CopyOnWriteArrayList<NodesInfoResponse> nodesInfoResponses = new CopyOnWriteArrayList<NodesInfoResponse>();
@@ -256,6 +269,10 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
             }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
+
+            if (!closed) {
+                nodesSamplerFuture = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.ExecutionType.THREADED);
+            }
         }
     }
 

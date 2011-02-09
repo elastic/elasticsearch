@@ -70,7 +70,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
                     listener.onTimeout();
                 }
             }
-        }, timeout);
+        }, timeout, ThreadPool.ExecutionType.THREADED);
     }
 
     public void remove(Listener listener) {

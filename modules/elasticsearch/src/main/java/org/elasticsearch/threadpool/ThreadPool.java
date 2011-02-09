@@ -98,9 +98,19 @@ public interface ThreadPool extends Executor {
 
     void execute(Runnable command);
 
-    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit);
+    /**
+     * Scheduled a task. Note, when using {@link ExecutionType#DEFAULT}, make sure to not
+     * execute long running blocking tasks.
+     */
+    ScheduledFuture<?> schedule(Runnable command, TimeValue delay, ExecutionType executionType);
 
-    public ScheduledFuture<?> schedule(Runnable command, TimeValue delay);
-
+    /**
+     * Schedule a repeating task with a task that is very short lived.
+     */
     ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval);
+
+    static enum ExecutionType {
+        DEFAULT,
+        THREADED
+    }
 }

@@ -60,7 +60,7 @@ public class BenchmarkNettyClient {
         final ThreadPool threadPool = new CachedThreadPool(settings);
 //        final ThreadPool threadPool = new ScalingThreadPool(settings);
         final TimerService timerService = new TimerService(settings, threadPool);
-        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool, timerService).start();
+        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
         final DiscoveryNode node = new DiscoveryNode("server", new InetSocketTransportAddress("localhost", 9999));
 

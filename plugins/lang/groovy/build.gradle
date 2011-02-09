@@ -30,8 +30,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.7.6'
-    distLib('org.codehaus.groovy:groovy-all:1.7.6') { transitive = false }
+    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.7.7'
+    distLib('org.codehaus.groovy:groovy-all:1.7.7') { transitive = false }
     testCompile('junit:junit:4.8.1') {transitive = false}
 }
 

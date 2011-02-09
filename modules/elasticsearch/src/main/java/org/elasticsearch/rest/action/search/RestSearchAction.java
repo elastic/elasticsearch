@@ -80,6 +80,9 @@ public class RestSearchAction extends BaseRestHandler {
             }
             searchRequest.operationThreading(operationThreading);
         } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("failed to parse search request parameters", e);
+            }
             try {
                 XContentBuilder builder = restContentBuilder(request);
                 channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));

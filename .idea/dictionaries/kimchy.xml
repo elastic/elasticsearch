@@ -50,6 +50,7 @@
       <w>failover</w>
       <w>firehose</w>
       <w>flushable</w>
+      <w>forkjoin</w>
       <w>formatter</w>
       <w>formatters</w>
       <w>frac</w>

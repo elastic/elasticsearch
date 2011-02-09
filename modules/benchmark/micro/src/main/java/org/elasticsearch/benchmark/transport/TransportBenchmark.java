@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.cached.CachedThreadPool;
+import org.elasticsearch.threadpool.fixed.FixedThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -54,25 +54,30 @@ public class TransportBenchmark {
         public abstract Transport newTransport(Settings settings, ThreadPool threadPool);
     }
 
+    public static ThreadPool newThreadPool(Settings settings) {
+//        return new ForkjoinThreadPool(settings);
+        return new FixedThreadPool(settings);
+//        return new CachedThreadPool(settings);
+    }
+
     public static void main(String[] args) {
         final boolean spawn = true;
         final boolean waitForRequest = true;
         final ByteSizeValue payloadSize = new ByteSizeValue(100, ByteSizeUnit.BYTES);
         final int NUMBER_OF_CLIENTS = 1;
-        final int NUMBER_OF_ITERATIONS = 10000000;
+        final int NUMBER_OF_ITERATIONS = 100000;
         final byte[] payload = new byte[(int) payloadSize.bytes()];
         final AtomicLong idGenerator = new AtomicLong();
-        final Type type = Type.LOCAL;
+        final Type type = Type.NETTY;
+
 
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
 
-        final ThreadPool serverThreadPool = new CachedThreadPool(settings);
-//        final ThreadPool threadPool = new ScalingThreadPool(settings);
+        final ThreadPool serverThreadPool = newThreadPool(settings);
         final TransportService serverTransportService = new TransportService(type.newTransport(settings, serverThreadPool), serverThreadPool).start();
 
-        final ThreadPool clientThreadPool = new CachedThreadPool(settings);
-//        final ThreadPool threadPool = new ScalingThreadPool(settings);
+        final ThreadPool clientThreadPool = newThreadPool(settings);
         final TransportService clientTransportService = new TransportService(type.newTransport(settings, clientThreadPool), clientThreadPool).start();
 
         final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress());

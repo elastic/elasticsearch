@@ -48,13 +48,13 @@ public class UnicastZenPingTests {
         TimerService timerService = new TimerService(threadPool);
         ClusterName clusterName = new ClusterName("test");
         NettyTransport transportA = new NettyTransport(threadPool);
-        final TransportService transportServiceA = new TransportService(transportA, threadPool, timerService).start();
+        final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress());
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
         NettyTransport transportB = new NettyTransport(threadPool);
-        final TransportService transportServiceB = new TransportService(transportB, threadPool, timerService).start();
+        final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
         final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress());
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();

@@ -28,10 +28,10 @@ import org.testng.annotations.Test;
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
 
     @Override protected void build() {
-        serviceA = new TransportService(new LocalTransport(threadPool), threadPool, timerService).start();
+        serviceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
         serviceANode = new DiscoveryNode("A", serviceA.boundAddress().publishAddress());
 
-        serviceB = new TransportService(new LocalTransport(threadPool), threadPool, timerService).start();
+        serviceB = new TransportService(new LocalTransport(threadPool), threadPool).start();
         serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
     }
 }

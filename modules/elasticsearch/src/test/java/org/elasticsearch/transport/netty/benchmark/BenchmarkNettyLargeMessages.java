@@ -52,8 +52,8 @@ public class BenchmarkNettyLargeMessages {
 
         final ThreadPool threadPool = new CachedThreadPool(settings);
         final TimerService timerService = new TimerService(settings, threadPool);
-        final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool), threadPool, timerService).start();
-        final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool), threadPool, timerService).start();
+        final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
+        final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
         final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress("localhost", 9300));
 //        final DiscoveryNode smallNode = new DiscoveryNode("small", new InetSocketTransportAddress("localhost", 9300));

@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
-import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -44,8 +43,7 @@ public class BenchmarkNettyServer {
 
         final ThreadPool threadPool = new CachedThreadPool(settings);
 //        final ThreadPool threadPool = new ScalingThreadPool(settings);
-        final TimerService timerService = new TimerService(settings, threadPool);
-        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool, timerService).start();
+        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
         transportService.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessage>() {
             @Override public BenchmarkMessage newInstance() {

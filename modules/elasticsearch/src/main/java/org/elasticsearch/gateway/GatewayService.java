@@ -197,7 +197,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             gateway.performStateRecovery(recoveryListener);
                         }
                     }
-                }, recoverAfterTime);
+                }, recoverAfterTime, ThreadPool.ExecutionType.THREADED);
             }
         } else {
             if (recovered.compareAndSet(false, true)) {

@@ -64,14 +64,6 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return cached;
     }
 
-    @Override public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        return scheduledExecutorService.schedule(command, delay, unit);
-    }
-
-    @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
-        return scheduledExecutorService.scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
-    }
-
     @Override public void shutdown() {
         started = false;
         logger.debug("shutting down {} thread pool", getType());
@@ -104,12 +96,73 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return result;
     }
 
-    @Override public ScheduledFuture<?> schedule(Runnable command, TimeValue delay) {
-        return schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
+    @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
+        return scheduledExecutorService.scheduleWithFixedDelay(new LoggingRunnable(command), interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Override public ScheduledFuture<?> schedule(Runnable command, TimeValue delay, ExecutionType executionType) {
+        if (executionType == ExecutionType.THREADED) {
+            command = new ThreadedRunnable(command);
+        }
+        return scheduledExecutorService.schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override public void execute(Runnable command) {
         executorService.execute(command);
+    }
+
+    class LoggingRunnable implements Runnable {
+
+        private final Runnable runnable;
+
+        LoggingRunnable(Runnable runnable) {
+            this.runnable = runnable;
+        }
+
+        @Override public void run() {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                logger.warn("failed to run {}", e, runnable.toString());
+            }
+        }
+
+        @Override public int hashCode() {
+            return runnable.hashCode();
+        }
+
+        @Override public boolean equals(Object obj) {
+            return runnable.equals(obj);
+        }
+
+        @Override public String toString() {
+            return "[threaded] " + runnable.toString();
+        }
+    }
+
+    class ThreadedRunnable implements Runnable {
+
+        private final Runnable runnable;
+
+        ThreadedRunnable(Runnable runnable) {
+            this.runnable = runnable;
+        }
+
+        @Override public void run() {
+            cached.execute(runnable);
+        }
+
+        @Override public int hashCode() {
+            return runnable.hashCode();
+        }
+
+        @Override public boolean equals(Object obj) {
+            return runnable.equals(obj);
+        }
+
+        @Override public String toString() {
+            return "[threaded] " + runnable.toString();
+        }
     }
 
     protected static class FutureCallable<T> implements Callable<T> {

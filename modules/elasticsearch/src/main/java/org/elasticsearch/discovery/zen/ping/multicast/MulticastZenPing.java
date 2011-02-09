@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -198,27 +197,27 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     @Override public void ping(final PingListener listener, final TimeValue timeout) {
         final int id = pingIdGenerator.incrementAndGet();
         receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
-        sendPingRequest(id);
+        sendPingRequest(id, true);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
         threadPool.schedule(new Runnable() {
             @Override public void run() {
                 try {
-                    sendPingRequest(id);
+                    sendPingRequest(id, false);
                 } catch (Exception e) {
-                    logger.debug("[{}] failed to send second ping request", e, id);
+                    logger.warn("[{}] failed to send second ping request", e, id);
                 }
             }
-        }, timeout.millis() / 2, TimeUnit.MILLISECONDS);
+        }, TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.ExecutionType.THREADED);
         threadPool.schedule(new Runnable() {
             @Override public void run() {
                 ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
                 listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
             }
-        }, timeout);
+        }, timeout, ThreadPool.ExecutionType.THREADED);
     }
 
-    private void sendPingRequest(int id) {
+    private void sendPingRequest(int id, boolean remove) {
         synchronized (sendMutex) {
             try {
                 HandlesStreamOutput out = CachedStreamOutput.cachedHandlesBytes();
@@ -227,7 +226,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 nodesProvider.nodes().localNode().writeTo(out);
                 datagramPacketSend.setData(((BytesStreamOutput) out.wrappedOut()).copiedByteArray());
             } catch (IOException e) {
-                receivedResponses.remove(id);
+                if (remove) {
+                    receivedResponses.remove(id);
+                }
                 throw new ZenPingException("Failed to serialize ping request", e);
             }
             try {
@@ -236,7 +237,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     logger.trace("[{}] sending ping request", id);
                 }
             } catch (IOException e) {
-                receivedResponses.remove(id);
+                if (remove) {
+                    receivedResponses.remove(id);
+                }
                 throw new ZenPingException("Failed to send ping request over multicast on " + multicastSocket, e);
             }
         }

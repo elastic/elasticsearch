@@ -316,7 +316,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             if (logger.isDebugEnabled()) {
                 logger.debug("scheduling snapshot every [{}]", snapshotInterval);
             }
-            snapshotScheduleFuture = threadPool.scheduleWithFixedDelay(new SnapshotRunnable(), snapshotInterval);
+            snapshotScheduleFuture = threadPool.schedule(new SnapshotRunnable(), snapshotInterval, ThreadPool.ExecutionType.THREADED);
         }
     }
 
@@ -324,11 +324,15 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         @Override public void run() {
             try {
                 snapshot("scheduled");
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     return;
                 }
                 logger.warn("failed to snapshot (scheduled)", e);
+            }
+            // schedule it again
+            if (indexShard.state() != IndexShardState.CLOSED) {
+                snapshotScheduleFuture = threadPool.schedule(this, snapshotInterval, ThreadPool.ExecutionType.THREADED);
             }
         }
     }

@@ -158,7 +158,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
                 listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
             }
-        }, timeout);
+        }, timeout, ThreadPool.ExecutionType.THREADED);
     }
 
     private void sendPings(final int id, TimeValue timeout, boolean wait) {
@@ -264,7 +264,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             @Override public void run() {
                 temporalResponses.remove(request.pingResponse);
             }
-        }, request.timeout.millis() * 2, TimeUnit.MILLISECONDS);
+        }, TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.ExecutionType.DEFAULT);
 
         List<PingResponse> pingResponses = newArrayList(temporalResponses);
         DiscoveryNodes discoNodes = nodesProvider.nodes();

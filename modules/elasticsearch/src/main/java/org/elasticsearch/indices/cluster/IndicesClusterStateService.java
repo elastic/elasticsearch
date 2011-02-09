@@ -482,7 +482,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 @Override public void run() {
                     recoveryTarget.startRecovery(request, true, PeerRecoveryListener.this);
                 }
-            }, retryAfter);
+            }, retryAfter, ThreadPool.ExecutionType.THREADED);
         }
 
         @Override public void onIgnoreRecovery(boolean removeShard, String reason) {

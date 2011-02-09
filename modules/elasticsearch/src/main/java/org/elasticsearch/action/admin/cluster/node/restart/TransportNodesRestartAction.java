@@ -135,7 +135,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                     }
                 }
             }
-        }, request.delay);
+        }, request.delay, ThreadPool.ExecutionType.THREADED);
         return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
     }
 

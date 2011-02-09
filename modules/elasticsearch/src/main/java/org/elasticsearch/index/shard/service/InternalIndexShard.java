@@ -90,6 +90,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private volatile IndexShardState state;
 
+    private final TimeValue refreshInterval;
+    private final TimeValue optimizeInterval;
+
     private volatile ScheduledFuture refreshScheduledFuture;
 
     private volatile ScheduledFuture optimizeScheduleFuture;
@@ -112,6 +115,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
         state = IndexShardState.CREATED;
+
+        if (engine instanceof ScheduledRefreshableEngine) {
+            refreshInterval = ((ScheduledRefreshableEngine) engine).refreshInterval();
+        } else {
+            refreshInterval = new TimeValue(-2);
+        }
+        optimizeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
+
         logger.debug("state: [CREATED]");
 
         this.checkIndex = indexSettings.getAsBoolean("index.shard.check_index", false);
@@ -569,21 +580,17 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     private void startScheduledTasksIfNeeded() {
-        if (engine instanceof ScheduledRefreshableEngine) {
-            TimeValue refreshInterval = ((ScheduledRefreshableEngine) engine).refreshInterval();
-            if (refreshInterval.millis() > 0) {
-                refreshScheduledFuture = threadPool.scheduleWithFixedDelay(new EngineRefresher(), refreshInterval);
-                logger.debug("scheduling refresher every {}", refreshInterval);
-            } else {
-                logger.debug("scheduled refresher disabled");
-            }
+        if (refreshInterval.millis() > 0) {
+            refreshScheduledFuture = threadPool.schedule(new EngineRefresher(), refreshInterval, ThreadPool.ExecutionType.THREADED);
+            logger.debug("scheduling refresher every {}", refreshInterval);
+        } else {
+            logger.debug("scheduled refresher disabled");
         }
         // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
         // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
         // happen and reduce the number of segments
-        TimeValue optimizeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
         if (optimizeInterval.millis() > 0) {
-            optimizeScheduleFuture = threadPool.scheduleWithFixedDelay(new EngineOptimizer(), optimizeInterval);
+            optimizeScheduleFuture = threadPool.schedule(new EngineOptimizer(), optimizeInterval, ThreadPool.ExecutionType.THREADED);
             logger.debug("scheduling optimizer / merger every {}", optimizeInterval);
         } else {
             logger.debug("scheduled optimizer / merger disabled");
@@ -616,6 +623,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             } catch (Exception e) {
                 logger.warn("Failed to perform scheduled engine refresh", e);
             }
+            if (state != IndexShardState.CLOSED) {
+                refreshScheduledFuture = threadPool.schedule(this, refreshInterval, ThreadPool.ExecutionType.THREADED);
+            }
         }
     }
 
@@ -638,6 +648,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 }
             } catch (Exception e) {
                 logger.warn("Failed to perform scheduled engine optimize/merge", e);
+            }
+            if (state != IndexShardState.CLOSED) {
+                optimizeScheduleFuture = threadPool.schedule(this, optimizeInterval, ThreadPool.ExecutionType.THREADED);
             }
         }
     }

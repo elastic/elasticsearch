@@ -63,8 +63,6 @@ import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.search.TransportSearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.timer.TimerModule;
-import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
@@ -154,7 +152,6 @@ public class TransportClient extends AbstractClient {
         modules.add(new SettingsModule(settings));
         modules.add(new NetworkModule());
         modules.add(new ClusterNameModule(settings));
-        modules.add(new TimerModule());
         modules.add(new ThreadPoolModule(settings));
         modules.add(new TransportSearchModule());
         modules.add(new TransportModule(settings));
@@ -220,7 +217,6 @@ public class TransportClient extends AbstractClient {
             // ignore, might not be bounded
         }
 
-        injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();
         try {
             injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);

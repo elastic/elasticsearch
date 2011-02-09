@@ -50,7 +50,6 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.timer.TimerService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -68,8 +67,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final ClusterService clusterService;
 
     private final IndicesService indicesService;
-
-    private final TimerService timerService;
 
     private final ScriptService scriptService;
 
@@ -93,12 +90,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
-    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool, TimerService timerService,
+    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool,
                                  ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.timerService = timerService;
         this.scriptService = scriptService;
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
@@ -381,7 +377,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void contextProcessedSuccessfully(SearchContext context) {
-        context.accessed(timerService.estimatedTimeInMillis());
+        context.accessed(System.currentTimeMillis());
     }
 
     private void cleanContext(SearchContext context) {
@@ -471,11 +467,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     class Reaper implements Runnable {
         @Override public void run() {
+            long time = System.currentTimeMillis();
             for (SearchContext context : activeContexts.values()) {
                 if (context.lastAccessTime() == -1) { // its being processed or timeout is disabled
                     continue;
                 }
-                if ((timerService.estimatedTimeInMillis() - context.lastAccessTime() > context.keepAlive())) {
+                if ((time - context.lastAccessTime() > context.keepAlive())) {
                     freeContext(context);
                 }
             }

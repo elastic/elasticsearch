@@ -75,8 +75,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.timer.TimerModule;
-import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
@@ -127,7 +125,6 @@ public final class InternalNode implements Node {
         modules.add(new NodeEnvironmentModule());
         modules.add(new ClusterNameModule(settings));
         modules.add(new ThreadPoolModule(settings));
-        modules.add(new TimerModule());
         modules.add(new DiscoveryModule(settings));
         modules.add(new ClusterModule(settings));
         modules.add(new RestModule(settings));
@@ -286,8 +283,6 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("script");
         injector.getInstance(ScriptService.class).close();
 
-        stopWatch.stop().start("timer");
-        injector.getInstance(TimerService.class).close();
         stopWatch.stop().start("thread_pool");
         injector.getInstance(ThreadPool.class).shutdown();
         try {

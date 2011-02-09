@@ -30,7 +30,6 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
-import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.testng.annotations.Test;
@@ -45,7 +44,6 @@ public class UnicastZenPingTests {
 
     @Test public void testSimplePings() {
         ThreadPool threadPool = new CachedThreadPool();
-        TimerService timerService = new TimerService(threadPool);
         ClusterName clusterName = new ClusterName("test");
         NettyTransport transportA = new NettyTransport(threadPool);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();

@@ -23,7 +23,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.timer.TimerService;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -34,8 +33,6 @@ import java.util.Enumeration;
  */
 public class NetworkService extends AbstractComponent {
 
-    private final TimerService timerService;
-
     private final NetworkProbe probe;
 
     private final NetworkInfo info;
@@ -44,10 +41,9 @@ public class NetworkService extends AbstractComponent {
 
     private NetworkStats cachedStats;
 
-    @Inject public NetworkService(Settings settings, NetworkProbe probe, TimerService timerService) {
+    @Inject public NetworkService(Settings settings, NetworkProbe probe) {
         super(settings);
         this.probe = probe;
-        this.timerService = timerService;
 
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(5));
 
@@ -93,7 +89,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     public synchronized NetworkStats stats() {
-        if ((timerService.estimatedTimeInMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
+        if ((System.currentTimeMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
             cachedStats = probe.networkStats();
         }
         return cachedStats;

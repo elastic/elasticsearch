@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
-import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -51,7 +50,6 @@ public class BenchmarkNettyLargeMessages {
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool(settings);
-        final TimerService timerService = new TimerService(settings, threadPool);
         final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
         final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 

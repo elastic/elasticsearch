@@ -23,14 +23,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.timer.TimerService;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ProcessService extends AbstractComponent {
-
-    private final TimerService timerService;
 
     private final ProcessProbe probe;
 
@@ -40,9 +37,8 @@ public class ProcessService extends AbstractComponent {
 
     private ProcessStats cachedStats;
 
-    @Inject public ProcessService(Settings settings, ProcessProbe probe, TimerService timerService) {
+    @Inject public ProcessService(Settings settings, ProcessProbe probe) {
         super(settings);
-        this.timerService = timerService;
         this.probe = probe;
 
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(5));
@@ -59,7 +55,7 @@ public class ProcessService extends AbstractComponent {
     }
 
     public synchronized ProcessStats stats() {
-        if ((timerService.estimatedTimeInMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
+        if ((System.currentTimeMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
             cachedStats = probe.processStats();
         }
         return cachedStats;

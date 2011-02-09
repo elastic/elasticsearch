@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
 
 /**
@@ -45,13 +44,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
     private final ClusterName clusterName;
 
-    private final TimerService timerService;
-
     @Inject public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                TimerService timerService, ClusterName clusterName) {
+                                                ClusterName clusterName) {
         super(settings, transportService, clusterService, threadPool);
         this.clusterName = clusterName;
-        this.timerService = timerService;
     }
 
     @Override protected String transportAction() {
@@ -161,7 +157,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             if (waitForCounter == waitFor) {
                 return response;
             }
-            if (timerService.estimatedTimeInMillis() > endTime) {
+            if (System.currentTimeMillis() > endTime) {
                 response.timedOut = true;
                 return response;
             }

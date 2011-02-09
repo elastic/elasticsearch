@@ -22,7 +22,7 @@ dependencies {
     runtime 'org.codehaus.jackson:jackson-smile:1.7.2'
     runtime 'org.yaml:snakeyaml:1.6'
 
-    runtime('org.jboss.netty:netty:3.2.3.Final') { transitive = false }
+    runtime('org.jboss.netty:netty:3.2.4.Final') { transitive = false }
 }
 
 configurations {

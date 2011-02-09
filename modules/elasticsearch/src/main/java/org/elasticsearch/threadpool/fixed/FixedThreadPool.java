@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.jsr166y.ForkJoinPool;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 
@@ -54,10 +55,15 @@ public class FixedThreadPool extends AbstractThreadPool {
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 1);
         logger.debug("Initializing {} thread pool with [{}] threads, keep_alive[{}], scheduled_size[{}]", getType(), size, keepAlive, scheduledSize);
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, EsExecutors.daemonThreadFactory(settings, "[sc]"));
-        executorService = new ThreadPoolExecutor(size, size,
-                0L, TimeUnit.MILLISECONDS,
-                new LinkedTransferQueue<Runnable>(),
-                EsExecutors.daemonThreadFactory(settings, "[tp]"));
+        String type = componentSettings.get("type");
+        if ("forkjoin".equalsIgnoreCase(type)) {
+            executorService = new ForkJoinPool(size, ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, true);
+        } else {
+            executorService = new ThreadPoolExecutor(size, size,
+                    0L, TimeUnit.MILLISECONDS,
+                    new LinkedTransferQueue<Runnable>(),
+                    EsExecutors.daemonThreadFactory(settings, "[tp]"));
+        }
 
         cached = EsExecutors.newCachedThreadPool(keepAlive, EsExecutors.daemonThreadFactory(settings, "[cached]"));
         started = true;
@@ -76,11 +82,17 @@ public class FixedThreadPool extends AbstractThreadPool {
     }
 
     @Override public int getPoolSize() {
-        return ((ThreadPoolExecutor) executorService).getPoolSize();
+        if (executorService instanceof ThreadPoolExecutor) {
+            return ((ThreadPoolExecutor) executorService).getPoolSize();
+        }
+        return -1;
     }
 
     @Override public int getActiveCount() {
-        return ((ThreadPoolExecutor) executorService).getActiveCount();
+        if (executorService instanceof ThreadPoolExecutor) {
+            return ((ThreadPoolExecutor) executorService).getActiveCount();
+        }
+        return -1;
     }
 
     @Override public int getSchedulerPoolSize() {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.netty.benchmark;
+package org.elasticsearch.benchmark.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

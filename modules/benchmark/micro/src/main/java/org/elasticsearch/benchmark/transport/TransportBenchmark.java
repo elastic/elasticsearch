@@ -17,56 +17,85 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.netty.benchmark;
+package org.elasticsearch.benchmark.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author kimchy (shay.banon)
+ *
  */
-public class BenchmarkNettyClient {
+public class TransportBenchmark {
 
+    static enum Type {
+        LOCAL {
+            @Override public Transport newTransport(Settings settings, ThreadPool threadPool) {
+                return new LocalTransport(settings, threadPool);
+            }
+        },
+        NETTY {
+            @Override public Transport newTransport(Settings settings, ThreadPool threadPool) {
+                return new NettyTransport(settings, threadPool);
+            }
+        };
+
+        public abstract Transport newTransport(Settings settings, ThreadPool threadPool);
+    }
 
     public static void main(String[] args) {
-        final boolean waitForRequest = true;
         final boolean spawn = true;
+        final boolean waitForRequest = true;
         final ByteSizeValue payloadSize = new ByteSizeValue(100, ByteSizeUnit.BYTES);
         final int NUMBER_OF_CLIENTS = 1;
-        final int NUMBER_OF_ITERATIONS = 100000;
+        final int NUMBER_OF_ITERATIONS = 10000000;
         final byte[] payload = new byte[(int) payloadSize.bytes()];
         final AtomicLong idGenerator = new AtomicLong();
+        final Type type = Type.LOCAL;
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("network.server", false)
-                .put("network.tcp.blocking", false)
                 .build();
 
-        final ThreadPool threadPool = new CachedThreadPool(settings);
+        final ThreadPool serverThreadPool = new CachedThreadPool(settings);
 //        final ThreadPool threadPool = new ScalingThreadPool(settings);
-        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
+        final TransportService serverTransportService = new TransportService(type.newTransport(settings, serverThreadPool), serverThreadPool).start();
 
-        final DiscoveryNode node = new DiscoveryNode("server", new InetSocketTransportAddress("localhost", 9999));
+        final ThreadPool clientThreadPool = new CachedThreadPool(settings);
+//        final ThreadPool threadPool = new ScalingThreadPool(settings);
+        final TransportService clientTransportService = new TransportService(type.newTransport(settings, clientThreadPool), clientThreadPool).start();
 
-        transportService.connectToNode(node);
+        final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress());
+
+        serverTransportService.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessage>() {
+            @Override public BenchmarkMessage newInstance() {
+                return new BenchmarkMessage();
+            }
+
+            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
+                channel.sendResponse(request);
+            }
+
+            @Override public boolean spawn() {
+                return spawn;
+            }
+        });
+
+        clientTransportService.connectToNode(node);
 
         for (int i = 0; i < 10000; i++) {
             BenchmarkMessage message = new BenchmarkMessage(1, payload);
-            transportService.submitRequest(node, "benchmark", message, new BaseTransportResponseHandler<BenchmarkMessage>() {
+            clientTransportService.submitRequest(node, "benchmark", message, new BaseTransportResponseHandler<BenchmarkMessage>() {
                 @Override public BenchmarkMessage newInstance() {
                     return new BenchmarkMessage();
                 }
@@ -112,9 +141,9 @@ public class BenchmarkNettyClient {
                         };
 
                         if (waitForRequest) {
-                            transportService.submitRequest(node, "benchmark", message, handler).txGet();
+                            clientTransportService.submitRequest(node, "benchmark", message, handler).txGet();
                         } else {
-                            transportService.sendRequest(node, "benchmark", message, handler);
+                            clientTransportService.sendRequest(node, "benchmark", message, handler);
                         }
                     }
                 }
@@ -135,7 +164,10 @@ public class BenchmarkNettyClient {
 
         System.out.println("Ran [" + NUMBER_OF_CLIENTS + "], each with [" + NUMBER_OF_ITERATIONS + "] iterations, payload [" + payloadSize + "]: took [" + stopWatch.totalTime() + "], TPS: " + (NUMBER_OF_CLIENTS * NUMBER_OF_ITERATIONS) / stopWatch.totalTime().secondsFrac());
 
-        transportService.close();
-        threadPool.shutdownNow();
+        clientTransportService.close();
+        clientThreadPool.shutdownNow();
+
+        serverTransportService.close();
+        serverThreadPool.shutdownNow();
     }
 }

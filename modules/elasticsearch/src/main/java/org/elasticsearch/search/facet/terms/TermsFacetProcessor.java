@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.xcontent.ip.IpFieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.facet.terms.doubles.TermsDoubleFacetCollector;
 import org.elasticsearch.search.facet.terms.floats.TermsFloatFacetCollector;
 import org.elasticsearch.search.facet.terms.index.IndexNameFacetCollector;
 import org.elasticsearch.search.facet.terms.ints.TermsIntFacetCollector;
+import org.elasticsearch.search.facet.terms.ip.TermsIpFacetCollector;
 import org.elasticsearch.search.facet.terms.longs.TermsLongFacetCollector;
 import org.elasticsearch.search.facet.terms.shorts.TermsShortFacetCollector;
 import org.elasticsearch.search.facet.terms.strings.FieldsTermsStringFacetCollector;
@@ -139,7 +141,9 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
 
         FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(field);
         if (fieldMapper != null) {
-            if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
+            if (fieldMapper instanceof IpFieldMapper) {
+                return new TermsIpFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
                 return new TermsLongFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
                 return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);

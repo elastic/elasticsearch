@@ -60,6 +60,8 @@ allprojects {
                 suiteNamte = testSuiteName
                 listeners << 'org.elasticsearch.util.testng.Listeners'
             }
+            maxHeapSize = '1g'
+            systemProperties["es.logger.prefix"] = ""
             systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
             systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
         }

@@ -34,14 +34,13 @@ import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.timer.Timeout;
-import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.timer.TimerService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,7 +52,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
 
-    private final TimerService timerService;
+    private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
 
@@ -61,10 +60,10 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
-    @Inject public MetaDataDeleteIndexService(Settings settings, TimerService timerService, ClusterService clusterService, ShardsAllocation shardsAllocation,
+    @Inject public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ShardsAllocation shardsAllocation,
                                               NodeIndexDeletedAction nodeIndexDeletedAction) {
         super(settings);
-        this.timerService = timerService;
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.shardsAllocation = shardsAllocation;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
@@ -130,15 +129,13 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                         };
                         nodeIndexDeletedAction.add(nodeIndexDeleteListener);
 
-                        Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
-                            @Override public void run(Timeout timeout) throws Exception {
+                        threadPool.schedule(new Runnable() {
+                            @Override public void run() {
                                 listener.onResponse(new Response(false));
                                 nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
                             }
-                        }, request.timeout, TimerService.ExecutionType.THREADED);
-                        listener.timeout = timeoutTask;
+                        }, request.timeout, ThreadPool.ExecutionType.DEFAULT);
                     }
-
 
                     return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
                 } catch (Exception e) {
@@ -157,7 +154,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         private final Listener listener;
 
-        volatile Timeout timeout;
+        volatile ScheduledFuture future;
 
         private DeleteIndexListener(Request request, Listener listener) {
             this.request = request;
@@ -166,8 +163,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         @Override public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
+                if (future != null) {
+                    future.cancel(false);
                 }
                 listener.onResponse(response);
             }
@@ -175,8 +172,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         @Override public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
-                if (timeout != null) {
-                    timeout.cancel();
+                if (future != null) {
+                    future.cancel(false);
                 }
                 listener.onFailure(t);
             }

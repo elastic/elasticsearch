@@ -109,6 +109,11 @@ public interface ThreadPool extends Executor {
      */
     ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval);
 
+    /**
+     * Returns an estimated current time in milliseconds.
+     */
+    long estimatedCurrentTimeInMillis();
+
     static enum ExecutionType {
         DEFAULT,
         THREADED

@@ -107,6 +107,11 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return scheduledExecutorService.schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
     }
 
+
+    @Override public long estimatedCurrentTimeInMillis() {
+        return System.currentTimeMillis();
+    }
+
     @Override public void execute(Runnable command) {
         executorService.execute(command);
     }

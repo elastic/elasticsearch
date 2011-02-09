@@ -188,7 +188,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
      * explanation of the hit (ranking).
      */
-    public SearchSourceBuilder explain(boolean explain) {
+    public SearchSourceBuilder explain(Boolean explain) {
         this.explain = explain;
         return this;
     }
@@ -197,7 +197,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with a version
      * associated with it.
      */
-    public SearchSourceBuilder version(boolean version) {
+    public SearchSourceBuilder version(Boolean version) {
         this.version = version;
         return this;
     }

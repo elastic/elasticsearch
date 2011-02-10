@@ -36,7 +36,7 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
 
     private final org.elasticsearch.thrift.RestRequest request;
 
-    private final String path;
+    private final String rawPath;
 
     private final Map<String, String> params;
 
@@ -46,9 +46,9 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
 
         int pathEndPos = request.getUri().indexOf('?');
         if (pathEndPos < 0) {
-            this.path = request.getUri();
+            this.rawPath = request.getUri();
         } else {
-            this.path = request.getUri().substring(0, pathEndPos);
+            this.rawPath = request.getUri().substring(0, pathEndPos);
             RestUtils.decodeQueryString(request.getUri(), pathEndPos + 1, params);
         }
     }
@@ -75,8 +75,8 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
         return request.getUri();
     }
 
-    @Override public String path() {
-        return this.path;
+    @Override public String rawPath() {
+        return this.rawPath;
     }
 
     @Override public boolean hasContent() {

@@ -29,6 +29,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.StringRestResponse;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -48,12 +49,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final TransportNodesInfoAction nodesInfoAction;
 
-    private final PathTrie<HttpServerHandler> getHandlers = new PathTrie<HttpServerHandler>();
-    private final PathTrie<HttpServerHandler> postHandlers = new PathTrie<HttpServerHandler>();
-    private final PathTrie<HttpServerHandler> putHandlers = new PathTrie<HttpServerHandler>();
-    private final PathTrie<HttpServerHandler> deleteHandlers = new PathTrie<HttpServerHandler>();
-    private final PathTrie<HttpServerHandler> headHandlers = new PathTrie<HttpServerHandler>();
-    private final PathTrie<HttpServerHandler> optionsHandlers = new PathTrie<HttpServerHandler>();
+    private final PathTrie<HttpServerHandler> getHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<HttpServerHandler> postHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<HttpServerHandler> putHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<HttpServerHandler> deleteHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<HttpServerHandler> headHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<HttpServerHandler> optionsHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
 
     @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool,
                               RestController restController, TransportNodesInfoAction nodesInfoAction) {
@@ -166,6 +167,9 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     private String getPath(HttpRequest request) {
-        return request.path();
+        // we use rawPath since we don't want to decode it while processing the path resolution
+        // so we can handle things like:
+        // my_index/my_type/http%3A%2F%2Fwww.google.com
+        return request.rawPath();
     }
 }

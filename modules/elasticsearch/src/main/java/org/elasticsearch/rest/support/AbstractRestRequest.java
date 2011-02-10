@@ -37,6 +37,10 @@ public abstract class AbstractRestRequest implements RestRequest {
 
     private static final Pattern commaPattern = Pattern.compile(",");
 
+    @Override public final String path() {
+        return RestUtils.decodeComponent(rawPath());
+    }
+
     @Override public float paramAsFloat(String key, float defaultValue) {
         String sValue = param(key);
         if (sValue == null) {

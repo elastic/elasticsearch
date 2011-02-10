@@ -39,7 +39,7 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private final Map<String, String> params;
 
-    private final String path;
+    private final String rawPath;
 
     private byte[] cachedData;
 
@@ -50,9 +50,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         String uri = request.getUri();
         int pathEndPos = uri.indexOf('?');
         if (pathEndPos < 0) {
-            this.path = RestUtils.decodeComponent(uri);
+            this.rawPath = uri;
         } else {
-            this.path = RestUtils.decodeComponent(uri.substring(0, pathEndPos));
+            this.rawPath = uri.substring(0, pathEndPos);
             RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
     }
@@ -86,8 +86,8 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return request.getUri();
     }
 
-    @Override public String path() {
-        return path;
+    @Override public String rawPath() {
+        return rawPath;
     }
 
     @Override public Map<String, String> params() {

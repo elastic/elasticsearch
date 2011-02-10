@@ -30,20 +30,37 @@ import static org.elasticsearch.common.collect.MapBuilder.*;
  * @author kimchy (Shay Banon)
  */
 public class PathTrie<T> {
+
+    public static interface Decoder {
+        String decode(String value);
+    }
+
+    public static final Decoder NO_DECODER = new Decoder() {
+        @Override public String decode(String value) {
+            return value;
+        }
+    };
+
+    private final Decoder decoder;
     private final TrieNode<T> root;
     private final Pattern pattern;
     private T rootValue;
 
     public PathTrie() {
-        this("/", "*");
+        this("/", "*", NO_DECODER);
     }
 
-    public PathTrie(String separator, String wildcard) {
+    public PathTrie(Decoder decoder) {
+        this("/", "*", decoder);
+    }
+
+    public PathTrie(String separator, String wildcard, Decoder decoder) {
+        this.decoder = decoder;
         pattern = Pattern.compile(separator);
         root = new TrieNode<T>(separator, null, null, wildcard);
     }
 
-    public static class TrieNode<T> {
+    public class TrieNode<T> {
         private transient String key;
         private transient T value;
         private boolean isWildcard;
@@ -169,6 +186,10 @@ public class PathTrie<T> {
 
             return res;
         }
+
+        private void put(Map<String, String> params, String key, String value) {
+            params.put(key, decoder.decode(value));
+        }
     }
 
     public void insert(String path, T value) {
@@ -203,9 +224,5 @@ public class PathTrie<T> {
             index = 1;
         }
         return root.retrieve(strings, index, params);
-    }
-
-    private static void put(Map<String, String> params, String key, String value) {
-        params.put(key, value);
     }
 }

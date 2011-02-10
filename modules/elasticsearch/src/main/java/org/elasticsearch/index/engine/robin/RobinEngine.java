@@ -588,6 +588,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
+    @Override public boolean refreshNeeded() {
+        return dirty;
+    }
+
     @Override public void refresh(Refresh refresh) throws EngineException {
         if (indexWriter == null) {
             throw new EngineClosedException(shardId);

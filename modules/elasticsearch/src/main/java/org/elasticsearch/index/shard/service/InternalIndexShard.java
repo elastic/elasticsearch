@@ -607,7 +607,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private class EngineRefresher implements Runnable {
         @Override public void run() {
             try {
-                engine.refresh(new Engine.Refresh(false));
+                if (engine.refreshNeeded()) {
+                    engine.refresh(new Engine.Refresh(false));
+                }
             } catch (EngineClosedException e) {
                 // we are being closed, ignore
             } catch (RefreshFailedEngineException e) {

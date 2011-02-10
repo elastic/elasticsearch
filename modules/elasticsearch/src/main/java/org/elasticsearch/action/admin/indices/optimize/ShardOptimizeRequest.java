@@ -30,15 +30,15 @@ import java.io.IOException;
  */
 class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
-    private boolean waitForMerge = true;
+    private boolean waitForMerge = OptimizeRequest.Defaults.WAIT_FOR_MERGE;
 
-    private int maxNumSegments = -1;
+    private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
 
-    private boolean onlyExpungeDeletes = false;
+    private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
 
-    private boolean flush = false;
+    private boolean flush = OptimizeRequest.Defaults.FLUSH;
 
-    private boolean refresh = false;
+    private boolean refresh = OptimizeRequest.Defaults.REFRESH;
 
     ShardOptimizeRequest() {
     }

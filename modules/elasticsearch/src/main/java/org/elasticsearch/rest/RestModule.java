@@ -19,9 +19,12 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.RestActionModule;
+
+import java.util.List;
 
 /**
  * @author kimchy (Shay Banon)
@@ -29,13 +32,19 @@ import org.elasticsearch.rest.action.RestActionModule;
 public class RestModule extends AbstractModule {
 
     private final Settings settings;
+    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
+
+    public void addRestAction(Class<? extends BaseRestHandler> restAction) {
+        restPluginsActions.add(restAction);
+    }
 
     public RestModule(Settings settings) {
         this.settings = settings;
     }
 
+
     @Override protected void configure() {
         bind(RestController.class).asEagerSingleton();
-        new RestActionModule().configure(binder());
+        new RestActionModule(restPluginsActions).configure(binder());
     }
 }

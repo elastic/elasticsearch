@@ -72,7 +72,8 @@ public class HighlightPhase implements SearchHitPhase {
             for (SearchContextHighlight.Field field : context.highlight().fields()) {
                 FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
                 if (mapper == null) {
-                    throw new SearchException(context.shardTarget(), "No mapping found for [" + field.field() + "]");
+                    //Save skipping missing fields
+                    continue;
                 }
 
                 // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the

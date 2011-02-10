@@ -43,15 +43,23 @@ import java.io.IOException;
  */
 public class OptimizeRequest extends BroadcastOperationRequest {
 
-    private boolean waitForMerge = true;
+    public static final class Defaults {
+        public static final boolean WAIT_FOR_MERGE = true;
+        public static final int MAX_NUM_SEGMENTS = -1;
+        public static final boolean ONLY_EXPUNGE_DELETES = false;
+        public static final boolean FLUSH = true;
+        public static final boolean REFRESH = true;
+    }
 
-    private int maxNumSegments = -1;
+    private boolean waitForMerge = Defaults.WAIT_FOR_MERGE;
 
-    private boolean onlyExpungeDeletes = false;
+    private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
 
-    private boolean flush = true;
+    private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
 
-    private boolean refresh = true;
+    private boolean flush = Defaults.FLUSH;
+
+    private boolean refresh = Defaults.FLUSH;
 
     /**
      * Constructs an optimization request over one or more indices.

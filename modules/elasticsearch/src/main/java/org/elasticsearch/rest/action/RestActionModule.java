@@ -19,7 +19,9 @@
 
 package org.elasticsearch.rest.action;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
@@ -60,12 +62,23 @@ import org.elasticsearch.rest.action.percolate.RestPercolateAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 
+import java.util.List;
+
 /**
  * @author kimchy (Shay Banon)
  */
 public class RestActionModule extends AbstractModule {
+    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
+
+    public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions){
+        this.restPluginsActions=restPluginsActions;
+    }
 
     @Override protected void configure() {
+        for (Class<? extends BaseRestHandler> restAction : restPluginsActions) {
+            bind(restAction).asEagerSingleton();
+        }
+
         bind(RestMainAction.class).asEagerSingleton();
 
         bind(RestNodesInfoAction.class).asEagerSingleton();

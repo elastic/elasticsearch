@@ -102,7 +102,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
             for (int i = 0; i < currentJvmStats.gc().collectors().length; i++) {
                 GarbageCollector gc = currentJvmStats.gc().collectors()[i];
-                if (gc.lastGc() != null) {
+                if (gc.lastGc() != null && lastJvmStats.gc.collectors()[i].lastGc() != null) {
                     GarbageCollector.LastGc lastGc = gc.lastGc();
                     if (lastGc.startTime == lastJvmStats.gc.collectors()[i].lastGc().startTime()) {
                         // we already handled this one...

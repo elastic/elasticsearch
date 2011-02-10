@@ -148,8 +148,10 @@ public class HighlightPhase implements SearchHitPhase {
                     for (int i = 0; i < fragments.length; i++) {
                         fragments[i] = fragsList.get(i).toString();
                     }
-                    HighlightField highlightField = new HighlightField(field.field(), fragments);
-                    highlightFields.put(highlightField.name(), highlightField);
+                    if (fragments.length>0){
+                        HighlightField highlightField = new HighlightField(field.field(), fragments);
+                        highlightFields.put(highlightField.name(), highlightField);
+                    }
                 } else {
                     FastVectorHighlighter highlighter = buildHighlighter(context, mapper, field);
                     FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), hitContext.reader(), field);
@@ -162,8 +164,10 @@ public class HighlightPhase implements SearchHitPhase {
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }
-                    HighlightField highlightField = new HighlightField(field.field(), fragments);
-                    highlightFields.put(highlightField.name(), highlightField);
+                    if (fragments.length>0){
+                        HighlightField highlightField = new HighlightField(field.field(), fragments);
+                        highlightFields.put(highlightField.name(), highlightField);
+                    }
                 }
             }
 

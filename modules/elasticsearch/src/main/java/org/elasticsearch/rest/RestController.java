@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
 
@@ -33,12 +34,12 @@ import java.io.IOException;
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
-    private final PathTrie<RestHandler> getHandlers = new PathTrie<RestHandler>();
-    private final PathTrie<RestHandler> postHandlers = new PathTrie<RestHandler>();
-    private final PathTrie<RestHandler> putHandlers = new PathTrie<RestHandler>();
-    private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>();
-    private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>();
-    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>();
+    private final PathTrie<RestHandler> getHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> postHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> putHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
 
     @Inject public RestController(Settings settings) {
         super(settings);
@@ -116,6 +117,9 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     private String getPath(RestRequest request) {
-        return request.path();
+        // we use rawPath since we don't want to decode it while processing the path resolution
+        // so we can handle things like:
+        // my_index/my_type/http%3A%2F%2Fwww.google.com
+        return request.rawPath();
     }
 }

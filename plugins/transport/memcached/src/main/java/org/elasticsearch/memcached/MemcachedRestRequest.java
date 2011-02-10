@@ -45,7 +45,7 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     private final Map<String, String> params;
 
-    private final String path;
+    private final String rawPath;
 
     private byte[] data;
 
@@ -62,9 +62,9 @@ public class MemcachedRestRequest extends AbstractRestRequest {
         this.params = new HashMap<String, String>();
         int pathEndPos = uri.indexOf('?');
         if (pathEndPos < 0) {
-            this.path = uri;
+            this.rawPath = uri;
         } else {
-            this.path = uri.substring(0, pathEndPos);
+            this.rawPath = uri.substring(0, pathEndPos);
             RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
     }
@@ -77,8 +77,8 @@ public class MemcachedRestRequest extends AbstractRestRequest {
         return this.uri;
     }
 
-    @Override public String path() {
-        return this.path;
+    @Override public String rawPath() {
+        return this.rawPath;
     }
 
     public byte[] getUriBytes() {

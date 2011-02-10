@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.support;
 
 import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.path.PathTrie;
 
 import java.nio.charset.Charset;
 import java.util.Map;
@@ -28,6 +29,12 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class RestUtils {
+
+    public static PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
+        @Override public String decode(String value) {
+            return RestUtils.decodeComponent(value);
+        }
+    };
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {

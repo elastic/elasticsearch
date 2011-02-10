@@ -43,7 +43,12 @@ public interface RestRequest extends ToXContent.Params {
     String uri();
 
     /**
-     * The path part of the URI (without the query string).
+     * The non decoded, raw path provided.
+     */
+    String rawPath();
+
+    /**
+     * The path part of the URI (without the query string), decoded.
      */
     String path();
 

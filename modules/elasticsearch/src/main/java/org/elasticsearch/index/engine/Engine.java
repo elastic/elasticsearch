@@ -67,6 +67,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     Searcher searcher() throws EngineException;
 
     /**
+     * Returns <tt>true</tt> if a refresh is really needed.
+     */
+    boolean refreshNeeded();
+
+    /**
      * Refreshes the engine for new search operations to reflect the latest
      * changes. Pass <tt>true</tt> if the refresh operation should include
      * all the operations performed up to this call.

@@ -225,6 +225,7 @@ public class IndexQueryParserModule extends AbstractModule {
             bindings.processXContentQueryParser(DisMaxQueryParser.NAME, DisMaxQueryParser.class);
             bindings.processXContentQueryParser(MatchAllQueryParser.NAME, MatchAllQueryParser.class);
             bindings.processXContentQueryParser(QueryStringQueryParser.NAME, QueryStringQueryParser.class);
+            bindings.processXContentQueryParser(BoostingQueryParser.NAME, BoostingQueryParser.class);
             bindings.processXContentQueryParser(BoolQueryParser.NAME, BoolQueryParser.class);
             bindings.processXContentQueryParser(TermQueryParser.NAME, TermQueryParser.class);
             bindings.processXContentQueryParser(TermsQueryParser.NAME, TermsQueryParser.class);

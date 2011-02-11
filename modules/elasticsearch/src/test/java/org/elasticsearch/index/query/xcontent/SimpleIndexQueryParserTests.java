@@ -713,6 +713,19 @@ public class SimpleIndexQueryParserTests {
         assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
     }
 
+    @Test public void testBoostingQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(boostingQuery().positive(termQuery("field1", "value1")).negative(termQuery("field1", "value2")).negativeBoost(0.2f)).query();
+        assertThat(parsedQuery, instanceOf(BoostingQuery.class));
+    }
+
+    @Test public void testBoostingQuery() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/boosting-query.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BoostingQuery.class));
+    }
+
     @Test public void testBoolQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(boolQuery().must(termQuery("content", "test1")).must(termQuery("content", "test4")).mustNot(termQuery("content", "test2")).should(termQuery("content", "test3"))).query();

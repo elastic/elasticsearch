@@ -253,6 +253,15 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * The BoostingQuery class can be used to effectively demote results that match a given query.
+     * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
+     * but reduces their overall score:
+     */
+    public static BoostingQueryBuilder boostingQuery() {
+        return new BoostingQueryBuilder();
+    }
+
+    /**
      * A Query that matches documents matching boolean combinations of other queries.
      */
     public static BoolQueryBuilder boolQuery() {

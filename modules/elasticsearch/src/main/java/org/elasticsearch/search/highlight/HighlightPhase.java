@@ -164,7 +164,7 @@ public class HighlightPhase implements SearchHitPhase {
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }
-                    if (fragments.length>0){
+                    if (fragments != null && fragments.length>0){
                         HighlightField highlightField = new HighlightField(field.field(), fragments);
                         highlightFields.put(highlightField.name(), highlightField);
                     }

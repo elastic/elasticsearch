@@ -45,9 +45,9 @@ public class FsGateway extends BlobStoreGateway {
 
     private final ExecutorService concurrentStreamPool;
 
-    @Inject public FsGateway(Settings settings, ClusterService clusterService,
-                             Environment environment, ClusterName clusterName, ThreadPool threadPool) throws IOException {
-        super(settings, clusterService);
+    @Inject public FsGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                             Environment environment, ClusterName clusterName) throws IOException {
+        super(settings, threadPool, clusterService);
 
         File gatewayFile;
         String location = componentSettings.get("location");

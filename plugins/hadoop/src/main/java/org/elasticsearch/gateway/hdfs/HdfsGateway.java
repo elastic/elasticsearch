@@ -52,9 +52,9 @@ public class HdfsGateway extends BlobStoreGateway {
 
     private final ExecutorService concurrentStreamPool;
 
-    @Inject public HdfsGateway(Settings settings, ClusterService clusterService,
-                               ClusterName clusterName, ThreadPool threadPool) throws IOException {
-        super(settings, clusterService);
+    @Inject public HdfsGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                               ClusterName clusterName) throws IOException {
+        super(settings, threadPool, clusterService);
 
         this.closeFileSystem = componentSettings.getAsBoolean("close_fs", true);
         String uri = componentSettings.get("uri");

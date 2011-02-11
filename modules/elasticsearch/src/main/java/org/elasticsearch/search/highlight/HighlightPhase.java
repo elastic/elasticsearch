@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.SearchHitPhase;
@@ -148,7 +147,7 @@ public class HighlightPhase implements SearchHitPhase {
                     for (int i = 0; i < fragments.length; i++) {
                         fragments[i] = fragsList.get(i).toString();
                     }
-                    if (fragments.length>0){
+                    if (fragments.length > 0) {
                         HighlightField highlightField = new HighlightField(field.field(), fragments);
                         highlightFields.put(highlightField.name(), highlightField);
                     }
@@ -164,7 +163,7 @@ public class HighlightPhase implements SearchHitPhase {
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }
-                    if (fragments.length>0){
+                    if (fragments != null && fragments.length > 0) {
                         HighlightField highlightField = new HighlightField(field.field(), fragments);
                         highlightFields.put(highlightField.name(), highlightField);
                     }

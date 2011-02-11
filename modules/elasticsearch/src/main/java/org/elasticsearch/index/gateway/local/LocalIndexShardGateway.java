@@ -63,6 +63,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         TimeValue sync = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(1));
         if (sync.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
+            // we don't need to execute the sync on a different thread, just do it on the scheduler thread
             flushScheduler = threadPool.scheduleWithFixedDelay(new Sync(), sync);
         } else if (sync.millis() == 0) {
             flushScheduler = null;

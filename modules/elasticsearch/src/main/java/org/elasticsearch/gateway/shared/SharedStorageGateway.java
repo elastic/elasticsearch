@@ -30,12 +30,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * @author kimchy (shay.banon)
@@ -44,33 +39,27 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private final ClusterService clusterService;
 
-    private volatile ExecutorService executor;
+    private final ThreadPool threadPool;
 
-    public SharedStorageGateway(Settings settings, ClusterService clusterService) {
+    public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        this.executor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway"));
         clusterService.add(this);
     }
 
     @Override protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
-        executor.shutdown();
-        try {
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
     }
 
     @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        executor.execute(new Runnable() {
+        threadPool.cached().execute(new Runnable() {
             @Override public void run() {
                 logger.debug("reading state from gateway {} ...", this);
                 StopWatch stopWatch = new StopWatch().start();
@@ -106,7 +95,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
             if (!event.metaDataChanged()) {
                 return;
             }
-            executor.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     logger.debug("writing to gateway {} ...", this);
                     StopWatch stopWatch = new StopWatch().start();

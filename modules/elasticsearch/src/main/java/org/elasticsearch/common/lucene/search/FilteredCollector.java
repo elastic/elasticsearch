@@ -55,6 +55,7 @@ public class FilteredCollector extends Collector {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        collector.setNextReader(reader, docBase);
         docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
     }
 

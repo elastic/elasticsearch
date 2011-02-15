@@ -316,7 +316,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             if (logger.isDebugEnabled()) {
                 logger.debug("scheduling snapshot every [{}]", snapshotInterval);
             }
-            snapshotScheduleFuture = threadPool.schedule(new SnapshotRunnable(), snapshotInterval, ThreadPool.ExecutionType.THREADED);
+            snapshotScheduleFuture = threadPool.schedule(snapshotInterval, ThreadPool.Names.SNAPSHOT, new SnapshotRunnable());
         }
     }
 
@@ -332,7 +332,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             }
             // schedule it again
             if (indexShard.state() != IndexShardState.CLOSED) {
-                snapshotScheduleFuture = threadPool.schedule(this, snapshotInterval, ThreadPool.ExecutionType.THREADED);
+                snapshotScheduleFuture = threadPool.schedule(snapshotInterval, ThreadPool.Names.SNAPSHOT, this);
             }
         }
     }

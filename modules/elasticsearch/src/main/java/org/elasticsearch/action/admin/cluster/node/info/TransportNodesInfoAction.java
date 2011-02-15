@@ -61,6 +61,10 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).remove(key).immutableMap();
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.Node.INFO;
     }
@@ -100,7 +104,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
                 monitorService.osService().info(), monitorService.processService().info(),
                 monitorService.jvmService().info(), monitorService.networkService().info(),
-                threadPool.info(), transportService.info());
+                transportService.info());
     }
 
     @Override protected boolean accumulateExceptions() {

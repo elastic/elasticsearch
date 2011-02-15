@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StringStreamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.JmxService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -72,6 +73,10 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
 
         @Override public VoidStreamable newInstance() {
             return VoidStreamable.INSTANCE;
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
 
         @Override public void messageReceived(VoidStreamable request, TransportChannel channel) throws Exception {

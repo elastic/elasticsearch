@@ -50,6 +50,10 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
         this.indexTemplateService = indexTemplateService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.DELETE_INDEX_TEMPLATE;
     }

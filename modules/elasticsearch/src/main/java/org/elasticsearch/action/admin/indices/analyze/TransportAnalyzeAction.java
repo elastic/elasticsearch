@@ -57,6 +57,10 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected AnalyzeRequest newRequest() {
         return new AnalyzeRequest();
     }

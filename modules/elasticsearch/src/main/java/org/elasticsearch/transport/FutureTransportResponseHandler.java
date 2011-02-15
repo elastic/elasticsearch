@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * A response handler to be used when all interaction will be done through the {@link TransportFuture}.
@@ -32,5 +33,9 @@ public abstract class FutureTransportResponseHandler<T extends Streamable> exten
     }
 
     @Override public void handleException(TransportException exp) {
+    }
+
+    @Override public String executor() {
+        return ThreadPool.Names.SAME;
     }
 }

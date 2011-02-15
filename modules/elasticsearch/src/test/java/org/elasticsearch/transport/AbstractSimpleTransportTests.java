@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -51,7 +50,7 @@ public abstract class AbstractSimpleTransportTests {
     protected DiscoveryNode serviceBNode;
 
     @BeforeMethod public void setUp() {
-        threadPool = new CachedThreadPool();
+        threadPool = new ThreadPool();
         build();
         serviceA.connectToNode(serviceBNode);
         serviceB.connectToNode(serviceANode);
@@ -72,6 +71,10 @@ public abstract class AbstractSimpleTransportTests {
                 return new StringMessage();
             }
 
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
+            }
+
             @Override public void messageReceived(StringMessage request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
@@ -87,6 +90,10 @@ public abstract class AbstractSimpleTransportTests {
                 new StringMessage("moshe"), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.CACHED;
                     }
 
                     @Override public void handleResponse(StringMessage response) {
@@ -116,6 +123,10 @@ public abstract class AbstractSimpleTransportTests {
                 return new StringMessage();
             }
 
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
+            }
+
             @Override public void messageReceived(StringMessage request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
@@ -131,6 +142,10 @@ public abstract class AbstractSimpleTransportTests {
                 new StringMessage("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.CACHED;
                     }
 
                     @Override public void handleResponse(StringMessage response) {
@@ -159,6 +174,10 @@ public abstract class AbstractSimpleTransportTests {
                 return new StringMessage();
             }
 
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
+            }
+
             @Override public void messageReceived(StringMessage request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
                 throw new RuntimeException("bad message !!!");
@@ -169,6 +188,10 @@ public abstract class AbstractSimpleTransportTests {
                 new StringMessage("moshe"), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.CACHED;
                     }
 
                     @Override public void handleResponse(StringMessage response) {
@@ -213,6 +236,10 @@ public abstract class AbstractSimpleTransportTests {
                 return new StringMessage();
             }
 
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
+            }
+
             @Override public void messageReceived(StringMessage request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 // don't send back a response
@@ -229,6 +256,10 @@ public abstract class AbstractSimpleTransportTests {
                 new StringMessage("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.CACHED;
                     }
 
                     @Override public void handleResponse(StringMessage response) {
@@ -256,6 +287,10 @@ public abstract class AbstractSimpleTransportTests {
                 return new StringMessage();
             }
 
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
+            }
+
             @Override public void messageReceived(StringMessage request, TransportChannel channel) {
                 TimeValue sleep = TimeValue.parseTimeValue(request.message, null);
                 try {
@@ -276,6 +311,10 @@ public abstract class AbstractSimpleTransportTests {
                 new StringMessage("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.CACHED;
                     }
 
                     @Override public void handleResponse(StringMessage response) {
@@ -304,6 +343,10 @@ public abstract class AbstractSimpleTransportTests {
                     new StringMessage(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
                         @Override public StringMessage newInstance() {
                             return new StringMessage();
+                        }
+
+                        @Override public String executor() {
+                            return ThreadPool.Names.CACHED;
                         }
 
                         @Override public void handleResponse(StringMessage response) {

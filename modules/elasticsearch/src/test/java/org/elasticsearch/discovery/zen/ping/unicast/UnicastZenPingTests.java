@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.testng.annotations.Test;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 public class UnicastZenPingTests {
 
     @Test public void testSimplePings() {
-        ThreadPool threadPool = new CachedThreadPool();
+        ThreadPool threadPool = new ThreadPool();
         ClusterName clusterName = new ClusterName("test");
         NettyTransport transportA = new NettyTransport(threadPool);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();

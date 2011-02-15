@@ -67,6 +67,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.INDEX;
+    }
+
     @Override protected void doExecute(final DeleteRequest deleteRequest, final ActionListener<DeleteResponse> listener) {
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(deleteRequest.index())) {
             createIndexAction.execute(new CreateIndexRequest(deleteRequest.index()), new ActionListener<CreateIndexResponse>() {

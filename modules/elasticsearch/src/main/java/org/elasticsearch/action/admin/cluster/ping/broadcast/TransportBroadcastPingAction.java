@@ -48,6 +48,10 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
         super(settings, threadPool, clusterService, transportService);
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.Ping.BROADCAST;
     }

@@ -30,7 +30,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.network.NetworkInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
@@ -55,15 +54,13 @@ public class NodeInfo extends NodeOperationResponse {
 
     private NetworkInfo network;
 
-    private ThreadPoolInfo threadPool;
-
     private TransportInfo transport;
 
     NodeInfo() {
     }
 
     public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> attributes, Settings settings,
-                    OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network, ThreadPoolInfo threadPool,
+                    OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network,
                     TransportInfo transport) {
         super(node);
         this.attributes = attributes;
@@ -72,7 +69,6 @@ public class NodeInfo extends NodeOperationResponse {
         this.process = process;
         this.jvm = jvm;
         this.network = network;
-        this.threadPool = threadPool;
         this.transport = transport;
     }
 
@@ -160,20 +156,6 @@ public class NodeInfo extends NodeOperationResponse {
         return network();
     }
 
-    /**
-     * Thread Pool level information.
-     */
-    public ThreadPoolInfo threadPool() {
-        return threadPool;
-    }
-
-    /**
-     * Thread Pool level information.
-     */
-    public ThreadPoolInfo getThreadPool() {
-        return threadPool();
-    }
-
     public TransportInfo transport() {
         return transport;
     }
@@ -208,9 +190,6 @@ public class NodeInfo extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             network = NetworkInfo.readNetworkInfo(in);
-        }
-        if (in.readBoolean()) {
-            threadPool = ThreadPoolInfo.readThreadPoolInfo(in);
         }
         if (in.readBoolean()) {
             transport = TransportInfo.readTransportInfo(in);
@@ -248,12 +227,6 @@ public class NodeInfo extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             network.writeTo(out);
-        }
-        if (threadPool == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            threadPool.writeTo(out);
         }
         if (transport == null) {
             out.writeBoolean(false);

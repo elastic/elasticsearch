@@ -46,6 +46,10 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
         this.updateSettingsService = updateSettingsService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.UPDATE_SETTINGS;
     }

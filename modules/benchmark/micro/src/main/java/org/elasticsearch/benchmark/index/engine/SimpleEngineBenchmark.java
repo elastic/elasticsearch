@@ -46,7 +46,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.memory.ByteBufferStore;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 
 import java.io.File;
 import java.util.concurrent.*;
@@ -305,7 +304,7 @@ public class SimpleEngineBenchmark {
 
         store.deleteContent();
 
-        ThreadPool threadPool = new ScalingThreadPool();
+        ThreadPool threadPool = new ThreadPool();
         SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, settings));
         Engine engine = new RobinEngine(shardId, settings, store, deletionPolicy, new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"), false), new LogByteSizeMergePolicyProvider(store),
                 new ConcurrentMergeSchedulerProvider(shardId, settings), new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new NonBloomCache(shardId.index()));

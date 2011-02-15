@@ -30,5 +30,5 @@ public interface TransportRequestHandler<T extends Streamable> {
 
     void messageReceived(T request, TransportChannel channel) throws Exception;
 
-    boolean spawn();
+    String executor();
 }

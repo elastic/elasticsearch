@@ -71,14 +71,14 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     public void nodeIndexDeleted(final String index, final String nodeId) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     innerNodeIndexDeleted(index, nodeId);
                 }
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedMessage(index, nodeId), VoidTransportResponseHandler.INSTANCE);
+                    NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedMessage(index, nodeId), VoidTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -103,6 +103,10 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         @Override public void messageReceived(NodeIndexDeletedMessage message, TransportChannel channel) throws Exception {
             innerNodeIndexDeleted(message.index, message.nodeId);
             channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 

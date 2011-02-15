@@ -56,6 +56,10 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.FLUSH;
     }

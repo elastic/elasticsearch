@@ -71,14 +71,14 @@ public class NodeIndexCreatedAction extends AbstractComponent {
     public void nodeIndexCreated(final String index, final String nodeId) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     innerNodeIndexCreated(index, nodeId);
                 }
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    NodeIndexCreatedTransportHandler.ACTION, new NodeIndexCreatedMessage(index, nodeId), VoidTransportResponseHandler.INSTANCE);
+                    NodeIndexCreatedTransportHandler.ACTION, new NodeIndexCreatedMessage(index, nodeId), VoidTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -103,6 +103,10 @@ public class NodeIndexCreatedAction extends AbstractComponent {
         @Override public void messageReceived(NodeIndexCreatedMessage message, TransportChannel channel) throws Exception {
             innerNodeIndexCreated(message.index, message.nodeId);
             channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 

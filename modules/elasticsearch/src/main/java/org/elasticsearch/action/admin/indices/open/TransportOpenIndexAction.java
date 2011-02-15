@@ -50,6 +50,10 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
         this.stateIndexService = stateIndexService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.OPEN;
     }

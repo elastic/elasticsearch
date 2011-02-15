@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchA
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -93,6 +94,10 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
                     }
                 }
             });
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 }

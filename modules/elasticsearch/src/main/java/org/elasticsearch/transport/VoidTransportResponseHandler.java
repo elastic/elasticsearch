@@ -20,23 +20,20 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.VoidStreamable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class VoidTransportResponseHandler implements TransportResponseHandler<VoidStreamable> {
 
-    public static final VoidTransportResponseHandler INSTANCE = new VoidTransportResponseHandler(true);
-    public static final VoidTransportResponseHandler INSTANCE_NOSPAWN = new VoidTransportResponseHandler(false);
+    public static final VoidTransportResponseHandler INSTANCE_SAME = new VoidTransportResponseHandler(ThreadPool.Names.SAME);
+    public static final VoidTransportResponseHandler INSTANCE_CACHED = new VoidTransportResponseHandler(ThreadPool.Names.CACHED);
 
-    private boolean spawn;
+    private final String executor;
 
-    public VoidTransportResponseHandler() {
-        this(true);
-    }
-
-    public VoidTransportResponseHandler(boolean spawn) {
-        this.spawn = spawn;
+    public VoidTransportResponseHandler(String executor) {
+        this.executor = executor;
     }
 
     @Override public VoidStreamable newInstance() {
@@ -49,7 +46,7 @@ public class VoidTransportResponseHandler implements TransportResponseHandler<Vo
     @Override public void handleException(TransportException exp) {
     }
 
-    @Override public boolean spawn() {
-        return spawn;
+    @Override public String executor() {
+        return executor;
     }
 }

@@ -119,7 +119,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             }
         } else {
             if (httpHandler.spawn()) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         try {
                             httpHandler.handleRequest(request, channel);

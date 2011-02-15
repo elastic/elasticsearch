@@ -77,9 +77,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
                         if (nodeStats.network() != null) {
                             nodeStats.network().toXContent(builder, request);
                         }
-                        if (nodeStats.threadPool() != null) {
-                            nodeStats.threadPool().toXContent(builder, request);
-                        }
                         if (nodeStats.transport() != null) {
                             nodeStats.transport().toXContent(builder, request);
                         }

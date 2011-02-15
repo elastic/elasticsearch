@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.fixed.FixedThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -54,14 +53,8 @@ public class TransportBenchmark {
         public abstract Transport newTransport(Settings settings, ThreadPool threadPool);
     }
 
-    public static ThreadPool newThreadPool(Settings settings) {
-//        return new ForkjoinThreadPool(settings);
-        return new FixedThreadPool(settings);
-//        return new CachedThreadPool(settings);
-    }
-
     public static void main(String[] args) {
-        final boolean spawn = true;
+        final String executor = ThreadPool.Names.CACHED;
         final boolean waitForRequest = true;
         final ByteSizeValue payloadSize = new ByteSizeValue(100, ByteSizeUnit.BYTES);
         final int NUMBER_OF_CLIENTS = 1;
@@ -74,10 +67,10 @@ public class TransportBenchmark {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
 
-        final ThreadPool serverThreadPool = newThreadPool(settings);
+        final ThreadPool serverThreadPool = new ThreadPool();
         final TransportService serverTransportService = new TransportService(type.newTransport(settings, serverThreadPool), serverThreadPool).start();
 
-        final ThreadPool clientThreadPool = newThreadPool(settings);
+        final ThreadPool clientThreadPool = new ThreadPool();
         final TransportService clientTransportService = new TransportService(type.newTransport(settings, clientThreadPool), clientThreadPool).start();
 
         final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress());
@@ -87,12 +80,12 @@ public class TransportBenchmark {
                 return new BenchmarkMessage();
             }
 
-            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
-                channel.sendResponse(request);
+            @Override public String executor() {
+                return executor;
             }
 
-            @Override public boolean spawn() {
-                return spawn;
+            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
+                channel.sendResponse(request);
             }
         });
 
@@ -103,6 +96,10 @@ public class TransportBenchmark {
             clientTransportService.submitRequest(node, "benchmark", message, new BaseTransportResponseHandler<BenchmarkMessage>() {
                 @Override public BenchmarkMessage newInstance() {
                     return new BenchmarkMessage();
+                }
+
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
 
                 @Override public void handleResponse(BenchmarkMessage response) {
@@ -128,6 +125,10 @@ public class TransportBenchmark {
                                 return new BenchmarkMessage();
                             }
 
+                            @Override public String executor() {
+                                return executor;
+                            }
+
                             @Override public void handleResponse(BenchmarkMessage response) {
                                 if (response.id != id) {
                                     System.out.println("NO ID MATCH [" + response.id + "] and [" + id + "]");
@@ -138,10 +139,6 @@ public class TransportBenchmark {
                             @Override public void handleException(TransportException exp) {
                                 exp.printStackTrace();
                                 latch.countDown();
-                            }
-
-                            @Override public boolean spawn() {
-                                return spawn;
                             }
                         };
 

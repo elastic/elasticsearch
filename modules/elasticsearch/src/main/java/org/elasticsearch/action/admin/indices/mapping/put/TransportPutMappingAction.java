@@ -51,6 +51,9 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         this.metaDataMappingService = metaDataMappingService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
 
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.Mapping.PUT;

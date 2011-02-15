@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
@@ -76,7 +77,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
                 continue;
             }
 
-            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequest(clusterState), new VoidTransportResponseHandler(false) {
+            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequest(clusterState), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override public void handleException(TransportException exp) {
                     logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
                 }
@@ -112,16 +113,13 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
             return new PublishClusterStateRequest();
         }
 
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
         @Override public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
             listener.onNewClusterState(request.clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);
-        }
-
-        /**
-         * No need to spawn, we add submit a new cluster state directly. This allows for faster application.
-         */
-        @Override public boolean spawn() {
-            return false;
         }
     }
 }

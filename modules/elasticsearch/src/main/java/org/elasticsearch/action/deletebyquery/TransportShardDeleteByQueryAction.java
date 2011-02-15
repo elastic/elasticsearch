@@ -48,6 +48,10 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         return true;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.INDEX;
+    }
+
     @Override protected ShardDeleteByQueryRequest newRequestInstance() {
         return new ShardDeleteByQueryRequest();
     }

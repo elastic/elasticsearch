@@ -49,16 +49,24 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected final ThreadPool threadPool;
 
+    final String transportAction;
+    final String executor;
+
     protected TransportMasterNodeOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
-        transportService.registerHandler(transportAction(), new TransportHandler());
+        this.transportAction = transportAction();
+        this.executor = executor();
+
+        transportService.registerHandler(transportAction, new TransportHandler());
     }
 
     protected abstract String transportAction();
+
+    protected abstract String executor();
 
     protected abstract Request newRequest();
 
@@ -121,7 +129,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     }
                 });
             } else {
-                threadPool.execute(new Runnable() {
+                threadPool.executor(executor).execute(new Runnable() {
                     @Override public void run() {
                         try {
                             Response response = masterOperation(request, clusterState);
@@ -168,13 +176,17 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 return;
             }
             processBeforeDelegationToMaster(request, clusterState);
-            transportService.sendRequest(nodes.masterNode(), transportAction(), request, new BaseTransportResponseHandler<Response>() {
+            transportService.sendRequest(nodes.masterNode(), transportAction, request, new BaseTransportResponseHandler<Response>() {
                 @Override public Response newInstance() {
                     return newResponse();
                 }
 
                 @Override public void handleResponse(Response response) {
                     listener.onResponse(response);
+                }
+
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
 
                 @Override public void handleException(final TransportException exp) {
@@ -221,35 +233,30 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
             return newRequest();
         }
 
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
         @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            final ClusterState clusterState = clusterService.state();
-            if (clusterState.nodes().localNodeMaster() || localExecute(request)) {
-                checkBlock(request, clusterState);
-                Response response = masterOperation(request, clusterState);
-                channel.sendResponse(response);
-            } else {
-                transportService.sendRequest(clusterService.state().nodes().masterNode(), transportAction(), request, new BaseTransportResponseHandler<Response>() {
-                    @Override public Response newInstance() {
-                        return newResponse();
+            // we just send back a response, no need to fork a listener
+            request.listenerThreaded(false);
+            execute(request, new ActionListener<Response>() {
+                @Override public void onResponse(Response response) {
+                    try {
+                        channel.sendResponse(response);
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
+                }
 
-                    @Override public void handleResponse(Response response) {
-                        try {
-                            channel.sendResponse(response);
-                        } catch (Exception e) {
-                            logger.error("Failed to send response", e);
-                        }
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception e1) {
+                        logger.warn("Failed to send response", e1);
                     }
-
-                    @Override public void handleException(TransportException exp) {
-                        try {
-                            channel.sendResponse(exp);
-                        } catch (Exception e) {
-                            logger.error("Failed to send response", e);
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
     }
 }

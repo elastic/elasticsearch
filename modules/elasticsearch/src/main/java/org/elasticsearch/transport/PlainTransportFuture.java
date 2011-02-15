@@ -74,6 +74,10 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         return handler.newInstance();
     }
 
+    @Override public String executor() {
+        return handler.executor();
+    }
+
     @Override public void handleResponse(V response) {
         handler.handleResponse(response);
         set(response);
@@ -82,9 +86,5 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
     @Override public void handleException(TransportException exp) {
         handler.handleException(exp);
         setException(exp);
-    }
-
-    @Override public boolean spawn() {
-        return handler.spawn();
     }
 }

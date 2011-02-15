@@ -53,6 +53,10 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.Node.STATS;
     }
@@ -92,7 +96,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
         return new NodeStats(clusterService.state().nodes().localNode(), indicesService.stats(),
                 monitorService.osService().stats(), monitorService.processService().stats(),
                 monitorService.jvmService().stats(), monitorService.networkService().stats(),
-                threadPool.stats(), transportService.stats());
+                transportService.stats());
     }
 
     @Override protected boolean accumulateExceptions() {

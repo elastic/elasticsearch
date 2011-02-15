@@ -72,7 +72,7 @@ public class TranslogService extends AbstractIndexShardComponent {
 
         logger.debug("interval [{}], flush_threshold_ops [{}], flush_threshold_size [{}], flush_threshold_period [{}]", interval, flushThresholdOperations, flushThresholdSize, flushThresholdPeriod);
 
-        this.future = threadPool.schedule(new TranslogBasedFlush(), interval, ThreadPool.ExecutionType.DEFAULT);
+        this.future = threadPool.schedule(interval, ThreadPool.Names.SAME, new TranslogBasedFlush());
     }
 
 
@@ -109,11 +109,11 @@ public class TranslogService extends AbstractIndexShardComponent {
                 return;
             }
 
-            future = threadPool.schedule(this, interval, ThreadPool.ExecutionType.DEFAULT);
+            future = threadPool.schedule(interval, ThreadPool.Names.SAME, this);
         }
 
         private void asyncFlushAndReschedule() {
-            threadPool.cached().execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
                 @Override public void run() {
                     try {
                         indexShard.flush(new Engine.Flush());
@@ -127,7 +127,7 @@ public class TranslogService extends AbstractIndexShardComponent {
                     lastFlushTime = System.currentTimeMillis();
 
                     if (indexShard.state() != IndexShardState.CLOSED) {
-                        future = threadPool.schedule(this, interval, ThreadPool.ExecutionType.DEFAULT);
+                        future = threadPool.schedule(interval, ThreadPool.Names.SAME, this);
                     }
                 }
             });

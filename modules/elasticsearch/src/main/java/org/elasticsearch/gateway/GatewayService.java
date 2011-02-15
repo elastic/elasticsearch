@@ -191,13 +191,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (!ignoreTimeout && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.debug("delaying initial state recovery for [{}]", recoverAfterTime);
-                threadPool.schedule(new Runnable() {
+                threadPool.schedule(recoverAfterTime, ThreadPool.Names.CACHED, new Runnable() {
                     @Override public void run() {
                         if (recovered.compareAndSet(false, true)) {
                             gateway.performStateRecovery(recoveryListener);
                         }
                     }
-                }, recoverAfterTime, ThreadPool.ExecutionType.THREADED);
+                });
             }
         } else {
             if (recovered.compareAndSet(false, true)) {

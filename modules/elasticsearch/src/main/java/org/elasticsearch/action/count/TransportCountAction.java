@@ -54,6 +54,10 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.SEARCH;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.COUNT;
     }

@@ -61,6 +61,10 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         return execute(new Request(nodesIds).timeout(timeout));
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return "/gateway/local/meta-state";
     }

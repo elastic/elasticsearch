@@ -28,7 +28,6 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -50,8 +49,6 @@ public class NodeStats extends NodeOperationResponse {
 
     private NetworkStats network;
 
-    private ThreadPoolStats threadPool;
-
     private TransportStats transport;
 
     NodeStats() {
@@ -59,14 +56,13 @@ public class NodeStats extends NodeOperationResponse {
 
     public NodeStats(DiscoveryNode node, NodeIndicesStats indices,
                      OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
-                     ThreadPoolStats threadPool, TransportStats transport) {
+                     TransportStats transport) {
         super(node);
         this.indices = indices;
         this.os = os;
         this.process = process;
         this.jvm = jvm;
         this.network = network;
-        this.threadPool = threadPool;
         this.transport = transport;
     }
 
@@ -140,20 +136,6 @@ public class NodeStats extends NodeOperationResponse {
         return network();
     }
 
-    /**
-     * Thread Pool level stats.
-     */
-    public ThreadPoolStats threadPool() {
-        return threadPool;
-    }
-
-    /**
-     * Thread Pool level stats.
-     */
-    public ThreadPoolStats getThreadPool() {
-        return threadPool();
-    }
-
     public TransportStats transport() {
         return transport;
     }
@@ -184,9 +166,6 @@ public class NodeStats extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             network = NetworkStats.readNetworkStats(in);
-        }
-        if (in.readBoolean()) {
-            threadPool = ThreadPoolStats.readThreadPoolStats(in);
         }
         if (in.readBoolean()) {
             transport = TransportStats.readTransportStats(in);
@@ -224,12 +203,6 @@ public class NodeStats extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             network.writeTo(out);
-        }
-        if (threadPool == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            threadPool.writeTo(out);
         }
         if (transport == null) {
             out.writeBoolean(false);

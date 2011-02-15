@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -134,8 +135,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             });
         }
 
-        @Override public boolean spawn() {
-            return false;
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 }

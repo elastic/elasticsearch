@@ -37,6 +37,10 @@ public class TransportSinglePingAction extends TransportShardSingleOperationActi
         super(settings, threadPool, clusterService, transportService);
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.Ping.SINGLE;
     }

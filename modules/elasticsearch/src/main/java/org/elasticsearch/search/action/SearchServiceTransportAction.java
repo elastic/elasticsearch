@@ -38,6 +38,7 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 /**
@@ -53,7 +54,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         private final ESLogger logger;
 
         FreeContextResponseHandler(ESLogger logger) {
-            super(false);
+            super(ThreadPool.Names.SAME);
             this.logger = logger;
         }
 
@@ -118,8 +119,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -148,8 +149,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -178,8 +179,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -208,8 +209,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -238,8 +239,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -268,8 +269,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -298,8 +299,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -328,8 +329,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     listener.onFailure(exp);
                 }
 
-                @Override public boolean spawn() {
-                    return false;
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
             });
         }
@@ -347,6 +348,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
             searchService.freeContext(request.get());
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
     }
 
 
@@ -362,6 +367,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
             DfsSearchResult result = searchService.executeDfsPhase(request);
             channel.sendResponse(result);
         }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
     }
 
     private class SearchQueryTransportHandler extends BaseTransportRequestHandler<InternalSearchRequest> {
@@ -375,6 +384,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
         }
     }
 
@@ -390,6 +403,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
             QuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
     }
 
     private class SearchQueryScrollTransportHandler extends BaseTransportRequestHandler<InternalScrollSearchRequest> {
@@ -403,6 +420,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
         }
     }
 
@@ -418,6 +439,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
     }
 
     private class SearchQueryQueryFetchTransportHandler extends BaseTransportRequestHandler<QuerySearchRequest> {
@@ -431,6 +456,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override public void messageReceived(QuerySearchRequest request, TransportChannel channel) throws Exception {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
         }
     }
 
@@ -446,6 +475,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
             FetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
     }
 
     private class SearchQueryFetchScrollTransportHandler extends BaseTransportRequestHandler<InternalScrollSearchRequest> {
@@ -459,6 +492,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
             ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SEARCH;
         }
     }
 }

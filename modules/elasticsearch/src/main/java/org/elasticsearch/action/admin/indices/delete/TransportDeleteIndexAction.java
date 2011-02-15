@@ -50,6 +50,10 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         this.deleteIndexService = deleteIndexService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.DELETE;
     }

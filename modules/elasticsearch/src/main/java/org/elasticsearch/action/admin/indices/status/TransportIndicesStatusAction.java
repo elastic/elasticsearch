@@ -67,6 +67,10 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.STATUS;
     }

@@ -49,6 +49,10 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
         this.clusterName = clusterName;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.STATE;
     }

@@ -172,7 +172,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         try {
             if (options.timeout() != null) {
                 timeoutHandler = new TimeoutHandler(requestId);
-                timeoutHandler.future = threadPool.schedule(timeoutHandler, options.timeout(), ThreadPool.ExecutionType.THREADED);
+                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.CACHED, timeoutHandler);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, message, options);
@@ -191,7 +191,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
             final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-            threadPool.execute(new Runnable() {
+            threadPool.executor(ThreadPool.Names.CACHED).execute(new Runnable() {
                 @Override public void run() {
                     handler.handleException(sendRequestException);
                 }

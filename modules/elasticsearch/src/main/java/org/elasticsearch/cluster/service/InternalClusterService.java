@@ -95,7 +95,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override protected void doStart() throws ElasticSearchException {
         this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
-        this.reconnectToNodes = threadPool.schedule(new ReconnectToNodes(), reconnectInterval, ThreadPool.ExecutionType.THREADED);
+        this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.CACHED, new ReconnectToNodes());
     }
 
     @Override protected void doStop() throws ElasticSearchException {
@@ -148,7 +148,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             return;
         }
         NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-        notifyTimeout.future = threadPool.schedule(notifyTimeout, timeout, ThreadPool.ExecutionType.THREADED);
+        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.CACHED, notifyTimeout);
         onGoingTimeouts.add(notifyTimeout);
         clusterStateListeners.add(listener);
         // call the post added notification on the same event thread
@@ -311,7 +311,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
             }
             if (lifecycle.started()) {
-                reconnectToNodes = threadPool.schedule(this, reconnectInterval, ThreadPool.ExecutionType.THREADED);
+                reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.CACHED, this);
             }
         }
     }

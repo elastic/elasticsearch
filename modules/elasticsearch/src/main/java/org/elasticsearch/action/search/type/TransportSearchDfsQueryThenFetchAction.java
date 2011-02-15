@@ -104,7 +104,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.execute(new Runnable() {
+                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (final DfsSearchResult dfsResult : dfsResults) {
                                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
@@ -122,7 +122,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                             if (localAsync) {
-                                threadPool.execute(new Runnable() {
+                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override public void run() {
                                         executeQuery(dfsResult, counter, querySearchRequest, node);
                                     }
@@ -190,7 +190,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.execute(new Runnable() {
+                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                                 DiscoveryNode node = nodes.get(entry.getKey().nodeId());
@@ -208,7 +208,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                         if (node.id().equals(nodes.localNodeId())) {
                             final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
                             if (localAsync) {
-                                threadPool.execute(new Runnable() {
+                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override public void run() {
                                         executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                                     }

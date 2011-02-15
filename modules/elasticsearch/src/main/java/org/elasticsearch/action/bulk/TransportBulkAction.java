@@ -211,7 +211,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         if (requestsByShard.isEmpty()) {
             // all failures, no shards to process, send a response
             if (bulkRequest.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
                     }
@@ -264,7 +264,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
                 private void finishHim() {
                     if (bulkRequest.listenerThreaded()) {
-                        threadPool.execute(new Runnable() {
+                        threadPool.cached().execute(new Runnable() {
                             @Override public void run() {
                                 listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
                             }
@@ -305,8 +305,8 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             });
         }
 
-        @Override public boolean spawn() {
-            return true; // spawn, we do some work here...
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 }

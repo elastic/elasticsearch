@@ -38,5 +38,5 @@ public interface TransportResponseHandler<T extends Streamable> {
 
     void handleException(TransportException exp);
 
-    boolean spawn();
+    String executor();
 }

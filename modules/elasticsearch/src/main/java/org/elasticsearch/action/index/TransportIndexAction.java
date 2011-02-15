@@ -147,6 +147,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         return TransportActions.INDEX;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.INDEX;
+    }
+
     @Override protected void checkBlock(IndexRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }

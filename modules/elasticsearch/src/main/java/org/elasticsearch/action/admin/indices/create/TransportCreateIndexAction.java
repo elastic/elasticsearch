@@ -50,6 +50,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
         this.createIndexService = createIndexService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.CREATE;
     }

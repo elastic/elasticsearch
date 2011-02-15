@@ -66,6 +66,9 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         this.refreshAction = refreshAction;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
 
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.Mapping.DELETE;

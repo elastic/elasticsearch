@@ -152,13 +152,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final int id = pingIdGenerator.incrementAndGet();
         receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
         sendPings(id, timeout, false);
-        threadPool.schedule(new Runnable() {
+        threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
             @Override public void run() {
                 sendPings(id, timeout, true);
                 ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
                 listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
             }
-        }, timeout, ThreadPool.ExecutionType.THREADED);
+        });
     }
 
     private void sendPings(final int id, TimeValue timeout, boolean wait) {
@@ -202,6 +202,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     return new UnicastPingResponse();
                 }
 
+                @Override public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
                 @Override public void handleResponse(UnicastPingResponse response) {
                     logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
                     try {
@@ -243,10 +247,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         logger.warn("failed to send ping to [{}]", exp, node);
                     }
                 }
-
-                @Override public boolean spawn() {
-                    return false;
-                }
             });
         }
         if (wait) {
@@ -260,11 +260,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
         temporalResponses.add(request.pingResponse);
-        threadPool.schedule(new Runnable() {
+        threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {
             @Override public void run() {
                 temporalResponses.remove(request.pingResponse);
             }
-        }, TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.ExecutionType.DEFAULT);
+        });
 
         List<PingResponse> pingResponses = newArrayList(temporalResponses);
         DiscoveryNodes discoNodes = nodesProvider.nodes();
@@ -286,12 +286,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             return new UnicastPingRequest();
         }
 
-        @Override public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(handlePingRequest(request));
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
 
-        @Override public boolean spawn() {
-            return false;
+        @Override public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
+            channel.sendResponse(handlePingRequest(request));
         }
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -49,7 +48,7 @@ public class BenchmarkNettyLargeMessages {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
 
-        final ThreadPool threadPool = new CachedThreadPool(settings);
+        final ThreadPool threadPool = new ThreadPool();
         final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
         final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
@@ -65,12 +64,12 @@ public class BenchmarkNettyLargeMessages {
                 return new BenchmarkMessage();
             }
 
-            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
-                channel.sendResponse(request);
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
             }
 
-            @Override public boolean spawn() {
-                return true;
+            @Override public void messageReceived(BenchmarkMessage request, TransportChannel channel) throws Exception {
+                channel.sendResponse(request);
             }
         });
 
@@ -83,6 +82,10 @@ public class BenchmarkNettyLargeMessages {
                         transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withLowType(), new BaseTransportResponseHandler<BenchmarkMessage>() {
                             @Override public BenchmarkMessage newInstance() {
                                 return new BenchmarkMessage();
+                            }
+
+                            @Override public String executor() {
+                                return ThreadPool.Names.SAME;
                             }
 
                             @Override public void handleResponse(BenchmarkMessage response) {
@@ -106,6 +109,10 @@ public class BenchmarkNettyLargeMessages {
                     transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessage>() {
                         @Override public BenchmarkMessage newInstance() {
                             return new BenchmarkMessage();
+                        }
+
+                        @Override public String executor() {
+                            return ThreadPool.Names.SAME;
                         }
 
                         @Override public void handleResponse(BenchmarkMessage response) {

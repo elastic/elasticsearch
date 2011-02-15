@@ -129,7 +129,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.execute(new Runnable() {
+                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (Tuple<String, Long> target : scrollId.values()) {
                                 DiscoveryNode node = nodes.get(target.v1());
@@ -145,7 +145,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
-                                threadPool.execute(new Runnable() {
+                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override public void run() {
                                         executePhase(node, target.v2());
                                     }
@@ -217,7 +217,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         protected void invokeListener(final SearchResponse response) {
             if (request.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         listener.onResponse(response);
                     }
@@ -229,7 +229,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         protected void invokeListener(final Throwable t) {
             if (request.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         listener.onFailure(t);
                     }

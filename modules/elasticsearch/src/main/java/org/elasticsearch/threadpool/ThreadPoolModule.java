@@ -19,18 +19,13 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.cached.CachedThreadPoolModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ThreadPoolModule extends AbstractModule implements SpawnModules {
+public class ThreadPoolModule extends AbstractModule {
 
     private final Settings settings;
 
@@ -38,10 +33,7 @@ public class ThreadPoolModule extends AbstractModule implements SpawnModules {
         this.settings = settings;
     }
 
-    @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("threadpool.type", CachedThreadPoolModule.class, "org.elasticsearch.threadpool.", "ThreadPoolModule"), settings));
-    }
-
     @Override protected void configure() {
+        bind(ThreadPool.class).asEagerSingleton();
     }
 }

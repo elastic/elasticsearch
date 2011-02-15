@@ -122,7 +122,7 @@ public class NodesFaultDetection extends AbstractComponent {
             }
             if (!nodesFD.containsKey(newNode)) {
                 nodesFD.put(newNode, new NodeFD());
-                threadPool.schedule(new SendPingRequest(newNode), pingInterval, ThreadPool.ExecutionType.DEFAULT);
+                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, new SendPingRequest(newNode));
             }
         }
         for (DiscoveryNode removedNode : delta.removedNodes()) {
@@ -168,7 +168,7 @@ public class NodesFaultDetection extends AbstractComponent {
             try {
                 transportService.connectToNode(node);
                 nodesFD.put(node, new NodeFD());
-                threadPool.schedule(new SendPingRequest(node), pingInterval, ThreadPool.ExecutionType.DEFAULT);
+                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, new SendPingRequest(node));
             } catch (Exception e) {
                 logger.trace("[node  ] [{}] transport disconnected (with verified connect)", node);
                 notifyNodeFailure(node, "transport disconnected (with verified connect)");
@@ -217,7 +217,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                     return;
                                 }
                                 nodeFD.retryCount = 0;
-                                threadPool.schedule(SendPingRequest.this, pingInterval, ThreadPool.ExecutionType.DEFAULT);
+                                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, SendPingRequest.this);
                             }
                         }
 
@@ -251,8 +251,8 @@ public class NodesFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public boolean spawn() {
-                            return false; // no need to spawn, we hardly do anything
+                        @Override public String executor() {
+                            return ThreadPool.Names.SAME;
                         }
                     });
         }
@@ -290,9 +290,8 @@ public class NodesFaultDetection extends AbstractComponent {
             channel.sendResponse(new PingResponse());
         }
 
-        @Override public boolean spawn() {
-            // no need to spawn here, we just send a response
-            return false;
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 

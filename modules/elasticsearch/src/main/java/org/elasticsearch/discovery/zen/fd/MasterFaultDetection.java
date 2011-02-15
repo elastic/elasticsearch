@@ -157,7 +157,7 @@ public class MasterFaultDetection extends AbstractComponent {
         }
         this.masterPinger = new MasterPinger();
         // start the ping process
-        threadPool.schedule(masterPinger, pingInterval, ThreadPool.ExecutionType.DEFAULT);
+        threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
     }
 
     public void stop(String reason) {
@@ -201,7 +201,7 @@ public class MasterFaultDetection extends AbstractComponent {
                         masterPinger.stop();
                     }
                     this.masterPinger = new MasterPinger();
-                    threadPool.schedule(masterPinger, pingInterval, ThreadPool.ExecutionType.DEFAULT);
+                    threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
                 } catch (Exception e) {
                     logger.trace("[master] [{}] transport disconnected (with verified connect)", masterNode);
                     notifyMasterFailure(masterNode, "transport disconnected (with verified connect)");
@@ -261,7 +261,7 @@ public class MasterFaultDetection extends AbstractComponent {
             final DiscoveryNode masterToPing = masterNode;
             if (masterToPing == null) {
                 // master is null, should not happen, but we are still running, so reschedule
-                threadPool.schedule(MasterPinger.this, pingInterval, ThreadPool.ExecutionType.DEFAULT);
+                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                 return;
             }
             transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withHighType().withTimeout(pingRetryTimeout),
@@ -283,7 +283,7 @@ public class MasterFaultDetection extends AbstractComponent {
                                     notifyDisconnectedFromMaster();
                                 }
                                 // we don't stop on disconnection from master, we keep pinging it
-                                threadPool.schedule(MasterPinger.this, pingInterval, ThreadPool.ExecutionType.DEFAULT);
+                                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                             }
                         }
 
@@ -312,8 +312,8 @@ public class MasterFaultDetection extends AbstractComponent {
                             }
                         }
 
-                        @Override public boolean spawn() {
-                            return false; // no need to spawn, we hardly do anything
+                        @Override public String executor() {
+                            return ThreadPool.Names.SAME;
                         }
                     });
         }
@@ -338,10 +338,8 @@ public class MasterFaultDetection extends AbstractComponent {
             channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));
         }
 
-
-        @Override public boolean spawn() {
-            // no need to spawn here, we just send a response
-            return false;
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 

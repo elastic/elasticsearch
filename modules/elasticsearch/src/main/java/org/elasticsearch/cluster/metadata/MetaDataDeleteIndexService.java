@@ -129,12 +129,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                         };
                         nodeIndexDeletedAction.add(nodeIndexDeleteListener);
 
-                        threadPool.schedule(new Runnable() {
+                        threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
                             @Override public void run() {
                                 listener.onResponse(new Response(false));
                                 nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
                             }
-                        }, request.timeout, ThreadPool.ExecutionType.DEFAULT);
+                        });
                     }
 
                     return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();

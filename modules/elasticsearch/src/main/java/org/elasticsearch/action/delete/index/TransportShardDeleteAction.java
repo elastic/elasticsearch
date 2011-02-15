@@ -62,6 +62,10 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         return "indices/index/b_shard/delete";
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.INDEX;
+    }
+
     @Override protected void checkBlock(ShardDeleteRequest request, ClusterState state) {
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }

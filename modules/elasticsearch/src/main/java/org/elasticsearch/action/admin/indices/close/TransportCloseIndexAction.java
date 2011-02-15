@@ -50,6 +50,10 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
         this.stateIndexService = stateIndexService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.CLOSE;
     }

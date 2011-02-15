@@ -46,7 +46,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
     }
 
     public boolean listenerThreaded() {
-        return listenerThreaded;
+        return false; // we control execution of the listener
     }
 
     public ThreadPool threadPool() {
@@ -107,9 +107,9 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
     private void executeListener(final Object listener) {
         if (listenerThreaded) {
             if (listener instanceof Runnable) {
-                threadPool.execute((Runnable) listener);
+                threadPool.cached().execute((Runnable) listener);
             } else {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         ActionListener<T> lst = (ActionListener<T>) listener;
                         try {

@@ -76,6 +76,10 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return "/cluster/nodes/indices/shard/store";
     }

@@ -93,7 +93,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 // also, if the routing table changed, it means that we have new indices, or shard have started
                 // or failed, we want to apply this as fast as possible
                 routingTableDirty = true;
-                threadPool.execute(new RoutingTableUpdater());
+                threadPool.cached().execute(new RoutingTableUpdater());
             } else {
                 if (event.nodesAdded()) {
                     routingTableDirty = true;

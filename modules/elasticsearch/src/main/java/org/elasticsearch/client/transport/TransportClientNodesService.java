@@ -33,10 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.util.HashSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -94,7 +91,7 @@ public class TransportClientNodesService extends AbstractComponent {
         } else {
             this.nodesSampler = new ScheduledConnectNodeSampler();
         }
-        this.nodesSamplerFuture = threadPool.schedule(nodesSampler, nodesSamplerInterval, ThreadPool.ExecutionType.THREADED);
+        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, nodesSampler);
 
         // we want the transport service to throw connect exceptions, so we can retry
         transportService.throwConnectException(true);
@@ -175,15 +172,9 @@ public class TransportClientNodesService extends AbstractComponent {
                     }
                 }
                 try {
-                    NodesInfoResponse nodeInfo = transportService.submitRequest(node, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_local"), new BaseTransportResponseHandler<NodesInfoResponse>() {
+                    NodesInfoResponse nodeInfo = transportService.submitRequest(node, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_local"), new FutureTransportResponseHandler<NodesInfoResponse>() {
                         @Override public NodesInfoResponse newInstance() {
                             return new NodesInfoResponse();
-                        }
-
-                        @Override public void handleResponse(NodesInfoResponse response) {
-                        }
-
-                        @Override public void handleException(TransportException exp) {
                         }
                     }).txGet();
                     if (!clusterName.equals(nodeInfo.clusterName())) {
@@ -198,7 +189,7 @@ public class TransportClientNodesService extends AbstractComponent {
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
 
             if (!closed) {
-                nodesSamplerFuture = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.ExecutionType.THREADED);
+                nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, this);
             }
         }
     }
@@ -213,7 +204,7 @@ public class TransportClientNodesService extends AbstractComponent {
             final CountDownLatch latch = new CountDownLatch(listedNodes.size());
             final CopyOnWriteArrayList<NodesInfoResponse> nodesInfoResponses = new CopyOnWriteArrayList<NodesInfoResponse>();
             for (final DiscoveryNode listedNode : listedNodes) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         try {
                             transportService.connectToNode(listedNode); // make sure we are connected to it
@@ -221,6 +212,10 @@ public class TransportClientNodesService extends AbstractComponent {
 
                                 @Override public NodesInfoResponse newInstance() {
                                     return new NodesInfoResponse();
+                                }
+
+                                @Override public String executor() {
+                                    return ThreadPool.Names.SAME;
                                 }
 
                                 @Override public void handleResponse(NodesInfoResponse response) {
@@ -271,7 +266,7 @@ public class TransportClientNodesService extends AbstractComponent {
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
 
             if (!closed) {
-                nodesSamplerFuture = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.ExecutionType.THREADED);
+                nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.CACHED, this);
             }
         }
     }

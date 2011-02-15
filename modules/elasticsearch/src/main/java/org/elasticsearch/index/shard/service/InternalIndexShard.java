@@ -581,7 +581,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private void startScheduledTasksIfNeeded() {
         if (refreshInterval.millis() > 0) {
-            refreshScheduledFuture = threadPool.schedule(new EngineRefresher(), refreshInterval, ThreadPool.ExecutionType.DEFAULT);
+            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
             logger.debug("scheduling refresher every {}", refreshInterval);
         } else {
             logger.debug("scheduled refresher disabled");
@@ -590,7 +590,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
         // happen and reduce the number of segments
         if (optimizeInterval.millis() > 0) {
-            optimizeScheduleFuture = threadPool.schedule(new EngineOptimizer(), optimizeInterval, ThreadPool.ExecutionType.THREADED);
+            optimizeScheduleFuture = threadPool.schedule(optimizeInterval, ThreadPool.Names.MANAGEMENT, new EngineOptimizer());
             logger.debug("scheduling optimizer / merger every {}", optimizeInterval);
         } else {
             logger.debug("scheduled optimizer / merger disabled");
@@ -609,7 +609,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!engine().refreshNeeded()) {
                 if (state != IndexShardState.CLOSED) {
-                    refreshScheduledFuture = threadPool.schedule(this, refreshInterval, ThreadPool.ExecutionType.DEFAULT);
+                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
                 }
                 return;
             }
@@ -635,7 +635,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         logger.warn("Failed to perform scheduled engine refresh", e);
                     }
                     if (state != IndexShardState.CLOSED) {
-                        refreshScheduledFuture = threadPool.schedule(this, refreshInterval, ThreadPool.ExecutionType.DEFAULT);
+                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
                     }
                 }
             });
@@ -663,7 +663,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 logger.warn("Failed to perform scheduled engine optimize/merge", e);
             }
             if (state != IndexShardState.CLOSED) {
-                optimizeScheduleFuture = threadPool.schedule(this, optimizeInterval, ThreadPool.ExecutionType.THREADED);
+                optimizeScheduleFuture = threadPool.schedule(optimizeInterval, ThreadPool.Names.MANAGEMENT, this);
             }
         }
     }

@@ -50,6 +50,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         this.clusterName = clusterName;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.HEALTH;
     }

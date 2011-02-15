@@ -67,6 +67,7 @@ public class SingleThreadIndexingStress {
         System.out.println("Indexing [" + COUNT + "] ...");
         int i = 1;
         for (; i <= COUNT; i++) {
+//            client1.admin().cluster().preparePingSingle("test", "type1", Integer.toString(i)).execute().actionGet();
             client1.prepareIndex("test", "type1").setId(Integer.toString(i)).setSource(source(Integer.toString(i), "test" + i))
                     .setCreate(false).execute().actionGet();
             if ((i % 10000) == 0) {

@@ -69,6 +69,10 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.SEARCH;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.GET;
     }

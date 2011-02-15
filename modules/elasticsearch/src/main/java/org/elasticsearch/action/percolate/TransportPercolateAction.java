@@ -47,6 +47,10 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.PERCOLATE;
+    }
+
     @Override protected PercolateRequest newRequest() {
         return new PercolateRequest();
     }

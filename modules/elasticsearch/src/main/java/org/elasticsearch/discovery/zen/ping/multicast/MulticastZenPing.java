@@ -200,7 +200,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         sendPingRequest(id, true);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
-        threadPool.schedule(new Runnable() {
+        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.CACHED, new Runnable() {
             @Override public void run() {
                 try {
                     sendPingRequest(id, false);
@@ -208,13 +208,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     logger.warn("[{}] failed to send second ping request", e, id);
                 }
             }
-        }, TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.ExecutionType.THREADED);
-        threadPool.schedule(new Runnable() {
+        });
+        threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
             @Override public void run() {
                 ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
                 listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
             }
-        }, timeout, ThreadPool.ExecutionType.THREADED);
+        });
     }
 
     private void sendPingRequest(int id, boolean remove) {
@@ -266,8 +266,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
 
-        @Override public boolean spawn() {
-            return false;
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 
@@ -352,7 +352,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 // connect to the node if possible
                                 try {
                                     transportService.connectToNode(requestingNode);
-                                    transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
+                                    transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                                         @Override public void handleException(TransportException exp) {
                                             logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                                         }
@@ -363,7 +363,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             }
                         });
                     } else {
-                        transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
+                        transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                             @Override public void handleException(TransportException exp) {
                                 logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                             }

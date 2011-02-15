@@ -72,6 +72,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.INDEX;
+    }
+
     @Override protected boolean checkWriteConsistency() {
         return true;
     }

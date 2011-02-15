@@ -97,7 +97,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             }
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.execute(new Runnable() {
+                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (final DfsSearchResult dfsResult : dfsResults) {
                                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
@@ -115,7 +115,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                             if (localAsync) {
-                                threadPool.execute(new Runnable() {
+                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override public void run() {
                                         executeSecondPhase(dfsResult, counter, node, querySearchRequest);
                                     }

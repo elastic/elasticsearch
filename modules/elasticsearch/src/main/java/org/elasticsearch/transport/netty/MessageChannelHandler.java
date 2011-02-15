@@ -127,19 +127,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             return;
         }
         try {
-            if (handler.spawn()) {
-                threadPool.execute(new Runnable() {
-                    @SuppressWarnings({"unchecked"}) @Override public void run() {
-                        try {
-                            handler.handleResponse(streamable);
-                        } catch (Exception e) {
-                            handleException(handler, new ResponseHandlerFailureTransportException(e));
-                        }
-                    }
-                });
-            } else {
+            if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked
                 handler.handleResponse(streamable);
+            } else {
+                threadPool.executor(handler.executor()).execute(new ResponseHandler(handler, streamable));
             }
         } catch (Exception e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
@@ -162,8 +154,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
-        if (handler.spawn()) {
-            threadPool.execute(new Runnable() {
+        if (handler.executor() == ThreadPool.Names.SAME) {
+            handler.handleException(rtx);
+        } else {
+            threadPool.executor(handler.executor()).execute(new Runnable() {
                 @Override public void run() {
                     try {
                         handler.handleException(rtx);
@@ -172,8 +166,6 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     }
                 }
             });
-        } else {
-            handler.handleException(rtx);
         }
     }
 
@@ -188,24 +180,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             }
             final Streamable streamable = handler.newInstance();
             streamable.readFrom(buffer);
-            if (handler.spawn()) {
-                threadPool.execute(new Runnable() {
-                    @SuppressWarnings({"unchecked"}) @Override public void run() {
-                        try {
-                            handler.messageReceived(streamable, transportChannel);
-                        } catch (Throwable e) {
-                            try {
-                                transportChannel.sendResponse(e);
-                            } catch (IOException e1) {
-                                logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
-                                logger.warn("Actual Exception", e);
-                            }
-                        }
-                    }
-                });
-            } else {
+            if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked
                 handler.messageReceived(streamable, transportChannel);
+            } else {
+                threadPool.executor(handler.executor()).execute(new RequestHandler(handler, streamable, transportChannel, action));
             }
         } catch (Exception e) {
             try {
@@ -220,5 +199,51 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     @Override public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         transport.exceptionCaught(ctx, e);
+    }
+
+    class ResponseHandler implements Runnable {
+
+        private final TransportResponseHandler handler;
+        private final Streamable streamable;
+
+        public ResponseHandler(TransportResponseHandler handler, Streamable streamable) {
+            this.handler = handler;
+            this.streamable = streamable;
+        }
+
+        @SuppressWarnings({"unchecked"}) @Override public void run() {
+            try {
+                handler.handleResponse(streamable);
+            } catch (Exception e) {
+                handleException(handler, new ResponseHandlerFailureTransportException(e));
+            }
+        }
+    }
+
+    class RequestHandler implements Runnable {
+        private final TransportRequestHandler handler;
+        private final Streamable streamable;
+        private final NettyTransportChannel transportChannel;
+        private final String action;
+
+        public RequestHandler(TransportRequestHandler handler, Streamable streamable, NettyTransportChannel transportChannel, String action) {
+            this.handler = handler;
+            this.streamable = streamable;
+            this.transportChannel = transportChannel;
+            this.action = action;
+        }
+
+        @SuppressWarnings({"unchecked"}) @Override public void run() {
+            try {
+                handler.messageReceived(streamable, transportChannel);
+            } catch (Throwable e) {
+                try {
+                    transportChannel.sendResponse(e);
+                } catch (IOException e1) {
+                    logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                    logger.warn("Actual Exception", e);
+                }
+            }
+        }
     }
 }

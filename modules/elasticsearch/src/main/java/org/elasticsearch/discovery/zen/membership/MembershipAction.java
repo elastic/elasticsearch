@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
@@ -68,15 +69,15 @@ public class MembershipAction extends AbstractComponent {
     }
 
     public void sendLeaveRequest(DiscoveryNode masterNode, DiscoveryNode node) {
-        transportService.sendRequest(node, LeaveRequestRequestHandler.ACTION, new LeaveRequest(masterNode), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
+        transportService.sendRequest(node, LeaveRequestRequestHandler.ACTION, new LeaveRequest(masterNode), VoidTransportResponseHandler.INSTANCE_SAME);
     }
 
     public void sendLeaveRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
-        transportService.submitRequest(masterNode, LeaveRequestRequestHandler.ACTION, new LeaveRequest(node), VoidTransportResponseHandler.INSTANCE_NOSPAWN).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
+        transportService.submitRequest(masterNode, LeaveRequestRequestHandler.ACTION, new LeaveRequest(node), VoidTransportResponseHandler.INSTANCE_SAME).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     public void sendJoinRequest(DiscoveryNode masterNode, DiscoveryNode node) {
-        transportService.sendRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node, false), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
+        transportService.sendRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node, false), VoidTransportResponseHandler.INSTANCE_SAME);
     }
 
     public ClusterState sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
@@ -148,6 +149,10 @@ public class MembershipAction extends AbstractComponent {
                 channel.sendResponse(VoidStreamable.INSTANCE);
             }
         }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
+        }
     }
 
     private static class LeaveRequest implements Streamable {
@@ -181,6 +186,10 @@ public class MembershipAction extends AbstractComponent {
         @Override public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {
             listener.onLeave(request.node);
             channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 }

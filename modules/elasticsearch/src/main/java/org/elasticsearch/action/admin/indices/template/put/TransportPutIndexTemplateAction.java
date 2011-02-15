@@ -50,6 +50,10 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
         this.indexTemplateService = indexTemplateService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.PUT_INDEX_TEMPLATE;
     }

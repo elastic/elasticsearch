@@ -28,7 +28,4 @@ import org.elasticsearch.common.io.stream.Streamable;
  */
 public abstract class BaseTransportRequestHandler<T extends Streamable> implements TransportRequestHandler<T> {
 
-    @Override public boolean spawn() {
-        return true;
-    }
 }

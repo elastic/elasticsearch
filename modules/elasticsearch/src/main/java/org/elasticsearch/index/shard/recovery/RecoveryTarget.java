@@ -278,6 +278,10 @@ public class RecoveryTarget extends AbstractComponent {
             return new RecoveryPrepareForTranslogOperationsRequest();
         }
 
+        @Override public String executor() {
+            return ThreadPool.Names.CACHED;
+        }
+
         @Override public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
 
@@ -297,6 +301,10 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public RecoveryFinalizeRecoveryRequest newInstance() {
             return new RecoveryFinalizeRecoveryRequest();
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.CACHED;
         }
 
         @Override public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
@@ -321,6 +329,10 @@ public class RecoveryTarget extends AbstractComponent {
             return new RecoveryTranslogOperationsRequest();
         }
 
+        @Override public String executor() {
+            return ThreadPool.Names.CACHED;
+        }
+
         @Override public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             for (Translog.Operation operation : request.operations()) {
@@ -342,6 +354,10 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public RecoveryFilesInfoRequest newInstance() {
             return new RecoveryFilesInfoRequest();
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.CACHED;
         }
 
         @Override public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
@@ -368,6 +384,10 @@ public class RecoveryTarget extends AbstractComponent {
             return new RecoveryCleanFilesRequest();
         }
 
+        @Override public String executor() {
+            return ThreadPool.Names.CACHED;
+        }
+
         @Override public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             for (String existingFile : shard.store().directory().listAll()) {
@@ -388,6 +408,10 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public RecoveryFileChunkRequest newInstance() {
             return new RecoveryFileChunkRequest();
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.CACHED;
         }
 
         @Override public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {

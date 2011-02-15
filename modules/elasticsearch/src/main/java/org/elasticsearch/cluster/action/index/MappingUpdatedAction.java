@@ -59,6 +59,10 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         return "cluster/mappingUpdated";
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected MappingUpdatedRequest newRequest() {
         return new MappingUpdatedRequest();
     }

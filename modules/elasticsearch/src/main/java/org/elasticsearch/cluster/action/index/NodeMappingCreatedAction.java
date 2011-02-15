@@ -63,14 +63,14 @@ public class NodeMappingCreatedAction extends AbstractComponent {
 
     public void add(final Listener listener, TimeValue timeout) {
         listeners.add(listener);
-        threadPool.schedule(new Runnable() {
+        threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
             @Override public void run() {
                 boolean removed = listeners.remove(listener);
                 if (removed) {
                     listener.onTimeout();
                 }
             }
-        }, timeout, ThreadPool.ExecutionType.THREADED);
+        });
     }
 
     public void remove(Listener listener) {
@@ -80,14 +80,14 @@ public class NodeMappingCreatedAction extends AbstractComponent {
     public void nodeMappingCreated(final NodeMappingCreatedResponse response) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     innerNodeIndexCreated(response);
                 }
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    NodeMappingCreatedTransportHandler.ACTION, response, VoidTransportResponseHandler.INSTANCE);
+                    NodeMappingCreatedTransportHandler.ACTION, response, VoidTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -115,6 +115,10 @@ public class NodeMappingCreatedAction extends AbstractComponent {
         @Override public void messageReceived(NodeMappingCreatedResponse response, TransportChannel channel) throws Exception {
             innerNodeIndexCreated(response);
             channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 

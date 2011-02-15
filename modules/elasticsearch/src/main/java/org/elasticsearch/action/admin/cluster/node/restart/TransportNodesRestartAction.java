@@ -67,6 +67,10 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
         listener.onFailure(new ElasticSearchIllegalStateException("restart is disabled (for now) ...."));
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Cluster.Node.RESTART;
     }
@@ -110,7 +114,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
             return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
         }
         logger.info("Restarting in [{}]", request.delay);
-        threadPool.schedule(new Runnable() {
+        threadPool.schedule(request.delay, ThreadPool.Names.CACHED, new Runnable() {
             @Override public void run() {
                 boolean restartWithWrapper = false;
                 if (System.getProperty("elasticsearch-service") != null) {
@@ -135,7 +139,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                     }
                 }
             }
-        }, request.delay, ThreadPool.ExecutionType.THREADED);
+        });
         return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
     }
 

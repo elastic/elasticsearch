@@ -144,7 +144,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     request.beforeLocalFork();
-                    threadPool.execute(new Runnable() {
+                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardIterator shardIt : shardsIts) {
                                 final ShardRouting shard = shardIt.reset().nextActiveOrNull();
@@ -166,7 +166,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 if (localAsync) {
-                                    threadPool.execute(new Runnable() {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                         @Override public void run() {
                                             performFirstPhase(shardIt.reset());
                                         }
@@ -327,7 +327,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected void invokeListener(final SearchResponse response) {
             if (request.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         listener.onResponse(response);
                     }
@@ -339,7 +339,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected void invokeListener(final Throwable t) {
             if (request.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         listener.onFailure(t);
                     }

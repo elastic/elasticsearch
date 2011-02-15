@@ -178,7 +178,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 try {
                     indicesService.deleteIndex(index, "deleting index");
-                    threadPool.execute(new Runnable() {
+                    threadPool.cached().execute(new Runnable() {
                         @Override public void run() {
                             nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
                         }
@@ -241,7 +241,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] creating index", indexMetaData.index());
                 }
                 indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), event.state().nodes().localNode().id());
-                threadPool.execute(new Runnable() {
+                threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         nodeIndexCreatedAction.nodeIndexCreated(indexMetaData.index(), event.state().nodes().localNodeId());
                     }
@@ -478,11 +478,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         @Override public void onRetryRecovery(TimeValue retryAfter) {
-            threadPool.schedule(new Runnable() {
+            threadPool.schedule(retryAfter, ThreadPool.Names.CACHED, new Runnable() {
                 @Override public void run() {
                     recoveryTarget.startRecovery(request, true, PeerRecoveryListener.this);
                 }
-            }, retryAfter, ThreadPool.ExecutionType.THREADED);
+            });
         }
 
         @Override public void onIgnoreRecovery(boolean removeShard, String reason) {

@@ -61,6 +61,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         return execute(new Request(nodesIds).timeout(timeout));
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return "/gateway/local/started-shards";
     }

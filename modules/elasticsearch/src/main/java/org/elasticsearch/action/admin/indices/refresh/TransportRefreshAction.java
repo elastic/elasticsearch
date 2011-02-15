@@ -57,6 +57,10 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
         this.indicesService = indicesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.REFRESH;
     }

@@ -154,7 +154,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
         transportServiceAdapter.sent(data.length);
 
-        threadPool.execute(new Runnable() {
+        threadPool.cached().execute(new Runnable() {
             @Override public void run() {
                 targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
             }
@@ -231,24 +231,15 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + streamable.getClass().getName() + "]", e));
             return;
         }
-        if (handler.spawn()) {
-            threadPool.execute(new Runnable() {
-                @SuppressWarnings({"unchecked"}) @Override public void run() {
-                    try {
-                        handler.handleResponse(streamable);
-                    } catch (Exception e) {
-                        handleException(handler, new ResponseHandlerFailureTransportException(e));
-                    }
+        threadPool.executor(handler.executor()).execute(new Runnable() {
+            @SuppressWarnings({"unchecked"}) @Override public void run() {
+                try {
+                    handler.handleResponse(streamable);
+                } catch (Exception e) {
+                    handleException(handler, new ResponseHandlerFailureTransportException(e));
                 }
-            });
-        } else {
-            try {
-                //noinspection unchecked
-                handler.handleResponse(streamable);
-            } catch (Exception e) {
-                handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
-        }
+        });
     }
 
     private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {

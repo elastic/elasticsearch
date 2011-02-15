@@ -41,6 +41,10 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected boolean checkWriteConsistency() {
         return true;
     }

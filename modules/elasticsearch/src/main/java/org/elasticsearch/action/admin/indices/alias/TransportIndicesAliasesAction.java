@@ -51,6 +51,10 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
         this.indexAliasesService = indexAliasesService;
     }
 
+    @Override protected String executor() {
+        return ThreadPool.Names.CACHED;
+    }
+
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.ALIASES;
     }

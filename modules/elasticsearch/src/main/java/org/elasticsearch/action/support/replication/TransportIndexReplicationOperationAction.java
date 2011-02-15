@@ -92,7 +92,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     shardsResponses.set(indexCounter.getAndIncrement(), result);
                     if (completionCounter.decrementAndGet() == 0) {
                         if (request.listenerThreaded()) {
-                            threadPool.execute(new Runnable() {
+                            threadPool.cached().execute(new Runnable() {
                                 @Override public void run() {
                                     listener.onResponse(newResponseInstance(request, shardsResponses));
                                 }
@@ -110,7 +110,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     }
                     if (completionCounter.decrementAndGet() == 0) {
                         if (request.listenerThreaded()) {
-                            threadPool.execute(new Runnable() {
+                            threadPool.cached().execute(new Runnable() {
                                 @Override public void run() {
                                     listener.onResponse(newResponseInstance(request, shardsResponses));
                                 }
@@ -146,6 +146,10 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             return newRequestInstance();
         }
 
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
         @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
             request.listenerThreaded(false);
@@ -166,11 +170,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     }
                 }
             });
-        }
-
-        @Override public boolean spawn() {
-            // no need to spawn, since in the doExecute we always execute with threaded operation set to true
-            return false;
         }
     }
 }

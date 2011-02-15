@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.xcontent.BoolQueryBuilder;
 import org.elasticsearch.index.query.xcontent.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -264,8 +265,8 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
             });
         }
 
-        @Override public boolean spawn() {
-            return false;
+        @Override public String executor() {
+            return ThreadPool.Names.SAME;
         }
     }
 }

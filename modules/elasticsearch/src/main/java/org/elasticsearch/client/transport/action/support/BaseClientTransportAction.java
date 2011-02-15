@@ -31,6 +31,7 @@ import org.elasticsearch.client.transport.action.ClientTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -73,16 +74,19 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
                 return BaseClientTransportAction.this.newInstance();
             }
 
+            @Override public String executor() {
+                if (request.listenerThreaded()) {
+                    return ThreadPool.Names.CACHED;
+                }
+                return ThreadPool.Names.SAME;
+            }
+
             @Override public void handleResponse(Response response) {
                 listener.onResponse(response);
             }
 
             @Override public void handleException(TransportException exp) {
                 listener.onFailure(exp);
-            }
-
-            @Override public boolean spawn() {
-                return request.listenerThreaded();
             }
         });
     }

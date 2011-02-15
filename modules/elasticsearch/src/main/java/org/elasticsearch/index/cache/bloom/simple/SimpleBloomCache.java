@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
@@ -202,6 +203,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                         fieldCache.put(field, filterEntry);
                     }
                 }
+            } catch (AlreadyClosedException e) {
+                // ignore, we are getting closed
             } catch (Exception e) {
                 logger.warn("failed to load bloom filter for [{}]", e, field);
             } finally {

@@ -54,7 +54,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     final String executor;
 
     protected TransportBroadcastOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings);
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
@@ -179,7 +179,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     }
                 } else {
                     // really, no shards active in this group
-                    onOperation(null, shardIt, null, false);
+                    onOperation(null, shardIt, null);
                 }
             }
             // we have local operations, perform them now
@@ -219,7 +219,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             final ShardRouting shard = nextShardOrNull(shardIt);
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
-                onOperation(null, shardIt, null, false);
+                onOperation(null, shardIt, null);
             } else {
                 final ShardRequest shardRequest = newShardRequest(shard, request);
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -227,24 +227,24 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         threadPool.executor(executor).execute(new Runnable() {
                             @Override public void run() {
                                 try {
-                                    onOperation(shard, shardOperation(shardRequest), true);
+                                    onOperation(shard, shardOperation(shardRequest));
                                 } catch (Exception e) {
-                                    onOperation(shard, shardIt, e, true);
+                                    onOperation(shard, shardIt, e);
                                 }
                             }
                         });
                     } else {
                         try {
-                            onOperation(shard, shardOperation(shardRequest), false);
+                            onOperation(shard, shardOperation(shardRequest));
                         } catch (Exception e) {
-                            onOperation(shard, shardIt, e, false);
+                            onOperation(shard, shardIt, e);
                         }
                     }
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
                     if (node == null) {
                         // no node connected, act as failure
-                        onOperation(shard, shardIt, null, false);
+                        onOperation(shard, shardIt, null);
                     } else {
                         transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
                             @Override public ShardResponse newInstance() {
@@ -256,11 +256,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                             }
 
                             @Override public void handleResponse(ShardResponse response) {
-                                onOperation(shard, response, false);
+                                onOperation(shard, response);
                             }
 
                             @Override public void handleException(TransportException e) {
-                                onOperation(shard, shardIt, e, false);
+                                onOperation(shard, shardIt, e);
                             }
                         });
                     }
@@ -269,15 +269,15 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         @SuppressWarnings({"unchecked"})
-        private void onOperation(ShardRouting shard, ShardResponse response, boolean alreadyThreaded) {
+        private void onOperation(ShardRouting shard, ShardResponse response) {
             shardsResponses.set(indexCounter.getAndIncrement(), response);
             if (expectedOps == counterOps.incrementAndGet()) {
-                finishHim(alreadyThreaded);
+                finishHim();
             }
         }
 
         @SuppressWarnings({"unchecked"})
-        private void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t, boolean alreadyThreaded) {
+        private void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             if (!hasNextShard(shardIt)) {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {
@@ -302,7 +302,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     shardsResponses.set(index, t);
                 }
                 if (expectedOps == counterOps.incrementAndGet()) {
-                    finishHim(alreadyThreaded);
+                    finishHim();
                 }
                 return;
             } else {
@@ -324,26 +324,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             performOperation(shardIt, true);
         }
 
-        private void finishHim(boolean alreadyThreaded) {
-            // if we need to execute the listener on a thread, and we are not threaded already
-            // then do it
-            if (request.listenerThreaded() && !alreadyThreaded) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        try {
-                            listener.onResponse(newResponse(request, shardsResponses, clusterState));
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
-            } else {
-                try {
-                    listener.onResponse(newResponse(request, shardsResponses, clusterState));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+        private void finishHim() {
+            listener.onResponse(newResponse(request, shardsResponses, clusterState));
         }
     }
 

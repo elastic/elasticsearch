@@ -156,7 +156,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                invokeListener(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
+                listener.onFailure(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
             } finally {
                 searchCache.releaseDfsResults(dfsResults);
                 searchCache.releaseQueryFetchResults(queryFetchResults);
@@ -170,7 +170,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), dfsResults);
             }
-            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

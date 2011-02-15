@@ -163,7 +163,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             try {
                 innerExecuteFetchPhase();
             } catch (Exception e) {
-                invokeListener(new ReduceSearchPhaseException("query", "", e, buildShardFailures()));
+                listener.onFailure(new ReduceSearchPhaseException("query", "", e, buildShardFailures()));
             }
         }
 
@@ -249,7 +249,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                invokeListener(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             } finally {
                 releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
                 searchCache.releaseDfsResults(dfsResults);
@@ -264,7 +264,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), dfsResults);
             }
-            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

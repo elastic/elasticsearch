@@ -48,17 +48,14 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
     protected final TransportService transportService;
 
-    protected final ThreadPool threadPool;
-
     final String transportAction;
     final String transportShardAction;
     final String executor;
 
     protected TransportSingleCustomOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings);
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.threadPool = threadPool;
 
         this.transportAction = transportAction();
         this.transportShardAction = transportShardAction();
@@ -146,15 +143,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         } else {
                             try {
                                 final Response response = shardOperation(request, shard.id());
-                                if (request.listenerThreaded()) {
-                                    threadPool.cached().execute(new Runnable() {
-                                        @Override public void run() {
-                                            listener.onResponse(response);
-                                        }
-                                    });
-                                } else {
-                                    listener.onResponse(response);
-                                }
+                                listener.onResponse(response);
                                 return;
                             } catch (Exception e) {
                                 onFailure(shard, e);
@@ -195,15 +184,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         } else {
                             try {
                                 final Response response = shardOperation(request, shard.id());
-                                if (request.listenerThreaded()) {
-                                    threadPool.cached().execute(new Runnable() {
-                                        @Override public void run() {
-                                            listener.onResponse(response);
-                                        }
-                                    });
-                                } else {
-                                    listener.onResponse(response);
-                                }
+                                listener.onResponse(response);
                                 return;
                             } catch (Exception e) {
                                 onFailure(shard, e);
@@ -222,15 +203,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         }
 
                         @Override public void handleResponse(final Response response) {
-                            if (request.listenerThreaded()) {
-                                threadPool.cached().execute(new Runnable() {
-                                    @Override public void run() {
-                                        listener.onResponse(response);
-                                    }
-                                });
-                            } else {
-                                listener.onResponse(response);
-                            }
+                            listener.onResponse(response);
                         }
 
                         @Override public void handleException(TransportException exp) {
@@ -249,16 +222,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         logger.debug("failed to execute [" + request + "]", failure);
                     }
                 }
-                if (request.listenerThreaded()) {
-                    final Exception fFailure = failure;
-                    threadPool.cached().execute(new Runnable() {
-                        @Override public void run() {
-                            listener.onFailure(fFailure);
-                        }
-                    });
-                } else {
-                    listener.onFailure(failure);
-                }
+                listener.onFailure(failure);
             }
         }
     }

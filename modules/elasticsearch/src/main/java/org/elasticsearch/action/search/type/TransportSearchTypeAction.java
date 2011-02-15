@@ -55,8 +55,6 @@ import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
  */
 public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest, SearchResponse> {
 
-    protected final ThreadPool threadPool;
-
     protected final ClusterService clusterService;
 
     protected final SearchServiceTransportAction searchService;
@@ -67,8 +65,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
     public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                      TransportSearchCache searchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings);
-        this.threadPool = threadPool;
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.searchCache = searchCache;
         this.searchService = searchService;
@@ -221,7 +218,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     if (logger.isDebugEnabled()) {
                         logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
                     }
-                    invokeListener(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
+                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                 }
             }
         }
@@ -247,12 +244,12 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 }
                 if (successulOps.get() == 0) {
                     // no successful ops, raise an exception
-                    invokeListener(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
+                    listener.onFailure(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
                 } else {
                     try {
                         moveToSecondPhase();
                     } catch (Exception e) {
-                        invokeListener(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
+                        listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                     }
                 }
             } else {
@@ -322,30 +319,6 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                         }
                     }
                 }
-            }
-        }
-
-        protected void invokeListener(final SearchResponse response) {
-            if (request.listenerThreaded()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onResponse(response);
-                    }
-                });
-            } else {
-                listener.onResponse(response);
-            }
-        }
-
-        protected void invokeListener(final Throwable t) {
-            if (request.listenerThreaded()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onFailure(t);
-                    }
-                });
-            } else {
-                listener.onFailure(t);
             }
         }
 

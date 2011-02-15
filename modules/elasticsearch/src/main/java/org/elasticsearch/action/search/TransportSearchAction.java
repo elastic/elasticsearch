@@ -56,12 +56,13 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     private final boolean optimizeSingleShard;
 
-    @Inject public TransportSearchAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    @Inject public TransportSearchAction(Settings settings, ThreadPool threadPool,
+                                         TransportService transportService, ClusterService clusterService,
                                          TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
                                          TransportSearchQueryThenFetchAction queryThenFetchAction,
                                          TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                          TransportSearchQueryAndFetchAction queryAndFetchAction) {
-        super(settings);
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;

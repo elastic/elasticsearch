@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.action.support.PlainActionFuture.*;
 
@@ -31,8 +32,11 @@ import static org.elasticsearch.action.support.PlainActionFuture.*;
  */
 public abstract class BaseAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent implements Action<Request, Response> {
 
-    protected BaseAction(Settings settings) {
+    protected final ThreadPool threadPool;
+
+    protected BaseAction(Settings settings, ThreadPool threadPool) {
         super(settings);
+        this.threadPool = threadPool;
     }
 
     @Override public ActionFuture<Response> execute(Request request) throws ElasticSearchException {
@@ -45,6 +49,9 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
     }
 
     @Override public void execute(Request request, ActionListener<Response> listener) {
+        if (request.listenerThreaded()) {
+            listener = new ThreadedActionListener<Response>(threadPool, listener);
+        }
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -58,4 +65,36 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
     }
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
+
+    static class ThreadedActionListener<Response> implements ActionListener<Response> {
+
+        private final ThreadPool threadPool;
+
+        private final ActionListener<Response> listener;
+
+        ThreadedActionListener(ThreadPool threadPool, ActionListener<Response> listener) {
+            this.threadPool = threadPool;
+            this.listener = listener;
+        }
+
+        @Override public void onResponse(final Response response) {
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        listener.onResponse(response);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        }
+
+        @Override public void onFailure(final Throwable e) {
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
 }

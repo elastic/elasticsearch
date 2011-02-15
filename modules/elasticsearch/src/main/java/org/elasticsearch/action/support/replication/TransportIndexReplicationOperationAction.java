@@ -43,16 +43,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends BaseAction<Request, Response> {
 
-    protected final ThreadPool threadPool;
-
     protected final ClusterService clusterService;
 
     protected final TransportShardReplicationOperationAction<ShardRequest, ShardResponse> shardAction;
 
     @Inject public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                             TransportShardReplicationOperationAction<ShardRequest, ShardResponse> shardAction) {
-        super(settings);
-        this.threadPool = threadPool;
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 
@@ -91,15 +88,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                 @Override public void onResponse(ShardResponse result) {
                     shardsResponses.set(indexCounter.getAndIncrement(), result);
                     if (completionCounter.decrementAndGet() == 0) {
-                        if (request.listenerThreaded()) {
-                            threadPool.cached().execute(new Runnable() {
-                                @Override public void run() {
-                                    listener.onResponse(newResponseInstance(request, shardsResponses));
-                                }
-                            });
-                        } else {
-                            listener.onResponse(newResponseInstance(request, shardsResponses));
-                        }
+                        listener.onResponse(newResponseInstance(request, shardsResponses));
                     }
                 }
 
@@ -109,15 +98,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                         shardsResponses.set(index, e);
                     }
                     if (completionCounter.decrementAndGet() == 0) {
-                        if (request.listenerThreaded()) {
-                            threadPool.cached().execute(new Runnable() {
-                                @Override public void run() {
-                                    listener.onResponse(newResponseInstance(request, shardsResponses));
-                                }
-                            });
-                        } else {
-                            listener.onResponse(newResponseInstance(request, shardsResponses));
-                        }
+                        listener.onResponse(newResponseInstance(request, shardsResponses));
                     }
                 }
             });

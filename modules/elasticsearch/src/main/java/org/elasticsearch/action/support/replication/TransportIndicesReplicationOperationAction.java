@@ -40,8 +40,6 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public abstract class TransportIndicesReplicationOperationAction<Request extends IndicesReplicationOperationRequest, Response extends ActionResponse, IndexRequest extends IndexReplicationOperationRequest, IndexResponse extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends BaseAction<Request, Response> {
 
-    protected final ThreadPool threadPool;
-
     protected final ClusterService clusterService;
 
     protected final TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction;
@@ -51,8 +49,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     @Inject public TransportIndicesReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                               TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction) {
-        super(settings);
-        this.threadPool = threadPool;
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.indexAction = indexAction;
 
@@ -83,15 +80,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
                 @Override public void onResponse(IndexResponse result) {
                     indexResponses.set(indexCounter.getAndIncrement(), result);
                     if (completionCounter.decrementAndGet() == 0) {
-                        if (request.listenerThreaded()) {
-                            threadPool.cached().execute(new Runnable() {
-                                @Override public void run() {
-                                    listener.onResponse(newResponseInstance(request, indexResponses));
-                                }
-                            });
-                        } else {
-                            listener.onResponse(newResponseInstance(request, indexResponses));
-                        }
+                        listener.onResponse(newResponseInstance(request, indexResponses));
                     }
                 }
 
@@ -102,15 +91,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
                         indexResponses.set(index, e);
                     }
                     if (completionCounter.decrementAndGet() == 0) {
-                        if (request.listenerThreaded()) {
-                            threadPool.cached().execute(new Runnable() {
-                                @Override public void run() {
-                                    listener.onResponse(newResponseInstance(request, indexResponses));
-                                }
-                            });
-                        } else {
-                            listener.onResponse(newResponseInstance(request, indexResponses));
-                        }
+                        listener.onResponse(newResponseInstance(request, indexResponses));
                     }
                 }
             });

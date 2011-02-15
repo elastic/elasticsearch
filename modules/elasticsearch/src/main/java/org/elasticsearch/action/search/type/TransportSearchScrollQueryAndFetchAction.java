@@ -104,7 +104,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         public void start() {
             if (scrollId.values().length == 0) {
-                invokeListener(new SearchPhaseExecutionException("query", "no nodes to search on", null));
+                listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", null));
             }
 
             int localOperations = 0;
@@ -199,7 +199,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                invokeListener(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures(shardFailures, searchCache)));
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures(shardFailures, searchCache)));
             }
         }
 
@@ -211,32 +211,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 scrollId = request.scrollId();
             }
             searchCache.releaseQueryFetchResults(queryFetchResults);
-            invokeListener(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(),
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(),
                     System.currentTimeMillis() - startTime, buildShardFailures(shardFailures, searchCache)));
-        }
-
-        protected void invokeListener(final SearchResponse response) {
-            if (request.listenerThreaded()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onResponse(response);
-                    }
-                });
-            } else {
-                listener.onResponse(response);
-            }
-        }
-
-        protected void invokeListener(final Throwable t) {
-            if (request.listenerThreaded()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onFailure(t);
-                    }
-                });
-            } else {
-                listener.onFailure(t);
-            }
         }
     }
 }

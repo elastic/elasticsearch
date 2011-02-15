@@ -45,8 +45,6 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     protected final ClusterName clusterName;
 
-    protected final ThreadPool threadPool;
-
     protected final ClusterService clusterService;
 
     protected final TransportService transportService;
@@ -57,9 +55,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     @Inject public TransportNodesOperationAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                                  ClusterService clusterService, TransportService transportService) {
-        super(settings);
+        super(settings, threadPool);
         this.clusterName = clusterName;
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
 
@@ -209,15 +206,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         }
 
         private void finishHim() {
-            if (request.listenerThreaded()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onResponse(newResponse(request, responses));
-                    }
-                });
-            } else {
-                listener.onResponse(newResponse(request, responses));
-            }
+            listener.onResponse(newResponse(request, responses));
         }
     }
 

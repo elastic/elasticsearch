@@ -48,17 +48,14 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     protected final TransportService transportService;
 
-    protected final ThreadPool threadPool;
-
     final String transportAction;
     final String transportShardAction;
     final String executor;
 
     protected TransportShardSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings);
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.threadPool = threadPool;
 
         this.transportAction = transportAction();
         this.transportShardAction = transportShardAction();
@@ -148,15 +145,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     } else {
                         try {
                             final Response response = shardOperation(request, shard.id());
-                            if (request.listenerThreaded()) {
-                                threadPool.cached().execute(new Runnable() {
-                                    @Override public void run() {
-                                        listener.onResponse(response);
-                                    }
-                                });
-                            } else {
-                                listener.onResponse(response);
-                            }
+                            listener.onResponse(response);
                             return;
                         } catch (Exception e) {
                             onFailure(shard, e);
@@ -188,15 +177,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                         }
 
                         @Override public void handleResponse(final Response response) {
-                            if (request.listenerThreaded()) {
-                                threadPool.cached().execute(new Runnable() {
-                                    @Override public void run() {
-                                        listener.onResponse(response);
-                                    }
-                                });
-                            } else {
-                                listener.onResponse(response);
-                            }
+                            listener.onResponse(response);
                         }
 
                         @Override public void handleException(TransportException exp) {
@@ -215,16 +196,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                         logger.debug(shardIt.shardId() + ": Failed to get [" + request.type() + "#" + request.id() + "]", failure);
                     }
                 }
-                if (request.listenerThreaded()) {
-                    final Exception fFailure = failure;
-                    threadPool.cached().execute(new Runnable() {
-                        @Override public void run() {
-                            listener.onFailure(fFailure);
-                        }
-                    });
-                } else {
-                    listener.onFailure(failure);
-                }
+                listener.onFailure(failure);
             }
         }
     }

@@ -63,8 +63,6 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     private final boolean allowIdGeneration;
 
-    private final ThreadPool threadPool;
-
     private final ClusterService clusterService;
 
     private final TransportShardBulkAction shardBulkAction;
@@ -73,8 +71,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     @Inject public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                        TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction) {
-        super(settings);
-        this.threadPool = threadPool;
+        super(settings, threadPool);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
@@ -209,16 +206,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         }
 
         if (requestsByShard.isEmpty()) {
-            // all failures, no shards to process, send a response
-            if (bulkRequest.listenerThreaded()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
-                    }
-                });
-            } else {
-                listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
-            }
+            listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
             return;
         }
 
@@ -263,15 +251,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 }
 
                 private void finishHim() {
-                    if (bulkRequest.listenerThreaded()) {
-                        threadPool.cached().execute(new Runnable() {
-                            @Override public void run() {
-                                listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
-                            }
-                        });
-                    } else {
-                        listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
-                    }
+                    listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
                 }
             });
         }

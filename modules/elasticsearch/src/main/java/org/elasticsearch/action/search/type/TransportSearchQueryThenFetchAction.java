@@ -163,7 +163,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                invokeListener(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             } finally {
                 releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
                 searchCache.releaseQueryResults(queryResults);
@@ -177,7 +177,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), queryResults.values());
             }
-            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

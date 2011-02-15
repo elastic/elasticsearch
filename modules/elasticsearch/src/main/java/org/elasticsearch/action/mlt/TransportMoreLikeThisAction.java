@@ -69,9 +69,9 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
 
     private final ClusterService clusterService;
 
-    @Inject public TransportMoreLikeThisAction(Settings settings, TransportSearchAction searchAction, TransportGetAction getAction,
+    @Inject public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
                                                ClusterService clusterService, IndicesService indicesService, TransportService transportService) {
-        super(settings);
+        super(settings, threadPool);
         this.searchAction = searchAction;
         this.getAction = getAction;
         this.indicesService = indicesService;

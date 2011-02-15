@@ -45,10 +45,10 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
 
     private final TransportSearchScrollQueryAndFetchAction queryAndFetchAction;
 
-    @Inject public TransportSearchScrollAction(Settings settings, TransportService transportService,
+    @Inject public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                                TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
                                                TransportSearchScrollQueryAndFetchAction queryAndFetchAction) {
-        super(settings);
+        super(settings, threadPool);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
 

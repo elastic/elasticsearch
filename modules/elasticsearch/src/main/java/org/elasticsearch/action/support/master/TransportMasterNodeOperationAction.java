@@ -47,16 +47,13 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected final ClusterService clusterService;
 
-    protected final ThreadPool threadPool;
-
     final String transportAction;
     final String executor;
 
     protected TransportMasterNodeOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings);
+        super(settings, threadPool);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
 
         this.transportAction = transportAction();
         this.executor = executor();

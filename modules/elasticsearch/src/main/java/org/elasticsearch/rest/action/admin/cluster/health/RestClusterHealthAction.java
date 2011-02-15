@@ -33,7 +33,7 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -169,7 +169,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
                     builder.endObject();
 
-                    channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

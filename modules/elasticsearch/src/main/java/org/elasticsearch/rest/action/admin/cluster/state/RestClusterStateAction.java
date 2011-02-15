@@ -280,7 +280,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
 
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

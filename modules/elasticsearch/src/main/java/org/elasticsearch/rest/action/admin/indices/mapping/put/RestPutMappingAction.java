@@ -26,19 +26,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
@@ -77,13 +73,7 @@ public class RestPutMappingAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    Throwable t = unwrapCause(e);
-                    if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException || t instanceof MergeMappingException) {
-                        channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
-                    } else {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    }
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

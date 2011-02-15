@@ -33,11 +33,11 @@ public class StringRestResponse extends Utf8RestResponse {
         }
     };
 
-    public StringRestResponse(Status status) {
+    public StringRestResponse(RestStatus status) {
         super(status);
     }
 
-    public StringRestResponse(Status status, String content) {
+    public StringRestResponse(RestStatus status, String content) {
         super(status, convert(content));
     }
 

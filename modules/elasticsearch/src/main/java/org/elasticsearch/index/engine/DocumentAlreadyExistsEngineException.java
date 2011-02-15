@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (shay.banon)
@@ -28,5 +29,9 @@ public class DocumentAlreadyExistsEngineException extends EngineException {
 
     public DocumentAlreadyExistsEngineException(ShardId shardId, String type, String id) {
         super(shardId, "[" + type + "][" + id + "]: document already exists");
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.CONFLICT;
     }
 }

@@ -29,17 +29,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -117,22 +114,19 @@ public class RestIndexAction extends BaseRestHandler {
                         builder.endArray();
                     }
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    RestStatus status = OK;
+                    if (response.version() == 1) {
+                        status = CREATED;
+                    }
+                    channel.sendResponse(new XContentRestResponse(request, status, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
             }
 
             @Override public void onFailure(Throwable e) {
-                Throwable t = unwrapCause(e);
-                RestResponse.Status status = RestResponse.Status.INTERNAL_SERVER_ERROR;
-                if (t instanceof VersionConflictEngineException) {
-                    status = RestResponse.Status.CONFLICT;
-                } else if (t instanceof DocumentAlreadyExistsEngineException) {
-                    status = RestResponse.Status.CONFLICT;
-                }
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, status, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

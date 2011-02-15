@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (Shay Banon)
@@ -29,5 +30,10 @@ public class InvalidIndexNameException extends IndexException {
 
     public InvalidIndexNameException(Index index, String name, String desc) {
         super(index, "Invalid index name [" + name + "], " + desc);
+    }
+
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

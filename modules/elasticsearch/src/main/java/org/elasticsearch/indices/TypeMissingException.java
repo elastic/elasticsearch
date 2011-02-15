@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (shay.banon)
@@ -29,5 +30,10 @@ public class TypeMissingException extends IndexException {
 
     public TypeMissingException(Index index, String type) {
         super(index, "type[" + type + "] missing");
+    }
+
+
+    @Override public RestStatus status() {
+        return RestStatus.NOT_FOUND;
     }
 }

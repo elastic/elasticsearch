@@ -29,17 +29,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
-import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -115,13 +112,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    Throwable t = unwrapCause(e);
-                    if (t instanceof IndexTemplateAlreadyExistsException || t instanceof InvalidIndexTemplateException) {
-                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                        channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
-                    } else {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    }
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

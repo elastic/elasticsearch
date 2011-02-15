@@ -26,7 +26,7 @@ import org.elasticsearch.memcached.MemcachedRestRequest;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.StringRestResponse;
 
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)

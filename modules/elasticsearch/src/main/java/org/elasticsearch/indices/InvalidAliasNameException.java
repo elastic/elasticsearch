@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (shay.banon)
@@ -29,5 +30,9 @@ public class InvalidAliasNameException extends IndexException {
 
     public InvalidAliasNameException(Index index, String name, String desc) {
         super(index, "Invalid alias name [" + name + "], " + desc);
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

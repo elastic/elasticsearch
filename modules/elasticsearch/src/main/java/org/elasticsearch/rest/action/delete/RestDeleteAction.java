@@ -29,16 +29,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -82,7 +80,7 @@ public class RestDeleteAction extends BaseRestHandler {
                             .field(Fields._ID, result.id())
                             .field(Fields._VERSION, result.version())
                             .endObject();
-                    RestResponse.Status status = OK;
+                    RestStatus status = OK;
                     if (result.notFound()) {
                         status = NOT_FOUND;
                     }
@@ -93,13 +91,8 @@ public class RestDeleteAction extends BaseRestHandler {
             }
 
             @Override public void onFailure(Throwable e) {
-                Throwable t = unwrapCause(e);
-                RestResponse.Status status = RestResponse.Status.INTERNAL_SERVER_ERROR;
-                if (t instanceof VersionConflictEngineException) {
-                    status = RestResponse.Status.CONFLICT;
-                }
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, status, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

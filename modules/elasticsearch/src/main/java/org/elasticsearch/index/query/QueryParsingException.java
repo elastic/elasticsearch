@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (Shay Banon)
@@ -33,5 +34,9 @@ public class QueryParsingException extends IndexException {
 
     public QueryParsingException(Index index, String msg, Throwable cause) {
         super(index, msg, cause);
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

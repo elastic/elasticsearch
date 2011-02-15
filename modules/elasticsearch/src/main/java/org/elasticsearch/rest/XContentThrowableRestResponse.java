@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,16 +33,17 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 public class XContentThrowableRestResponse extends XContentRestResponse {
 
     public XContentThrowableRestResponse(RestRequest request, Throwable t) throws IOException {
-        this(request, Status.INTERNAL_SERVER_ERROR, t);
+        this(request, ((t instanceof ElasticSearchException) ? ((ElasticSearchException) t).status() : RestStatus.INTERNAL_SERVER_ERROR), t);
     }
 
-    public XContentThrowableRestResponse(RestRequest request, Status status, Throwable t) throws IOException {
-        super(request, status, convert(request, t));
+    public XContentThrowableRestResponse(RestRequest request, RestStatus status, Throwable t) throws IOException {
+        super(request, status, convert(request, status, t));
     }
 
-    private static XContentBuilder convert(RestRequest request, Throwable t) throws IOException {
-        XContentBuilder builder = restContentBuilder(request)
-                .startObject().field("error", detailedMessage(t));
+    private static XContentBuilder convert(RestRequest request, RestStatus status, Throwable t) throws IOException {
+        XContentBuilder builder = restContentBuilder(request).startObject()
+                .field("error", detailedMessage(t))
+                .field("status", status.getStatus());
         if (t != null && request.paramAsBoolean("error_trace", false)) {
             builder.startObject("error_trace");
             boolean first = true;

@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (shay.banon)
@@ -35,5 +36,10 @@ public class IndexTemplateMissingException extends ElasticSearchException {
 
     public String name() {
         return this.name;
+    }
+
+
+    @Override public RestStatus status() {
+        return RestStatus.NOT_FOUND;
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.rest.RestStatus;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -30,5 +32,10 @@ public class MapperParsingException extends MapperException {
 
     public MapperParsingException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

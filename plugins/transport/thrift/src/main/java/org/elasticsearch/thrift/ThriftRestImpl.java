@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -83,7 +84,7 @@ public class ThriftRestImpl extends AbstractComponent implements Rest.Iface {
         return tResponse;
     }
 
-    private Status getStatus(RestResponse.Status status) {
+    private Status getStatus(RestStatus status) {
         switch (status) {
             case CONTINUE:
                 return Status.CONT;

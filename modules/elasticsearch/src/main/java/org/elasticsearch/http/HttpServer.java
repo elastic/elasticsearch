@@ -34,7 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)

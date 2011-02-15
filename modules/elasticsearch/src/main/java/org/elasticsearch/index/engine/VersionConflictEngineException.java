@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (shay.banon)
@@ -28,5 +29,9 @@ public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(ShardId shardId, String type, String id, long current, long required) {
         super(shardId, "[" + type + "][" + id + "]: version conflict, current [" + current + "], required [" + required + "]");
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.CONFLICT;
     }
 }

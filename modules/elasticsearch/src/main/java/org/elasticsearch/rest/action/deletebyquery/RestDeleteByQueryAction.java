@@ -37,7 +37,7 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**

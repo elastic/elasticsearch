@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.rest.RestStatus;
+
 import java.util.Arrays;
 
 /**
@@ -35,5 +37,9 @@ public class MergeMappingException extends MapperException {
 
     public String[] failures() {
         return failures;
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

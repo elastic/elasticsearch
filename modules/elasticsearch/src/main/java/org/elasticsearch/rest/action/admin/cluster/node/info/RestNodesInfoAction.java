@@ -110,7 +110,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

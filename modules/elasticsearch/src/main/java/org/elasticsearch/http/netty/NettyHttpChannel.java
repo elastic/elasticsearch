@@ -27,8 +27,8 @@ import org.elasticsearch.common.netty.channel.ChannelFutureListener;
 import org.elasticsearch.common.netty.handler.codec.http.*;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpException;
-import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Set;
@@ -123,7 +123,7 @@ public class NettyHttpChannel implements HttpChannel {
         }
     }
 
-    private HttpResponseStatus getStatus(HttpResponse.Status status) {
+    private HttpResponseStatus getStatus(RestStatus status) {
         switch (status) {
             case CONTINUE:
                 return HttpResponseStatus.CONTINUE;

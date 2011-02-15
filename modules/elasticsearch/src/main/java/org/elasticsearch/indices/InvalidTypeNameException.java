@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * @author kimchy (Shay Banon)
@@ -28,5 +29,10 @@ public class InvalidTypeNameException extends MapperException {
 
     public InvalidTypeNameException(String message) {
         super(message);
+    }
+
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

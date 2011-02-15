@@ -70,6 +70,7 @@ public class NettyHttpChannel implements HttpChannel {
             // also add more access control parameters
             resp.addHeader("Access-Control-Max-Age", 1728000);
             resp.addHeader("Access-Control-Allow-Methods", "PUT, DELETE");
+            resp.addHeader("Access-Control-Allow-Headers", "X-Requested-With");
         }
 
         // Convert the response content to a ChannelBuffer.

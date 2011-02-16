@@ -127,7 +127,7 @@ public class TranslogService extends AbstractIndexShardComponent {
                     lastFlushTime = System.currentTimeMillis();
 
                     if (indexShard.state() != IndexShardState.CLOSED) {
-                        future = threadPool.schedule(interval, ThreadPool.Names.SAME, this);
+                        future = threadPool.schedule(interval, ThreadPool.Names.SAME, TranslogBasedFlush.this);
                     }
                 }
             });

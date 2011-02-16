@@ -635,7 +635,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         logger.warn("Failed to perform scheduled engine refresh", e);
                     }
                     if (state != IndexShardState.CLOSED) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
+                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
                     }
                 }
             });

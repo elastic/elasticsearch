@@ -62,7 +62,7 @@ public class RollingRestartStressTest {
 
     private TimeValue period = TimeValue.timeValueMinutes(20);
 
-    private boolean clearNodeWork = true;
+    private boolean clearNodeData = true;
 
     private Node client;
 
@@ -105,8 +105,8 @@ public class RollingRestartStressTest {
         return this;
     }
 
-    public RollingRestartStressTest cleanNodeWork(boolean clearNodeWork) {
-        this.clearNodeWork = clearNodeWork;
+    public RollingRestartStressTest cleanNodeData(boolean clearNodeData) {
+        this.clearNodeData = clearNodeData;
         return this;
     }
 
@@ -141,10 +141,10 @@ public class RollingRestartStressTest {
         // start doing the rolling restart
         int nodeIndex = 0;
         while (true) {
-            File nodeWork = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocation();
+            File nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocation();
             nodes[nodeIndex].close();
-            if (clearNodeWork) {
-                FileSystemUtils.deleteRecursively(nodeWork);
+            if (clearNodeData) {
+                FileSystemUtils.deleteRecursively(nodeData);
             }
 
             try {
@@ -277,7 +277,7 @@ public class RollingRestartStressTest {
                 .initialNumberOfDocs(1000)
                 .textTokens(150)
                 .numberOfFields(10)
-                .cleanNodeWork(true)
+                .cleanNodeData(true)
                 .indexers(5)
                 .indexerThrottle(TimeValue.timeValueMillis(50))
                 .period(TimeValue.timeValueMinutes(10));

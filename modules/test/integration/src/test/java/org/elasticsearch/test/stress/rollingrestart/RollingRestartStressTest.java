@@ -20,6 +20,9 @@
 package org.elasticsearch.test.stress.rollingrestart;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
+import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -199,6 +202,18 @@ public class RollingRestartStressTest {
 
         client.client().admin().indices().prepareRefresh().execute().actionGet();
 
+        // check the status
+        IndicesStatusResponse status = client.client().admin().indices().prepareStatus("test").execute().actionGet();
+        for (IndexShardStatus shardStatus : status.index("test")) {
+            ShardStatus shard = shardStatus.shards()[0];
+            logger.info("shard [{}], docs [{}]", shard.shardId(), shard.getDocs().numDocs());
+            for (ShardStatus shardStatu : shardStatus) {
+                if (shard.docs().numDocs() != shardStatu.docs().numDocs()) {
+                    logger.warn("shard doc number does not match!, got {} and {}", shard.docs().numDocs(), shardStatu.docs().numDocs());
+                }
+            }
+        }
+
         // check the count
         for (int i = 0; i < (nodes.length * 5); i++) {
             CountResponse count = client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
@@ -255,7 +270,6 @@ public class RollingRestartStressTest {
         json.endObject();
 
         String id = Long.toString(idCounter.incrementAndGet());
-        logger.info("indexing " + id);
         client.client().prepareIndex("test", "type1", id)
                 .setCreate(true)
                 .setSource(json)

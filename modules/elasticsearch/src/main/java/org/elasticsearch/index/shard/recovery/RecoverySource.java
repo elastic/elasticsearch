@@ -134,8 +134,8 @@ public class RecoverySource extends AbstractComponent {
                             }
                             response.phase1FileNames.add(name);
                             response.phase1FileSizes.add(md.length());
-                            totalSize += md.length();
                         }
+                        totalSize += md.length();
                     }
                     response.phase1TotalSize = totalSize;
                     response.phase1ExistingTotalSize = existingTotalSize;

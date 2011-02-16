@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,13 +36,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -51,7 +51,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     private final ThreadPool threadPool;
 
-    final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
+    volatile ImmutableMap<String, TransportRequestHandler> serverHandlers = ImmutableMap.of();
+    final Object serverHandlersMutex = new Object();
 
     final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLong();
 
@@ -212,14 +213,19 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public void registerHandler(String action, TransportRequestHandler handler) {
-        TransportRequestHandler handlerReplaced = serverHandlers.put(action, handler);
-        if (handlerReplaced != null) {
-            logger.warn("Registered two transport handlers for action {}, handlers: {}, {}", action, handler, handlerReplaced);
+        synchronized (serverHandlersMutex) {
+            TransportRequestHandler handlerReplaced = serverHandlers.get(action);
+            serverHandlers = MapBuilder.newMapBuilder(serverHandlers).put(action, handler).immutableMap();
+            if (handlerReplaced != null) {
+                logger.warn("Registered two transport handlers for action {}, handlers: {}, {}", action, handler, handlerReplaced);
+            }
         }
     }
 
     public void removeHandler(String action) {
-        serverHandlers.remove(action);
+        synchronized (serverHandlersMutex) {
+            serverHandlers = MapBuilder.newMapBuilder(serverHandlers).remove(action).immutableMap();
+        }
     }
 
     class Adapter implements TransportServiceAdapter {

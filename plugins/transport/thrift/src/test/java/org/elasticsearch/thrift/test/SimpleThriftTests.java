@@ -72,7 +72,7 @@ public class SimpleThriftTests {
                 .endObject().copiedBytes()));
         RestResponse response = client.execute(request);
         Map<String, Object> map = parseBody(response);
-        assertThat(response.getStatus(), equalTo(Status.OK));
+        assertThat(response.getStatus(), equalTo(Status.CREATED));
         assertThat(map.get("ok").toString(), equalTo("true"));
         assertThat(map.get("_index").toString(), equalTo("test"));
         assertThat(map.get("_type").toString(), equalTo("type1"));

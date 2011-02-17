@@ -794,7 +794,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         SnapshotIndexCommit phase1Snapshot;
         try {
             phase1Snapshot = deletionPolicy.snapshot();
-        } catch (IOException e) {
+        } catch (Exception e) {
             --disableFlushCounter;
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }

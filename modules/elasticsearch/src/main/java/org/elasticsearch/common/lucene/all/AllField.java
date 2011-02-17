@@ -57,6 +57,7 @@ public class AllField extends AbstractField {
 
     @Override public TokenStream tokenStreamValue() {
         try {
+            allEntries.reset(); // reset the all entries, just in case it was read already
             return AllTokenStream.allTokenStream(name, allEntries, analyzer);
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to create token stream");

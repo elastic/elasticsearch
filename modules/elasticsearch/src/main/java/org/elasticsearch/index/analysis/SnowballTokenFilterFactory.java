@@ -39,7 +39,7 @@ public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        this.language = settings.get("language", "English");
+        this.language = settings.get("language", settings.get("name", "English"));
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

@@ -65,7 +65,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
     @Inject public SnowballAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
 
-        String language = settings.get("language", "English");
+        String language = settings.get("language", settings.get("name", "English"));
         Set<?> defaultStopwords = defaultLanguageStopwords.containsKey(language) ? defaultLanguageStopwords.get(language) : ImmutableSet.<Set<?>>of();
         Set<?> stopWords = Analysis.parseStopWords(settings, defaultStopwords);
 

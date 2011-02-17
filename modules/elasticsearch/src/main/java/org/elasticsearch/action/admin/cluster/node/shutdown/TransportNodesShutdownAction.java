@@ -99,7 +99,8 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         Set<DiscoveryNode> nodes = Sets.newHashSet();
         if (Actions.isAllNodes(request.nodesIds)) {
             logger.info("[cluster_shutdown]: requested, shutting down in [{}]", request.delay);
-            nodes.addAll(state.nodes().nodes().values());
+            nodes.addAll(state.nodes().dataNodes().values());
+            nodes.addAll(state.nodes().masterNodes().values());
             Thread t = new Thread(new Runnable() {
                 @Override public void run() {
                     try {

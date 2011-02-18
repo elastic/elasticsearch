@@ -137,7 +137,10 @@ public class ThreadPool extends AbstractComponent {
         }
         String type = settings.get("type", defaultType);
         ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[" + name + "]");
-        if ("cached".equals(type)) {
+        if ("same".equals(type)) {
+            logger.debug("creating thread_pool [{}], type [{}]", name, type);
+            return MoreExecutors.sameThreadExecutor();
+        } else if ("cached".equals(type)) {
             TimeValue keepAlive = settings.getAsTime("keep_alive", defaultSettings.getAsTime("keep_alive", timeValueMinutes(5)));
             logger.debug("creating thread_pool [{}], type [{}], keep_alive [{}]", name, type, keepAlive);
             return new ThreadPoolExecutor(0, Integer.MAX_VALUE,

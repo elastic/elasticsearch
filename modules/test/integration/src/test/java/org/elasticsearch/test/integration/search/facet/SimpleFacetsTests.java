@@ -853,6 +853,49 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.sumOfSquares(), equalTo(35d));
     }
 
+    @Test public void testHistoFacetEdge() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 100)
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 200)
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 300)
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(histogramFacet("facet1").field("num").valueField("num").interval(100))
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+
+        HistogramFacet facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).key(), equalTo(100l));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).key(), equalTo(200l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).key(), equalTo(300l));
+        assertThat(facet.entries().get(2).count(), equalTo(1l));
+    }
+
     @Test public void testHistoFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

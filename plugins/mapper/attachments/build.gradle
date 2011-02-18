@@ -32,8 +32,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.apache.tika:tika-app:0.8') { transitive = false }
-    distLib('org.apache.tika:tika-app:0.8') { transitive = false }
+    compile('org.apache.tika:tika-app:0.9') { transitive = false }
+    distLib('org.apache.tika:tika-app:0.9') { transitive = false }
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

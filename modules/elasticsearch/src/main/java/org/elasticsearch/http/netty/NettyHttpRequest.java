@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
@@ -28,7 +27,6 @@ import org.elasticsearch.rest.support.RestUtils;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -132,16 +130,8 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return request.getContent().toString(UTF8);
     }
 
-    @Override public Set<String> headerNames() {
-        return request.getHeaderNames();
-    }
-
     @Override public String header(String name) {
         return request.getHeader(name);
-    }
-
-    @Override public String cookie() {
-        return request.getHeader(HttpHeaders.Names.COOKIE);
     }
 
     @Override public boolean hasParam(String key) {

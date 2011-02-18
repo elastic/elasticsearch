@@ -16,7 +16,7 @@
     <orderEntry type="module-library">
       <library name="tika">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.apache.tika/tika-app/bundles/tika-app-0.8.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.tika/tika-app/bundles/tika-app-0.9.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

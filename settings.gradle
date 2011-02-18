@@ -19,6 +19,7 @@ include 'plugins-lang-python'
 
 include 'plugins-transport-memcached'
 include 'plugins-transport-thrift'
+include 'plugins-transport-wares'
 
 include 'plugins-river-twitter'
 include 'plugins-river-wikipedia'

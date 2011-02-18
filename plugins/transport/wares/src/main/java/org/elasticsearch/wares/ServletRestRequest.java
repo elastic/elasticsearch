@@ -17,68 +17,54 @@
  * under the License.
  */
 
-package org.elasticsearch.thrift;
+package org.elasticsearch.wares;
 
-import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 
+import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * @author kimchy (shay.banon)
- */
-public class ThriftRestRequest extends AbstractRestRequest implements org.elasticsearch.rest.RestRequest {
+public class ServletRestRequest extends AbstractRestRequest implements org.elasticsearch.rest.RestRequest {
 
-    private final org.elasticsearch.thrift.RestRequest request;
+    private final HttpServletRequest servletRequest;
 
-    private final String rawPath;
+    private final Method method;
 
     private final Map<String, String> params;
 
-    public ThriftRestRequest(org.elasticsearch.thrift.RestRequest request) {
-        this.request = request;
-        this.params = request.getParameters() == null ? new HashMap<String, String>() : request.getParameters();
+    private final byte[] content;
 
-        int pathEndPos = request.getUri().indexOf('?');
-        if (pathEndPos < 0) {
-            this.rawPath = request.getUri();
-        } else {
-            this.rawPath = request.getUri().substring(0, pathEndPos);
-            RestUtils.decodeQueryString(request.getUri(), pathEndPos + 1, params);
+    public ServletRestRequest(HttpServletRequest servletRequest) throws IOException {
+        this.servletRequest = servletRequest;
+        this.method = Method.valueOf(servletRequest.getMethod());
+        this.params = new HashMap<String, String>();
+
+        if (servletRequest.getQueryString() != null) {
+            RestUtils.decodeQueryString(servletRequest.getQueryString(), 0, params);
         }
+
+        content = Streams.copyToByteArray(servletRequest.getInputStream());
     }
 
     @Override public Method method() {
-        switch (request.getMethod()) {
-            case GET:
-                return Method.GET;
-            case POST:
-                return Method.POST;
-            case PUT:
-                return Method.PUT;
-            case DELETE:
-                return Method.DELETE;
-            case HEAD:
-                return Method.HEAD;
-            case OPTIONS:
-                return Method.OPTIONS;
-        }
-        return null;
+        return this.method;
     }
 
     @Override public String uri() {
-        return request.getUri();
+        return servletRequest.getRequestURI().substring(servletRequest.getContextPath().length());
     }
 
     @Override public String rawPath() {
-        return this.rawPath;
+        return servletRequest.getRequestURI().substring(servletRequest.getContextPath().length());
     }
 
     @Override public boolean hasContent() {
-        return request.isSetBody() && request.BufferForBody().remaining() > 0;
+        return content.length > 0;
     }
 
     @Override public boolean contentUnsafe() {
@@ -86,38 +72,27 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
     }
 
     @Override public byte[] contentByteArray() {
-        if (!request.isSetBody()) {
-            return Bytes.EMPTY_ARRAY;
-        }
-        return request.BufferForBody().array();
+        return content;
     }
 
     @Override public int contentByteArrayOffset() {
-        if (!request.isSetBody()) {
-            return 0;
-        }
-        return request.BufferForBody().arrayOffset();
+        return 0;
     }
 
     @Override public int contentLength() {
-        if (!request.isSetBody()) {
-            return 0;
-        }
-        return request.BufferForBody().remaining();
+        return content.length;
     }
 
     @Override public String contentAsString() {
-        if (!request.isSetBody()) {
-            return "";
-        }
         return Unicode.fromBytes(contentByteArray(), contentByteArrayOffset(), contentLength());
     }
 
     @Override public String header(String name) {
-        if (request.getHeaders() == null) {
-            return null;
-        }
-        return request.getHeaders().get(name);
+        return servletRequest.getHeader(name);
+    }
+
+    @Override public Map<String, String> params() {
+        return params;
     }
 
     @Override public boolean hasParam(String key) {
@@ -126,10 +101,6 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
 
     @Override public String param(String key) {
         return params.get(key);
-    }
-
-    @Override public Map<String, String> params() {
-        return params;
     }
 
     @Override public String param(String key, String defaultValue) {

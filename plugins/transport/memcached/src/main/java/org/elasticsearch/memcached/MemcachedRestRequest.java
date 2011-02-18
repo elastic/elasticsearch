@@ -20,13 +20,11 @@
 package org.elasticsearch.memcached;
 
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -137,15 +135,7 @@ public class MemcachedRestRequest extends AbstractRestRequest {
         return Unicode.fromBytes(data);
     }
 
-    @Override public Set<String> headerNames() {
-        return ImmutableSet.of();
-    }
-
     @Override public String header(String name) {
-        return null;
-    }
-
-    @Override public String cookie() {
         return null;
     }
 

@@ -151,7 +151,7 @@ public class MembershipAction extends AbstractComponent {
         }
 
         @Override public String executor() {
-            return ThreadPool.Names.SAME;
+            return ThreadPool.Names.CACHED;
         }
     }
 

@@ -56,11 +56,11 @@ public class ServletRestRequest extends AbstractRestRequest implements org.elast
     }
 
     @Override public String uri() {
-        return servletRequest.getRequestURI().substring(servletRequest.getContextPath().length());
+        return servletRequest.getRequestURI().substring(servletRequest.getContextPath().length() + servletRequest.getServletPath().length());
     }
 
     @Override public String rawPath() {
-        return servletRequest.getRequestURI().substring(servletRequest.getContextPath().length());
+        return servletRequest.getRequestURI().substring(servletRequest.getContextPath().length() + servletRequest.getServletPath().length());
     }
 
     @Override public boolean hasContent() {

@@ -31,9 +31,12 @@ public class JdkESLogger extends AbstractESLogger {
 
     private final Logger logger;
 
-    public JdkESLogger(String prefix, Logger logger) {
+    private final String name;
+
+    public JdkESLogger(String prefix, String name, Logger logger) {
         super(prefix);
         this.logger = logger;
+        this.name = name;
     }
 
     @Override public String getName() {
@@ -61,42 +64,42 @@ public class JdkESLogger extends AbstractESLogger {
     }
 
     @Override protected void internalTrace(String msg) {
-        logger.log(Level.FINEST, msg);
+        logger.logp(Level.FINEST, name, null, msg);
     }
 
     @Override protected void internalTrace(String msg, Throwable cause) {
-        logger.log(Level.FINEST, msg, cause);
+        logger.logp(Level.FINEST, name, null, msg, cause);
     }
 
     @Override protected void internalDebug(String msg) {
-        logger.log(Level.FINE, msg);
+        logger.logp(Level.FINE, name, null, msg);
     }
 
     @Override protected void internalDebug(String msg, Throwable cause) {
-        logger.log(Level.FINE, msg, cause);
+        logger.logp(Level.FINE, name, null, msg, cause);
     }
 
     @Override protected void internalInfo(String msg) {
-        logger.log(Level.INFO, msg);
+        logger.logp(Level.INFO, name, null, msg);
     }
 
     @Override protected void internalInfo(String msg, Throwable cause) {
-        logger.log(Level.INFO, msg, cause);
+        logger.logp(Level.INFO, name, null, msg, cause);
     }
 
     @Override protected void internalWarn(String msg) {
-        logger.log(Level.WARNING, msg);
+        logger.logp(Level.WARNING, name, null, msg);
     }
 
     @Override protected void internalWarn(String msg, Throwable cause) {
-        logger.log(Level.WARNING, msg, cause);
+        logger.logp(Level.WARNING, name, null, msg, cause);
     }
 
     @Override protected void internalError(String msg) {
-        logger.log(Level.SEVERE, msg);
+        logger.logp(Level.SEVERE, name, null, msg);
     }
 
     @Override protected void internalError(String msg, Throwable cause) {
-        logger.log(Level.SEVERE, msg, cause);
+        logger.logp(Level.SEVERE, name, null, msg, cause);
     }
 }

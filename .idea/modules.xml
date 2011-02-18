@@ -17,6 +17,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-wikipedia.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-wikipedia.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-memcached.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-memcached.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-thrift.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-thrift.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-wares.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-wares.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugins-hadoop.iml" filepath="$PROJECT_DIR$/.idea/modules//plugins-hadoop.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//test-integration.iml" filepath="$PROJECT_DIR$/.idea/modules//test-integration.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//test-testng.iml" filepath="$PROJECT_DIR$/.idea/modules//test-testng.iml" />

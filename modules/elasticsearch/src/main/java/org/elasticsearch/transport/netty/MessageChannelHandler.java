@@ -86,11 +86,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
-                    buffer.readerIndex(expectedIndexReader);
                 } else {
                     logger.warn("Message read past expected size (request) for [{}] and action [{}], resetting", requestId, action);
-                    buffer.readerIndex(expectedIndexReader);
                 }
+                buffer.readerIndex(expectedIndexReader);
             }
         } else {
             TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
@@ -108,11 +107,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStreams.statusIsError(status));
-                    buffer.readerIndex(expectedIndexReader);
-                } else if (buffer.readerIndex() > expectedIndexReader) {
+                } else {
                     logger.warn("Message read past expected size (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStreams.statusIsError(status));
-                    buffer.readerIndex(expectedIndexReader);
                 }
+                buffer.readerIndex(expectedIndexReader);
             }
         }
         handlesStream.cleanHandles();

@@ -114,7 +114,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                     regex = parser.text();
                 } else if ("regex_flags".equals(currentFieldName) || "regexFlags".equals(currentFieldName)) {
                     regexFlags = parser.text();
-                } else if ("order".equals(currentFieldName) || "comparator".equals(field)) {
+                } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();

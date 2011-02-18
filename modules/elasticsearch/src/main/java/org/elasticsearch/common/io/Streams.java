@@ -115,18 +115,15 @@ public abstract class Streams {
             }
             out.flush();
             return byteCount;
-        }
-        finally {
+        } finally {
             try {
                 in.close();
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // do nothing
             }
             try {
                 out.close();
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // do nothing
             }
         }
@@ -145,12 +142,10 @@ public abstract class Streams {
         Preconditions.checkNotNull(out, "No OutputStream specified");
         try {
             out.write(in);
-        }
-        finally {
+        } finally {
             try {
                 out.close();
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // do nothing
             }
         }
@@ -165,9 +160,9 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static byte[] copyToByteArray(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(BUFFER_SIZE);
+        FastByteArrayOutputStream out = FastByteArrayOutputStream.Cached.cached();
         copy(in, out);
-        return out.toByteArray();
+        return out.copiedByteArray();
     }
 
 
@@ -197,18 +192,15 @@ public abstract class Streams {
             }
             out.flush();
             return byteCount;
-        }
-        finally {
+        } finally {
             try {
                 in.close();
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // do nothing
             }
             try {
                 out.close();
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // do nothing
             }
         }
@@ -227,12 +219,10 @@ public abstract class Streams {
         Preconditions.checkNotNull(out, "No Writer specified");
         try {
             out.write(in);
-        }
-        finally {
+        } finally {
             try {
                 out.close();
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // do nothing
             }
         }

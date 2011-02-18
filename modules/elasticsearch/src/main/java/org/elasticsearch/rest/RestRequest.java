@@ -24,7 +24,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -67,11 +66,7 @@ public interface RestRequest extends ToXContent.Params {
 
     String contentAsString();
 
-    Set<String> headerNames();
-
     String header(String name);
-
-    String cookie();
 
     boolean hasParam(String key);
 

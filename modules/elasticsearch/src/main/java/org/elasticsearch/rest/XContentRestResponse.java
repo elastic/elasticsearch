@@ -94,7 +94,7 @@ public class XContentRestResponse extends AbstractRestResponse {
         if (prefixUtf8Result != null) {
             return prefixUtf8Result.length;
         }
-        return -1;
+        return 0;
     }
 
     @Override public byte[] suffixContent() {
@@ -108,7 +108,7 @@ public class XContentRestResponse extends AbstractRestResponse {
         if (prefixUtf8Result != null) {
             return END_JSONP.length;
         }
-        return -1;
+        return 0;
     }
 
     private static UnicodeUtil.UTF8Result startJsonp(RestRequest request) {

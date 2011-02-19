@@ -30,6 +30,7 @@ import org.elasticsearch.search.facet.query.QueryFacetProcessor;
 import org.elasticsearch.search.facet.range.RangeFacetProcessor;
 import org.elasticsearch.search.facet.statistical.StatisticalFacetProcessor;
 import org.elasticsearch.search.facet.terms.TermsFacetProcessor;
+import org.elasticsearch.search.facet.termsstats.TermsStatsFacetProcessor;
 
 import java.util.List;
 
@@ -49,6 +50,7 @@ public class FacetModule extends AbstractModule {
         processors.add(RangeFacetProcessor.class);
         processors.add(StatisticalFacetProcessor.class);
         processors.add(TermsFacetProcessor.class);
+        processors.add(TermsStatsFacetProcessor.class);
     }
 
     public void addFacetProcessor(Class<? extends FacetProcessor> facetProcessor) {

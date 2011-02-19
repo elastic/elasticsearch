@@ -28,6 +28,7 @@ import org.elasticsearch.search.facet.query.InternalQueryFacet;
 import org.elasticsearch.search.facet.range.InternalRangeFacet;
 import org.elasticsearch.search.facet.statistical.InternalStatisticalFacet;
 import org.elasticsearch.search.facet.terms.InternalTermsFacet;
+import org.elasticsearch.search.facet.termsstats.InternalTermsStatsFacet;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,5 +44,6 @@ public class TransportFacetModule extends AbstractModule {
         InternalRangeFacet.registerStreams();
         InternalStatisticalFacet.registerStreams();
         InternalTermsFacet.registerStreams();
+        InternalTermsStatsFacet.registerStreams();
     }
 }

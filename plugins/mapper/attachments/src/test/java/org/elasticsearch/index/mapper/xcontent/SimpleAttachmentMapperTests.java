@@ -46,7 +46,9 @@ public class SimpleAttachmentMapperTests {
     @Test public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
         XContentDocumentMapper docMapper = mapperParser.parse(mapping);
-        byte[] json = jsonBuilder().startObject().field("_id", 1).field("file", copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html")).endObject().copiedBytes();
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html");
+
+        byte[] json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().copiedBytes();
 
         Document doc = docMapper.parse(json).doc();
 
@@ -57,7 +59,7 @@ public class SimpleAttachmentMapperTests {
         String builtMapping = docMapper.mappingSource().string();
         docMapper = mapperParser.parse(builtMapping);
 
-        json = jsonBuilder().startObject().field("_id", 1).field("file", copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html")).endObject().copiedBytes();
+        json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().copiedBytes();
 
         doc = docMapper.parse(json).doc();
 

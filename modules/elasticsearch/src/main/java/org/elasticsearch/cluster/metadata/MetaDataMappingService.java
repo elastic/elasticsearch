@@ -122,9 +122,8 @@ public class MetaDataMappingService extends AbstractComponent {
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
                 } catch (Exception e) {
                     logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
+                    listener.onFailure(e);
                     return currentState;
-                } finally {
-                    listener.onResponse(new Response(true));
                 }
             }
 

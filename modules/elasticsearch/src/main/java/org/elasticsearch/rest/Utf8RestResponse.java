@@ -88,7 +88,7 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
     }
 
     @Override public int prefixContentLength() {
-        return prefixUtf8Result != null ? prefixUtf8Result.length : -1;
+        return prefixUtf8Result != null ? prefixUtf8Result.length : 0;
     }
 
     @Override public byte[] suffixContent() {
@@ -96,6 +96,6 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
     }
 
     @Override public int suffixContentLength() {
-        return suffixUtf8Result != null ? suffixUtf8Result.length : -1;
+        return suffixUtf8Result != null ? suffixUtf8Result.length : 0;
     }
 }

@@ -333,7 +333,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
 
         for (final ShardRouting shardRouting : routingNodes) {
-            final IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
+            final IndexService indexService = indicesService.indexService(shardRouting.index());
+            if (indexService == null) {
+                // got deleted on us, ignore
+                continue;
+            }
 
             final int shardId = shardRouting.id();
 

@@ -25,6 +25,7 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,12 +46,16 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
 
     private final TransportSearchScrollQueryAndFetchAction queryAndFetchAction;
 
+    private final TransportSearchScrollScanAction scanAction;
+
     @Inject public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                                TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
-                                               TransportSearchScrollQueryAndFetchAction queryAndFetchAction) {
+                                               TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
+                                               TransportSearchScrollScanAction scanAction) {
         super(settings, threadPool);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
+        this.scanAction = scanAction;
 
         transportService.registerHandler(TransportActions.SEARCH_SCROLL, new TransportHandler());
     }
@@ -62,6 +67,8 @@ public class TransportSearchScrollAction extends BaseAction<SearchScrollRequest,
                 queryThenFetchAction.execute(request, scrollId, listener);
             } else if (scrollId.type().equals(QUERY_AND_FETCH_TYPE)) {
                 queryAndFetchAction.execute(request, scrollId, listener);
+            } else if (scrollId.type().equals(SCAN)) {
+                scanAction.execute(request, scrollId, listener);
             } else {
                 throw new ElasticSearchIllegalArgumentException("Scroll id type [" + scrollId.type() + "] unrecognized");
             }

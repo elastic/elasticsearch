@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
@@ -35,6 +36,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -184,7 +187,15 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            if (sort) {
+            if (searchContext.scanning()) {
+                ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size());
+                try {
+                    searchContext.searcher().search(query, scanCollector);
+                } catch (ScanCollector.StopCollectingException e) {
+                    // all is well
+                }
+                topDocs = scanCollector.topDocs();
+            } else if (sort) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);
@@ -197,5 +208,57 @@ public class QueryPhase implements SearchPhase {
         }
 
         facetPhase.execute(searchContext);
+    }
+
+    static class ScanCollector extends Collector {
+
+        private final int from;
+
+        private final int to;
+
+        private final ArrayList<ScoreDoc> docs;
+
+        private int docBase;
+
+        private int counter;
+
+        ScanCollector(int from, int size) {
+            this.from = from;
+            this.to = from + size;
+            this.docs = new ArrayList<ScoreDoc>(size);
+        }
+
+        public TopDocs topDocs() {
+            return new TopDocs(docs.size(), docs.toArray(new ScoreDoc[docs.size()]), 0f);
+        }
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            if (counter >= from) {
+                docs.add(new ScoreDoc(docBase + doc, 0f));
+            }
+            counter++;
+            if (counter >= to) {
+                throw StopCollectingException;
+            }
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+            this.docBase = docBase;
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+
+        public static final RuntimeException StopCollectingException = new StopCollectingException();
+
+        static class StopCollectingException extends RuntimeException {
+            @Override public Throwable fillInStackTrace() {
+                return null;
+            }
+        }
     }
 }

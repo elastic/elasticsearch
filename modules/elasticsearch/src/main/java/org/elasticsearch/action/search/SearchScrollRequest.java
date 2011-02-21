@@ -41,7 +41,7 @@ public class SearchScrollRequest implements ActionRequest {
     private Scroll scroll;
 
     private boolean listenerThreaded = false;
-    private SearchOperationThreading operationThreading = SearchOperationThreading.SINGLE_THREAD;
+    private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
     public SearchScrollRequest() {
     }

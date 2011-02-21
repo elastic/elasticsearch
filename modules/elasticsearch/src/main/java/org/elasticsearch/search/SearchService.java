@@ -27,6 +27,7 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -49,6 +50,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.scan.ScanSearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -153,6 +155,56 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             dfsPhase.execute(context);
             contextProcessedSuccessfully(context);
             return context.dfsResult();
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
+        } finally {
+            cleanContext(context);
+        }
+    }
+
+    public ScanSearchResult executeScan(InternalSearchRequest request) throws ElasticSearchException {
+        SearchContext context = createContext(request);
+        activeContexts.put(context.id(), context);
+        contextProcessing(context);
+        try {
+            if (context.scroll() == null) {
+                throw new ElasticSearchException("Scroll must be provided when scanning...");
+            }
+            Lucene.CountCollector countCollector = new Lucene.CountCollector(-1);
+            context.searcher().search(context.query(), countCollector);
+            contextProcessedSuccessfully(context);
+            return new ScanSearchResult(context.id(), countCollector.count());
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
+        } catch (IOException e) {
+            freeContext(context);
+            throw new QueryPhaseExecutionException(context, "failed to execute initial scan query", e);
+        } finally {
+            cleanContext(context);
+        }
+    }
+
+    public ScrollQueryFetchSearchResult executeScan(InternalScrollSearchRequest request) throws ElasticSearchException {
+        SearchContext context = findContext(request.id());
+        contextProcessing(context);
+        try {
+            processScroll(request, context);
+            if (!context.scanning()) {
+                // first scanning, reset the from to 0
+                context.scanning(true);
+                context.from(0);
+            }
+            queryPhase.execute(context);
+            shortcutDocIdsToLoadForScanning(context);
+            fetchPhase.execute(context);
+            if (context.scroll() == null || context.fetchResult().hits().hits().length < context.size()) {
+                freeContext(request.id());
+            } else {
+                contextProcessedSuccessfully(context);
+            }
+            return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
@@ -442,6 +494,20 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             counter++;
         }
         context.docIdsToLoad(docIdsToLoad, 0, counter);
+    }
+
+    private void shortcutDocIdsToLoadForScanning(SearchContext context) {
+        TopDocs topDocs = context.queryResult().topDocs();
+        if (topDocs.scoreDocs.length == 0) {
+            // no more docs...
+            context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
+            return;
+        }
+        int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
+        for (int i = 0; i < docIdsToLoad.length; i++) {
+            docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
+        }
+        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {

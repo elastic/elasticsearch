@@ -36,10 +36,12 @@ import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scan.ScanSearchResult;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -122,6 +124,44 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].id(), equalTo("1"));
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].type(), equalTo("type1"));
+    }
+
+    @Test public void testScan() throws Exception {
+        Scroll scroll = new Scroll(TimeValue.timeValueMillis(500));
+        ScanSearchResult scanResult = searchService.executeScan(searchRequest(searchSource().query(matchAllQuery()).size(2)).scroll(scroll));
+        assertThat(scanResult.totalHits(), equalTo(5l));
+
+        Set<String> idsLoaded = Sets.newHashSet();
+        // start scrolling
+        FetchSearchResult fetchResult = searchService.executeScan(new InternalScrollSearchRequest(scanResult.id()).scroll(scroll)).result().fetchResult();
+        assertThat(fetchResult.hits().hits().length, equalTo(2));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+        // and again...
+        fetchResult = searchService.executeScan(new InternalScrollSearchRequest(scanResult.id()).scroll(scroll)).result().fetchResult();
+        assertThat(fetchResult.hits().hits().length, equalTo(2));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        fetchResult = searchService.executeScan(new InternalScrollSearchRequest(scanResult.id()).scroll(scroll)).result().fetchResult();
+        assertThat(fetchResult.hits().hits().length, equalTo(1));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+
+        Set<String> expectedIds = Sets.newHashSet("1", "2", "3", "4", "5");
+        assertThat(idsLoaded, equalTo(expectedIds));
+
+        // do another one for fun, should be expired context
+        try {
+            searchService.executeScan(new InternalScrollSearchRequest(scanResult.id()).scroll(scroll)).result().fetchResult();
+            assert false;
+        } catch (SearchContextMissingException e) {
+            // ignore
+        }
     }
 
     @Test public void testQueryThenFetch() throws Exception {

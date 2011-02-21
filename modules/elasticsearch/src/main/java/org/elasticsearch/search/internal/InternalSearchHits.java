@@ -91,7 +91,7 @@ public class InternalSearchHits implements SearchHits {
     }
 
 
-    private static final InternalSearchHit[] EMPTY = new InternalSearchHit[0];
+    public static final InternalSearchHit[] EMPTY = new InternalSearchHit[0];
 
     private InternalSearchHit[] hits;
 

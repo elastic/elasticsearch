@@ -96,6 +96,8 @@ public class SearchContext implements Releasable {
     private float queryBoost = 1.0f;
 
 
+    private boolean scanning = false;
+
     private Scroll scroll;
 
     private boolean explain;
@@ -287,6 +289,15 @@ public class SearchContext implements Releasable {
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public SearchContext scanning(boolean scanning) {
+        this.scanning = scanning;
+        return this;
+    }
+
+    public boolean scanning() {
+        return this.scanning;
     }
 
     public SearchContext sort(Sort sort) {

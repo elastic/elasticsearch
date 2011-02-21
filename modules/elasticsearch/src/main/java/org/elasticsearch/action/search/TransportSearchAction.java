@@ -21,10 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
+import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -54,6 +51,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
 
+    private final TransportSearchScanAction scanAction;
+
     private final boolean optimizeSingleShard;
 
     @Inject public TransportSearchAction(Settings settings, ThreadPool threadPool,
@@ -61,13 +60,15 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
                                          TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
                                          TransportSearchQueryThenFetchAction queryThenFetchAction,
                                          TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
-                                         TransportSearchQueryAndFetchAction queryAndFetchAction) {
+                                         TransportSearchQueryAndFetchAction queryAndFetchAction,
+                                         TransportSearchScanAction scanAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
         this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
+        this.scanAction = scanAction;
 
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
 
@@ -76,7 +77,7 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
-        if (optimizeSingleShard) {
+        if (optimizeSingleShard && searchRequest.searchType() != SCAN) {
             try {
                 ClusterState clusterState = clusterService.state();
                 searchRequest.indices(clusterState.metaData().concreteIndices(searchRequest.indices()));
@@ -101,6 +102,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             dfsQueryAndFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH) {
             queryAndFetchAction.execute(searchRequest, listener);
+        } else if (searchRequest.searchType() == SearchType.SCAN) {
+            scanAction.execute(searchRequest, listener);
         }
     }
 

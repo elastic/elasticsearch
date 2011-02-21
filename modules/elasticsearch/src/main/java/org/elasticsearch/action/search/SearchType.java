@@ -49,7 +49,12 @@ public enum SearchType {
      * and return the results. Each shard returns size results. Since each shard already returns size hits, this
      * type actually returns size times number of shards results back to the caller.
      */
-    QUERY_AND_FETCH((byte) 3);
+    QUERY_AND_FETCH((byte) 3),
+    /**
+     * Performs scanning of the results which executes the search without any sorting.
+     * It will automatically start scrolling the result set.
+     */
+    SCAN((byte) 4);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
@@ -81,6 +86,8 @@ public enum SearchType {
             return DFS_QUERY_AND_FETCH;
         } else if (id == 3) {
             return QUERY_AND_FETCH;
+        } else if (id == 4) {
+            return SCAN;
         } else {
             throw new ElasticSearchIllegalArgumentException("No search type for [" + id + "]");
         }
@@ -89,7 +96,7 @@ public enum SearchType {
     /**
      * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
-     * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
+     * "query_then_fetch"/"queryThenFetch", "query_and_fetch"/"queryAndFetch", and "scan".
      */
     public static SearchType fromString(String searchType) throws ElasticSearchIllegalArgumentException {
         if (searchType == null) {
@@ -103,6 +110,8 @@ public enum SearchType {
             return SearchType.QUERY_THEN_FETCH;
         } else if ("query_and_fetch".equals(searchType)) {
             return SearchType.QUERY_AND_FETCH;
+        } else if ("scan".equals(searchType)) {
+            return SearchType.SCAN;
         } else {
             throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
         }

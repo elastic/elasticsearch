@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.river.wikipedia;
+package org.elasticsearch.river;
 
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.river.RiversModule;
-import org.elasticsearch.river.wikipedia.WikipediaRiverModule;
+import org.elasticsearch.common.inject.PreProcessModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
 
 /**
- * @author kimchy (shay.banon)
+ * A module that simply calls the {@link PluginsService#processModule(org.elasticsearch.common.inject.Module)}
+ * in order to allow plugins to pre process specific river modules.
  */
-public class WikipediaRiverPlugin extends AbstractPlugin {
+public class RiversPluginsModule extends AbstractModule implements PreProcessModule {
 
-    @Inject public WikipediaRiverPlugin() {
-    }
+    private final Settings settings;
 
-    @Override public String name() {
-        return "river-wikipedia";
-    }
+    private final PluginsService pluginsService;
 
-    @Override public String description() {
-        return "River Wikipedia Plugin";
+    public RiversPluginsModule(Settings settings, PluginsService pluginsService) {
+        this.settings = settings;
+        this.pluginsService = pluginsService;
     }
 
     @Override public void processModule(Module module) {
-        if (module instanceof RiversModule) {
-            ((RiversModule) module).registerRiver("wikipedia", WikipediaRiverModule.class);
-        }
+        pluginsService.processModule(module);
+    }
+
+    @Override protected void configure() {
     }
 }

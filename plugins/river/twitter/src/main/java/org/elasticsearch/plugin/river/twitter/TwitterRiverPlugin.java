@@ -20,7 +20,10 @@
 package org.elasticsearch.plugin.river.twitter;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.river.RiversModule;
+import org.elasticsearch.river.twitter.TwitterRiverModule;
 
 /**
  * @author kimchy (shay.banon)
@@ -36,5 +39,12 @@ public class TwitterRiverPlugin extends AbstractPlugin {
 
     @Override public String description() {
         return "River Twitter Plugin";
+    }
+
+
+    @Override public void processModule(Module module) {
+        if (module instanceof RiversModule) {
+            ((RiversModule) module).registerRiver("twitter", TwitterRiverModule.class);
+        }
     }
 }

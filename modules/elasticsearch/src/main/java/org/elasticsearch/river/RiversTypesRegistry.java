@@ -17,33 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.river.wikipedia;
+package org.elasticsearch.river;
 
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.river.RiversModule;
-import org.elasticsearch.river.wikipedia.WikipediaRiverModule;
 
 /**
- * @author kimchy (shay.banon)
+ * A type registry for rivers
  */
-public class WikipediaRiverPlugin extends AbstractPlugin {
+public class RiversTypesRegistry {
 
-    @Inject public WikipediaRiverPlugin() {
+    private final ImmutableMap<String, Class<? extends Module>> riverTypes;
+
+    public RiversTypesRegistry(ImmutableMap<String, Class<? extends Module>> riverTypes) {
+        this.riverTypes = riverTypes;
     }
 
-    @Override public String name() {
-        return "river-wikipedia";
-    }
-
-    @Override public String description() {
-        return "River Wikipedia Plugin";
-    }
-
-    @Override public void processModule(Module module) {
-        if (module instanceof RiversModule) {
-            ((RiversModule) module).registerRiver("wikipedia", WikipediaRiverModule.class);
-        }
+    public Class<? extends Module> type(String type) {
+        return riverTypes.get(type);
     }
 }

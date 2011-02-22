@@ -107,14 +107,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override public int compareTo(Entry o) {
-            int i = term.compareTo(o.term());
-            if (i == 0) {
-                i = count - o.count();
-                if (i == 0) {
-                    i = System.identityHashCode(this) - System.identityHashCode(o);
-                }
-            }
-            return i;
+            return term.compareTo(o.term());
         }
     }
 
@@ -159,6 +152,13 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         return (List<StringEntry>) entries;
     }
 
+    List<StringEntry> mutableList() {
+        if (!(entries instanceof List)) {
+            entries = new ArrayList<StringEntry>(entries);
+        }
+        return (List<StringEntry>) entries;
+    }
+
     @Override public List<StringEntry> getEntries() {
         return entries();
     }
@@ -186,8 +186,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             if (requiredSize == 0) {
                 // we need to sort it here!
                 InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facets.get(0);
-                List<StringEntry> entries = tsFacet.entries();
-                if (!entries.isEmpty()) {
+                if (!tsFacet.entries.isEmpty()) {
+                    List<StringEntry> entries = tsFacet.mutableList();
                     Collections.sort(entries, comparatorType.comparator());
                 }
             }

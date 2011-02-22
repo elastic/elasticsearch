@@ -63,10 +63,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     private Client client;
 
     @BeforeClass public void createNodes() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build();
+        Settings settings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards()).put("index.number_of_replicas", 0).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
+    }
+
+    protected int numberOfShards() {
+        return 1;
     }
 
     @AfterClass public void closeNodes() {
@@ -1505,6 +1509,40 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).term(), equalTo("200.2"));
         assertThat(facet.entries().get(1).count(), equalTo(1));
         assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
+    }
+
+    @Test public void testTermsStatsFacets2() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 0; i < 20; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsStats("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
+                .addFacet(termsStats("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+        TermsStatsFacet facet = searchResponse.facets().facet("stats1");
+        assertThat(facet.entries().size(), equalTo(10));
+
+        facet = searchResponse.facets().facet("stats2");
+        assertThat(facet.entries().size(), equalTo(10));
     }
 
     private long utcTimeInMillis(String time) {

@@ -85,7 +85,11 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         TERM((byte) 2, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
-                return o1.compareTo(o2);
+                int i = o1.compareTo(o2);
+                if (i == 0) {
+                    i = COUNT.comparator().compare(o1, o2);
+                }
+                return i;
             }
         }),
         /**
@@ -100,13 +104,19 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
 
         TOTAL((byte) 4, new Comparator<Entry>() {
             @Override public int compare(Entry o1, Entry o2) {
-                return (o2.total() < o1.total() ? -1 : (o2.total() == o1.total() ? 0 : 1));
+                if (o2.total() < o1.total()) {
+                    return -1;
+                } else if (o2.total() == o1.total()) {
+                    return COUNT.comparator().compare(o1, o2);
+                } else {
+                    return 1;
+                }
             }
         }),
 
         REVERSE_TOTAL((byte) 5, new Comparator<Entry>() {
             @Override public int compare(Entry o1, Entry o2) {
-                return (o1.total() < o2.total() ? -1 : (o1.total() == o2.total() ? 0 : 1));
+                return -TOTAL.comparator().compare(o1, o2);
             }
         });
 

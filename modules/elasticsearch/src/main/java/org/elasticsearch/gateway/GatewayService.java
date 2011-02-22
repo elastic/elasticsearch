@@ -114,12 +114,25 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
                 } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
                     logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
-                } else if (recoverAfterTime != null) {
-                    logger.debug("not recovering from gateway, recover_after_time [{}]", recoverAfterTime);
                 } else {
-                    // first update the state that its blocked for not recovered, and then let recovery take its place
-                    // that way, we can wait till it is resolved
-                    performStateRecovery(initialStateTimeout);
+                    boolean ignoreTimeout;
+                    if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
+                        // no expected is set, don't ignore the timeout
+                        ignoreTimeout = false;
+                    } else {
+                        // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
+                        ignoreTimeout = true;
+                        if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
+                            ignoreTimeout = false;
+                        }
+                        if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
+                            ignoreTimeout = false;
+                        }
+                        if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
+                            ignoreTimeout = false;
+                        }
+                    }
+                    performStateRecovery(initialStateTimeout, ignoreTimeout);
                 }
             }
         } else {
@@ -141,41 +154,39 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (!lifecycle.started()) {
             return;
         }
-        if (event.localNodeMaster()) {
-            if (event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-                ClusterState clusterState = event.state();
-                DiscoveryNodes nodes = clusterState.nodes();
-                if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
-                    logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
-                } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
-                    logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
-                } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
-                    logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
+        if (event.localNodeMaster() && event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
+            ClusterState clusterState = event.state();
+            DiscoveryNodes nodes = clusterState.nodes();
+            if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
+                logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+            } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
+                logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
+            } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
+                logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
+            } else {
+                boolean ignoreTimeout;
+                if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
+                    // no expected is set, don't ignore the timeout
+                    ignoreTimeout = false;
                 } else {
-                    boolean ignoreTimeout;
-                    if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
-                        // no expected is set, don't ignore the timeout
+                    // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
+                    ignoreTimeout = true;
+                    if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
                         ignoreTimeout = false;
-                    } else {
-                        // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
-                        ignoreTimeout = true;
-                        if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
-                            ignoreTimeout = false;
-                        }
-                        if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
-                            ignoreTimeout = false;
-                        }
-                        if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
-                            ignoreTimeout = false;
-                        }
                     }
-                    final boolean fIgnoreTimeout = ignoreTimeout;
-                    threadPool.cached().execute(new Runnable() {
-                        @Override public void run() {
-                            performStateRecovery(null, fIgnoreTimeout);
-                        }
-                    });
+                    if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
+                        ignoreTimeout = false;
+                    }
+                    if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
+                        ignoreTimeout = false;
+                    }
                 }
+                final boolean fIgnoreTimeout = ignoreTimeout;
+                threadPool.cached().execute(new Runnable() {
+                    @Override public void run() {
+                        performStateRecovery(null, fIgnoreTimeout);
+                    }
+                });
             }
         }
     }

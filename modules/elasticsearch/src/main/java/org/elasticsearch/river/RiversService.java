@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.river.cluster.RiverClusterChangedEvent;
 import org.elasticsearch.river.cluster.RiverClusterService;
 import org.elasticsearch.river.cluster.RiverClusterState;
@@ -61,18 +62,21 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
 
     private final ClusterService clusterService;
 
+    private final RiversTypesRegistry typesRegistry;
+
     private final Injector injector;
 
     private final Map<RiverName, Injector> riversInjectors = Maps.newHashMap();
 
     private volatile ImmutableMap<RiverName, River> rivers = ImmutableMap.of();
 
-    @Inject public RiversService(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService, RiverClusterService riverClusterService, Injector injector) {
+    @Inject public RiversService(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService, RiversTypesRegistry typesRegistry, RiverClusterService riverClusterService, Injector injector) {
         super(settings);
         this.riverIndexName = RiverIndexName.Conf.indexName(settings);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.typesRegistry = typesRegistry;
         this.injector = injector;
         riverClusterService.add(new ApplyRivers());
     }
@@ -117,7 +121,8 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         try {
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new RiverNameModule(riverName));
-            modules.add(new RiverModule(riverName, settings, this.settings));
+            modules.add(new RiverModule(riverName, settings, this.settings, typesRegistry));
+            modules.add(new RiversPluginsModule(this.settings, injector.getInstance(PluginsService.class)));
 
             Injector indexInjector = modules.createChildInjector(injector);
             riversInjectors.put(riverName, indexInjector);
@@ -154,7 +159,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                 builder.field("name", clusterService.localNode().name());
                 builder.field("transport_address", clusterService.localNode().address().toString());
                 builder.endObject();
-                
+
                 client.prepareIndex(riverIndexName, riverName.name(), "_status").setSource(builder).execute().actionGet();
             } catch (Exception e1) {
                 logger.warn("failed to write failed status for river creation", e);

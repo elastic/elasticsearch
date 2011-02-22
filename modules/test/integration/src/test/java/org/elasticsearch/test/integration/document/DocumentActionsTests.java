@@ -143,6 +143,15 @@ public class DocumentActionsTests extends AbstractNodesTests {
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
         }
 
+        logger.info("Get [type1/1] with script");
+        for (int i = 0; i < 5; i++) {
+            getResult = client1.prepareGet("test", "type1", "1").setFields("_source.type1.name").execute().actionGet();
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.source(), nullValue());
+            assertThat(getResult.field("_source.type1.name").values().get(0).toString(), equalTo("test"));
+        }
+
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();

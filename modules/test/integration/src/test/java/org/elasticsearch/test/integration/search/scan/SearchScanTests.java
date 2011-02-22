@@ -56,7 +56,7 @@ public class SearchScanTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void testSimpleScroll() throws Exception {
+    @Test public void testSimpleScroll1() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -79,6 +79,50 @@ public class SearchScanTests extends AbstractNodesTests {
                 .setSearchType(SearchType.SCAN)
                 .setQuery(matchAllQuery())
                 .setSize(7)
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+
+        // start scrolling, until we get not results
+        while (true) {
+            searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            assertThat(searchResponse.failedShards(), equalTo(0));
+            for (SearchHit hit : searchResponse.hits()) {
+                assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
+                ids.add(hit.id());
+            }
+            if (searchResponse.hits().totalHits() == 0) {
+                break;
+            }
+        }
+
+        assertThat(expectedIds, equalTo(ids));
+    }
+
+    @Test public void testSimpleScroll2() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        Set<String> ids = Sets.newHashSet();
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 100; i++) {
+            String id = Integer.toString(i);
+            expectedIds.add(id);
+            client.prepareIndex("test", "type1", id).setSource("field", i).execute().actionGet();
+        }
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setSearchType(SearchType.SCAN)
+                .setQuery(matchAllQuery())
+                .setSize(10)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 

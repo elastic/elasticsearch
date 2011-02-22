@@ -20,6 +20,7 @@
 package org.elasticsearch.river.routing;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -79,106 +80,106 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
         if (!event.localNodeMaster()) {
             return;
         }
-        if (event.nodesChanged() || event.metaDataChanged() || event.blocksChanged()) {
-            riverClusterService.submitStateUpdateTask("reroute_rivers_node_changed", new RiverClusterStateUpdateTask() {
-                @Override public RiverClusterState execute(RiverClusterState currentState) {
-                    if (!event.state().metaData().hasIndex(riverIndexName)) {
-                        // if there are routings, publish an empty one (so it will be deleted on nodes), otherwise, return the same state
-                        if (!currentState.routing().isEmpty()) {
-                            return RiverClusterState.builder().state(currentState).routing(RiversRouting.builder()).build();
-                        }
-                        return currentState;
-                    }
-
-                    RiversRouting.Builder routingBuilder = RiversRouting.builder().routing(currentState.routing());
-                    boolean dirty = false;
-
-                    IndexMetaData indexMetaData = event.state().metaData().index(riverIndexName);
-                    // go over and create new river routing (with no node) for new types (rivers names)
-                    for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
-                        String mappingType = mappingMd.type(); // mapping type is the name of the river
-                        if (!currentState.routing().hasRiverByName(mappingType)) {
-                            // no river, we need to add it to the routing with no node allocation
-                            try {
-                                client.admin().indices().prepareRefresh(riverIndexName).execute().actionGet();
-                                GetResponse getResponse = client.prepareGet(riverIndexName, mappingType, "_meta").execute().actionGet();
-                                if (getResponse.exists()) {
-                                    String riverType = XContentMapValues.nodeStringValue(getResponse.sourceAsMap().get("type"), null);
-                                    if (riverType == null) {
-                                        logger.warn("no river type provided for [{}], ignoring...", riverIndexName);
-                                    } else {
-                                        routingBuilder.put(new RiverRouting(new RiverName(riverType, mappingType), null));
-                                        dirty = true;
-                                    }
-                                }
-                            } catch (ClusterBlockException e) {
-                                // ignore, we will get it next time
-                            } catch (IndexMissingException e) {
-                                // ignore, we will get it next time
-                            } catch (Exception e) {
-                                logger.warn("failed to get/parse _meta for [{}]", e, mappingType);
-                            }
-                        }
-                    }
-                    // now, remove routings that were deleted
-                    for (RiverRouting routing : currentState.routing()) {
-                        if (!indexMetaData.mappings().containsKey(routing.riverName().name())) {
-                            routingBuilder.remove(routing);
-                            dirty = true;
-                        }
-                    }
-
-                    // build a list from nodes to rivers
-                    Map<DiscoveryNode, List<RiverRouting>> nodesToRivers = Maps.newHashMap();
-
-                    for (DiscoveryNode node : event.state().nodes()) {
-                        if (RiverNodeHelper.isRiverNode(node)) {
-                            nodesToRivers.put(node, Lists.<RiverRouting>newArrayList());
-                        }
-                    }
-
-                    List<RiverRouting> unassigned = Lists.newArrayList();
-                    for (RiverRouting routing : routingBuilder.build()) {
-                        if (routing.node() == null) {
-                            unassigned.add(routing);
-                        } else {
-                            List<RiverRouting> l = nodesToRivers.get(routing.node());
-                            if (l == null) {
-                                l = Lists.newArrayList();
-                                nodesToRivers.put(routing.node(), l);
-                            }
-                            l.add(routing);
-                        }
-                    }
-                    for (Iterator<RiverRouting> it = unassigned.iterator(); it.hasNext();) {
-                        RiverRouting routing = it.next();
-                        DiscoveryNode smallest = null;
-                        int smallestSize = Integer.MAX_VALUE;
-                        for (Map.Entry<DiscoveryNode, List<RiverRouting>> entry : nodesToRivers.entrySet()) {
-                            if (RiverNodeHelper.isRiverNode(entry.getKey(), routing.riverName())) {
-                                if (entry.getValue().size() < smallestSize) {
-                                    smallestSize = entry.getValue().size();
-                                    smallest = entry.getKey();
-                                }
-                            }
-                        }
-                        if (smallest != null) {
-                            dirty = true;
-                            it.remove();
-                            routing.node(smallest);
-                            nodesToRivers.get(smallest).add(routing);
-                        }
-                    }
-
-
-                    // add relocation logic...
-
-                    if (dirty) {
-                        return RiverClusterState.builder().state(currentState).routing(routingBuilder).build();
+        riverClusterService.submitStateUpdateTask("reroute_rivers_node_changed", new RiverClusterStateUpdateTask() {
+            @Override public RiverClusterState execute(RiverClusterState currentState) {
+                if (!event.state().metaData().hasIndex(riverIndexName)) {
+                    // if there are routings, publish an empty one (so it will be deleted on nodes), otherwise, return the same state
+                    if (!currentState.routing().isEmpty()) {
+                        return RiverClusterState.builder().state(currentState).routing(RiversRouting.builder()).build();
                     }
                     return currentState;
                 }
-            });
-        }
+
+                RiversRouting.Builder routingBuilder = RiversRouting.builder().routing(currentState.routing());
+                boolean dirty = false;
+
+                IndexMetaData indexMetaData = event.state().metaData().index(riverIndexName);
+                // go over and create new river routing (with no node) for new types (rivers names)
+                for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+                    String mappingType = mappingMd.type(); // mapping type is the name of the river
+                    if (!currentState.routing().hasRiverByName(mappingType)) {
+                        // no river, we need to add it to the routing with no node allocation
+                        try {
+                            client.admin().indices().prepareRefresh(riverIndexName).execute().actionGet();
+                            GetResponse getResponse = client.prepareGet(riverIndexName, mappingType, "_meta").execute().actionGet();
+                            if (getResponse.exists()) {
+                                String riverType = XContentMapValues.nodeStringValue(getResponse.sourceAsMap().get("type"), null);
+                                if (riverType == null) {
+                                    logger.warn("no river type provided for [{}], ignoring...", riverIndexName);
+                                } else {
+                                    routingBuilder.put(new RiverRouting(new RiverName(riverType, mappingType), null));
+                                    dirty = true;
+                                }
+                            }
+                        } catch (NoShardAvailableActionException e) {
+                            // ignore, we will get it next time...
+                        } catch (ClusterBlockException e) {
+                            // ignore, we will get it next time
+                        } catch (IndexMissingException e) {
+                            // ignore, we will get it next time
+                        } catch (Exception e) {
+                            logger.warn("failed to get/parse _meta for [{}]", e, mappingType);
+                        }
+                    }
+                }
+                // now, remove routings that were deleted
+                for (RiverRouting routing : currentState.routing()) {
+                    if (!indexMetaData.mappings().containsKey(routing.riverName().name())) {
+                        routingBuilder.remove(routing);
+                        dirty = true;
+                    }
+                }
+
+                // build a list from nodes to rivers
+                Map<DiscoveryNode, List<RiverRouting>> nodesToRivers = Maps.newHashMap();
+
+                for (DiscoveryNode node : event.state().nodes()) {
+                    if (RiverNodeHelper.isRiverNode(node)) {
+                        nodesToRivers.put(node, Lists.<RiverRouting>newArrayList());
+                    }
+                }
+
+                List<RiverRouting> unassigned = Lists.newArrayList();
+                for (RiverRouting routing : routingBuilder.build()) {
+                    if (routing.node() == null) {
+                        unassigned.add(routing);
+                    } else {
+                        List<RiverRouting> l = nodesToRivers.get(routing.node());
+                        if (l == null) {
+                            l = Lists.newArrayList();
+                            nodesToRivers.put(routing.node(), l);
+                        }
+                        l.add(routing);
+                    }
+                }
+                for (Iterator<RiverRouting> it = unassigned.iterator(); it.hasNext();) {
+                    RiverRouting routing = it.next();
+                    DiscoveryNode smallest = null;
+                    int smallestSize = Integer.MAX_VALUE;
+                    for (Map.Entry<DiscoveryNode, List<RiverRouting>> entry : nodesToRivers.entrySet()) {
+                        if (RiverNodeHelper.isRiverNode(entry.getKey(), routing.riverName())) {
+                            if (entry.getValue().size() < smallestSize) {
+                                smallestSize = entry.getValue().size();
+                                smallest = entry.getKey();
+                            }
+                        }
+                    }
+                    if (smallest != null) {
+                        dirty = true;
+                        it.remove();
+                        routing.node(smallest);
+                        nodesToRivers.get(smallest).add(routing);
+                    }
+                }
+
+
+                // add relocation logic...
+
+                if (dirty) {
+                    return RiverClusterState.builder().state(currentState).routing(routingBuilder).build();
+                }
+                return currentState;
+            }
+        });
     }
 }

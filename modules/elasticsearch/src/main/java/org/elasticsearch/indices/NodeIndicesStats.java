@@ -39,6 +39,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private ByteSizeValue storeSize;
 
+    private long numDocs;
+
     private ByteSizeValue fieldCacheSize;
 
     private ByteSizeValue filterCacheSize;
@@ -48,9 +50,10 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(ByteSizeValue storeSize, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
+    public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
                             long fieldCacheEvictions) {
         this.storeSize = storeSize;
+        this.numDocs = numDocs;
         this.fieldCacheSize = fieldCacheSize;
         this.filterCacheSize = filterCacheSize;
         this.fieldCacheEvictions = fieldCacheEvictions;
@@ -68,6 +71,20 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
      */
     public ByteSizeValue getStoreSize() {
         return storeSize;
+    }
+
+    /**
+     * The number of docs on the node (an aggregation of the number of docs of all the shards allocated on the node).
+     */
+    public long numDocs() {
+        return numDocs;
+    }
+
+    /**
+     * The number of docs on the node (an aggregation of the number of docs of all the shards allocated on the node).
+     */
+    public long getNumDocs() {
+        return numDocs();
     }
 
     public ByteSizeValue fieldCacheSize() {
@@ -102,20 +119,25 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         storeSize = ByteSizeValue.readBytesSizeValue(in);
+        numDocs = in.readVLong();
         fieldCacheSize = ByteSizeValue.readBytesSizeValue(in);
         filterCacheSize = ByteSizeValue.readBytesSizeValue(in);
+        fieldCacheEvictions = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         storeSize.writeTo(out);
+        out.writeVLong(numDocs);
         fieldCacheSize.writeTo(out);
         filterCacheSize.writeTo(out);
+        out.writeVLong(fieldCacheEvictions);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
         builder.field(Fields.STORE_SIZE, storeSize.toString());
         builder.field(Fields.STORE_SIZE_IN_BYTES, storeSize.bytes());
+        builder.field(Fields.NUM_DOCS, numDocs);
         builder.field(Fields.FIELD_CACHE_EVICTIONS, fieldCacheEvictions);
         builder.field(Fields.FIELD_CACHE_SIZE, fieldCacheSize.toString());
         builder.field(Fields.FIELD_CACHE_SIZE_IN_BYTES, fieldCacheSize.bytes());
@@ -129,6 +151,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
         static final XContentBuilderString STORE_SIZE = new XContentBuilderString("store_size");
         static final XContentBuilderString STORE_SIZE_IN_BYTES = new XContentBuilderString("store_size_in_bytes");
+        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
         static final XContentBuilderString FIELD_CACHE_SIZE = new XContentBuilderString("field_cache_size");
         static final XContentBuilderString FIELD_CACHE_SIZE_IN_BYTES = new XContentBuilderString("field_cache_size_in_bytes");
         static final XContentBuilderString FIELD_CACHE_EVICTIONS = new XContentBuilderString("field_cache_evictions");

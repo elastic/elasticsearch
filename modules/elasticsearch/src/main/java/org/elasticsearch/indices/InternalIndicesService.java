@@ -43,6 +43,7 @@ import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -159,6 +161,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override public NodeIndicesStats stats() {
         long storeTotalSize = 0;
+        long numberOfDocs = 0;
         long fieldCacheEvictions = 0;
         long fieldCacheTotalSize = 0;
         long filterCacheTotalSize = 0;
@@ -169,12 +172,21 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 } catch (IOException e) {
                     // ignore
                 }
+
+                if (indexShard.state() == IndexShardState.STARTED) {
+                    Engine.Searcher searcher = indexShard.searcher();
+                    try {
+                        numberOfDocs += searcher.reader().numDocs();
+                    } finally {
+                        searcher.release();
+                    }
+                }
             }
             fieldCacheEvictions += indexService.cache().fieldData().evictions();
             fieldCacheTotalSize += indexService.cache().fieldData().sizeInBytes();
             filterCacheTotalSize += indexService.cache().filter().sizeInBytes();
         }
-        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), new ByteSizeValue(fieldCacheTotalSize), new ByteSizeValue(filterCacheTotalSize), fieldCacheEvictions);
+        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, new ByteSizeValue(fieldCacheTotalSize), new ByteSizeValue(filterCacheTotalSize), fieldCacheEvictions);
     }
 
     /**

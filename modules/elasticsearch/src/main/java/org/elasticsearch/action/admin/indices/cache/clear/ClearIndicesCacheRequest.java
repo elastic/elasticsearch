@@ -31,7 +31,10 @@ import java.io.IOException;
  */
 public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
 
-    private boolean filterCache = true;
+    private boolean filterCache = false;
+    private boolean fieldDataCache = false;
+    private boolean idCache = false;
+    private boolean bloomCache = false;
 
     ClearIndicesCacheRequest() {
     }
@@ -62,21 +65,51 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
         return filterCache;
     }
 
-    /**
-     * Should the filter cache be cleared or not. Defaults to <tt>true</tt>.
-     */
     public ClearIndicesCacheRequest filterCache(boolean filterCache) {
         this.filterCache = filterCache;
+        return this;
+    }
+
+    public boolean fieldDataCache() {
+        return this.fieldDataCache;
+    }
+
+    public ClearIndicesCacheRequest fieldDataCache(boolean fieldDataCache) {
+        this.fieldDataCache = fieldDataCache;
+        return this;
+    }
+
+    public boolean idCache() {
+        return this.idCache;
+    }
+
+    public ClearIndicesCacheRequest idCache(boolean idCache) {
+        this.idCache = idCache;
+        return this;
+    }
+
+    public boolean bloomCache() {
+        return this.bloomCache;
+    }
+
+    public ClearIndicesCacheRequest bloomCache(boolean bloomCache) {
+        this.bloomCache = bloomCache;
         return this;
     }
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         filterCache = in.readBoolean();
+        fieldDataCache = in.readBoolean();
+        idCache = in.readBoolean();
+        bloomCache = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(filterCache);
+        out.writeBoolean(fieldDataCache);
+        out.writeBoolean(idCache);
+        out.writeBoolean(bloomCache);
     }
 }

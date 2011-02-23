@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.controller;
 
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 
 /**
@@ -27,16 +26,21 @@ import org.apache.lucene.util.PriorityQueue;
  *
  * @author kimchy (Shay Banon)
  */
-public class ScoreDocQueue extends PriorityQueue<ScoreDoc> {
+public class ScoreDocQueue extends PriorityQueue<ShardScoreDoc> {
 
     public ScoreDocQueue(int size) {
         initialize(size);
     }
 
-    protected final boolean lessThan(ScoreDoc hitA, ScoreDoc hitB) {
-        if (hitA.score == hitB.score)
-            return hitA.doc > hitB.doc;
-        else
+    protected final boolean lessThan(ShardScoreDoc hitA, ShardScoreDoc hitB) {
+        if (hitA.score == hitB.score) {
+            int c = hitA.shardTarget().compareTo(hitB.shardTarget());
+            if (c == 0) {
+                return hitA.doc > hitB.doc;
+            }
+            return c > 0;
+        } else {
             return hitA.score < hitB.score;
+        }
     }
 }

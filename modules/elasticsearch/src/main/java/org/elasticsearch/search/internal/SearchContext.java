@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lease.Releasable;
@@ -74,6 +75,8 @@ public class SearchContext implements Releasable {
     private final long id;
 
     private final SearchShardTarget shardTarget;
+
+    private final SearchType searchType;
 
     private final int numberOfShards;
 
@@ -144,9 +147,10 @@ public class SearchContext implements Releasable {
 
     private volatile long lastAccessTime;
 
-    public SearchContext(long id, SearchShardTarget shardTarget, int numberOfShards, TimeValue timeout,
+    public SearchContext(long id, SearchShardTarget shardTarget, SearchType searchType, int numberOfShards, TimeValue timeout,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
         this.id = id;
+        this.searchType = searchType;
         this.shardTarget = shardTarget;
         this.numberOfShards = numberOfShards;
         this.timeout = timeout;
@@ -180,6 +184,10 @@ public class SearchContext implements Releasable {
 
     public long id() {
         return this.id;
+    }
+
+    public SearchType searchType() {
+        return this.searchType;
     }
 
     public SearchShardTarget shardTarget() {

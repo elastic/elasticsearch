@@ -64,7 +64,7 @@ public abstract class TransportSearchHelper {
     }
 
     public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request) {
-        InternalSearchRequest internalRequest = new InternalSearchRequest(shardRouting, numberOfShards);
+        InternalSearchRequest internalRequest = new InternalSearchRequest(shardRouting, numberOfShards, request.searchType());
         internalRequest.source(request.source(), request.sourceOffset(), request.sourceLength());
         internalRequest.extraSource(request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
         internalRequest.scroll(request.scroll());

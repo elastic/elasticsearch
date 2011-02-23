@@ -54,7 +54,11 @@ public enum SearchType {
      * Performs scanning of the results which executes the search without any sorting.
      * It will automatically start scrolling the result set.
      */
-    SCAN((byte) 4);
+    SCAN((byte) 4),
+    /**
+     * Only counts the results, will still execute facets and the like.
+     */
+    COUNT((byte) 5);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
@@ -88,6 +92,8 @@ public enum SearchType {
             return QUERY_AND_FETCH;
         } else if (id == 4) {
             return SCAN;
+        } else if (id == 5) {
+            return COUNT;
         } else {
             throw new ElasticSearchIllegalArgumentException("No search type for [" + id + "]");
         }
@@ -112,6 +118,8 @@ public enum SearchType {
             return SearchType.QUERY_AND_FETCH;
         } else if ("scan".equals(searchType)) {
             return SearchType.SCAN;
+        } else if ("count".equals(searchType)) {
+            return SearchType.COUNT;
         } else {
             throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
         }

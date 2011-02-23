@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.internal.ScopePhase;
 
 /**
@@ -30,6 +31,8 @@ import org.elasticsearch.search.internal.ScopePhase;
  * @author kimchy (shay.banon)
  */
 public class ParsedQuery {
+
+    public static ParsedQuery MATCH_ALL_PARSED_QUERY = new ParsedQuery(Queries.MATCH_ALL_QUERY, ImmutableMap.<String, Filter>of(), new ScopePhase[0]);
 
     private final Query query;
 

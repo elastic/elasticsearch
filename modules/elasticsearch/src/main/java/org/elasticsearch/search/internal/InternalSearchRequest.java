@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Strings;
@@ -61,6 +62,8 @@ public class InternalSearchRequest implements Streamable {
 
     private int numberOfShards;
 
+    private SearchType searchType;
+
     private Scroll scroll;
 
     private TimeValue timeout;
@@ -78,14 +81,15 @@ public class InternalSearchRequest implements Streamable {
     public InternalSearchRequest() {
     }
 
-    public InternalSearchRequest(ShardRouting shardRouting, int numberOfShards) {
-        this(shardRouting.index(), shardRouting.id(), numberOfShards);
+    public InternalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchType searchType) {
+        this(shardRouting.index(), shardRouting.id(), numberOfShards, searchType);
     }
 
-    public InternalSearchRequest(String index, int shardId, int numberOfShards) {
+    public InternalSearchRequest(String index, int shardId, int numberOfShards, SearchType searchType) {
         this.index = index;
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
+        this.searchType = searchType;
     }
 
     public String index() {
@@ -94,6 +98,10 @@ public class InternalSearchRequest implements Streamable {
 
     public int shardId() {
         return shardId;
+    }
+
+    public SearchType searchType() {
+        return this.searchType;
     }
 
     public int numberOfShards() {
@@ -171,6 +179,7 @@ public class InternalSearchRequest implements Streamable {
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         shardId = in.readVInt();
+        searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -206,6 +215,7 @@ public class InternalSearchRequest implements Streamable {
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeVInt(shardId);
+        out.writeByte(searchType.id());
         out.writeVInt(numberOfShards);
         if (scroll == null) {
             out.writeBoolean(false);

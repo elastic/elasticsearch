@@ -30,7 +30,10 @@ import java.io.IOException;
  */
 class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
 
-    private boolean filterCache = true;
+    private boolean filterCache = false;
+    private boolean fieldDataCache = false;
+    private boolean idCache = false;
+    private boolean bloomCache = false;
 
     ShardClearIndicesCacheRequest() {
     }
@@ -38,10 +41,25 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     public ShardClearIndicesCacheRequest(String index, int shardId, ClearIndicesCacheRequest request) {
         super(index, shardId);
         filterCache = request.filterCache();
+        fieldDataCache = request.fieldDataCache();
+        idCache = request.idCache();
+        bloomCache = request.bloomCache();
     }
 
     public boolean filterCache() {
         return filterCache;
+    }
+
+    public boolean fieldDataCache() {
+        return this.fieldDataCache;
+    }
+
+    public boolean idCache() {
+        return this.idCache;
+    }
+
+    public boolean bloomCache() {
+        return this.bloomCache;
     }
 
     public ShardClearIndicesCacheRequest waitForOperations(boolean waitForOperations) {
@@ -52,10 +70,16 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         filterCache = in.readBoolean();
+        fieldDataCache = in.readBoolean();
+        idCache = in.readBoolean();
+        bloomCache = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(filterCache);
+        out.writeBoolean(fieldDataCache);
+        out.writeBoolean(idCache);
+        out.writeBoolean(bloomCache);
     }
 }

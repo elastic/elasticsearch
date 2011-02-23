@@ -54,7 +54,10 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(RestActions.splitIndices(request.param("index")));
         try {
-            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter_cache", clearIndicesCacheRequest.filterCache()));
+            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
+            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
+            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
+            clearIndicesCacheRequest.bloomCache(request.paramAsBoolean("bloom", clearIndicesCacheRequest.bloomCache()));
 
             // we just send back a response, no need to fork a listener
             clearIndicesCacheRequest.listenerThreaded(false);

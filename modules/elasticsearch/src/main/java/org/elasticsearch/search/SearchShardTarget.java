@@ -32,7 +32,7 @@ import java.io.Serializable;
  *
  * @author kimchy (shay.banon)
  */
-public class SearchShardTarget implements Streamable, Serializable {
+public class SearchShardTarget implements Streamable, Serializable, Comparable<SearchShardTarget> {
 
     private String nodeId;
 
@@ -78,6 +78,14 @@ public class SearchShardTarget implements Streamable, Serializable {
         SearchShardTarget result = new SearchShardTarget();
         result.readFrom(in);
         return result;
+    }
+
+    @Override public int compareTo(SearchShardTarget o) {
+        int i = index.compareTo(o.index());
+        if (i == 0) {
+            i = shardId - o.shardId;
+        }
+        return i;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

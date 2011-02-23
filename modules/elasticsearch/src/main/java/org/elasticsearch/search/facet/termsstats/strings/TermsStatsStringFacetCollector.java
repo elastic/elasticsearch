@@ -132,7 +132,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         String key = keyFieldData.stringValue(doc);
         InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(key);
         if (stringEntry == null) {
-            stringEntry = new InternalTermsStatsStringFacet.StringEntry(key, 1, 0);
+            stringEntry = new InternalTermsStatsStringFacet.StringEntry(key, 1, 0, Double.NaN, Double.NaN);
             entries.put(key, stringEntry);
         } else {
             stringEntry.count++;
@@ -140,15 +140,33 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         if (script == null) {
             if (valueFieldData.multiValued()) {
                 for (double value : valueFieldData.doubleValues(doc)) {
+                    if (value < stringEntry.min || Double.isNaN(stringEntry.min)) {
+                        stringEntry.min = value;
+                    }
+                    if (value > stringEntry.max || Double.isNaN(stringEntry.max)) {
+                        stringEntry.max = value;
+                    }
                     stringEntry.total += value;
                 }
             } else {
                 double value = valueFieldData.doubleValue(doc);
+                if (value < stringEntry.min || Double.isNaN(stringEntry.min)) {
+                    stringEntry.min = value;
+                }
+                if (value > stringEntry.max || Double.isNaN(stringEntry.max)) {
+                    stringEntry.max = value;
+                }
                 stringEntry.total += value;
             }
         } else {
             script.setNextDocId(doc);
             double value = script.runAsDouble();
+            if (value < stringEntry.min || Double.isNaN(stringEntry.min)) {
+                stringEntry.min = value;
+            }
+            if (value > stringEntry.max || Double.isNaN(stringEntry.max)) {
+                stringEntry.max = value;
+            }
             stringEntry.total += value;
         }
     }

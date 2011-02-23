@@ -129,26 +129,44 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
             return;
         }
         double key = keyFieldData.doubleValue(doc);
-        InternalTermsStatsDoubleFacet.DoubleEntry DoubleEntry = entries.get(key);
-        if (DoubleEntry == null) {
-            DoubleEntry = new InternalTermsStatsDoubleFacet.DoubleEntry(key, 1, 0);
-            entries.put(key, DoubleEntry);
+        InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry = entries.get(key);
+        if (doubleEntry == null) {
+            doubleEntry = new InternalTermsStatsDoubleFacet.DoubleEntry(key, 1, 0, Double.NaN, Double.NaN);
+            entries.put(key, doubleEntry);
         } else {
-            DoubleEntry.count++;
+            doubleEntry.count++;
         }
         if (script == null) {
             if (valueFieldData.multiValued()) {
                 for (double value : valueFieldData.doubleValues(doc)) {
-                    DoubleEntry.total += value;
+                    if (value < doubleEntry.min || Double.isNaN(doubleEntry.min)) {
+                        doubleEntry.min = value;
+                    }
+                    if (value > doubleEntry.max || Double.isNaN(doubleEntry.max)) {
+                        doubleEntry.max = value;
+                    }
+                    doubleEntry.total += value;
                 }
             } else {
                 double value = valueFieldData.doubleValue(doc);
-                DoubleEntry.total += value;
+                if (value < doubleEntry.min || Double.isNaN(doubleEntry.min)) {
+                    doubleEntry.min = value;
+                }
+                if (value > doubleEntry.max || Double.isNaN(doubleEntry.max)) {
+                    doubleEntry.max = value;
+                }
+                doubleEntry.total += value;
             }
         } else {
             script.setNextDocId(doc);
             double value = script.runAsDouble();
-            DoubleEntry.total += value;
+            if (value < doubleEntry.min || Double.isNaN(doubleEntry.min)) {
+                doubleEntry.min = value;
+            }
+            if (value > doubleEntry.max || Double.isNaN(doubleEntry.max)) {
+                doubleEntry.max = value;
+            }
+            doubleEntry.total += value;
         }
     }
 

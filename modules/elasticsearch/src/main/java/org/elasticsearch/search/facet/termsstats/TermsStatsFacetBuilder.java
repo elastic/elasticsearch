@@ -147,6 +147,8 @@ public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
 
         builder.endObject();
 
+        addFilterFacetAndGlobal(builder, params);
+
         builder.endObject();
 
         return builder;

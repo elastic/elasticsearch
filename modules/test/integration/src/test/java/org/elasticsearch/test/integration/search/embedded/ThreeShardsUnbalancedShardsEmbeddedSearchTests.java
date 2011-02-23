@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.embedded;
 
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -123,7 +124,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardIt) {
-                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
+                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.DFS_QUERY_THEN_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
             }
@@ -190,7 +191,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardIt) {
-                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
+                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.DFS_QUERY_THEN_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
             }
@@ -280,7 +281,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardIt) {
-                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
+                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.QUERY_AND_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
             }
@@ -335,7 +336,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, null, null)) {
             for (ShardRouting shardRouting : shardIt) {
-                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder)
+                InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.QUERY_THEN_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 QuerySearchResult queryResult = nodeToSearchService.get(shardRouting.currentNodeId()).executeQueryPhase(searchRequest);
                 queryResults.put(queryResult.shardTarget(), queryResult);
@@ -364,8 +365,8 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         testSimpleFacets();
     }
 
-    private static InternalSearchRequest searchRequest(ShardRouting shardRouting, SearchSourceBuilder builder) {
-        return new InternalSearchRequest(shardRouting, 3).source(builder.buildAsBytes());
+    private static InternalSearchRequest searchRequest(ShardRouting shardRouting, SearchSourceBuilder builder, SearchType searchType) {
+        return new InternalSearchRequest(shardRouting, 3, searchType).source(builder.buildAsBytes());
     }
 
     private void index(Client client, String id, String nameValue, int age) {

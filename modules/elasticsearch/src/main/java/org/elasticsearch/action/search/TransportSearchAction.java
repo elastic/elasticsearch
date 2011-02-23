@@ -53,6 +53,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     private final TransportSearchScanAction scanAction;
 
+    private final TransportSearchCountAction countAction;
+
     private final boolean optimizeSingleShard;
 
     @Inject public TransportSearchAction(Settings settings, ThreadPool threadPool,
@@ -61,7 +63,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
                                          TransportSearchQueryThenFetchAction queryThenFetchAction,
                                          TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                          TransportSearchQueryAndFetchAction queryAndFetchAction,
-                                         TransportSearchScanAction scanAction) {
+                                         TransportSearchScanAction scanAction,
+                                         TransportSearchCountAction countAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
@@ -69,6 +72,7 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
         this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;
+        this.countAction = countAction;
 
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
 
@@ -77,7 +81,7 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
 
     @Override protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
-        if (optimizeSingleShard && searchRequest.searchType() != SCAN) {
+        if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
             try {
                 ClusterState clusterState = clusterService.state();
                 searchRequest.indices(clusterState.metaData().concreteIndices(searchRequest.indices()));
@@ -104,6 +108,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             queryAndFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.SCAN) {
             scanAction.execute(searchRequest, listener);
+        } else if (searchRequest.searchType() == SearchType.COUNT) {
+            countAction.execute(searchRequest, listener);
         }
     }
 

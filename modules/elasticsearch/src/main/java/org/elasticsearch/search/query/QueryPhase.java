@@ -21,13 +21,13 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -73,7 +73,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override public void preProcess(SearchContext context) {
         if (context.query() == null) {
-            throw new SearchParseException(context, "No query specified in search request");
+            context.parsedQuery(ParsedQuery.MATCH_ALL_PARSED_QUERY);
         }
         if (context.queryBoost() != 1.0f) {
             context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
@@ -187,7 +187,15 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            if (searchContext.scanning()) {
+            if (searchContext.searchType() == SearchType.COUNT) {
+                CountCollector countCollector = new CountCollector();
+                try {
+                    searchContext.searcher().search(query, countCollector);
+                } catch (ScanCollector.StopCollectingException e) {
+                    // all is well
+                }
+                topDocs = countCollector.topDocs();
+            } else if (searchContext.scanning()) {
                 ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size());
                 try {
                     searchContext.searcher().search(query, scanCollector);
@@ -208,6 +216,31 @@ public class QueryPhase implements SearchPhase {
         }
 
         facetPhase.execute(searchContext);
+    }
+
+    static class CountCollector extends Collector {
+
+        private int totalHits = 0;
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            totalHits++;
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+
+        public TopDocs topDocs() {
+            return new TopDocs(totalHits, EMPTY, 0);
+        }
+
+        private static ScoreDoc[] EMPTY = new ScoreDoc[0];
     }
 
     static class ScanCollector extends Collector {

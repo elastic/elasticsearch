@@ -105,7 +105,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
+                .setSearchType(SearchType.COUNT)
                 .setFacets(XContentFactory.jsonBuilder().startObject()
                         .startObject("facet1")
                         .startObject("terms")
@@ -115,7 +115,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                         .endObject().copiedBytes())
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().hits().length, equalTo(2));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().hits().length, equalTo(0));
         TermsFacet facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(2));

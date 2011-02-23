@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.embedded;
 
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
@@ -31,8 +32,6 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -103,7 +102,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testDirectDfs() throws Exception {
-        DfsSearchResult dfsResult = searchService.executeDfsPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
+        DfsSearchResult dfsResult = searchService.executeDfsPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.DFS_QUERY_THEN_FETCH));
 
         assertThat(dfsResult.terms().length, equalTo(1));
         assertThat(dfsResult.freqs().length, equalTo(1));
@@ -113,12 +112,12 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testDirectQuery() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(1));
     }
 
     @Test public void testDirectFetch() throws Exception {
-        QueryFetchSearchResult queryFetchResult = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
+        QueryFetchSearchResult queryFetchResult = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.QUERY_AND_FETCH));
         assertThat(queryFetchResult.queryResult().topDocs().totalHits, equalTo(1));
         assertThat(queryFetchResult.fetchResult().hits().hits().length, equalTo(1));
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
@@ -128,7 +127,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
 
     @Test public void testScan() throws Exception {
         Scroll scroll = new Scroll(TimeValue.timeValueMillis(500));
-        ScanSearchResult scanResult = searchService.executeScan(searchRequest(searchSource().query(matchAllQuery()).size(2)).scroll(scroll));
+        ScanSearchResult scanResult = searchService.executeScan(searchRequest(searchSource().query(matchAllQuery()).size(2), SearchType.SCAN).scroll(scroll));
         assertThat(scanResult.totalHits(), equalTo(5l));
 
         Set<String> idsLoaded = Sets.newHashSet();
@@ -165,7 +164,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testQueryThenFetch() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(1));
 
         ShardDoc[] sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
@@ -180,7 +179,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testQueryThenFetchIterateWithFrom() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2)));
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 
         Set<String> idsLoaded = Sets.newHashSet();
@@ -197,7 +196,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         }
 
         // iterate to the next 2
-        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2)));
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 
         sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
@@ -212,7 +211,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         }
 
         // iterate to the next 2
-        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2)));
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 
         sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
@@ -232,7 +231,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testQueryThenFetchIterateWithFromSortedByAge() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC)));
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 
         Set<String> idsLoaded = Sets.newHashSet();
@@ -249,7 +248,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         }
 
         // iterate to the next 2
-        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2).sort("age", SortOrder.DESC)));
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2).sort("age", SortOrder.DESC), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 
         sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
@@ -264,7 +263,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         }
 
         // iterate to the next 2
-        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2).sort("age", SortOrder.DESC)));
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2).sort("age", SortOrder.DESC), SearchType.QUERY_THEN_FETCH));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 
         sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
@@ -284,7 +283,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testQueryAndFetch() throws Exception {
-        QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
+        QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.QUERY_AND_FETCH));
         FetchSearchResult fetchResult = result.fetchResult();
         assertThat(fetchResult.hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(fetchResult.hits().hits()[0].id(), equalTo("1"));
@@ -292,7 +291,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testQueryAndFetchIterateWithFrom() throws Exception {
-        QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC)));
+        QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC), SearchType.QUERY_AND_FETCH));
         assertThat(result.queryResult().topDocs().totalHits, equalTo(5));
 
         Set<String> idsLoaded = Sets.newHashSet();
@@ -307,7 +306,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         }
 
         // iterate to the next 2
-        result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2).sort("age", SortOrder.DESC)));
+        result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2).sort("age", SortOrder.DESC), SearchType.QUERY_AND_FETCH));
         assertThat(result.queryResult().topDocs().totalHits, equalTo(5));
 
         sortedShardList = searchPhaseController.sortDocs(newArrayList(result));
@@ -318,7 +317,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             idsLoaded.add(hit.id());
         }
-        result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2).sort("age", SortOrder.DESC)));
+        result = searchService.executeFetchPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2).sort("age", SortOrder.DESC), SearchType.QUERY_AND_FETCH));
         assertThat(result.queryResult().topDocs().totalHits, equalTo(5));
 
         sortedShardList = searchPhaseController.sortDocs(newArrayList(result));
@@ -336,7 +335,7 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testDfsQueryThenFetch() throws Exception {
-        DfsSearchResult dfsResult = searchService.executeDfsPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
+        DfsSearchResult dfsResult = searchService.executeDfsPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.DFS_QUERY_THEN_FETCH));
         AggregatedDfs dfs = searchPhaseController.aggregateDfs(newArrayList(dfsResult));
 
         QuerySearchResult queryResult = searchService.executeQueryPhase(new QuerySearchRequest(dfsResult.id(), dfs));
@@ -353,18 +352,8 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
 
-    @Test public void testSimpleQueryFacets() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(
-                searchSource().query(wildcardQuery("name", "te*"))
-                        .facet(FacetBuilders.queryFacet("age1", termQuery("age", 1)))
-                        .facet(FacetBuilders.queryFacet("age2", termQuery("age", 2)))
-        ));
-        assertThat(queryResult.facets().facet(QueryFacet.class, "age2").count(), equalTo(1l));
-        assertThat(queryResult.facets().facet(QueryFacet.class, "age1").count(), equalTo(1l));
-    }
-
     @Test public void testQueryFetchKeepAliveTimeout() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1"))).scroll(new Scroll(TimeValue.timeValueMillis(10))));
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1")), SearchType.QUERY_THEN_FETCH).scroll(new Scroll(TimeValue.timeValueMillis(10))));
         assertThat(queryResult.topDocs().totalHits, equalTo(1));
 
         ShardDoc[] sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
@@ -384,8 +373,8 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
 
-    private InternalSearchRequest searchRequest(SearchSourceBuilder builder) {
-        return new InternalSearchRequest("test", 0, 1).source(builder.buildAsBytes());
+    private InternalSearchRequest searchRequest(SearchSourceBuilder builder, SearchType searchType) {
+        return new InternalSearchRequest("test", 0, 1, searchType).source(builder.buildAsBytes());
     }
 
     private void index(String id, String nameValue, int age) {

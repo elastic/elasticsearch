@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Unicode;
@@ -219,7 +220,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             contextProcessing(context);
             queryPhase.execute(context);
-            contextProcessedSuccessfully(context);
+            if (context.searchType() == SearchType.COUNT) {
+                freeContext(context.id());
+            } else {
+                contextProcessedSuccessfully(context);
+            }
             return context.queryResult();
         } catch (RuntimeException e) {
             freeContext(context);
@@ -375,7 +380,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
         Engine.Searcher engineSearcher = indexShard.searcher();
-        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.numberOfShards(), request.timeout(), request.types(), engineSearcher, indexService, scriptService);
+        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.searchType(), request.numberOfShards(), request.timeout(), request.types(), engineSearcher, indexService, scriptService);
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());

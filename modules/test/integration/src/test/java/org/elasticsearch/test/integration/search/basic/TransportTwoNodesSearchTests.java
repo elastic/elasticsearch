@@ -59,6 +59,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
 
     private Client client;
 
+    private Set<String> fullExpectedIds = Sets.newHashSet();
+
     @BeforeClass public void createNodes() throws Exception {
         startNode("server1");
         startNode("server2");
@@ -72,6 +74,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);
+            fullExpectedIds.add(Integer.toString(i));
         }
         client.admin().indices().refresh(refreshRequest("test")).actionGet();
     }
@@ -164,6 +167,32 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
             SearchHit hit = searchResponse.hits().hits()[i];
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
         }
+    }
+
+    @Test public void testQueryThenFetchWithFrom() throws Exception {
+        SearchSourceBuilder source = searchSource()
+                .query(matchAllQuery())
+                .explain(true);
+
+        Set<String> collectedIds = Sets.newHashSet();
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(60));
+        for (int i = 0; i < 60; i++) {
+            SearchHit hit = searchResponse.hits().hits()[i];
+            collectedIds.add(hit.id());
+        }
+        searchResponse = client.search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(40));
+        for (int i = 0; i < 40; i++) {
+            SearchHit hit = searchResponse.hits().hits()[i];
+            collectedIds.add(hit.id());
+        }
+        assertThat(collectedIds, equalTo(fullExpectedIds));
     }
 
     @Test public void testQueryThenFetchWithSort() throws Exception {

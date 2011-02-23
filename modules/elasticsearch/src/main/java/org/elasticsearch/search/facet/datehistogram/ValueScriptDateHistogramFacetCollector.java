@@ -158,13 +158,5 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
             double scriptValue = valueScript.runAsDouble();
             totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
         }
-
-        public TLongLongHashMap counts() {
-            return counts;
-        }
-
-        public TLongDoubleHashMap totals() {
-            return totals;
-        }
     }
 }

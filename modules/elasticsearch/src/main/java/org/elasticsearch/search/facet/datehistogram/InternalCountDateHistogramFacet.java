@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.iterator.TLongLongIterator;
@@ -30,10 +29,9 @@ import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TreeSet;
 
 /**
  * @author kimchy (shay.banon)
@@ -108,7 +106,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
     TLongLongHashMap counts;
 
-    Collection<CountEntry> entries = null;
+    CountEntry[] entries = null;
 
     private InternalCountDateHistogramFacet() {
     }
@@ -136,11 +134,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     }
 
     @Override public List<CountEntry> entries() {
-        computeEntries();
-        if (!(entries instanceof List)) {
-            entries = ImmutableList.copyOf(entries);
-        }
-        return (List<CountEntry>) entries;
+        return Arrays.asList(computeEntries());
     }
 
     @Override public List<CountEntry> getEntries() {
@@ -148,19 +142,20 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     }
 
     @Override public Iterator<Entry> iterator() {
-        return (Iterator) computeEntries().iterator();
+        return (Iterator) entries().iterator();
     }
 
-    private Collection<CountEntry> computeEntries() {
+    private CountEntry[] computeEntries() {
         if (entries != null) {
             return entries;
         }
-        TreeSet<CountEntry> set = new TreeSet<CountEntry>(comparatorType.comparator());
+        entries = new CountEntry[counts.size()];
+        int i = 0;
         for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
             it.advance();
-            set.add(new CountEntry(it.key(), it.value()));
+            entries[i++] = new CountEntry(it.key(), it.value());
         }
-        entries = set;
+        Arrays.sort(entries, comparatorType.comparator());
         return entries;
     }
 

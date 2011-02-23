@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.iterator.TLongDoubleIterator;
@@ -31,10 +30,9 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TreeSet;
 
 /**
  * @author kimchy (shay.banon)
@@ -137,7 +135,7 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
 
     TLongDoubleHashMap totals;
 
-    Collection<CountAndTotalEntry> entries = null;
+    CountAndTotalEntry[] entries = null;
 
     private InternalCountAndTotalHistogramFacet() {
     }
@@ -166,11 +164,7 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
     }
 
     @Override public List<CountAndTotalEntry> entries() {
-        computeEntries();
-        if (!(entries instanceof List)) {
-            entries = ImmutableList.copyOf(entries);
-        }
-        return (List<CountAndTotalEntry>) entries;
+        return Arrays.asList(computeEntries());
     }
 
     @Override public List<CountAndTotalEntry> getEntries() {
@@ -178,19 +172,20 @@ public class InternalCountAndTotalHistogramFacet extends InternalHistogramFacet 
     }
 
     @Override public Iterator<Entry> iterator() {
-        return (Iterator) computeEntries().iterator();
+        return (Iterator) entries().iterator();
     }
 
-    private Collection<CountAndTotalEntry> computeEntries() {
+    private CountAndTotalEntry[] computeEntries() {
         if (entries != null) {
             return entries;
         }
-        TreeSet<CountAndTotalEntry> set = new TreeSet<CountAndTotalEntry>(comparatorType.comparator());
+        entries = new CountAndTotalEntry[counts.size()];
+        int i = 0;
         for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
             it.advance();
-            set.add(new CountAndTotalEntry(it.key(), it.value(), totals.get(it.key())));
+            entries[i++] = new CountAndTotalEntry(it.key(), it.value(), totals.get(it.key()));
         }
-        entries = set;
+        Arrays.sort(entries, comparatorType.comparator());
         return entries;
     }
 

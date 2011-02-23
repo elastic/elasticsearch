@@ -40,11 +40,23 @@ public class ClearIndicesCacheRequestBuilder extends BaseIndicesRequestBuilder<C
         return this;
     }
 
-    /**
-     * Should the filter cache be cleared or not. Defaults to <tt>true</tt>.
-     */
     public ClearIndicesCacheRequestBuilder setFilterCache(boolean filterCache) {
         request.filterCache(filterCache);
+        return this;
+    }
+
+    public ClearIndicesCacheRequestBuilder setFieldDataCache(boolean fieldDataCache) {
+        request.fieldDataCache(fieldDataCache);
+        return this;
+    }
+
+    public ClearIndicesCacheRequestBuilder setIdCache(boolean idCache) {
+        request.idCache(idCache);
+        return this;
+    }
+
+    public ClearIndicesCacheRequestBuilder setBloomCache(boolean bloomCache) {
+        request.bloomCache(bloomCache);
         return this;
     }
 

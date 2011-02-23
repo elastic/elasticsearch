@@ -22,10 +22,10 @@ package org.elasticsearch.search.facet.termsstats.strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.map.hash.THashMap;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -39,10 +39,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.TreeSet;
+import java.util.*;
 
 public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
@@ -70,7 +67,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
 
     private int missing = 0;
-    private final THashMap<String, InternalTermsStatsStringFacet.StringEntry> entries;
+    private final ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> entries;
 
     public TermsStatsStringFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
                                           SearchContext context, String scriptLang, String script, Map<String, Object> params) {
@@ -165,8 +162,18 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
             return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.values(), missing);
         }
         // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-        TreeSet<InternalTermsStatsStringFacet.StringEntry> ordered = new BoundedTreeSet<InternalTermsStatsStringFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
-        ordered.addAll(entries.values());
+        Object[] values = entries.internalValues();
+        Arrays.sort(values, (Comparator) comparatorType.comparator());
+
+        List<InternalTermsStatsStringFacet.StringEntry> ordered = Lists.newArrayList();
+        int limit = size * numberOfShards;
+        for (int i = 0; i < limit; i++) {
+            InternalTermsStatsStringFacet.StringEntry value = (InternalTermsStatsStringFacet.StringEntry) values[i];
+            if (value == null) {
+                break;
+            }
+            ordered.add(value);
+        }
 
         // that's fine to push here, this thread will be released AFTER the entries have either been serialized
         // or processed
@@ -175,27 +182,27 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
     }
 
 
-    static THashMap<String, InternalTermsStatsStringFacet.StringEntry> popFacets() {
-        Deque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>> deque = cache.get().get();
+    static ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> popFacets() {
+        Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>> deque = cache.get().get();
         if (deque.isEmpty()) {
-            deque.add(new THashMap<String, InternalTermsStatsStringFacet.StringEntry>());
+            deque.add(new ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>());
         }
-        THashMap<String, InternalTermsStatsStringFacet.StringEntry> facets = deque.pollFirst();
+        ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> facets = deque.pollFirst();
         facets.clear();
         return facets;
     }
 
-    static void pushFacets(THashMap<String, InternalTermsStatsStringFacet.StringEntry> facets) {
+    static void pushFacets(ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> facets) {
         facets.clear();
-        Deque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>> deque = cache.get().get();
+        Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>> deque = cache.get().get();
         if (deque != null) {
             deque.add(facets);
         }
     }
 
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>>>(new ArrayDeque<THashMap<String, InternalTermsStatsStringFacet.StringEntry>>());
+    static ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>>>() {
+        @Override protected ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>> initialValue() {
+            return new ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>>(new ArrayDeque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>());
         }
     };
 }

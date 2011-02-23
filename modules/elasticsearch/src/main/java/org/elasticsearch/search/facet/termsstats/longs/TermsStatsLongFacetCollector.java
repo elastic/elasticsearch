@@ -22,10 +22,10 @@ package org.elasticsearch.search.facet.termsstats.longs;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.map.hash.TLongObjectHashMap;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -38,10 +38,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.TreeSet;
+import java.util.*;
 
 public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
 
@@ -69,7 +66,7 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
 
 
     private int missing = 0;
-    private final TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
+    private final ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
 
     public TermsStatsLongFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
                                         SearchContext context, String scriptLang, String script, Map<String, Object> params) {
@@ -163,10 +160,20 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
             // all terms, just return the collection, we will sort it on the way back
             return new InternalTermsStatsLongFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.valueCollection(), missing);
         }
-        // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-        TreeSet<InternalTermsStatsLongFacet.LongEntry> ordered = new BoundedTreeSet<InternalTermsStatsLongFacet.LongEntry>(comparatorType.comparator(), size * numberOfShards);
-        ordered.addAll(entries.valueCollection());
 
+        // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
+        Object[] values = entries.internalValues();
+        Arrays.sort(values, (Comparator) comparatorType.comparator());
+
+        int limit = size * numberOfShards;
+        List<InternalTermsStatsLongFacet.LongEntry> ordered = Lists.newArrayList();
+        for (int i = 0; i < limit; i++) {
+            InternalTermsStatsLongFacet.LongEntry value = (InternalTermsStatsLongFacet.LongEntry) values[i];
+            if (value == null) {
+                break;
+            }
+            ordered.add(value);
+        }
         // that's fine to push here, this thread will be released AFTER the entries have either been serialized
         // or processed
         pushFacets(entries);
@@ -174,27 +181,27 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
     }
 
 
-    static TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> popFacets() {
-        Deque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> deque = cache.get().get();
+    static ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> popFacets() {
+        Deque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> deque = cache.get().get();
         if (deque.isEmpty()) {
-            deque.add(new TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>());
+            deque.add(new ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>());
         }
-        TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> facets = deque.pollFirst();
+        ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> facets = deque.pollFirst();
         facets.clear();
         return facets;
     }
 
-    static void pushFacets(TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> facets) {
+    static void pushFacets(ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> facets) {
         facets.clear();
-        Deque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> deque = cache.get().get();
+        Deque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> deque = cache.get().get();
         if (deque != null) {
             deque.add(facets);
         }
     }
 
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>>(new ArrayDeque<TLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>());
+    static ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>>>() {
+        @Override protected ThreadLocals.CleanableValue<Deque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>> initialValue() {
+            return new ThreadLocals.CleanableValue<Deque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>>(new ArrayDeque<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>>());
         }
     };
 }

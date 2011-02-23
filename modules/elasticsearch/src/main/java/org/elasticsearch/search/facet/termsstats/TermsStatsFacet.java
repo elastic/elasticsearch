@@ -60,6 +60,13 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         COUNT((byte) 0, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 int i = o2.count() - o1.count();
                 if (i == 0) {
                     i = o2.term().compareTo(o1.term());
@@ -76,6 +83,13 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         REVERSE_COUNT((byte) 1, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return -COUNT.comparator().compare(o1, o2);
             }
         }),
@@ -85,6 +99,13 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         TERM((byte) 2, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 int i = o1.compareTo(o2);
                 if (i == 0) {
                     i = COUNT.comparator().compare(o1, o2);
@@ -98,12 +119,26 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         REVERSE_TERM((byte) 3, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return -TERM.comparator().compare(o1, o2);
             }
         }),
 
         TOTAL((byte) 4, new Comparator<Entry>() {
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 if (o2.total() < o1.total()) {
                     return -1;
                 } else if (o2.total() == o1.total()) {
@@ -116,6 +151,13 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
 
         REVERSE_TOTAL((byte) 5, new Comparator<Entry>() {
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return -TOTAL.comparator().compare(o1, o2);
             }
         });

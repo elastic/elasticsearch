@@ -180,6 +180,58 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testQueryThenFetchIterateWithFrom() throws Exception {
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2)));
+        assertThat(queryResult.topDocs().totalHits, equalTo(5));
+
+        Set<String> idsLoaded = Sets.newHashSet();
+
+        ShardDoc[] sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(2));
+
+        FetchSearchResult fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+        assertThat(fetchResult.hits().hits().length, equalTo(2));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // iterate to the next 2
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(2).size(2)));
+        assertThat(queryResult.topDocs().totalHits, equalTo(5));
+
+        sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(2));
+
+        fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+        assertThat(fetchResult.hits().hits().length, equalTo(2));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // iterate to the next 2
+        queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(4).size(2)));
+        assertThat(queryResult.topDocs().totalHits, equalTo(5));
+
+        sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(1));
+
+        fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+        assertThat(fetchResult.hits().hits().length, equalTo(1));
+        for (SearchHit hit : fetchResult.hits()) {
+            idsLoaded.add(hit.id());
+        }
+
+        // verify all ids were loaded
+        Set<String> expectedIds = Sets.newHashSet("1", "2", "3", "4", "5");
+        assertThat(idsLoaded, equalTo(expectedIds));
+    }
+
+    @Test public void testQueryThenFetchIterateWithFromSortedByAge() throws Exception {
         QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(matchAllQuery()).from(0).size(2).sort("age", SortOrder.DESC)));
         assertThat(queryResult.topDocs().totalHits, equalTo(5));
 

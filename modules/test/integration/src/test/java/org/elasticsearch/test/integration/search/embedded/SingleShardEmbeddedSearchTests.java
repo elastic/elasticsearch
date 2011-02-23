@@ -40,7 +40,6 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.scan.ScanSearchResult;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -127,8 +126,8 @@ public class SingleShardEmbeddedSearchTests extends AbstractNodesTests {
 
     @Test public void testScan() throws Exception {
         Scroll scroll = new Scroll(TimeValue.timeValueMillis(500));
-        ScanSearchResult scanResult = searchService.executeScan(searchRequest(searchSource().query(matchAllQuery()).size(2), SearchType.SCAN).scroll(scroll));
-        assertThat(scanResult.totalHits(), equalTo(5l));
+        QuerySearchResult scanResult = searchService.executeScan(searchRequest(searchSource().query(matchAllQuery()).size(2), SearchType.SCAN).scroll(scroll));
+        assertThat(scanResult.queryResult().topDocs().totalHits, equalTo(5));
 
         Set<String> idsLoaded = Sets.newHashSet();
         // start scrolling

@@ -76,7 +76,7 @@ public class SearchContext implements Releasable {
 
     private final SearchShardTarget shardTarget;
 
-    private final SearchType searchType;
+    private SearchType searchType;
 
     private final int numberOfShards;
 
@@ -98,8 +98,6 @@ public class SearchContext implements Releasable {
 
     private float queryBoost = 1.0f;
 
-
-    private boolean scanning = false;
 
     private Scroll scroll;
 
@@ -188,6 +186,11 @@ public class SearchContext implements Releasable {
 
     public SearchType searchType() {
         return this.searchType;
+    }
+
+    public SearchContext searchType(SearchType searchType) {
+        this.searchType = searchType;
+        return this;
     }
 
     public SearchShardTarget shardTarget() {
@@ -297,15 +300,6 @@ public class SearchContext implements Releasable {
 
     public TimeValue timeout() {
         return timeout;
-    }
-
-    public SearchContext scanning(boolean scanning) {
-        this.scanning = scanning;
-        return this;
-    }
-
-    public boolean scanning() {
-        return this.scanning;
     }
 
     public SearchContext sort(Sort sort) {

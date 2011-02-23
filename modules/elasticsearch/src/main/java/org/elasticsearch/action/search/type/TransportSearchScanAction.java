@@ -25,20 +25,24 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.controller.ShardDoc;
+import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.scan.ScanSearchResult;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+
+import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 public class TransportSearchScanAction extends TransportSearchTypeAction {
 
@@ -51,9 +55,9 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
         new AsyncAction(searchRequest, listener).start();
     }
 
-    private class AsyncAction extends BaseAsyncAction<ScanSearchResult> {
+    private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
 
-        private final Map<SearchShardTarget, ScanSearchResult> scanResults = ConcurrentCollections.newConcurrentMap();
+        private final Map<SearchShardTarget, QuerySearchResultProvider> queryResults = searchCache.obtainQueryResults();
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -63,25 +67,25 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
             return "init_scan";
         }
 
-        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<ScanSearchResult> listener) {
+        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
             searchService.sendExecuteScan(node, request, listener);
         }
 
-        @Override protected void processFirstPhaseResult(ShardRouting shard, ScanSearchResult result) {
-            scanResults.put(result.shardTarget(), result);
+        @Override protected void processFirstPhaseResult(ShardRouting shard, QuerySearchResult result) {
+            queryResults.put(result.shardTarget(), result);
         }
 
         @Override protected void moveToSecondPhase() throws Exception {
             long totalHits = 0;
-            for (ScanSearchResult scanSearchResult : scanResults.values()) {
-                totalHits += scanSearchResult.totalHits();
-            }
-            final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, totalHits, 0.0f), null, false);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(EMPTY_DOCS, queryResults, ImmutableMap.<SearchShardTarget, FetchSearchResultProvider>of());
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), scanResults.values());
+                scrollId = buildScrollId(request.searchType(), queryResults.values());
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            searchCache.releaseQueryResults(queryResults);
         }
     }
+
+    private static ShardDoc[] EMPTY_DOCS = new ShardDoc[0];
 }

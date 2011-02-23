@@ -1335,18 +1335,26 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).term(), equalTo("xxx"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
+        assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
         assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
         assertThat(facet.entries().get(1).term(), equalTo("yyy"));
         assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
+        assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
         assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
 
         facet = searchResponse.facets().facet("stats2");
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).term(), equalTo("xxx"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(0).min(), closeTo(1d, 0.00001d));
+        assertThat(facet.entries().get(0).max(), closeTo(3d, 0.00001d));
         assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
         assertThat(facet.entries().get(1).term(), equalTo("yyy"));
         assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(1).min(), closeTo(5d, 0.00001d));
+        assertThat(facet.entries().get(1).max(), closeTo(6d, 0.00001d));
         assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
 
         facet = searchResponse.facets().facet("stats3");
@@ -1496,18 +1504,26 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).term(), equalTo("100"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
+        assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
         assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
         assertThat(facet.entries().get(1).term(), equalTo("200"));
         assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
+        assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
         assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
 
         facet = searchResponse.facets().facet("stats2");
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).term(), equalTo("100.1"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
+        assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
         assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
         assertThat(facet.entries().get(1).term(), equalTo("200.2"));
         assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
+        assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
         assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
     }
 

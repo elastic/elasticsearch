@@ -160,7 +160,68 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 }
                 return -TOTAL.comparator().compare(o1, o2);
             }
-        });
+        }),
+
+        MIN((byte) 6, new Comparator<Entry>() {
+            @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
+                if (o1.min() < o2.min()) {
+                    return -1;
+                } else if (o1.min() == o2.min()) {
+                    return COUNT.comparator().compare(o1, o2);
+                } else {
+                    return 1;
+                }
+            }
+        }),
+        REVERSE_MIN((byte) 7, new Comparator<Entry>() {
+            @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
+                return -MIN.comparator().compare(o1, o2);
+            }
+        }),
+        MAX((byte) 8, new Comparator<Entry>() {
+            @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
+                if (o2.max() < o1.max()) {
+                    return -1;
+                } else if (o1.max() == o2.max()) {
+                    return COUNT.comparator().compare(o1, o2);
+                } else {
+                    return 1;
+                }
+            }
+        }),
+        REVERSE_MAX((byte) 9, new Comparator<Entry>() {
+            @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
+                return -MAX.comparator().compare(o1, o2);
+            }
+        }),;
 
         private final byte id;
 
@@ -192,6 +253,14 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 return TOTAL;
             } else if (id == REVERSE_TOTAL.id()) {
                 return REVERSE_TOTAL;
+            } else if (id == MIN.id()) {
+                return MIN;
+            } else if (id == REVERSE_MIN.id()) {
+                return REVERSE_MIN;
+            } else if (id == MAX.id()) {
+                return MAX;
+            } else if (id == REVERSE_MAX.id()) {
+                return REVERSE_MAX;
             }
             throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
         }
@@ -209,6 +278,14 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 return TOTAL;
             } else if ("reverse_total".equals(type) || "reverseTotal".equals(type)) {
                 return REVERSE_TOTAL;
+            } else if ("min".equals(type)) {
+                return MIN;
+            } else if ("reverse_min".equals(type) || "reverseMin".equals(type)) {
+                return REVERSE_MIN;
+            } else if ("max".equals(type)) {
+                return MAX;
+            } else if ("reverse_max".equals(type) || "reverseMax".equals(type)) {
+                return REVERSE_MAX;
             }
             throw new ElasticSearchIllegalArgumentException("No type argument match for terms stats facet comparator [" + type + "]");
         }
@@ -227,6 +304,14 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
         int count();
 
         int getCount();
+
+        double min();
+
+        double getMin();
+
+        double max();
+
+        double getMax();
 
         double total();
 

@@ -58,11 +58,15 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         String term;
         int count;
         double total;
+        double min;
+        double max;
 
-        public StringEntry(String term, int count, double total) {
+        public StringEntry(String term, int count, double total, double min, double max) {
             this.term = term;
             this.count = count;
             this.total = total;
+            this.min = min;
+            this.max = max;
         }
 
         @Override public String term() {
@@ -87,6 +91,22 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
         @Override public int getCount() {
             return count();
+        }
+
+        @Override public double min() {
+            return this.min;
+        }
+
+        @Override public double getMin() {
+            return min();
+        }
+
+        @Override public double max() {
+            return this.max;
+        }
+
+        @Override public double getMax() {
+            return max();
         }
 
         @Override public double total() {
@@ -204,6 +224,12 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 if (current != null) {
                     current.count += stringEntry.count;
                     current.total += stringEntry.total;
+                    if (stringEntry.min < current.min || Double.isNaN(current.min)) {
+                        current.min = stringEntry.min;
+                    }
+                    if (stringEntry.max > current.max || Double.isNaN(current.max)) {
+                        current.max = stringEntry.max;
+                    }
                 } else {
                     map.put(stringEntry.term(), stringEntry);
                 }
@@ -237,6 +263,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString MIN = new XContentBuilderString("min");
+        static final XContentBuilderString MAX = new XContentBuilderString("max");
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
     }
 
@@ -249,6 +277,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             builder.startObject();
             builder.field(Fields.TERM, entry.term());
             builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.MIN, entry.min());
+            builder.field(Fields.MAX, entry.max());
             builder.field(Fields.TOTAL, entry.total());
             builder.field(Fields.MEAN, entry.mean());
             builder.endObject();
@@ -273,7 +303,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new StringEntry(in.readUTF(), in.readVInt(), in.readDouble()));
+            entries.add(new StringEntry(in.readUTF(), in.readVInt(), in.readDouble(), in.readDouble(), in.readDouble()));
         }
     }
 
@@ -288,6 +318,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             out.writeUTF(entry.term());
             out.writeVInt(entry.count());
             out.writeDouble(entry.total());
+            out.writeDouble(entry.min());
+            out.writeDouble(entry.max());
         }
     }
 }

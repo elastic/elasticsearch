@@ -22,10 +22,10 @@ package org.elasticsearch.search.facet.termsstats.doubles;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.map.hash.TDoubleObjectHashMap;
+import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -38,10 +38,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.TreeSet;
+import java.util.*;
 
 public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
@@ -69,7 +66,7 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
 
     private int missing = 0;
-    private final TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
+    private final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
 
     public TermsStatsDoubleFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
                                           SearchContext context, String scriptLang, String script, Map<String, Object> params) {
@@ -164,8 +161,18 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
             return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.valueCollection(), missing);
         }
         // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-        TreeSet<InternalTermsStatsDoubleFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalTermsStatsDoubleFacet.DoubleEntry>(comparatorType.comparator(), size * numberOfShards);
-        ordered.addAll(entries.valueCollection());
+        Object[] values = entries.internalValues();
+        Arrays.sort(values, (Comparator) comparatorType.comparator());
+
+        int limit = size * numberOfShards;
+        List<InternalTermsStatsDoubleFacet.DoubleEntry> ordered = Lists.newArrayList();
+        for (int i = 0; i < limit; i++) {
+            InternalTermsStatsDoubleFacet.DoubleEntry value = (InternalTermsStatsDoubleFacet.DoubleEntry) values[i];
+            if (value == null) {
+                break;
+            }
+            ordered.add(value);
+        }
 
         // that's fine to push here, this thread will be released AFTER the entries have either been serialized
         // or processed
@@ -174,27 +181,27 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
     }
 
 
-    static TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> popFacets() {
-        Deque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> deque = cache.get().get();
+    static ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> popFacets() {
+        Deque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> deque = cache.get().get();
         if (deque.isEmpty()) {
-            deque.add(new TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>());
+            deque.add(new ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>());
         }
-        TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> facets = deque.pollFirst();
+        ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> facets = deque.pollFirst();
         facets.clear();
         return facets;
     }
 
-    static void pushFacets(TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> facets) {
+    static void pushFacets(ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> facets) {
         facets.clear();
-        Deque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> deque = cache.get().get();
+        Deque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> deque = cache.get().get();
         if (deque != null) {
             deque.add(facets);
         }
     }
 
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>>(new ArrayDeque<TDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>());
+    static ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>>>() {
+        @Override protected ThreadLocals.CleanableValue<Deque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>> initialValue() {
+            return new ThreadLocals.CleanableValue<Deque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>>(new ArrayDeque<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>>());
         }
     };
 }

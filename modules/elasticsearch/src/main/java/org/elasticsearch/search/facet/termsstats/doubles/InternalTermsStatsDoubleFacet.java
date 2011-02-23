@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.map.hash.THashMap;
+import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -176,9 +175,9 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<THashMap<String, DoubleEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<THashMap<String, DoubleEntry>>>() {
-        @Override protected ThreadLocals.CleanableValue<THashMap<String, DoubleEntry>> initialValue() {
-            return new ThreadLocals.CleanableValue<THashMap<String, DoubleEntry>>(new THashMap<String, DoubleEntry>());
+    private static ThreadLocal<ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>>>() {
+        @Override protected ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>> initialValue() {
+            return new ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>>(new ExtTDoubleObjectHashMap<DoubleEntry>());
         }
     };
 
@@ -195,31 +194,39 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        THashMap<String, DoubleEntry> map = aggregateCache.get().get();
+        ExtTDoubleObjectHashMap<DoubleEntry> map = aggregateCache.get().get();
         map.clear();
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 DoubleEntry doubleEntry = (DoubleEntry) entry;
-                DoubleEntry current = map.get(doubleEntry.term());
+                DoubleEntry current = map.get(doubleEntry.term);
                 if (current != null) {
                     current.count += doubleEntry.count;
                     current.total += doubleEntry.total;
                 } else {
-                    map.put(doubleEntry.term(), doubleEntry);
+                    map.put(doubleEntry.term, doubleEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            DoubleEntry[] entries1 = map.values().toArray(new DoubleEntry[map.size()]);
+            DoubleEntry[] entries1 = map.values(new DoubleEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
             return new InternalTermsStatsDoubleFacet(name, comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            TreeSet<DoubleEntry> ordered = new BoundedTreeSet<DoubleEntry>(comparatorType.comparator(), requiredSize);
-            ordered.addAll(map.values());
+            Object[] values = map.internalValues();
+            Arrays.sort(values, (Comparator) comparatorType.comparator());
+            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>();
+            for (int i = 0; i < requiredSize; i++) {
+                DoubleEntry value = (DoubleEntry) values[i];
+                if (value == null) {
+                    break;
+                }
+                ordered.add(value);
+            }
             return new InternalTermsStatsDoubleFacet(name, comparatorType, requiredSize, ordered, missing);
         }
     }

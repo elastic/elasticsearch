@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.facet.termsstats.longs;
 
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.map.hash.THashMap;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -176,9 +175,9 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<THashMap<String, LongEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<THashMap<String, LongEntry>>>() {
-        @Override protected ThreadLocals.CleanableValue<THashMap<String, LongEntry>> initialValue() {
-            return new ThreadLocals.CleanableValue<THashMap<String, LongEntry>>(new THashMap<String, LongEntry>());
+    private static ThreadLocal<ThreadLocals.CleanableValue<ExtTLongObjectHashMap<LongEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<ExtTLongObjectHashMap<LongEntry>>>() {
+        @Override protected ThreadLocals.CleanableValue<ExtTLongObjectHashMap<LongEntry>> initialValue() {
+            return new ThreadLocals.CleanableValue<ExtTLongObjectHashMap<LongEntry>>(new ExtTLongObjectHashMap<LongEntry>());
         }
     };
 
@@ -195,31 +194,39 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        THashMap<String, LongEntry> map = aggregateCache.get().get();
+        ExtTLongObjectHashMap<LongEntry> map = aggregateCache.get().get();
         map.clear();
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 LongEntry longEntry = (LongEntry) entry;
-                LongEntry current = map.get(longEntry.term());
+                LongEntry current = map.get(longEntry.term);
                 if (current != null) {
                     current.count += longEntry.count;
                     current.total += longEntry.total;
                 } else {
-                    map.put(longEntry.term(), longEntry);
+                    map.put(longEntry.term, longEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            LongEntry[] entries1 = map.values().toArray(new LongEntry[map.size()]);
+            LongEntry[] entries1 = map.values(new LongEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
             return new InternalTermsStatsLongFacet(name, comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            TreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(comparatorType.comparator(), requiredSize);
-            ordered.addAll(map.values());
+            Object[] values = map.internalValues();
+            Arrays.sort(values, (Comparator) comparatorType.comparator());
+            List<LongEntry> ordered = new ArrayList<LongEntry>();
+            for (int i = 0; i < requiredSize; i++) {
+                LongEntry value = (LongEntry) values[i];
+                if (value == null) {
+                    break;
+                }
+                ordered.add(value);
+            }
             return new InternalTermsStatsLongFacet(name, comparatorType, requiredSize, ordered, missing);
         }
     }

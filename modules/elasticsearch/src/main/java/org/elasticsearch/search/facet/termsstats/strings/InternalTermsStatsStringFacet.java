@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.facet.termsstats.strings;
 
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.trove.map.hash.THashMap;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -175,9 +174,9 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<THashMap<String, StringEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<THashMap<String, StringEntry>>>() {
-        @Override protected ThreadLocals.CleanableValue<THashMap<String, StringEntry>> initialValue() {
-            return new ThreadLocals.CleanableValue<THashMap<String, StringEntry>>(new THashMap<String, StringEntry>());
+    private static ThreadLocal<ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>>>() {
+        @Override protected ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>> initialValue() {
+            return new ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>>(new ExtTHashMap<String, StringEntry>());
         }
     };
 
@@ -194,7 +193,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        THashMap<String, StringEntry> map = aggregateCache.get().get();
+        ExtTHashMap<String, StringEntry> map = aggregateCache.get().get();
         map.clear();
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
@@ -217,8 +216,16 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             Arrays.sort(entries1, comparatorType.comparator());
             return new InternalTermsStatsStringFacet(name, comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            TreeSet<StringEntry> ordered = new BoundedTreeSet<StringEntry>(comparatorType.comparator(), requiredSize);
-            ordered.addAll(map.values());
+            Object[] values = map.internalValues();
+            Arrays.sort(values, (Comparator) comparatorType.comparator());
+            List<StringEntry> ordered = new ArrayList<StringEntry>();
+            for (int i = 0; i < requiredSize; i++) {
+                StringEntry value = (StringEntry) values[i];
+                if (value == null) {
+                    break;
+                }
+                ordered.add(value);
+            }
             return new InternalTermsStatsStringFacet(name, comparatorType, requiredSize, ordered, missing);
         }
     }

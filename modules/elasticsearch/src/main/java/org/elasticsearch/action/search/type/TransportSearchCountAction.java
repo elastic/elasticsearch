@@ -62,7 +62,6 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
 
         private final Map<SearchShardTarget, QuerySearchResultProvider> queryFetchResults = searchCache.obtainQueryResults();
 
-
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
         }

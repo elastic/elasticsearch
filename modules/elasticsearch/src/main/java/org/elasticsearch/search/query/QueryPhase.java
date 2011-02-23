@@ -195,7 +195,7 @@ public class QueryPhase implements SearchPhase {
                     // all is well
                 }
                 topDocs = countCollector.topDocs();
-            } else if (searchContext.scanning()) {
+            } else if (searchContext.searchType() == SearchType.SCAN) {
                 ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size());
                 try {
                     searchContext.searcher().search(query, scanCollector);

@@ -38,7 +38,6 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.scan.ScanSearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -339,22 +338,22 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteScan(DiscoveryNode node, final InternalSearchRequest request, final SearchServiceListener<ScanSearchResult> listener) {
+    public void sendExecuteScan(DiscoveryNode node, final InternalSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
-                ScanSearchResult result = searchService.executeScan(request);
+                QuerySearchResult result = searchService.executeScan(request);
                 listener.onResult(result);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         } else {
-            transportService.sendRequest(node, SearchScanTransportHandler.ACTION, request, new BaseTransportResponseHandler<ScanSearchResult>() {
+            transportService.sendRequest(node, SearchScanTransportHandler.ACTION, request, new BaseTransportResponseHandler<QuerySearchResult>() {
 
-                @Override public ScanSearchResult newInstance() {
-                    return new ScanSearchResult();
+                @Override public QuerySearchResult newInstance() {
+                    return new QuerySearchResult();
                 }
 
-                @Override public void handleResponse(ScanSearchResult response) {
+                @Override public void handleResponse(QuerySearchResult response) {
                     listener.onResult(response);
                 }
 
@@ -571,7 +570,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         @Override public void messageReceived(InternalSearchRequest request, TransportChannel channel) throws Exception {
-            ScanSearchResult result = searchService.executeScan(request);
+            QuerySearchResult result = searchService.executeScan(request);
             channel.sendResponse(result);
         }
 

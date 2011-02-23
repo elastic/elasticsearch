@@ -28,7 +28,6 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -51,7 +50,6 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.*;
-import org.elasticsearch.search.scan.ScanSearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -164,24 +162,23 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public ScanSearchResult executeScan(InternalSearchRequest request) throws ElasticSearchException {
+    public QuerySearchResult executeScan(InternalSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
+        assert context.searchType() == SearchType.SCAN;
+        context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
         activeContexts.put(context.id(), context);
-        contextProcessing(context);
+        assert context.searchType() == SearchType.COUNT;
         try {
             if (context.scroll() == null) {
                 throw new ElasticSearchException("Scroll must be provided when scanning...");
             }
-            Lucene.CountCollector countCollector = new Lucene.CountCollector(-1);
-            context.searcher().search(context.query(), countCollector);
+            contextProcessing(context);
+            queryPhase.execute(context);
             contextProcessedSuccessfully(context);
-            return new ScanSearchResult(context.id(), countCollector.count());
+            return context.queryResult();
         } catch (RuntimeException e) {
             freeContext(context);
             throw e;
-        } catch (IOException e) {
-            freeContext(context);
-            throw new QueryPhaseExecutionException(context, "failed to execute initial scan query", e);
         } finally {
             cleanContext(context);
         }
@@ -192,9 +189,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         contextProcessing(context);
         try {
             processScroll(request, context);
-            if (!context.scanning()) {
+            if (context.searchType() == SearchType.COUNT) {
                 // first scanning, reset the from to 0
-                context.scanning(true);
+                context.searchType(SearchType.SCAN);
                 context.from(0);
             }
             queryPhase.execute(context);

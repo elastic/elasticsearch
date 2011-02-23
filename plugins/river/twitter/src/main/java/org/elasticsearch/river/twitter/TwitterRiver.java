@@ -194,9 +194,12 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
         }
         logger.info("starting twitter stream");
         try {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject(typeName)
-                    .startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject()
-                    .endObject().endObject().string();
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject(typeName).startObject("properties")
+                    .startObject("location").field("type", "geo_point").endObject()
+                    .startObject("user").startObject("properties").startObject("screen_name").field("type", "string").field("index", "not_analyzed").endObject().endObject().endObject()
+                    .startObject("mention").startObject("properties").startObject("screen_name").field("type", "string").field("index", "not_analyzed").endObject().endObject().endObject()
+                    .startObject("in_reply").startObject("properties").startObject("user_screen_name").field("type", "string").field("index", "not_analyzed").endObject().endObject().endObject()
+                    .endObject().endObject().endObject().string();
             client.admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).execute().actionGet();
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {

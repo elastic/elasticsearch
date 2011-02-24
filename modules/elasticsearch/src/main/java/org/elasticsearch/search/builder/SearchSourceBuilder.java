@@ -88,6 +88,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private boolean trackScores = false;
 
+    private Float minScore;
+
     private List<String> fieldNames;
 
     private List<ScriptField> scriptFields;
@@ -173,6 +175,14 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder size(int size) {
         this.size = size;
+        return this;
+    }
+
+    /**
+     * Sets the minimum score below which docs will be filtered out.
+     */
+    public SearchSourceBuilder minScore(float minScore) {
+        this.minScore = minScore;
         return this;
     }
 
@@ -432,6 +442,10 @@ public class SearchSourceBuilder implements ToXContent {
             } else {
                 builder.field("filter_binary", queryBinary);
             }
+        }
+
+        if (minScore != null) {
+            builder.field("min_score", minScore);
         }
 
         if (version != null) {

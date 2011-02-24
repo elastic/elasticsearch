@@ -27,53 +27,40 @@ import org.apache.lucene.search.Scorer;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ *
  */
-public class MultiCollector extends Collector {
+public class MinimumScoreCollector extends Collector {
 
     private final Collector collector;
 
-    private final Collector[] collectors;
+    private final float minimumScore;
 
-    public MultiCollector(Collector collector, Collector[] collectors) {
+    private Scorer scorer;
+
+    public MinimumScoreCollector(Collector collector, float minimumScore) {
         this.collector = collector;
-        this.collectors = collectors;
+        this.minimumScore = minimumScore;
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
-        // always wrap it in a scorer wrapper
         if (!(scorer instanceof ScoreCachingWrappingScorer)) {
             scorer = new ScoreCachingWrappingScorer(scorer);
         }
+        this.scorer = scorer;
         collector.setScorer(scorer);
-        for (Collector collector : collectors) {
-            collector.setScorer(scorer);
-        }
     }
 
     @Override public void collect(int doc) throws IOException {
-        collector.collect(doc);
-        for (Collector collector : collectors) {
+        if (scorer.score() > minimumScore) {
             collector.collect(doc);
         }
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
         collector.setNextReader(reader, docBase);
-        for (Collector collector : collectors) {
-            collector.setNextReader(reader, docBase);
-        }
     }
 
     @Override public boolean acceptsDocsOutOfOrder() {
-        if (!collector.acceptsDocsOutOfOrder()) {
-            return false;
-        }
-        for (Collector collector : collectors) {
-            if (!collector.acceptsDocsOutOfOrder()) {
-                return false;
-            }
-        }
-        return true;
+        return collector.acceptsDocsOutOfOrder();
     }
 }

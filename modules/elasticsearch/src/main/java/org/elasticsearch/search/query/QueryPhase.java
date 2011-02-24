@@ -67,6 +67,8 @@ public class QueryPhase implements SearchPhase {
                 .put("sort", new SortParseElement())
                 .put("trackScores", new TrackScoresParseElement())
                 .put("track_scores", new TrackScoresParseElement())
+                .put("min_score", new MinScoreParseElement())
+                .put("minScore", new MinScoreParseElement())
                 .putAll(facetPhase.parseElements());
         return parseElements.build();
     }

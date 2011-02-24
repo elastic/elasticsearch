@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -147,6 +148,11 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
                 collector = new MultiCollector(collector, collectors.toArray(new Collector[collectors.size()]));
             }
         }
+        // apply the minimum score after multi collector so we filter facets as well
+        if (searchContext.minimumScore() != null) {
+            collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+        }
+
         // we only compute the doc id set once since within a context, we execute the same query always...
         if (searchContext.timeout() != null) {
             searchContext.queryResult().searchTimedOut(false);

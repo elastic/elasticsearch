@@ -230,6 +230,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Sets the minimum score below which docs will be filtered out.
+     */
+    public SearchRequestBuilder setMinScore(float minScore) {
+        sourceBuilder().minScore(minScore);
+        return this;
+    }
+
+    /**
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public SearchRequestBuilder setFrom(int from) {

@@ -115,6 +115,8 @@ public class SearchContext implements Releasable {
 
     private Sort sort;
 
+    private Float minimumScore;
+
     private boolean trackScores = false; // when sorting, track scores as well...
 
     private String queryParserName;
@@ -300,6 +302,15 @@ public class SearchContext implements Releasable {
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public SearchContext minimumScore(float minimumScore) {
+        this.minimumScore = minimumScore;
+        return this;
+    }
+
+    public Float minimumScore() {
+        return this.minimumScore;
     }
 
     public SearchContext sort(Sort sort) {

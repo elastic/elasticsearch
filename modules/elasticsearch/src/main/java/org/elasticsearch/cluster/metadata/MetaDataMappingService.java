@@ -281,13 +281,10 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (String index : request.indices) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
                     if (indexRoutingTable != null) {
-                        counter += indexRoutingTable.numberOfNodesShardsAreAllocatedOn();
+                        counter += indexRoutingTable.numberOfNodesShardsAreAllocatedOn(clusterState.nodes().masterNodeId());
                     }
                 }
 
-                if (counter > 0) {
-                    counter = counter - 1; // we already added the mapping on the master here...
-                }
                 if (counter == 0) {
                     listener.onResponse(new Response(true));
                     return;

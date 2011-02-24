@@ -102,12 +102,24 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return shards.values().iterator();
     }
 
-    public int numberOfNodesShardsAreAllocatedOn() {
+    public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
         Set<String> nodes = Sets.newHashSet();
         for (IndexShardRoutingTable shardRoutingTable : this) {
             for (ShardRouting shardRouting : shardRoutingTable) {
                 if (shardRouting.assignedToNode()) {
-                    nodes.add(shardRouting.currentNodeId());
+                    String currentNodeId = shardRouting.currentNodeId();
+                    boolean excluded = false;
+                    if (excludedNodes != null) {
+                        for (String excludedNode : excludedNodes) {
+                            if (currentNodeId.equals(excludedNode)) {
+                                excluded = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!excluded) {
+                        nodes.add(currentNodeId);
+                    }
                 }
             }
         }

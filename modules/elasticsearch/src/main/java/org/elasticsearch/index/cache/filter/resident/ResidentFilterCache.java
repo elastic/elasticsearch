@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter.soft;
+package org.elasticsearch.index.cache.filter.resident;
 
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.MapMaker;
@@ -31,23 +31,21 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * A soft reference based filter cache that has soft keys on the <tt>IndexReader</tt>.
+ * A resident reference based filter cache that has soft keys on the <tt>IndexReader</tt>.
  *
  * @author kimchy (shay.banon)
  */
-public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
+public class ResidentFilterCache extends AbstractDoubleConcurrentMapFilterCache {
 
     private final int maxSize;
 
-    @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    @Inject public ResidentFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-        this.maxSize = componentSettings.getAsInt("max_size", -1);
+        this.maxSize = componentSettings.getAsInt("max_size", 1000);
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
-        // DocSet are not really stored with strong reference only when searching on them...
-        // Filter might be stored in query cache
-        MapMaker mapMaker = new MapMaker().softValues();
+        MapMaker mapMaker = new MapMaker();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
         }

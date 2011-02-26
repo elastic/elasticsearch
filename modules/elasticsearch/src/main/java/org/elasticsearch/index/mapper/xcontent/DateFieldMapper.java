@@ -194,7 +194,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (dateAsString == null) {
             return null;
         }
-        if (includeInAll == null || includeInAll) {
+        if (context.includeInAll(includeInAll)) {
             context.allEntries().addText(names.fullName(), dateAsString, boost);
         }
 

@@ -210,7 +210,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         if (ipAsString == null) {
             return null;
         }
-        if (includeInAll == null || includeInAll) {
+        if (context.includeInAll(includeInAll)) {
             context.allEntries().addText(names.fullName(), ipAsString, boost);
         }
 

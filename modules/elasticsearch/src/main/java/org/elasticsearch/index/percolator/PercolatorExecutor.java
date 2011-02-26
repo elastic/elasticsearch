@@ -55,9 +55,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -170,13 +169,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Query> queries = ImmutableMap.of();
 
 
-    private final PercolatorIndexAndShardListener percolatorIndexAndShardListener = new PercolatorIndexAndShardListener();
-
-    private volatile IndicesLifecycle indicesLifecycle;
-
-    private volatile IndexService percolatorIndex;
-
-    private volatile IndexShard percolatorShard;
+    private IndicesService indicesService;
 
     @Inject public PercolatorExecutor(Index index, @IndexSettings Settings indexSettings,
                                       MapperService mapperService, IndexQueryParserService queryParserService,
@@ -187,17 +180,11 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         this.indexCache = indexCache;
     }
 
-    public void setIndicesLifecycle(IndicesLifecycle indicesLifecycle) {
-        this.indicesLifecycle = indicesLifecycle;
-        if (indicesLifecycle != null) {
-            indicesLifecycle.addListener(percolatorIndexAndShardListener);
-        }
+    public void setIndicesService(IndicesService indicesService) {
+        this.indicesService = indicesService;
     }
 
     public synchronized void close() {
-        if (indicesLifecycle != null) {
-            indicesLifecycle.removeListener(percolatorIndexAndShardListener);
-        }
         ImmutableMap<String, Query> old = queries;
         queries = ImmutableMap.of();
         old.clear();
@@ -362,9 +349,14 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 }
             }
         } else {
-            if (percolatorIndex == null || percolatorShard == null) {
+            IndexService percolatorIndex = indicesService.indexService(PercolatorService.INDEX_NAME);
+            if (percolatorIndex == null) {
                 throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
             }
+            if (percolatorIndex.numberOfShards() == 0) {
+                throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
+            }
+            IndexShard percolatorShard = percolatorIndex.shard(0);
             Engine.Searcher percolatorSearcher = percolatorShard.searcher();
             try {
                 percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, matches));
@@ -378,32 +370,6 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         indexCache.clear(searcher.getIndexReader());
 
         return new Response(matches, request.doc().mappersAdded());
-    }
-
-    class PercolatorIndexAndShardListener extends IndicesLifecycle.Listener {
-        @Override public void afterIndexCreated(IndexService indexService) {
-            if (indexService.index().name().equals(PercolatorService.INDEX_NAME)) {
-                percolatorIndex = indexService;
-            }
-        }
-
-        @Override public void afterIndexClosed(Index index, boolean delete) {
-            if (index.name().equals(PercolatorService.INDEX_NAME)) {
-                percolatorIndex = null;
-            }
-        }
-
-        @Override public void afterIndexShardCreated(IndexShard indexShard) {
-            if (indexShard.shardId().index().name().equals(PercolatorService.INDEX_NAME)) {
-                percolatorShard = indexShard;
-            }
-        }
-
-        @Override public void afterIndexShardClosed(ShardId shardId, boolean delete) {
-            if (shardId.index().name().equals(PercolatorService.INDEX_NAME)) {
-                percolatorShard = null;
-            }
-        }
     }
 
     static class QueryCollector extends Collector {

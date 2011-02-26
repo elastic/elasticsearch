@@ -62,8 +62,6 @@ public interface IndexShard extends IndexShardComponent {
 
     void delete(Engine.Delete delete) throws ElasticSearchException;
 
-    EngineException[] bulk(Engine.Bulk bulk) throws ElasticSearchException;
-
     void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException;
 
     byte[] get(String type, String id) throws ElasticSearchException;

@@ -54,8 +54,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      */
     void start() throws EngineException;
 
-    EngineException[] bulk(Bulk bulk) throws EngineException;
-
     void create(Create create) throws EngineException;
 
     void index(Index index) throws EngineException;
@@ -262,28 +260,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         Type opType();
 
         Origin origin();
-    }
-
-    static class Bulk {
-        private final Operation[] ops;
-        private boolean refresh;
-
-        public Bulk(Operation[] ops) {
-            this.ops = ops;
-        }
-
-        public Operation[] ops() {
-            return this.ops;
-        }
-
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public Bulk refresh(boolean refresh) {
-            this.refresh = refresh;
-            return this;
-        }
     }
 
     static class Create implements Operation {

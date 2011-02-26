@@ -35,11 +35,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -54,7 +52,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * Performs the index operation.
@@ -106,11 +103,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     @Override protected PrimaryResponse<BulkShardResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
-        IndexShard indexShard = indexShard(shardRequest);
         final BulkShardRequest request = shardRequest.request;
-        BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
+        IndexShard indexShard = indexShard(shardRequest);
+
         Engine.Operation[] ops = new Engine.Operation[request.items().length];
-        for (int i = 0; i < ops.length; i++) {
+
+
+        BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
+        for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
@@ -126,11 +126,39 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
                     SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent());
+                    long version;
+                    ParsedDocument doc;
+                    Engine.Operation op;
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        ops[i] = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.PRIMARY);
+                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.PRIMARY);
+                        doc = indexShard.index(index);
+                        version = index.version();
+                        op = index;
                     } else {
-                        ops[i] = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.PRIMARY);
+                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.PRIMARY);
+                        doc = indexShard.create(create);
+                        version = create.version();
+                        op = create;
                     }
+                    // update the version on request so it will happen on the replicas
+                    indexRequest.version(version);
+
+                    // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
+                    if (doc.mappersAdded()) {
+                        updateMappingOnMaster(indexRequest);
+                    }
+
+                    // if we are going to percolate, then we need to keep this op for the postPrimary operation
+                    if (Strings.hasLength(indexRequest.percolate())) {
+                        if (ops == null) {
+                            ops = new Engine.Operation[request.items().length];
+                        }
+                        ops[i] = op;
+                    }
+
+                    // add the response
+                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
+                            new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version));
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[" + shardRequest.request.index() + "][" + shardRequest.shardId + "]" + ": Failed to execute bulk item (index) [" + indexRequest + "]", e);
@@ -141,7 +169,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    ops[i] = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.PRIMARY);
+                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.PRIMARY);
+                    indexShard.delete(delete);
+                    // update the request with teh version so it will go to the replicas
+                    deleteRequest.version(delete.version());
+
+                    // add the response
+                    responses[i] = new BulkItemResponse(item.id(), "delete",
+                            new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound()));
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[" + shardRequest.request.index() + "][" + shardRequest.shardId + "]" + ": Failed to execute bulk item (delete) [" + deleteRequest + "]", e);
@@ -152,61 +187,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
-        EngineException[] failures = indexShard.bulk(new Engine.Bulk(ops).refresh(request.refresh()));
-        // process failures and mappings
-        Set<String> processedTypes = Sets.newHashSet();
-        for (int i = 0; i < ops.length; i++) {
-            // failed to parse, already set the failure, skip
-            if (ops[i] == null) {
-                continue;
-            }
-
-            BulkItemRequest item = request.items()[i];
-            if (item.request() instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) item.request();
-                long version;
-                if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                    Engine.Index engineIndex = (Engine.Index) ops[i];
-                    version = engineIndex.version();
-                    if (!processedTypes.contains(engineIndex.type())) {
-                        processedTypes.add(engineIndex.type());
-                        ParsedDocument doc = engineIndex.parsedDoc();
-                        if (doc.mappersAdded()) {
-                            updateMappingOnMaster(indexRequest);
-                        }
-                    }
-                } else {
-                    Engine.Create engineCreate = (Engine.Create) ops[i];
-                    version = engineCreate.version();
-                    if (!processedTypes.contains(engineCreate.type())) {
-                        processedTypes.add(engineCreate.type());
-                        ParsedDocument doc = engineCreate.parsedDoc();
-                        if (doc.mappersAdded()) {
-                            updateMappingOnMaster(indexRequest);
-                        }
-                    }
-                }
-                // update the version on request so it will happen on the replicas
-                indexRequest.version(version);
-                if (failures != null && failures[i] != null) {
-                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
-                            new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(failures[i])));
-                } else {
-                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
-                            new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version));
-                }
-            } else if (item.request() instanceof DeleteRequest) {
-                DeleteRequest deleteRequest = (DeleteRequest) item.request();
-                Engine.Delete engineDelete = (Engine.Delete) ops[i];
-                // update the version on request so it will happen on the replicas
-                deleteRequest.version(engineDelete.version());
-                if (failures != null && failures[i] != null) {
-                    responses[i] = new BulkItemResponse(item.id(), "delete",
-                            new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(failures[i])));
-                } else {
-                    responses[i] = new BulkItemResponse(item.id(), "delete",
-                            new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), engineDelete.version(), engineDelete.notFound()));
-                }
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
             }
         }
         BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.shardId()), responses);
@@ -222,6 +207,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (itemResponse.failed()) {
                 // failure, continue
                 continue;
+            }
+            if (ops[i] == null) {
+                continue; // failed
             }
             if (itemRequest.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) itemRequest.request();
@@ -247,8 +235,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         IndexShard indexShard = indexShard(shardRequest);
         final BulkShardRequest request = shardRequest.request;
-        Engine.Operation[] ops = new Engine.Operation[request.items().length];
-        for (int i = 0; i < ops.length; i++) {
+        for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
@@ -256,9 +243,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent());
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        ops[i] = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        indexShard.index(index);
                     } else {
-                        ops[i] = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        indexShard.create(create);
                     }
                 } catch (Exception e) {
                     // ignore, we are on backup
@@ -266,14 +255,21 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    ops[i] = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                    indexShard.delete(delete);
                 } catch (Exception e) {
                     // ignore, we are on backup
                 }
             }
         }
 
-        indexShard.bulk(new Engine.Bulk(ops).refresh(request.refresh()));
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
+        }
     }
 
     private void updateMappingOnMaster(final IndexRequest request) {

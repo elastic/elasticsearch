@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.versioning;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -191,5 +192,21 @@ public class SimpleVersioningTests extends AbstractNodesTests {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
             assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
         }
+    }
+
+    @Test public void testVersioningWithBulk() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        BulkResponse bulkResponse = client.prepareBulk().add(client.prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        assertThat(bulkResponse.items().length, equalTo(1));
+        IndexResponse indexResponse = bulkResponse.items()[0].response();
+        assertThat(indexResponse.version(), equalTo(1l));
     }
 }

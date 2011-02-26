@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -44,7 +43,6 @@ import org.testng.annotations.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -239,38 +237,6 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         engine.close();
-    }
-
-    @Test public void testBulkOperations() throws Exception {
-        Engine.Searcher searchResult = engine.searcher();
-        assertThat(searchResult, engineSearcherTotalHits(0));
-        searchResult.release();
-
-        List<Engine.Operation> ops = Lists.newArrayList();
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "1_test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        ops.add(new Engine.Create(newUid("1"), doc));
-        doc = new ParsedDocument("2", "2", "test", null, doc().add(uidField("2")).add(field("value", "2_test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
-        ops.add(new Engine.Create(newUid("2"), doc));
-        doc = new ParsedDocument("3", "3", "test", null, doc().add(uidField("3")).add(field("value", "3_test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
-        ops.add(new Engine.Create(newUid("3"), doc));
-        doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "1_test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        ops.add(new Engine.Index(newUid("1"), doc));
-        ops.add(new Engine.Delete("test", "2", newUid("2")));
-
-        EngineException[] failures = engine.bulk(new Engine.Bulk(ops.toArray(new Engine.Operation[ops.size()])));
-        assertThat(failures, nullValue());
-
-        engine.refresh(new Engine.Refresh(true));
-
-        searchResult = engine.searcher();
-        assertThat(searchResult, engineSearcherTotalHits(2));
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(newUid("1")), 1));
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(newUid("2")), 0));
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(newUid("3")), 1));
-
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "1_test")), 0));
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "1_test1")), 1));
-        searchResult.release();
     }
 
     @Test public void testSearchResultRelease() throws Exception {

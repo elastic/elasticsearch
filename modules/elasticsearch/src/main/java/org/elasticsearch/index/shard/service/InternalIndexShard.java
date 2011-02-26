@@ -303,42 +303,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(delete);
     }
 
-    @Override public EngineException[] bulk(Engine.Bulk bulk) throws ElasticSearchException {
-        writeAllowed();
-        if (listeners != null) {
-            for (int i = 0; i < bulk.ops().length; i++) {
-                Engine.Operation op = bulk.ops()[i];
-                if (op == null) {
-                    continue;
-                }
-                switch (op.opType()) {
-                    case CREATE:
-                        Engine.Create create = (Engine.Create) op;
-                        for (OperationListener listener : listeners) {
-                            bulk.ops()[i] = listener.beforeCreate(create);
-                        }
-                        break;
-                    case INDEX:
-                        Engine.Index index = (Engine.Index) op;
-                        for (OperationListener listener : listeners) {
-                            bulk.ops()[i] = listener.beforeIndex(index);
-                        }
-                        break;
-                    case DELETE:
-                        Engine.Delete delete = (Engine.Delete) op;
-                        for (OperationListener listener : listeners) {
-                            bulk.ops()[i] = listener.beforeDelete(delete);
-                        }
-                        break;
-                }
-            }
-        }
-        if (logger.isTraceEnabled()) {
-            logger.trace("bulk, items [{}]", bulk.ops().length);
-        }
-        return engine.bulk(bulk);
-    }
-
     @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
         writeAllowed();
         if (types == null) {

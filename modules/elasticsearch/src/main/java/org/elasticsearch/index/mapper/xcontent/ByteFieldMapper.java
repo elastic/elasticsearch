@@ -160,7 +160,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             } else {
                 value = ((Number) externalValue).byteValue();
             }
-            if (includeInAll == null || includeInAll) {
+            if (context.includeInAll(includeInAll)) {
                 context.allEntries().addText(names.fullName(), Byte.toString(value), boost);
             }
         } else {
@@ -169,12 +169,12 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (includeInAll == null || includeInAll)) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else {
                 value = (byte) context.parser().shortValue();
-                if (includeInAll == null || includeInAll) {
+                if (context.includeInAll(includeInAll)) {
                     context.allEntries().addText(names.fullName(), context.parser().text(), boost);
                 }
             }

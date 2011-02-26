@@ -71,7 +71,7 @@ public class PercolatorService extends AbstractIndexComponent {
         this.percolator = percolator;
         this.shardLifecycleListener = new ShardLifecycleListener();
         this.indicesService.indicesLifecycle().addListener(shardLifecycleListener);
-        this.percolator.setIndicesLifecycle(indicesService.indicesLifecycle());
+        this.percolator.setIndicesService(indicesService);
     }
 
     public void close() {

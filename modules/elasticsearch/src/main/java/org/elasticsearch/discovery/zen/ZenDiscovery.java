@@ -110,7 +110,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.transportService = transportService;
         this.pingService = pingService;
 
-        this.initialPingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
+        this.initialPingTimeout = componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
         logger.debug("using initial_ping_timeout [{}]", initialPingTimeout);

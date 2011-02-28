@@ -116,7 +116,9 @@ public class TranslogService extends AbstractIndexShardComponent {
             threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
                 @Override public void run() {
                     try {
-                        indexShard.flush(new Engine.Flush());
+                        if (indexShard.state() == IndexShardState.STARTED) {
+                            indexShard.flush(new Engine.Flush());
+                        }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
                     } catch (FlushNotAllowedEngineException e) {

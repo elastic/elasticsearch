@@ -82,6 +82,9 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         for (ShardRouting shardRouting : allocation.failedShards()) {
             cachedStores.remove(shardRouting.shardId());
         }
+
+        TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = null;
+
         for (ShardRouting failedShard : allocation.failedShards()) {
             // this is an API allocation, ignore since we know there is no data...
             if (!allocation.routingNodes().routingTable().index(failedShard.index()).shard(failedShard.id()).allocatedPostApi()) {
@@ -90,9 +93,23 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
             // we are still in the initial allocation, find another node with existing shards
             // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
-            Set<String> nodesIds = Sets.newHashSet();
-            nodesIds.addAll(allocation.nodes().dataNodes().keySet());
-            TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
+            if (nodesState == null) {
+                Set<String> nodesIds = Sets.newHashSet();
+                nodesIds.addAll(allocation.nodes().dataNodes().keySet());
+                nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
+
+                if (nodesState.failures().length > 0) {
+                    StringBuilder sb = new StringBuilder("failures when trying to list started shards on nodes:");
+                    for (int i = 0; i < nodesState.failures().length; i++) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(nodesState.failures()[i]);
+                        if (cause instanceof ConnectTransportException) {
+                            continue;
+                        }
+                        sb.append("\n    -> ").append(nodesState.failures()[i].getDetailedMessage());
+                    }
+                    logger.warn(sb.toString());
+                }
+            }
 
             // make a list of ShardId to Node, each one from the latest version
             Tuple<DiscoveryNode, Long> t = null;
@@ -163,6 +180,18 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 Set<String> nodesIds = Sets.newHashSet();
                 nodesIds.addAll(nodes.dataNodes().keySet());
                 nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
+
+                if (nodesState.failures().length > 0) {
+                    StringBuilder sb = new StringBuilder("failures when trying to list started shards on nodes:");
+                    for (int i = 0; i < nodesState.failures().length; i++) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(nodesState.failures()[i]);
+                        if (cause instanceof ConnectTransportException) {
+                            continue;
+                        }
+                        sb.append("\n    -> ").append(nodesState.failures()[i].getDetailedMessage());
+                    }
+                    logger.warn(sb.toString());
+                }
             }
 
             int numberOfAllocationsFound = 0;

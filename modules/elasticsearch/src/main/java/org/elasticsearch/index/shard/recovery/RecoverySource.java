@@ -74,7 +74,8 @@ public class RecoverySource extends AbstractComponent {
 
     private final boolean compress;
 
-    private final int translogBatchSize;
+    private final int translogOps;
+    private final ByteSizeValue translogSize;
 
     private final ExecutorService concurrentStreamPool;
 
@@ -88,10 +89,11 @@ public class RecoverySource extends AbstractComponent {
         this.concurrentStreamPool = DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
         this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(100, ByteSizeUnit.KB));
-        this.translogBatchSize = componentSettings.getAsInt("translog_batch_size", 100);
+        this.translogOps = componentSettings.getAsInt("translog_ops", 1000);
+        this.translogSize = componentSettings.getAsBytesSize("translog_size", new ByteSizeValue(100, ByteSizeUnit.KB));
         this.compress = componentSettings.getAsBoolean("compress", true);
 
-        logger.debug("using concurrent_streams [{}], file_chunk_size [{}], translog_batch_size [{}], and compress [{}]", concurrentStreams, fileChunkSize, translogBatchSize, compress);
+        logger.debug("using concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]", concurrentStreams, fileChunkSize, translogOps, translogSize, compress);
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
     }
@@ -247,20 +249,25 @@ public class RecoverySource extends AbstractComponent {
             }
 
             private int sendSnapshot(Translog.Snapshot snapshot) throws ElasticSearchException {
-                int counter = 0;
+                int ops = 0;
+                long size = 0;
                 int totalOperations = 0;
                 List<Translog.Operation> operations = Lists.newArrayList();
                 while (snapshot.hasNext()) {
                     if (shard.state() == IndexShardState.CLOSED) {
                         throw new IndexShardClosedException(request.shardId());
                     }
-                    operations.add(snapshot.next());
+                    Translog.Operation operation = snapshot.next();
+                    operations.add(operation);
+                    ops += 1;
+                    size += operation.estimateSize();
                     totalOperations++;
-                    if (++counter == translogBatchSize) {
+                    if (ops >= translogOps || size >= translogSize.bytes()) {
                         RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.shardId(), operations);
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(compress).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
-                        counter = 0;
-                        operations = Lists.newArrayList();
+                        ops = 0;
+                        size = 0;
+                        operations.clear();
                     }
                 }
                 // send the leftover

@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
@@ -41,8 +43,12 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
+    protected Settings recoverySettings() {
+        return ImmutableSettings.Builder.EMPTY_SETTINGS;
+    }
+
     @Test public void testSimpleRecovery() throws Exception {
-        startNode("server1");
+        startNode("server1", recoverySettings());
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet(5000);
 
@@ -63,7 +69,7 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
         assertThat(refreshResponse.successfulShards(), equalTo(5));
         assertThat(refreshResponse.failedShards(), equalTo(0));
 
-        startNode("server2");
+        startNode("server2", recoverySettings());
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
@@ -85,7 +91,7 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
         }
 
         // now start another one so we move some primaries
-        startNode("server3");
+        startNode("server3", recoverySettings());
         Thread.sleep(200);
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("3")).actionGet();

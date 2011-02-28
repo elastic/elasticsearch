@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.*;
@@ -38,7 +38,7 @@ public class SimpleAttachmentMapperTests {
 
     private XContentDocumentMapperParser mapperParser;
 
-    @BeforeTest public void setupMapperParser() {
+    @BeforeClass public void setupMapperParser() {
         mapperParser = new XContentDocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")));
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }

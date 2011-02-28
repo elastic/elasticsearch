@@ -26,8 +26,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
@@ -44,7 +44,7 @@ public class VersionedIndexReaderTests {
     private IndexWriter indexWriter;
     private VersionedMap versionedMap;
 
-    @BeforeTest public void setUp() throws Exception {
+    @BeforeClass public void setUp() throws Exception {
         versionedMap = new ConcurrentVersionedMapLong();
         dir = new RAMDirectory();
         indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
@@ -56,7 +56,7 @@ public class VersionedIndexReaderTests {
         indexReader = IndexReader.open(dir, true);
     }
 
-    @AfterTest public void tearDown() throws Exception {
+    @AfterClass public void tearDown() throws Exception {
         indexWriter.close();
         indexReader.close();
         dir.close();

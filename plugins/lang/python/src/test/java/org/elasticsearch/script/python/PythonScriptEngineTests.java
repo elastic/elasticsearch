@@ -23,7 +23,8 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ExecutableScript;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.HashMap;
@@ -39,8 +40,12 @@ public class PythonScriptEngineTests {
 
     private PythonScriptEngineService se;
 
-    @BeforeTest public void setup() {
+    @BeforeClass public void setup() {
         se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    @AfterClass public void close() {
+        se.close();
     }
 
     @Test public void testSimpleEquation() {

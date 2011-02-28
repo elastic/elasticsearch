@@ -24,8 +24,8 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.lucene.Directories.*;
@@ -47,13 +47,13 @@ public class SnapshotDeletionPolicyTests {
     private SnapshotDeletionPolicy deletionPolicy;
     private IndexWriter indexWriter;
 
-    @BeforeTest public void setUp() throws Exception {
+    @BeforeClass public void setUp() throws Exception {
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
         indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, deletionPolicy, IndexWriter.MaxFieldLength.UNLIMITED);
     }
 
-    @AfterTest public void tearDown() throws Exception {
+    @AfterClass public void tearDown() throws Exception {
         indexWriter.close();
         dir.close();
     }

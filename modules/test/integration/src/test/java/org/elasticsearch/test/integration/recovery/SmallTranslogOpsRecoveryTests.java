@@ -19,8 +19,15 @@
 
 package org.elasticsearch.test.integration.recovery;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+
 /**
  * @author kimchy (shay.banon)
  */
-public class SmallBufferRecoveryTests extends SimpleRecoveryTests {
+public class SmallTranslogOpsRecoveryTests extends SimpleRecoveryTests {
+
+    @Override protected Settings recoverySettings() {
+        return ImmutableSettings.settingsBuilder().put("index.shard.recovery.translog_ops", 1).build();
+    }
 }

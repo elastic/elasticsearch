@@ -22,7 +22,7 @@ package org.elasticsearch.index.translog.fs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
 import org.elasticsearch.index.translog.Translog;
-import org.testng.annotations.AfterTest;
+import org.testng.annotations.AfterClass;
 
 import java.io.File;
 
@@ -37,7 +37,7 @@ public class FsChannelSimpleTranslogTests extends AbstractSimpleTranslogTests {
         return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"), false);
     }
 
-    @AfterTest public void cleanup() {
+    @AfterClass public void cleanup() {
         FileSystemUtils.deleteRecursively(new File("work/fs-translog"), true);
     }
 }

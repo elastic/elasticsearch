@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterTest;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class DiscoveryTests extends AbstractNodesTests {
 
-    @AfterTest public void closeNodes() {
+    @AfterClass public void closeNodes() {
         closeAllNodes();
     }
 

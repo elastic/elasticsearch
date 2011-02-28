@@ -25,7 +25,9 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -78,6 +80,10 @@ public class FetchPhase implements SearchPhase {
             Uid uid = extractUid(context, doc);
 
             DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+
+            if (documentMapper == null) {
+                throw new TypeMissingException(new Index(context.shardTarget().index()), uid.type(), "failed to find type loaded for doc [" + uid.id() + "]");
+            }
 
             byte[] source = extractSource(doc, documentMapper);
 

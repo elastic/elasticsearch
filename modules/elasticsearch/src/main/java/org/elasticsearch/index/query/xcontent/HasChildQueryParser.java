@@ -96,11 +96,12 @@ public class HasChildQueryParser extends AbstractIndexComponent implements XCont
         // wrap the query with type query
         query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter()));
 
-        HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, SearchContext.current());
+        SearchContext searchContext = SearchContext.current();
+        HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, searchContext);
         // we don't need DeletionAwareConstantScore, since we filter deleted parent docs in the filter
         ConstantScoreQuery childQuery = new ConstantScoreQuery(childFilter);
         childQuery.setBoost(boost);
-        parseContext.addScopePhase(childFilter);
+        searchContext.addScopePhase(childFilter);
         return childQuery;
     }
 }

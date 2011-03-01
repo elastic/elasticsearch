@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.type.child.TopChildrenQuery;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -105,8 +106,9 @@ public class TopChildrenQueryParser extends AbstractIndexComponent implements XC
         // wrap the query with type query
         query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter()));
 
+        SearchContext searchContext = SearchContext.current();
         TopChildrenQuery childQuery = new TopChildrenQuery(query, scope, childType, parentType, scoreType, factor, incrementalFactor);
-        parseContext.addScopePhase(childQuery);
+        searchContext.addScopePhase(childQuery);
         return childQuery;
     }
 }

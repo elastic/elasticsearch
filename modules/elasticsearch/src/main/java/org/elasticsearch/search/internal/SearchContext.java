@@ -51,6 +51,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -147,6 +148,8 @@ public class SearchContext implements Releasable {
 
     private volatile long lastAccessTime;
 
+    private List<ScopePhase> scopePhases = null;
+
     public SearchContext(long id, SearchShardTarget shardTarget, SearchType searchType, int numberOfShards, TimeValue timeout,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
         this.id = id;
@@ -167,8 +170,8 @@ public class SearchContext implements Releasable {
 
     @Override public boolean release() throws ElasticSearchException {
         // clear and scope phase we  have
-        if (parsedQuery() != null) {
-            for (ScopePhase scopePhase : parsedQuery().scopePhases()) {
+        if (scopePhases != null) {
+            for (ScopePhase scopePhase : scopePhases) {
                 scopePhase.clear();
             }
         }
@@ -484,5 +487,16 @@ public class SearchContext implements Releasable {
 
     public FetchSearchResult fetchResult() {
         return fetchResult;
+    }
+
+    public List<ScopePhase> scopePhases() {
+        return this.scopePhases;
+    }
+
+    public void addScopePhase(ScopePhase scopePhase) {
+        if (this.scopePhases == null) {
+            this.scopePhases = new ArrayList<ScopePhase>();
+        }
+        this.scopePhases.add(scopePhase);
     }
 }

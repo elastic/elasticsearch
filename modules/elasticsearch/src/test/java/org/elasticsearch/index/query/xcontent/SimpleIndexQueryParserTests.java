@@ -252,6 +252,22 @@ public class SimpleIndexQueryParserTests {
         assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
     }
 
+    @Test public void testDisMax2() throws Exception {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/disMax2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
+
+        List<Query> disjuncts = Queries.disMaxClauses(disjunctionMaxQuery);
+        assertThat(disjuncts.size(), equalTo(1));
+
+        PrefixQuery firstQ = (PrefixQuery) disjuncts.get(0);
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(firstQ.getPrefix(), equalTo(new Term("name.first", "sh")));
+        assertThat((double) firstQ.getBoost(), closeTo(1.2, 0.00001));
+    }
+
     @Test public void testTermQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes()).query();

@@ -408,6 +408,17 @@ public class SimpleIndexQueryParserTests {
         assertThat(prefixQuery.getPrefix(), equalTo(new Term("name.first", "sh")));
     }
 
+    @Test public void testPrefixBoostQuery() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/prefix-boost.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+        PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(prefixQuery.getPrefix(), equalTo(new Term("name.first", "sh")));
+        assertThat((double) prefixQuery.getBoost(), closeTo(1.2, 0.00001));
+    }
+
     @Test public void testPrefixFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), prefixFilter("name.first", "sh"))).query();
@@ -472,6 +483,16 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(WildcardQuery.class));
         WildcardQuery wildcardQuery = (WildcardQuery) parsedQuery;
         assertThat(wildcardQuery.getTerm(), equalTo(new Term("name.first", "sh*")));
+    }
+
+    @Test public void testWildcardBoostQuery() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/wildcard-boost.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(WildcardQuery.class));
+        WildcardQuery wildcardQuery = (WildcardQuery) parsedQuery;
+        assertThat(wildcardQuery.getTerm(), equalTo(new Term("name.first", "sh*")));
+        assertThat((double) wildcardQuery.getBoost(), closeTo(1.2, 0.00001));
     }
 
     @Test public void testRangeQueryBuilder() throws IOException {

@@ -48,9 +48,9 @@ public class QueryFacetCollector extends AbstractFacetCollector {
         super(facetName);
         Filter possibleFilter = extractFilterIfApplicable(query);
         if (possibleFilter != null) {
-            this.filter = filterCache.cache(possibleFilter);
+            this.filter = possibleFilter;
         } else {
-            this.filter = filterCache.cache(new QueryWrapperFilter(query));
+            this.filter = new QueryWrapperFilter(query);
         }
     }
 

@@ -38,7 +38,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
@@ -53,7 +53,7 @@ public class PercolatorExecutorTests {
 
     private PercolatorExecutor percolatorExecutor;
 
-    @BeforeTest public void buildPercolatorService() {
+    @BeforeClass public void buildPercolatorService() {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "none")
                 .build();

@@ -199,6 +199,18 @@ public class ParseContext {
         this.uid = uid;
     }
 
+    /**
+     * Is all included or not. Will always disable it if {@link org.elasticsearch.index.mapper.AllFieldMapper#enabled()}
+     * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
+     * its actual value (so, if not set, defaults to "true").
+     */
+    public boolean includeInAll(Boolean specificIncludeInAll) {
+        if (!docMapper.allFieldMapper().enabled()) {
+            return false;
+        }
+        return specificIncludeInAll == null || specificIncludeInAll;
+    }
+
     public AllEntries allEntries() {
         return this.allEntries;
     }

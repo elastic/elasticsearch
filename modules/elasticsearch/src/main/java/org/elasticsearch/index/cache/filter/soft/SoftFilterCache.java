@@ -37,20 +37,31 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
 
+    private final int maxSize;
+
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+        this.maxSize = componentSettings.getAsInt("max_size", -1);
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
-        return new MapMaker().softValues().makeMap();
+        MapMaker mapMaker = new MapMaker().softValues();
+        if (maxSize != -1) {
+            mapMaker.maximumSize(maxSize);
+        }
+        return mapMaker.makeMap();
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildWeakCacheMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
-        return new MapMaker().weakValues().makeMap();
+        MapMaker mapMaker = new MapMaker().weakValues();
+        if (maxSize != -1) {
+            mapMaker.maximumSize(maxSize);
+        }
+        return mapMaker.makeMap();
     }
 
     @Override public String type() {

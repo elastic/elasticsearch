@@ -41,7 +41,8 @@ public class MultiCollector extends Collector {
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
-        if (collectors.length > 0) {
+        // always wrap it in a scorer wrapper
+        if (!(scorer instanceof ScoreCachingWrappingScorer)) {
             scorer = new ScoreCachingWrappingScorer(scorer);
         }
         collector.setScorer(scorer);

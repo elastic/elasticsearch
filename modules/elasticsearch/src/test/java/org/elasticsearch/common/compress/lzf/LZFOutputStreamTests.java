@@ -20,7 +20,7 @@
 package org.elasticsearch.common.compress.lzf;
 
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -36,7 +36,7 @@ public class LZFOutputStreamTests {
     private byte[] nonEncodableBytesToWrite = new byte[BUFFER_SIZE];
     private byte[] bytesToWrite = new byte[BUFFER_SIZE];
 
-    @BeforeTest(alwaysRun = true)
+    @BeforeClass
     public void setUp() throws Exception {
         SecureRandom.getInstance("SHA1PRNG").nextBytes(nonEncodableBytesToWrite);
         String phrase = "all work and no play make Jack a dull boy";

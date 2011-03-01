@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.search.internal.ScopePhase;
+import org.elasticsearch.common.lucene.search.Queries;
 
 /**
  * The result of parsing a query.
@@ -31,22 +31,20 @@ import org.elasticsearch.search.internal.ScopePhase;
  */
 public class ParsedQuery {
 
+    public static ParsedQuery MATCH_ALL_PARSED_QUERY = new ParsedQuery(Queries.MATCH_ALL_QUERY, ImmutableMap.<String, Filter>of());
+
     private final Query query;
 
     private final ImmutableMap<String, Filter> namedFilters;
 
-    private final ScopePhase[] scopePhases;
-
-    public ParsedQuery(Query query, ImmutableMap<String, Filter> namedFilters, ScopePhase[] scopePhases) {
+    public ParsedQuery(Query query, ImmutableMap<String, Filter> namedFilters) {
         this.query = query;
         this.namedFilters = namedFilters;
-        this.scopePhases = scopePhases;
     }
 
     public ParsedQuery(Query query, ParsedQuery parsedQuery) {
         this.query = query;
         this.namedFilters = parsedQuery.namedFilters;
-        this.scopePhases = parsedQuery.scopePhases;
     }
 
     /**
@@ -58,9 +56,5 @@ public class ParsedQuery {
 
     public ImmutableMap<String, Filter> namedFilters() {
         return this.namedFilters;
-    }
-
-    public ScopePhase[] scopePhases() {
-        return this.scopePhases;
     }
 }

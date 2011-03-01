@@ -19,10 +19,15 @@
 
 package org.elasticsearch.river;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.river.cluster.RiverClusterService;
 import org.elasticsearch.river.routing.RiversRouter;
+
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -31,8 +36,20 @@ public class RiversModule extends AbstractModule {
 
     private final Settings settings;
 
+    private Map<String, Class<? extends Module>> riverTypes = Maps.newHashMap();
+
     public RiversModule(Settings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * Registers a custom river type name against a module.
+     *
+     * @param type   The type
+     * @param module The module
+     */
+    public void registerRiver(String type, Class<? extends Module> module) {
+        riverTypes.put(type, module);
     }
 
     @Override protected void configure() {
@@ -41,5 +58,6 @@ public class RiversModule extends AbstractModule {
         bind(RiverClusterService.class).asEagerSingleton();
         bind(RiversRouter.class).asEagerSingleton();
         bind(RiversManager.class).asEagerSingleton();
+        bind(RiversTypesRegistry.class).toInstance(new RiversTypesRegistry(ImmutableMap.copyOf(riverTypes)));
     }
 }

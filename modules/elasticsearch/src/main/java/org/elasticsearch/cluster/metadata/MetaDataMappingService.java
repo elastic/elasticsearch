@@ -122,9 +122,8 @@ public class MetaDataMappingService extends AbstractComponent {
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
                 } catch (Exception e) {
                     logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
+                    listener.onFailure(e);
                     return currentState;
-                } finally {
-                    listener.onResponse(new Response(true));
                 }
             }
 
@@ -282,13 +281,10 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (String index : request.indices) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
                     if (indexRoutingTable != null) {
-                        counter += indexRoutingTable.numberOfNodesShardsAreAllocatedOn();
+                        counter += indexRoutingTable.numberOfNodesShardsAreAllocatedOn(clusterState.nodes().masterNodeId());
                     }
                 }
 
-                if (counter > 0) {
-                    counter = counter - 1; // we already added the mapping on the master here...
-                }
                 if (counter == 0) {
                     listener.onResponse(new Response(true));
                     return;

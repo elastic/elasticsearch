@@ -37,14 +37,21 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class WeakFilterCache extends AbstractConcurrentMapFilterCache {
 
+    private final int maxSize;
+
     @Inject public WeakFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+        this.maxSize = componentSettings.getAsInt("max_size", -1);
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
-        return new MapMaker().weakValues().makeMap();
+        MapMaker mapMaker = new MapMaker().weakValues();
+        if (maxSize != -1) {
+            mapMaker.maximumSize(maxSize);
+        }
+        return mapMaker.makeMap();
     }
 
     @Override public String type() {

@@ -43,10 +43,13 @@ public class RiverModule extends AbstractModule implements SpawnModules {
 
     private final Map<String, Object> settings;
 
-    public RiverModule(RiverName riverName, Map<String, Object> settings, Settings globalSettings) {
+    private final RiversTypesRegistry typesRegistry;
+
+    public RiverModule(RiverName riverName, Map<String, Object> settings, Settings globalSettings, RiversTypesRegistry typesRegistry) {
         this.riverName = riverName;
         this.globalSettings = globalSettings;
         this.settings = settings;
+        this.typesRegistry = typesRegistry;
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
@@ -58,6 +61,10 @@ public class RiverModule extends AbstractModule implements SpawnModules {
     }
 
     private Class<? extends Module> loadTypeModule(String type, String prefixPackage, String suffixClassName) {
+        Class<? extends Module> registered = typesRegistry.type(type);
+        if (registered != null) {
+            return registered;
+        }
         String fullClassName = type;
         try {
             return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);

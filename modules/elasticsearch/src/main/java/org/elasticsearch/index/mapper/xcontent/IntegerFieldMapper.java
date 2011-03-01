@@ -161,7 +161,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             } else {
                 value = ((Number) externalValue).intValue();
             }
-            if (includeInAll == null || includeInAll) {
+            if (context.includeInAll(includeInAll)) {
                 context.allEntries().addText(names.fullName(), Integer.toString(value), boost);
             }
         } else {
@@ -170,12 +170,12 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (includeInAll == null || includeInAll)) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else {
                 value = context.parser().intValue();
-                if (includeInAll == null || includeInAll) {
+                if (context.includeInAll(includeInAll)) {
                     context.allEntries().addText(names.fullName(), context.parser().text(), boost);
                 }
             }

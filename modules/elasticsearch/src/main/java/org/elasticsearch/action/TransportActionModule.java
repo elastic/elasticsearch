@@ -125,8 +125,10 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportSearchQueryThenFetchAction.class).asEagerSingleton();
         bind(TransportSearchDfsQueryAndFetchAction.class).asEagerSingleton();
         bind(TransportSearchQueryAndFetchAction.class).asEagerSingleton();
+        bind(TransportSearchScanAction.class).asEagerSingleton();
         bind(TransportSearchAction.class).asEagerSingleton();
 
+        bind(TransportSearchScrollScanAction.class).asEagerSingleton();
         bind(TransportSearchScrollQueryThenFetchAction.class).asEagerSingleton();
         bind(TransportSearchScrollQueryAndFetchAction.class).asEagerSingleton();
         bind(TransportSearchScrollAction.class).asEagerSingleton();

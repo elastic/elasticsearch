@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -40,10 +39,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.ScopePhase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,8 +53,6 @@ public class QueryParseContext {
     XContentIndexQueryParser indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
-
-    private final List<ScopePhase> scopePhases = Lists.newArrayList();
 
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
 
@@ -73,7 +68,6 @@ public class QueryParseContext {
     public void reset(XContentParser jp) {
         this.parser = jp;
         this.namedFilters.clear();
-        this.scopePhases.clear();
     }
 
     public XContentParser parser() {
@@ -131,19 +125,6 @@ public class QueryParseContext {
             return ImmutableMap.of();
         }
         return ImmutableMap.copyOf(namedFilters);
-    }
-
-    public void addScopePhase(ScopePhase scopePhase) {
-        scopePhases.add(scopePhase);
-    }
-
-    private static ScopePhase[] EMPTY_SCOPE_PHASES = new ScopePhase[0];
-
-    public ScopePhase[] copyScopePhases() {
-        if (scopePhases.isEmpty()) {
-            return EMPTY_SCOPE_PHASES;
-        }
-        return scopePhases.toArray(new ScopePhase[scopePhases.size()]);
     }
 
     public Query parseInnerQuery() throws IOException, QueryParsingException {

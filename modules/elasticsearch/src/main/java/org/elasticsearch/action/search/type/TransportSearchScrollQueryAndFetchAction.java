@@ -105,6 +105,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         public void start() {
             if (scrollId.values().length == 0) {
                 listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", null));
+                return;
             }
 
             int localOperations = 0;

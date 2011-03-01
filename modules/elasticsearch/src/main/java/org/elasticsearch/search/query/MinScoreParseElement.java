@@ -17,10 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.recovery;
+package org.elasticsearch.search.query;
+
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SmallBufferRecoveryTests extends SimpleRecoveryTests {
+public class MinScoreParseElement implements SearchParseElement {
+
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token = parser.currentToken();
+        if (token.isValue()) {
+            context.minimumScore(parser.floatValue());
+        }
+    }
 }

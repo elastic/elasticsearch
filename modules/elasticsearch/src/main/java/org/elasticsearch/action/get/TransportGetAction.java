@@ -45,6 +45,9 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,10 +66,13 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     private final IndicesService indicesService;
 
+    private final ScriptService scriptService;
+
     @Inject public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                      IndicesService indicesService, ThreadPool threadPool) {
+                                      IndicesService indicesService, ScriptService scriptService, ThreadPool threadPool) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.scriptService = scriptService;
     }
 
     @Override protected String executor() {
@@ -148,6 +154,48 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                         getField.values().add(value);
                     }
                 }
+
+                // now, go and do the script thingy if needed
+                if (request.fields() != null && request.fields().length > 0) {
+                    SearchLookup searchLookup = null;
+                    for (String field : request.fields()) {
+                        String script = null;
+                        if (field.contains("_source.") || field.contains("doc[")) {
+                            script = field;
+                        } else {
+                            FieldMappers x = docMapper.mappers().smartName(field);
+                            if (x != null && !x.mapper().stored()) {
+                                script = "_source." + x.mapper().names().fullName();
+                            }
+                        }
+                        if (script != null) {
+                            if (searchLookup == null) {
+                                searchLookup = new SearchLookup(indexService.mapperService(), indexService.cache().fieldData());
+                            }
+                            SearchScript searchScript = scriptService.search(searchLookup, "mvel", script, null);
+                            searchScript.setNextReader(docIdAndVersion.reader);
+                            searchScript.setNextDocId(docIdAndVersion.docId);
+
+                            try {
+                                Object value = searchScript.run();
+                                if (fields == null) {
+                                    fields = newHashMapWithExpectedSize(2);
+                                }
+                                GetField getField = fields.get(field);
+                                if (getField == null) {
+                                    getField = new GetField(field, new ArrayList<Object>(2));
+                                    fields.put(field, getField);
+                                }
+                                getField.values().add(value);
+                            } catch (RuntimeException e) {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("failed to execute get request script field [{}]", e, script);
+                                }
+                                // ignore
+                            }
+                        }
+                    }
+                }
             }
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to get type [" + request.type() + "] and id [" + request.id() + "]", e);
@@ -167,14 +215,17 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
             return null;
         }
 
-        FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();
+        FieldMappersFieldSelector fieldSelector = null;
         for (String fieldName : fields) {
             FieldMappers x = docMapper.mappers().smartName(fieldName);
-            if (x == null) {
-                throw new ElasticSearchException("No mapping for field [" + fieldName + "] in type [" + docMapper.type() + "]");
+            if (x != null && x.mapper().stored()) {
+                if (fieldSelector == null) {
+                    fieldSelector = new FieldMappersFieldSelector();
+                }
+                fieldSelector.add(x);
             }
-            fieldSelector.add(x);
         }
+
         return fieldSelector;
     }
 

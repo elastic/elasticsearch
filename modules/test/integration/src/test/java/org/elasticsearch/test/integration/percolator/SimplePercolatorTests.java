@@ -88,6 +88,13 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.matches().size(), equalTo(1));
+
+        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject()
+                .startObject("doc").field("field1", "value1").endObject()
+                .field("query", matchAllQuery())
+                .endObject())
+                .execute().actionGet();
+        assertThat(percolate.matches().size(), equalTo(1));
     }
 
     @Test public void createIndexAndThenRegisterPercolator() throws Exception {

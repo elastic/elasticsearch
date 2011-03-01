@@ -56,7 +56,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     private final String rabbitQueue;
     private final String rabbitExchange;
+    private final String rabbitExchangeType;
     private final String rabbitRoutingKey;
+    private final boolean rabbitExchangeDurable;
+    private final boolean rabbitQueueDurable;
+    private final boolean rabbitQueueAutoDelete;
 
     private final int bulkSize;
     private final TimeValue bulkTimeout;
@@ -84,7 +88,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");
             rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
+            rabbitExchangeType = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange_type"), "direct");
             rabbitRoutingKey = XContentMapValues.nodeStringValue(rabbitSettings.get("routing_key"), "elasticsearch");
+            rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
+            rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
+            rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
         } else {
             rabbitHost = ConnectionFactory.DEFAULT_HOST;
             rabbitPort = ConnectionFactory.DEFAULT_AMQP_PORT;
@@ -93,7 +101,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitVhost = ConnectionFactory.DEFAULT_VHOST;
 
             rabbitQueue = "elasticsearch";
+            rabbitQueueAutoDelete = false;
+            rabbitQueueDurable = true;
             rabbitExchange = "elasticsearch";
+            rabbitExchangeType = "direct";
+            rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
         }
 
@@ -167,8 +179,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 QueueingConsumer consumer = new QueueingConsumer(channel);
                 // define the queue
                 try {
-                    channel.exchangeDeclare(rabbitExchange/*exchange*/, "direct"/*type*/, true /*durable*/);
-                    channel.queueDeclare(rabbitQueue/*queue*/, true /*durable*/, false/*exclusive*/, false/*autoDelete*/, null);
+                    channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
+                    channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, null);
                     channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
@@ -278,7 +290,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 }
 
                                 @Override public void onFailure(Throwable e) {
-                                    logger.warn("failed to execute bulk for delivery tags , not ack'ing", e, deliveryTags);
+                                    logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
                                 }
                             });
                         }

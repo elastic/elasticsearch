@@ -25,4 +25,9 @@ package org.elasticsearch.index.mapper;
 public interface AllFieldMapper extends FieldMapper<Void>, InternalMapper {
 
     public static final String NAME = "_all";
+
+    /**
+     * Is the all field enabled or not.
+     */
+    public boolean enabled();
 }

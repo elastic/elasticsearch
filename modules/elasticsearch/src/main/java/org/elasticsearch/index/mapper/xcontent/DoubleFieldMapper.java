@@ -162,7 +162,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             } else {
                 value = ((Number) externalValue).doubleValue();
             }
-            if (includeInAll == null || includeInAll) {
+            if (context.includeInAll(includeInAll)) {
                 context.allEntries().addText(names.fullName(), Double.toString(value), boost);
             }
         } else {
@@ -171,12 +171,12 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (includeInAll == null || includeInAll)) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else {
                 value = context.parser().doubleValue();
-                if (includeInAll == null || includeInAll) {
+                if (context.includeInAll(includeInAll)) {
                     context.allEntries().addText(names.fullName(), context.parser().text(), boost);
                 }
             }

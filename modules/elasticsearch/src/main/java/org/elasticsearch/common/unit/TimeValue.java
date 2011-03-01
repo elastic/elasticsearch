@@ -235,6 +235,8 @@ public class TimeValue implements Serializable, Streamable {
                 millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 60 * 60 * 1000);
             } else if (sValue.endsWith("d")) {
                 millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 24 * 60 * 60 * 1000);
+            } else if (sValue.endsWith("w")) {
+                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
             } else {
                 millis = Long.parseLong(sValue);
             }

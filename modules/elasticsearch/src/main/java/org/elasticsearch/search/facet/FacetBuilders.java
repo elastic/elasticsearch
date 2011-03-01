@@ -32,6 +32,7 @@ import org.elasticsearch.search.facet.range.RangeScriptFacetBuilder;
 import org.elasticsearch.search.facet.statistical.StatisticalFacetBuilder;
 import org.elasticsearch.search.facet.statistical.StatisticalScriptFacetBuilder;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
+import org.elasticsearch.search.facet.termsstats.TermsStatsFacetBuilder;
 
 /**
  * @author kimchy (shay.banon)
@@ -56,6 +57,10 @@ public class FacetBuilders {
 
     public static TermsFacetBuilder termsFacet(String facetName) {
         return new TermsFacetBuilder(facetName);
+    }
+
+    public static TermsStatsFacetBuilder termsStats(String facetName) {
+        return new TermsStatsFacetBuilder(facetName);
     }
 
     public static StatisticalFacetBuilder statisticalFacet(String facetName) {

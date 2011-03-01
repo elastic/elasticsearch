@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lease.Releasable;
@@ -50,6 +51,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -74,6 +76,8 @@ public class SearchContext implements Releasable {
     private final long id;
 
     private final SearchShardTarget shardTarget;
+
+    private SearchType searchType;
 
     private final int numberOfShards;
 
@@ -112,6 +116,8 @@ public class SearchContext implements Releasable {
 
     private Sort sort;
 
+    private Float minimumScore;
+
     private boolean trackScores = false; // when sorting, track scores as well...
 
     private String queryParserName;
@@ -142,9 +148,12 @@ public class SearchContext implements Releasable {
 
     private volatile long lastAccessTime;
 
-    public SearchContext(long id, SearchShardTarget shardTarget, int numberOfShards, TimeValue timeout,
+    private List<ScopePhase> scopePhases = null;
+
+    public SearchContext(long id, SearchShardTarget shardTarget, SearchType searchType, int numberOfShards, TimeValue timeout,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
         this.id = id;
+        this.searchType = searchType;
         this.shardTarget = shardTarget;
         this.numberOfShards = numberOfShards;
         this.timeout = timeout;
@@ -161,8 +170,8 @@ public class SearchContext implements Releasable {
 
     @Override public boolean release() throws ElasticSearchException {
         // clear and scope phase we  have
-        if (parsedQuery() != null) {
-            for (ScopePhase scopePhase : parsedQuery().scopePhases()) {
+        if (scopePhases != null) {
+            for (ScopePhase scopePhase : scopePhases) {
                 scopePhase.clear();
             }
         }
@@ -178,6 +187,15 @@ public class SearchContext implements Releasable {
 
     public long id() {
         return this.id;
+    }
+
+    public SearchType searchType() {
+        return this.searchType;
+    }
+
+    public SearchContext searchType(SearchType searchType) {
+        this.searchType = searchType;
+        return this;
     }
 
     public SearchShardTarget shardTarget() {
@@ -287,6 +305,15 @@ public class SearchContext implements Releasable {
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public SearchContext minimumScore(float minimumScore) {
+        this.minimumScore = minimumScore;
+        return this;
+    }
+
+    public Float minimumScore() {
+        return this.minimumScore;
     }
 
     public SearchContext sort(Sort sort) {
@@ -460,5 +487,16 @@ public class SearchContext implements Releasable {
 
     public FetchSearchResult fetchResult() {
         return fetchResult;
+    }
+
+    public List<ScopePhase> scopePhases() {
+        return this.scopePhases;
+    }
+
+    public void addScopePhase(ScopePhase scopePhase) {
+        if (this.scopePhases == null) {
+            this.scopePhases = new ArrayList<ScopePhase>();
+        }
+        this.scopePhases.add(scopePhase);
     }
 }

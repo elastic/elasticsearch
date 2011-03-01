@@ -50,7 +50,7 @@ import java.util.Map;
 public class DateHistogramFacetProcessor extends AbstractComponent implements FacetProcessor {
 
     private final ImmutableMap<String, DateFieldParser> dateFieldParsers;
-    private final TObjectIntHashMap<String> rounding = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, MutableDateTime.ROUND_FLOOR);
+    private final TObjectIntHashMap<String> rounding = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
     @Inject public DateHistogramFacetProcessor(Settings settings) {
         super(settings);
@@ -164,15 +164,28 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             int index = sInterval.indexOf(':');
             if (index != -1) {
                 // set with rounding
-                DateTimeField field = dateFieldParsers.get(sInterval.substring(0, index)).parse(dateTime.getChronology());
-                dateTime.setRounding(field, rounding.get(sInterval.substring(index + 1)));
+                DateFieldParser fieldParser = dateFieldParsers.get(sInterval.substring(0, index));
+                if (fieldParser == null) {
+                    throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "] with custom rounding using built in intervals (year/month/...)");
+                }
+                DateTimeField field = fieldParser.parse(dateTime.getChronology());
+                int rounding = this.rounding.get(sInterval.substring(index + 1));
+                if (rounding == -1) {
+                    throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "], rounding type [" + (sInterval.substring(index + 1)) + "] not found");
+                }
+                dateTime.setRounding(field, rounding);
             } else {
-                DateTimeField field = dateFieldParsers.get(sInterval).parse(dateTime.getChronology());
-                if (field != null) {
+                DateFieldParser fieldParser = dateFieldParsers.get(sInterval);
+                if (fieldParser != null) {
+                    DateTimeField field = fieldParser.parse(dateTime.getChronology());
                     dateTime.setRounding(field, MutableDateTime.ROUND_FLOOR);
                 } else {
                     // time interval
-                    interval = TimeValue.parseTimeValue(parser.text(), null).millis();
+                    try {
+                        interval = TimeValue.parseTimeValue(parser.text(), null).millis();
+                    } catch (Exception e) {
+                        throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "], tried both as built in intervals (year/month/...) and as a time format");
+                    }
                 }
             }
         }

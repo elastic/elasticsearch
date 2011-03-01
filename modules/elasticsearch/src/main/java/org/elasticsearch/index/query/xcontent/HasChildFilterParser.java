@@ -97,8 +97,10 @@ public class HasChildFilterParser extends AbstractIndexComponent implements XCon
         // wrap the query with type query
         query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter()));
 
-        HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, SearchContext.current());
-        parseContext.addScopePhase(childFilter);
+        SearchContext searchContext = SearchContext.current();
+
+        HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, searchContext);
+        searchContext.addScopePhase(childFilter);
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, childFilter);

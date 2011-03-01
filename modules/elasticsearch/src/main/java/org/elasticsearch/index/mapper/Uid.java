@@ -66,7 +66,7 @@ public final class Uid {
     }
 
     public static Uid createUid(String uid) {
-        int delimiterIndex = uid.lastIndexOf(DELIMITER);
+        int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 

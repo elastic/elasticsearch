@@ -19,14 +19,15 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -35,6 +36,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -64,13 +67,15 @@ public class QueryPhase implements SearchPhase {
                 .put("sort", new SortParseElement())
                 .put("trackScores", new TrackScoresParseElement())
                 .put("track_scores", new TrackScoresParseElement())
+                .put("min_score", new MinScoreParseElement())
+                .put("minScore", new MinScoreParseElement())
                 .putAll(facetPhase.parseElements());
         return parseElements.build();
     }
 
     @Override public void preProcess(SearchContext context) {
         if (context.query() == null) {
-            throw new SearchParseException(context, "No query specified in search request");
+            context.parsedQuery(ParsedQuery.MATCH_ALL_PARSED_QUERY);
         }
         if (context.queryBoost() != 1.0f) {
             context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
@@ -80,7 +85,7 @@ public class QueryPhase implements SearchPhase {
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         // set the filter on the searcher
-        if (searchContext.parsedQuery().scopePhases().length > 0) {
+        if (searchContext.scopePhases() != null) {
             // we have scoped queries, refresh the id cache
             try {
                 searchContext.idCache().refresh(searchContext.searcher().subReaders());
@@ -89,8 +94,8 @@ public class QueryPhase implements SearchPhase {
             }
 
             // process scoped queries (from the last to the first, working with the parsing option here)
-            for (int i = searchContext.parsedQuery().scopePhases().length - 1; i >= 0; i--) {
-                ScopePhase scopePhase = searchContext.parsedQuery().scopePhases()[i];
+            for (int i = searchContext.scopePhases().size() - 1; i >= 0; i--) {
+                ScopePhase scopePhase = searchContext.scopePhases().get(i);
 
                 if (scopePhase instanceof ScopePhase.TopDocsPhase) {
                     ScopePhase.TopDocsPhase topDocsPhase = (ScopePhase.TopDocsPhase) scopePhase;
@@ -184,7 +189,23 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            if (sort) {
+            if (searchContext.searchType() == SearchType.COUNT) {
+                CountCollector countCollector = new CountCollector();
+                try {
+                    searchContext.searcher().search(query, countCollector);
+                } catch (ScanCollector.StopCollectingException e) {
+                    // all is well
+                }
+                topDocs = countCollector.topDocs();
+            } else if (searchContext.searchType() == SearchType.SCAN) {
+                ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size());
+                try {
+                    searchContext.searcher().search(query, scanCollector);
+                } catch (ScanCollector.StopCollectingException e) {
+                    // all is well
+                }
+                topDocs = scanCollector.topDocs();
+            } else if (sort) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
             } else {
                 topDocs = searchContext.searcher().search(query, numDocs);
@@ -197,5 +218,82 @@ public class QueryPhase implements SearchPhase {
         }
 
         facetPhase.execute(searchContext);
+    }
+
+    static class CountCollector extends Collector {
+
+        private int totalHits = 0;
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            totalHits++;
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+
+        public TopDocs topDocs() {
+            return new TopDocs(totalHits, EMPTY, 0);
+        }
+
+        private static ScoreDoc[] EMPTY = new ScoreDoc[0];
+    }
+
+    static class ScanCollector extends Collector {
+
+        private final int from;
+
+        private final int to;
+
+        private final ArrayList<ScoreDoc> docs;
+
+        private int docBase;
+
+        private int counter;
+
+        ScanCollector(int from, int size) {
+            this.from = from;
+            this.to = from + size;
+            this.docs = new ArrayList<ScoreDoc>(size);
+        }
+
+        public TopDocs topDocs() {
+            return new TopDocs(docs.size(), docs.toArray(new ScoreDoc[docs.size()]), 0f);
+        }
+
+        @Override public void setScorer(Scorer scorer) throws IOException {
+        }
+
+        @Override public void collect(int doc) throws IOException {
+            if (counter >= from) {
+                docs.add(new ScoreDoc(docBase + doc, 0f));
+            }
+            counter++;
+            if (counter >= to) {
+                throw StopCollectingException;
+            }
+        }
+
+        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+            this.docBase = docBase;
+        }
+
+        @Override public boolean acceptsDocsOutOfOrder() {
+            return true;
+        }
+
+        public static final RuntimeException StopCollectingException = new StopCollectingException();
+
+        static class StopCollectingException extends RuntimeException {
+            @Override public Throwable fillInStackTrace() {
+                return null;
+            }
+        }
     }
 }

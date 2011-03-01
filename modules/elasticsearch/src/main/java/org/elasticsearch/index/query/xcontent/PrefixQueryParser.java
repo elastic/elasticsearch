@@ -77,6 +77,7 @@ public class PrefixQueryParser extends AbstractIndexComponent implements XConten
                     }
                 }
             }
+            parser.nextToken();
         } else {
             value = parser.text();
             parser.nextToken();

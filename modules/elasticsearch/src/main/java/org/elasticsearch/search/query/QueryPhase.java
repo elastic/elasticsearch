@@ -85,7 +85,7 @@ public class QueryPhase implements SearchPhase {
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         // set the filter on the searcher
-        if (searchContext.parsedQuery().scopePhases().length > 0) {
+        if (searchContext.scopePhases() != null) {
             // we have scoped queries, refresh the id cache
             try {
                 searchContext.idCache().refresh(searchContext.searcher().subReaders());
@@ -94,8 +94,8 @@ public class QueryPhase implements SearchPhase {
             }
 
             // process scoped queries (from the last to the first, working with the parsing option here)
-            for (int i = searchContext.parsedQuery().scopePhases().length - 1; i >= 0; i--) {
-                ScopePhase scopePhase = searchContext.parsedQuery().scopePhases()[i];
+            for (int i = searchContext.scopePhases().size() - 1; i >= 0; i--) {
+                ScopePhase scopePhase = searchContext.scopePhases().get(i);
 
                 if (scopePhase instanceof ScopePhase.TopDocsPhase) {
                     ScopePhase.TopDocsPhase topDocsPhase = (ScopePhase.TopDocsPhase) scopePhase;

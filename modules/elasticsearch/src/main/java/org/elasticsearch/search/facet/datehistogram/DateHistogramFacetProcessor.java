@@ -182,7 +182,7 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 } else {
                     // time interval
                     try {
-                        interval = TimeValue.parseTimeValue(parser.text(), null).millis();
+                        interval = TimeValue.parseTimeValue(sInterval, null).millis();
                     } catch (Exception e) {
                         throw new FacetPhaseExecutionException(facetName, "failed to parse interval [" + sInterval + "], tried both as built in intervals (year/month/...) and as a time format");
                     }

@@ -42,7 +42,7 @@ public class FilterFacetCollector extends AbstractFacetCollector {
 
     public FilterFacetCollector(String facetName, Filter filter, FilterCache filterCache) {
         super(facetName);
-        this.filter = filterCache.cache(filter);
+        this.filter = filter;
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

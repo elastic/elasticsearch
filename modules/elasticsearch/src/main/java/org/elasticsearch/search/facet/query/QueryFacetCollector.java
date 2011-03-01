@@ -20,10 +20,7 @@
 package org.elasticsearch.search.facet.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -50,7 +47,7 @@ public class QueryFacetCollector extends AbstractFacetCollector {
         if (possibleFilter != null) {
             this.filter = possibleFilter;
         } else {
-            this.filter = new QueryWrapperFilter(query);
+            this.filter = filterCache.weakCache(new QueryWrapperFilter(query));
         }
     }
 
@@ -77,6 +74,10 @@ public class QueryFacetCollector extends AbstractFacetCollector {
             if (Queries.isMatchAllQuery(fQuery.getQuery())) {
                 return fQuery.getFilter();
             }
+        } else if (query instanceof DeletionAwareConstantScoreQuery) {
+            return ((DeletionAwareConstantScoreQuery) query).getFilter();
+        } else if (query instanceof ConstantScoreQuery) {
+            return ((ConstantScoreQuery) query).getFilter();
         }
         return null;
     }

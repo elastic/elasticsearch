@@ -223,7 +223,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticSearchException {
         if (!lifecycle.started()) {
-            throw new ElasticSearchIllegalStateException("Can't create an index [" + sIndexName + "] is closed");
+            throw new ElasticSearchIllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
         Index index = new Index(sIndexName);
         if (indicesInjectors.containsKey(index.name())) {

@@ -251,11 +251,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         this.typeFilter = new TermFilter(typeMapper().term(type));
 
-        // if we are not enabling all, set it to false on the root object, (and on all the rest...)
-        if (!allFieldMapper.enabled()) {
-            this.rootObjectMapper.includeInAll(allFieldMapper.enabled());
-        }
-
         rootObjectMapper.putMapper(idFieldMapper);
         if (boostFieldMapper != null) {
             rootObjectMapper.putMapper(boostFieldMapper);

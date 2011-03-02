@@ -168,6 +168,17 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     }
 
     /**
+     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
+     * used for routing with delete requests.
+     */
+    public DeleteRequest parent(String parent) {
+        if (routing == null) {
+            routing = parent;
+        }
+        return this;
+    }
+
+    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */

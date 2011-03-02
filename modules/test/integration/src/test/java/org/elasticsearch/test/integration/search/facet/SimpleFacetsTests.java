@@ -1216,6 +1216,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(dateHistogramFacet("stats2").field("date").interval("day").zone("-02:00"))
                 .addFacet(dateHistogramFacet("stats3").field("date").valueField("num").interval("day").zone("-02:00"))
                 .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").zone("-02:00"))
+                .addFacet(dateHistogramFacet("stats5").field("date").interval("24h"))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -1264,6 +1265,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
         assertThat(facet.entries().get(1).count(), equalTo(2l));
         assertThat(facet.entries().get(1).total(), equalTo(10d));
+
+        facet = searchResponse.facets().facet("stats5");
+        assertThat(facet.name(), equalTo("stats5"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
     }
 
     private long utcTimeInMillis(String time) {

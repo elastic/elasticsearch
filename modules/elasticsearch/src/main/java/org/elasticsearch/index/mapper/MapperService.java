@@ -223,7 +223,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return mapper;
         }
         if (!dynamic) {
-            return null;
+            throw new TypeMissingException(index, type, "typing to auto create mapping, but dynamic mapping is disabled");
         }
         // go ahead and dynamically create it
         synchronized (mutex) {

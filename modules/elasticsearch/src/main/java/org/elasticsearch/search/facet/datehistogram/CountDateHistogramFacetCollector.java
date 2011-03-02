@@ -115,8 +115,6 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
     public static class IntervalDateHistogramProc extends DateHistogramProc {
 
-        private final TLongLongHashMap counts = new TLongLongHashMap();
-
         private final long interval;
 
         public IntervalDateHistogramProc(long interval) {

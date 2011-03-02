@@ -112,7 +112,8 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
             shardsIts = clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint(), request.routing());
             expectedSuccessfulOps = shardsIts.size();
-            expectedTotalOps = shardsIts.totalSizeActive();
+            // we need to add 1 for non active partition, since we count it in the total!
+            expectedTotalOps = shardsIts.totalSizeActiveWith1ForEmpty();
 
             if (expectedSuccessfulOps == 0) {
                 // not search shards to search on...

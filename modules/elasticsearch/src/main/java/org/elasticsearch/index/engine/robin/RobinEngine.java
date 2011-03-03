@@ -578,24 +578,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
         // We can't do prepareCommit here, since we rely on the the segment version for the translog version
 
-        // call maybeMerge outside of the write lock since it gets called anyhow within commit/refresh
-        // and we want not to suffer this cost within the write lock
-        // only do it if we don't have an async merging going on, otherwise, we know that we won't do any
-        // merge operation
-        try {
-            if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
-                ((EnableMergePolicy) indexWriter.getMergePolicy()).enableMerge();
-            }
-            indexWriter.maybeMerge();
-        } catch (Exception e) {
-            flushing.set(false);
-            throw new FlushFailedEngineException(shardId, e);
-        } finally {
-            // don't allow merge when committing under write lock
-            if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
-                ((EnableMergePolicy) indexWriter.getMergePolicy()).disableMerge();
-            }
-        }
         rwl.writeLock().lock();
         try {
             if (indexWriter == null) {

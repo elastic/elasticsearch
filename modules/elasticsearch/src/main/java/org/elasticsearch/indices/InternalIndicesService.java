@@ -41,6 +41,7 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.Engine;
@@ -163,9 +164,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     @Override public NodeIndicesStats stats() {
         long storeTotalSize = 0;
         long numberOfDocs = 0;
-        long fieldCacheEvictions = 0;
-        long fieldCacheTotalSize = 0;
-        long filterCacheTotalSize = 0;
+        CacheStats cacheStats = new CacheStats();
         MergeStats mergeStats = new MergeStats();
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
@@ -185,11 +184,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 }
                 mergeStats.add(((InternalIndexShard) indexShard).mergeScheduler().stats());
             }
-            fieldCacheEvictions += indexService.cache().fieldData().evictions();
-            fieldCacheTotalSize += indexService.cache().fieldData().sizeInBytes();
-            filterCacheTotalSize += indexService.cache().filter().sizeInBytes();
+            cacheStats.add(indexService.cache().stats());
         }
-        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, new ByteSizeValue(fieldCacheTotalSize), new ByteSizeValue(filterCacheTotalSize), fieldCacheEvictions, mergeStats);
+        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats);
     }
 
     /**

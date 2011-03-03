@@ -23,13 +23,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class MergeStats implements Streamable {
+public class MergeStats implements Streamable, ToXContent {
 
     private long totalMerges;
 
@@ -91,6 +94,24 @@ public class MergeStats implements Streamable {
         MergeStats stats = new MergeStats();
         stats.readFrom(in);
         return stats;
+    }
+
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.MERGES);
+        builder.field(Fields.CURRENT, currentMerges);
+        builder.field(Fields.TOTAL, totalMerges);
+        builder.field(Fields.TOTAL_TIME, totalMergeTime().toString());
+        builder.field(Fields.TOTAL_TIME_IN_MILLIS, totalMergeTime);
+        builder.endObject();
+        return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString MERGES = new XContentBuilderString("merges");
+        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
+        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

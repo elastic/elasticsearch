@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.merge.MergeStats;
 
 import java.io.IOException;
@@ -42,24 +43,17 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private long numDocs;
 
-    private ByteSizeValue fieldCacheSize;
-
-    private ByteSizeValue filterCacheSize;
-
-    private long fieldCacheEvictions;
+    private CacheStats cacheStats;
 
     private MergeStats mergeStats;
 
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
-                            long fieldCacheEvictions, MergeStats mergeStats) {
+    public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, CacheStats cacheStats, MergeStats mergeStats) {
         this.storeSize = storeSize;
         this.numDocs = numDocs;
-        this.fieldCacheSize = fieldCacheSize;
-        this.filterCacheSize = filterCacheSize;
-        this.fieldCacheEvictions = fieldCacheEvictions;
+        this.cacheStats = cacheStats;
         this.mergeStats = mergeStats;
     }
 
@@ -91,35 +85,19 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         return numDocs();
     }
 
-    public ByteSizeValue fieldCacheSize() {
-        return this.fieldCacheSize;
+    public CacheStats cache() {
+        return this.cacheStats;
     }
 
-    public ByteSizeValue getFieldCacheSize() {
-        return this.fieldCacheSize;
+    public CacheStats getCache() {
+        return this.cache();
     }
 
-    public ByteSizeValue filterCacheSize() {
-        return this.filterCacheSize;
-    }
-
-    public ByteSizeValue getFilterCacheSize() {
-        return this.filterCacheSize;
-    }
-
-    public long fieldCacheEvictions() {
-        return this.fieldCacheEvictions;
-    }
-
-    public long getFieldCacheEvictions() {
-        return fieldCacheEvictions();
-    }
-
-    public MergeStats mergeStats() {
+    public MergeStats merge() {
         return this.mergeStats;
     }
 
-    public MergeStats getMergeStats() {
+    public MergeStats getMerge() {
         return this.mergeStats;
     }
 
@@ -132,38 +110,31 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Override public void readFrom(StreamInput in) throws IOException {
         storeSize = ByteSizeValue.readBytesSizeValue(in);
         numDocs = in.readVLong();
-        fieldCacheSize = ByteSizeValue.readBytesSizeValue(in);
-        filterCacheSize = ByteSizeValue.readBytesSizeValue(in);
-        fieldCacheEvictions = in.readVLong();
+        cacheStats = CacheStats.readCacheStats(in);
         mergeStats = MergeStats.readMergeStats(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         storeSize.writeTo(out);
         out.writeVLong(numDocs);
-        fieldCacheSize.writeTo(out);
-        filterCacheSize.writeTo(out);
-        out.writeVLong(fieldCacheEvictions);
+        cacheStats.writeTo(out);
         mergeStats.writeTo(out);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
-        builder.field(Fields.STORE_SIZE, storeSize.toString());
-        builder.field(Fields.STORE_SIZE_IN_BYTES, storeSize.bytes());
-        builder.field(Fields.NUM_DOCS, numDocs);
-        builder.field(Fields.FIELD_CACHE_EVICTIONS, fieldCacheEvictions);
-        builder.field(Fields.FIELD_CACHE_SIZE, fieldCacheSize.toString());
-        builder.field(Fields.FIELD_CACHE_SIZE_IN_BYTES, fieldCacheSize.bytes());
-        builder.field(Fields.FILTER_CACHE_SIZE, filterCacheSize.toString());
-        builder.field(Fields.FILTER_CACHE_SIZE_IN_BYTES, filterCacheSize.bytes());
 
-        builder.startObject(Fields.MERGES);
-        builder.field(Fields.CURRENT, mergeStats.currentMerges());
-        builder.field(Fields.TOTAL, mergeStats.totalMerges());
-        builder.field(Fields.TOTAL_TIME, mergeStats.totalMergeTime());
-        builder.field(Fields.TOTAL_TIME_IN_MILLIS, mergeStats.totalMergeTimeInMillis());
+        builder.startObject(Fields.STORE);
+        builder.field(Fields.SIZE, storeSize.toString());
+        builder.field(Fields.SIZE_IN_BYTES, storeSize.bytes());
         builder.endObject();
+
+        builder.startObject(Fields.DOCS);
+        builder.field(Fields.NUM_DOCS, numDocs);
+        builder.endObject();
+
+        cacheStats.toXContent(builder, params);
+        mergeStats.toXContent(builder, params);
 
         builder.endObject();
         return builder;
@@ -171,14 +142,14 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     static final class Fields {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString STORE_SIZE = new XContentBuilderString("store_size");
-        static final XContentBuilderString STORE_SIZE_IN_BYTES = new XContentBuilderString("store_size_in_bytes");
+
+        static final XContentBuilderString STORE = new XContentBuilderString("store");
+        static final XContentBuilderString SIZE = new XContentBuilderString("store_size");
+        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("store_size_in_bytes");
+
+        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
         static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
-        static final XContentBuilderString FIELD_CACHE_SIZE = new XContentBuilderString("field_cache_size");
-        static final XContentBuilderString FIELD_CACHE_SIZE_IN_BYTES = new XContentBuilderString("field_cache_size_in_bytes");
-        static final XContentBuilderString FIELD_CACHE_EVICTIONS = new XContentBuilderString("field_cache_evictions");
-        static final XContentBuilderString FILTER_CACHE_SIZE = new XContentBuilderString("filter_cache_size");
-        static final XContentBuilderString FILTER_CACHE_SIZE_IN_BYTES = new XContentBuilderString("filter_cache_size_in_bytes");
+
         static final XContentBuilderString MERGES = new XContentBuilderString("merges");
         static final XContentBuilderString CURRENT = new XContentBuilderString("current");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");

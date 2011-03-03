@@ -166,6 +166,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             } finally {
                 searcher.release();
             }
+
+            shardStatus.mergeStats = indexShard.mergeScheduler().stats();
         }
         // check on going recovery (from peer or gateway)
         RecoveryStatus peerRecoveryStatus = indexShard.peerRecoveryStatus();

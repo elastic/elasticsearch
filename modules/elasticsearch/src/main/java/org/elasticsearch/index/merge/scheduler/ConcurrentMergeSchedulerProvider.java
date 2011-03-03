@@ -23,12 +23,15 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * @author kimchy (shay.banon)
@@ -36,6 +39,8 @@ import java.io.IOException;
 public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
 
     private final int maxThreadCount;
+
+    private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomConcurrentMergeScheduler>();
 
     @Inject public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
@@ -46,17 +51,30 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     }
 
     @Override public MergeScheduler newMergeScheduler() {
-        ConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(shardId);
+        CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(shardId, this);
         concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
+        schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;
     }
 
-    private static class CustomConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+    @Override public MergeStats stats() {
+        MergeStats mergeStats = new MergeStats();
+        for (CustomConcurrentMergeScheduler scheduler : schedulers) {
+            mergeStats.add(scheduler.totalMerges(), scheduler.currentMerges(), scheduler.totalMergeTime());
+        }
+        return mergeStats;
+    }
+
+    public static class CustomConcurrentMergeScheduler extends TrackingConcurrentMergeScheduler {
 
         private final ShardId shardId;
 
-        private CustomConcurrentMergeScheduler(ShardId shardId) {
+        private final ConcurrentMergeSchedulerProvider provider;
+
+        private CustomConcurrentMergeScheduler(ShardId shardId, ConcurrentMergeSchedulerProvider provider) {
+            super();
             this.shardId = shardId;
+            this.provider = provider;
         }
 
         @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
@@ -80,6 +98,11 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
             MergeThread thread = super.getMergeThread(writer, merge);
             thread.setName("[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName());
             return thread;
+        }
+
+        @Override public void close() {
+            super.close();
+            provider.schedulers.remove(this);
         }
     }
 }

@@ -94,11 +94,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile IndexShardState state;
 
     private final TimeValue refreshInterval;
-    private final TimeValue optimizeInterval;
+    private final TimeValue mergeInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
 
-    private volatile ScheduledFuture optimizeScheduleFuture;
+    private volatile ScheduledFuture mergeScheduleFuture;
 
     private volatile ShardRouting shardRouting;
 
@@ -125,7 +125,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         } else {
             refreshInterval = new TimeValue(-2);
         }
-        optimizeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
+        mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
 
         logger.debug("state: [CREATED]");
 
@@ -444,9 +444,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture.cancel(true);
                     refreshScheduledFuture = null;
                 }
-                if (optimizeScheduleFuture != null) {
-                    optimizeScheduleFuture.cancel(true);
-                    optimizeScheduleFuture = null;
+                if (mergeScheduleFuture != null) {
+                    mergeScheduleFuture.cancel(true);
+                    mergeScheduleFuture = null;
                 }
             }
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
@@ -561,9 +561,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
         // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
         // happen and reduce the number of segments
-        if (optimizeInterval.millis() > 0) {
-            optimizeScheduleFuture = threadPool.schedule(optimizeInterval, ThreadPool.Names.MANAGEMENT, new EngineOptimizer());
-            logger.debug("scheduling optimizer / merger every {}", optimizeInterval);
+        if (mergeInterval.millis() > 0) {
+            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.MERGE, new EngineMerger());
+            logger.debug("scheduling optimizer / merger every {}", mergeInterval);
         } else {
             logger.debug("scheduled optimizer / merger disabled");
         }
@@ -614,7 +614,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private class EngineOptimizer implements Runnable {
+    private class EngineMerger implements Runnable {
         @Override public void run() {
             try {
                 // -1 means maybe merge
@@ -635,7 +635,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 logger.warn("Failed to perform scheduled engine optimize/merge", e);
             }
             if (state != IndexShardState.CLOSED) {
-                optimizeScheduleFuture = threadPool.schedule(optimizeInterval, ThreadPool.Names.MANAGEMENT, this);
+                mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.MERGE, this);
             }
         }
     }

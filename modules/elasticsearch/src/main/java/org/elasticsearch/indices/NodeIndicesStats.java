@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.merge.MergeStats;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -47,16 +48,19 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private long fieldCacheEvictions;
 
+    private MergeStats mergeStats;
+
     NodeIndicesStats() {
     }
 
     public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, ByteSizeValue fieldCacheSize, ByteSizeValue filterCacheSize,
-                            long fieldCacheEvictions) {
+                            long fieldCacheEvictions, MergeStats mergeStats) {
         this.storeSize = storeSize;
         this.numDocs = numDocs;
         this.fieldCacheSize = fieldCacheSize;
         this.filterCacheSize = filterCacheSize;
         this.fieldCacheEvictions = fieldCacheEvictions;
+        this.mergeStats = mergeStats;
     }
 
     /**
@@ -111,6 +115,14 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         return fieldCacheEvictions();
     }
 
+    public MergeStats mergeStats() {
+        return this.mergeStats;
+    }
+
+    public MergeStats getMergeStats() {
+        return this.mergeStats;
+    }
+
     public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {
         NodeIndicesStats stats = new NodeIndicesStats();
         stats.readFrom(in);
@@ -123,6 +135,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         fieldCacheSize = ByteSizeValue.readBytesSizeValue(in);
         filterCacheSize = ByteSizeValue.readBytesSizeValue(in);
         fieldCacheEvictions = in.readVLong();
+        mergeStats = MergeStats.readMergeStats(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -131,6 +144,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         fieldCacheSize.writeTo(out);
         filterCacheSize.writeTo(out);
         out.writeVLong(fieldCacheEvictions);
+        mergeStats.writeTo(out);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -143,6 +157,14 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         builder.field(Fields.FIELD_CACHE_SIZE_IN_BYTES, fieldCacheSize.bytes());
         builder.field(Fields.FILTER_CACHE_SIZE, filterCacheSize.toString());
         builder.field(Fields.FILTER_CACHE_SIZE_IN_BYTES, filterCacheSize.bytes());
+
+        builder.startObject(Fields.MERGES);
+        builder.field(Fields.CURRENT, mergeStats.currentMerges());
+        builder.field(Fields.TOTAL, mergeStats.totalMerges());
+        builder.field(Fields.TOTAL_TIME, mergeStats.totalMergeTime());
+        builder.field(Fields.TOTAL_TIME_IN_MILLIS, mergeStats.totalMergeTimeInMillis());
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -157,5 +179,10 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString FIELD_CACHE_EVICTIONS = new XContentBuilderString("field_cache_evictions");
         static final XContentBuilderString FILTER_CACHE_SIZE = new XContentBuilderString("filter_cache_size");
         static final XContentBuilderString FILTER_CACHE_SIZE_IN_BYTES = new XContentBuilderString("filter_cache_size_in_bytes");
+        static final XContentBuilderString MERGES = new XContentBuilderString("merges");
+        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
+        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
     }
 }

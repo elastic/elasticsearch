@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -107,6 +108,16 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                             builder.endObject();
                         }
 
+                        MergeStats mergeStats = indexStatus.mergeStats();
+                        if (mergeStats != null) {
+                            builder.startObject("merges");
+                            builder.field("current", mergeStats.currentMerges());
+                            builder.field("total", mergeStats.totalMerges());
+                            builder.field("total_time", mergeStats.totalMergeTime());
+                            builder.field("total_time_in_millis", mergeStats.totalMergeTimeInMillis());
+                            builder.endObject();
+                        }
+
                         builder.startObject("shards");
                         for (IndexShardStatus indexShardStatus : indexStatus) {
                             builder.startArray(Integer.toString(indexShardStatus.shardId().id()));
@@ -141,6 +152,16 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("num_docs", shardStatus.docs().numDocs());
                                     builder.field("max_doc", shardStatus.docs().maxDoc());
                                     builder.field("deleted_docs", shardStatus.docs().deletedDocs());
+                                    builder.endObject();
+                                }
+
+                                mergeStats = shardStatus.mergeStats();
+                                if (mergeStats != null) {
+                                    builder.startObject("merges");
+                                    builder.field("current", mergeStats.currentMerges());
+                                    builder.field("total", mergeStats.totalMerges());
+                                    builder.field("total_time", mergeStats.totalMergeTime());
+                                    builder.field("total_time_in_millis", mergeStats.totalMergeTimeInMillis());
                                     builder.endObject();
                                 }
 

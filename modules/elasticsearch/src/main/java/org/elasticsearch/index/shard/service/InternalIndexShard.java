@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -79,6 +80,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final Store store;
 
+    private final MergeSchedulerProvider mergeScheduler;
+
     private final Engine engine;
 
     private final Translog translog;
@@ -103,12 +106,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private CopyOnWriteArrayList<OperationListener> listeners = null;
 
-    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, Translog translog,
+    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.store = store;
         this.engine = engine;
+        this.mergeScheduler = mergeScheduler;
         this.translog = translog;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
@@ -143,6 +147,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (listeners.isEmpty()) {
             listeners = null;
         }
+    }
+
+    public MergeSchedulerProvider mergeScheduler() {
+        return this.mergeScheduler;
     }
 
     public Store store() {

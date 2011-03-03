@@ -160,6 +160,9 @@ public class AllEntries extends Reader {
                         current = it.next();
                     } else {
                         current = null;
+                        if (read == 0) {
+                            return -1;
+                        }
                         return read;
                     }
                     cbuf[off++] = ' ';

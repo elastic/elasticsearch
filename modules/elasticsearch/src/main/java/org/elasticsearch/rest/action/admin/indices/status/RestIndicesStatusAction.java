@@ -20,19 +20,18 @@
 package org.elasticsearch.rest.action.admin.indices.status;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.status.*;
+import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
+import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
@@ -70,185 +69,8 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
-
                     buildBroadcastShardsHeader(builder, response);
-
-                    builder.startObject("indices");
-                    for (IndexStatus indexStatus : response.indices().values()) {
-                        builder.startObject(indexStatus.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-                        builder.array("aliases", indexStatus.settings().getAsArray("index.aliases"));
-
-                        builder.startObject("settings");
-                        Settings settings = settingsFilter.filterSettings(indexStatus.settings());
-                        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                            builder.field(entry.getKey(), entry.getValue());
-                        }
-                        builder.endObject();
-
-                        builder.startObject("index");
-                        if (indexStatus.storeSize() != null) {
-                            builder.field("primary_size", indexStatus.primaryStoreSize().toString());
-                            builder.field("primary_size_in_bytes", indexStatus.primaryStoreSize().bytes());
-                            builder.field("size", indexStatus.storeSize().toString());
-                            builder.field("size_in_bytes", indexStatus.storeSize().bytes());
-                        }
-                        builder.endObject();
-                        if (indexStatus.translogOperations() != -1) {
-                            builder.startObject("translog");
-                            builder.field("operations", indexStatus.translogOperations());
-                            builder.endObject();
-                        }
-
-                        if (indexStatus.docs() != null) {
-                            builder.startObject("docs");
-                            builder.field("num_docs", indexStatus.docs().numDocs());
-                            builder.field("max_doc", indexStatus.docs().maxDoc());
-                            builder.field("deleted_docs", indexStatus.docs().deletedDocs());
-                            builder.endObject();
-                        }
-
-                        MergeStats mergeStats = indexStatus.mergeStats();
-                        if (mergeStats != null) {
-                            builder.startObject("merges");
-                            builder.field("current", mergeStats.currentMerges());
-                            builder.field("total", mergeStats.totalMerges());
-                            builder.field("total_time", mergeStats.totalMergeTime());
-                            builder.field("total_time_in_millis", mergeStats.totalMergeTimeInMillis());
-                            builder.endObject();
-                        }
-
-                        builder.startObject("shards");
-                        for (IndexShardStatus indexShardStatus : indexStatus) {
-                            builder.startArray(Integer.toString(indexShardStatus.shardId().id()));
-                            for (ShardStatus shardStatus : indexShardStatus) {
-                                builder.startObject();
-
-                                builder.startObject("routing")
-                                        .field("state", shardStatus.shardRouting().state())
-                                        .field("primary", shardStatus.shardRouting().primary())
-                                        .field("node", shardStatus.shardRouting().currentNodeId())
-                                        .field("relocating_node", shardStatus.shardRouting().relocatingNodeId())
-                                        .field("shard", shardStatus.shardRouting().shardId().id())
-                                        .field("index", shardStatus.shardRouting().shardId().index().name())
-                                        .endObject();
-
-                                builder.field("state", shardStatus.state());
-                                if (shardStatus.storeSize() != null) {
-                                    builder.startObject("index");
-                                    builder.field("size", shardStatus.storeSize().toString());
-                                    builder.field("size_in_bytes", shardStatus.storeSize().bytes());
-                                    builder.endObject();
-                                }
-                                if (shardStatus.translogId() != -1) {
-                                    builder.startObject("translog");
-                                    builder.field("id", shardStatus.translogId());
-                                    builder.field("operations", shardStatus.translogOperations());
-                                    builder.endObject();
-                                }
-
-                                if (shardStatus.docs() != null) {
-                                    builder.startObject("docs");
-                                    builder.field("num_docs", shardStatus.docs().numDocs());
-                                    builder.field("max_doc", shardStatus.docs().maxDoc());
-                                    builder.field("deleted_docs", shardStatus.docs().deletedDocs());
-                                    builder.endObject();
-                                }
-
-                                mergeStats = shardStatus.mergeStats();
-                                if (mergeStats != null) {
-                                    builder.startObject("merges");
-                                    builder.field("current", mergeStats.currentMerges());
-                                    builder.field("total", mergeStats.totalMerges());
-                                    builder.field("total_time", mergeStats.totalMergeTime());
-                                    builder.field("total_time_in_millis", mergeStats.totalMergeTimeInMillis());
-                                    builder.endObject();
-                                }
-
-                                if (shardStatus.peerRecoveryStatus() != null) {
-                                    PeerRecoveryStatus peerRecoveryStatus = shardStatus.peerRecoveryStatus();
-                                    builder.startObject("peer_recovery");
-                                    builder.field("stage", peerRecoveryStatus.stage());
-                                    builder.field("start_time_in_millis", peerRecoveryStatus.startTime());
-                                    builder.field("time", peerRecoveryStatus.time());
-                                    builder.field("time_in_millis", peerRecoveryStatus.time().millis());
-
-                                    builder.startObject("index");
-                                    builder.field("progress", peerRecoveryStatus.indexRecoveryProgress());
-                                    builder.field("size", peerRecoveryStatus.indexSize());
-                                    builder.field("size_in_bytes", peerRecoveryStatus.indexSize().bytes());
-                                    builder.field("reused_size", peerRecoveryStatus.reusedIndexSize());
-                                    builder.field("reused_size_in_bytes", peerRecoveryStatus.reusedIndexSize().bytes());
-                                    builder.field("expected_recovered_size", peerRecoveryStatus.expectedRecoveredIndexSize());
-                                    builder.field("expected_recovered_size_in_bytes", peerRecoveryStatus.expectedRecoveredIndexSize().bytes());
-                                    builder.field("recovered_size", peerRecoveryStatus.recoveredIndexSize());
-                                    builder.field("recovered_size_in_bytes", peerRecoveryStatus.recoveredIndexSize().bytes());
-                                    builder.endObject();
-
-                                    builder.startObject("translog");
-                                    builder.field("recovered", peerRecoveryStatus.recoveredTranslogOperations());
-                                    builder.endObject();
-
-                                    builder.endObject();
-                                }
-
-                                if (shardStatus.gatewayRecoveryStatus() != null) {
-                                    GatewayRecoveryStatus gatewayRecoveryStatus = shardStatus.gatewayRecoveryStatus();
-                                    builder.startObject("gateway_recovery");
-                                    builder.field("stage", gatewayRecoveryStatus.stage());
-                                    builder.field("start_time_in_millis", gatewayRecoveryStatus.startTime());
-                                    builder.field("time", gatewayRecoveryStatus.time());
-                                    builder.field("time_in_millis", gatewayRecoveryStatus.time().millis());
-
-                                    builder.startObject("index");
-                                    builder.field("progress", gatewayRecoveryStatus.indexRecoveryProgress());
-                                    builder.field("size", gatewayRecoveryStatus.indexSize());
-                                    builder.field("size_in_bytes", gatewayRecoveryStatus.indexSize().bytes());
-                                    builder.field("reused_size", gatewayRecoveryStatus.reusedIndexSize());
-                                    builder.field("reused_size_in_bytes", gatewayRecoveryStatus.reusedIndexSize().bytes());
-                                    builder.field("expected_recovered_size", gatewayRecoveryStatus.expectedRecoveredIndexSize());
-                                    builder.field("expected_recovered_size_in_bytes", gatewayRecoveryStatus.expectedRecoveredIndexSize().bytes());
-                                    builder.field("recovered_size", gatewayRecoveryStatus.recoveredIndexSize());
-                                    builder.field("recovered_size_in_bytes", gatewayRecoveryStatus.recoveredIndexSize().bytes());
-                                    builder.endObject();
-
-                                    builder.startObject("translog");
-                                    builder.field("recovered", gatewayRecoveryStatus.recoveredTranslogOperations());
-                                    builder.endObject();
-
-                                    builder.endObject();
-                                }
-
-                                if (shardStatus.gatewaySnapshotStatus() != null) {
-                                    GatewaySnapshotStatus gatewaySnapshotStatus = shardStatus.gatewaySnapshotStatus();
-                                    builder.startObject("gateway_snapshot");
-                                    builder.field("stage", gatewaySnapshotStatus.stage());
-                                    builder.field("start_time_in_millis", gatewaySnapshotStatus.startTime());
-                                    builder.field("time", gatewaySnapshotStatus.time());
-                                    builder.field("time_in_millis", gatewaySnapshotStatus.time().millis());
-
-                                    builder.startObject("index");
-                                    builder.field("size", gatewaySnapshotStatus.indexSize());
-                                    builder.field("size_in_bytes", gatewaySnapshotStatus.indexSize().bytes());
-                                    builder.endObject();
-
-                                    builder.startObject("index");
-                                    builder.field("expected_operations", gatewaySnapshotStatus.expectedNumberOfOperations());
-                                    builder.endObject();
-
-                                    builder.endObject();
-                                }
-
-                                builder.endObject();
-                            }
-                            builder.endArray();
-                        }
-                        builder.endObject();
-
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
+                    response.toXContent(builder, request, settingsFilter);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {

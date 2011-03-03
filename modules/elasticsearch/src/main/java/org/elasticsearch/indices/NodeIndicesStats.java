@@ -124,10 +124,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
 
-        builder.startObject(Fields.STORE);
         builder.field(Fields.SIZE, storeSize.toString());
         builder.field(Fields.SIZE_IN_BYTES, storeSize.bytes());
-        builder.endObject();
 
         builder.startObject(Fields.DOCS);
         builder.field(Fields.NUM_DOCS, numDocs);
@@ -143,17 +141,10 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     static final class Fields {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
 
-        static final XContentBuilderString STORE = new XContentBuilderString("store");
-        static final XContentBuilderString SIZE = new XContentBuilderString("store_size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("store_size_in_bytes");
+        static final XContentBuilderString SIZE = new XContentBuilderString("size");
+        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
 
         static final XContentBuilderString DOCS = new XContentBuilderString("docs");
         static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
-
-        static final XContentBuilderString MERGES = new XContentBuilderString("merges");
-        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
     }
 }

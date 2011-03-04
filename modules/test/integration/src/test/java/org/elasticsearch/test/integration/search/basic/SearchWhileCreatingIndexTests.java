@@ -1,0 +1,70 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.test.integration.search.basic;
+
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.Test;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
+public class SearchWhileCreatingIndexTests extends AbstractNodesTests {
+
+    @AfterMethod public void closeAll() {
+        closeAllNodes();
+    }
+
+    /**
+     * This test basically verifies that search with a single shard active (cause we indexed to it) and other
+     * shards possibly not active at all (cause they haven't allocated) will still work.
+     */
+    @Test public void searchWhileCreatingIndex() {
+        Node node = startNode("node1");
+
+        try {
+            node.client().admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        for (int i = 0; i < 20; i++) {
+            node.client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 10)).execute().actionGet();
+
+            node.client().prepareIndex("test", "type1").setSource("field", "test").execute().actionGet();
+            node.client().admin().indices().prepareRefresh().execute().actionGet();
+
+            SearchResponse searchResponse = node.client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+            assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+            node.client().admin().indices().prepareDelete("test").execute().actionGet();
+        }
+
+        try {
+            node.client().admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+}

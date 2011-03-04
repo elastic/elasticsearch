@@ -20,6 +20,7 @@
 package org.elasticsearch.index.merge.scheduler;
 
 import org.apache.lucene.index.MergeScheduler;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 /**
@@ -28,4 +29,6 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 public interface MergeSchedulerProvider<T extends MergeScheduler> extends IndexShardComponent {
 
     T newMergeScheduler();
+
+    MergeStats stats();
 }

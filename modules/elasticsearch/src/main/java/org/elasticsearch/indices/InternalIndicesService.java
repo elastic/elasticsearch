@@ -41,6 +41,7 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.Engine;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserModule;
@@ -162,9 +164,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     @Override public NodeIndicesStats stats() {
         long storeTotalSize = 0;
         long numberOfDocs = 0;
-        long fieldCacheEvictions = 0;
-        long fieldCacheTotalSize = 0;
-        long filterCacheTotalSize = 0;
+        CacheStats cacheStats = new CacheStats();
+        MergeStats mergeStats = new MergeStats();
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 try {
@@ -181,12 +182,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                         searcher.release();
                     }
                 }
+                mergeStats.add(((InternalIndexShard) indexShard).mergeScheduler().stats());
             }
-            fieldCacheEvictions += indexService.cache().fieldData().evictions();
-            fieldCacheTotalSize += indexService.cache().fieldData().sizeInBytes();
-            filterCacheTotalSize += indexService.cache().filter().sizeInBytes();
+            cacheStats.add(indexService.cache().stats());
         }
-        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, new ByteSizeValue(fieldCacheTotalSize), new ByteSizeValue(filterCacheTotalSize), fieldCacheEvictions);
+        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats);
     }
 
     /**

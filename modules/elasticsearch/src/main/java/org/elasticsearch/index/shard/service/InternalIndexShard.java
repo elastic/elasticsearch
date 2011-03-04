@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -79,6 +80,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final Store store;
 
+    private final MergeSchedulerProvider mergeScheduler;
+
     private final Engine engine;
 
     private final Translog translog;
@@ -91,11 +94,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile IndexShardState state;
 
     private final TimeValue refreshInterval;
-    private final TimeValue optimizeInterval;
+    private final TimeValue mergeInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
 
-    private volatile ScheduledFuture optimizeScheduleFuture;
+    private volatile ScheduledFuture mergeScheduleFuture;
 
     private volatile ShardRouting shardRouting;
 
@@ -103,12 +106,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private CopyOnWriteArrayList<OperationListener> listeners = null;
 
-    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, Translog translog,
+    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.store = store;
         this.engine = engine;
+        this.mergeScheduler = mergeScheduler;
         this.translog = translog;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
@@ -121,7 +125,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         } else {
             refreshInterval = new TimeValue(-2);
         }
-        optimizeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
+        mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
 
         logger.debug("state: [CREATED]");
 
@@ -143,6 +147,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (listeners.isEmpty()) {
             listeners = null;
         }
+    }
+
+    public MergeSchedulerProvider mergeScheduler() {
+        return this.mergeScheduler;
     }
 
     public Store store() {
@@ -436,9 +444,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture.cancel(true);
                     refreshScheduledFuture = null;
                 }
-                if (optimizeScheduleFuture != null) {
-                    optimizeScheduleFuture.cancel(true);
-                    optimizeScheduleFuture = null;
+                if (mergeScheduleFuture != null) {
+                    mergeScheduleFuture.cancel(true);
+                    mergeScheduleFuture = null;
                 }
             }
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
@@ -553,9 +561,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
         // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
         // happen and reduce the number of segments
-        if (optimizeInterval.millis() > 0) {
-            optimizeScheduleFuture = threadPool.schedule(optimizeInterval, ThreadPool.Names.MANAGEMENT, new EngineOptimizer());
-            logger.debug("scheduling optimizer / merger every {}", optimizeInterval);
+        if (mergeInterval.millis() > 0) {
+            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.MERGE, new EngineMerger());
+            logger.debug("scheduling optimizer / merger every {}", mergeInterval);
         } else {
             logger.debug("scheduled optimizer / merger disabled");
         }
@@ -606,7 +614,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private class EngineOptimizer implements Runnable {
+    private class EngineMerger implements Runnable {
         @Override public void run() {
             try {
                 // -1 means maybe merge
@@ -627,7 +635,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 logger.warn("Failed to perform scheduled engine optimize/merge", e);
             }
             if (state != IndexShardState.CLOSED) {
-                optimizeScheduleFuture = threadPool.schedule(optimizeInterval, ThreadPool.Names.MANAGEMENT, this);
+                mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.MERGE, this);
             }
         }
     }

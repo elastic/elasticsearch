@@ -562,7 +562,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
         // happen and reduce the number of segments
         if (mergeInterval.millis() > 0) {
-            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.MERGE, new EngineMerger());
+            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, new EngineMerger());
             logger.debug("scheduling optimizer / merger every {}", mergeInterval);
         } else {
             logger.debug("scheduled optimizer / merger disabled");
@@ -616,27 +616,36 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private class EngineMerger implements Runnable {
         @Override public void run() {
-            try {
-                // -1 means maybe merge
-                engine.optimize(new Engine.Optimize().maxNumSegments(-1).waitForMerge(false).flush(false).refresh(false));
-            } catch (EngineClosedException e) {
-                // we are being closed, ignore
-            } catch (OptimizeFailedEngineException e) {
-                if (e.getCause() instanceof InterruptedException) {
-                    // ignore, we are being shutdown
-                } else if (e.getCause() instanceof ClosedByInterruptException) {
-                    // ignore, we are being shutdown
-                } else if (e.getCause() instanceof ThreadInterruptedException) {
-                    // ignore, we are being shutdown
-                } else {
-                    logger.warn("Failed to perform scheduled engine optimize/merge", e);
+            if (!engine().possibleMergeNeeded()) {
+                if (state != IndexShardState.CLOSED) {
+                    mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
                 }
-            } catch (Exception e) {
-                logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                return;
             }
-            if (state != IndexShardState.CLOSED) {
-                mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.MERGE, this);
-            }
+            threadPool.executor(ThreadPool.Names.MERGE).execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        engine.maybeMerge();
+                    } catch (EngineClosedException e) {
+                        // we are being closed, ignore
+                    } catch (OptimizeFailedEngineException e) {
+                        if (e.getCause() instanceof InterruptedException) {
+                            // ignore, we are being shutdown
+                        } else if (e.getCause() instanceof ClosedByInterruptException) {
+                            // ignore, we are being shutdown
+                        } else if (e.getCause() instanceof ThreadInterruptedException) {
+                            // ignore, we are being shutdown
+                        } else {
+                            logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                    }
+                    if (state != IndexShardState.CLOSED) {
+                        mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, EngineMerger.this);
+                    }
+                }
+            });
         }
     }
 

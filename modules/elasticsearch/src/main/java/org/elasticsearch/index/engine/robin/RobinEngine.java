@@ -113,6 +113,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     // flag indicating if a dirty operation has occurred since the last refresh
     private volatile boolean dirty = false;
 
+    private volatile boolean possibleMergeNeeded = false;
+
     private volatile int disableFlushCounter = 0;
 
     // indexing searcher is initialized
@@ -228,6 +230,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             }
             innerCreate(create, writer);
             dirty = true;
+            possibleMergeNeeded = true;
             if (create.refresh()) {
                 refresh(new Refresh(false));
             }
@@ -318,6 +321,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
             innerIndex(index, writer);
             dirty = true;
+            possibleMergeNeeded = true;
             if (index.refresh()) {
                 refresh(new Refresh(false));
             }
@@ -402,6 +406,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             }
             innerDelete(delete, writer);
             dirty = true;
+            possibleMergeNeeded = true;
             if (delete.refresh()) {
                 refresh(new Refresh(false));
             }
@@ -485,6 +490,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             writer.deleteDocuments(delete.query());
             translog.add(new Translog.DeleteByQuery(delete));
             dirty = true;
+            possibleMergeNeeded = true;
         } catch (IOException e) {
             throw new DeleteByQueryFailedEngineException(shardId, delete, e);
         } finally {
@@ -521,6 +527,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         return dirty;
     }
 
+    @Override public boolean possibleMergeNeeded() {
+        return this.possibleMergeNeeded;
+    }
+
     @Override public void refresh(Refresh refresh) throws EngineException {
         if (indexWriter == null) {
             throw new EngineClosedException(shardId);
@@ -535,7 +545,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                 throw new EngineClosedException(shardId);
             }
             try {
-                if (dirty) {
+                if (dirty || refresh.force()) {
                     // we eagerly set dirty to false so we won't miss refresh requests
                     dirty = false;
                     AcquirableResource<ReaderSearcherHolder> current = nrtResource;
@@ -586,6 +596,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             if (disableFlushCounter > 0) {
                 throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
             }
+            if (indexingSearcher.get() != null) {
+                indexingSearcher.get().release();
+                indexingSearcher.set(null);
+            }
             if (flush.full()) {
                 // disable refreshing, not dirty
                 dirty = false;
@@ -613,11 +627,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             versionMap.clear();
             dirty = true; // force a refresh
             // we need to do a refresh here so we sync versioning support
-            refresh(new Refresh(true));
-            if (indexingSearcher.get() != null) {
-                indexingSearcher.get().release();
-                indexingSearcher.set(null);
-            }
+            refresh(new Refresh(true).force(true));
         } finally {
             rwl.writeLock().unlock();
             flushing.set(false);
@@ -626,6 +636,30 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 //        if (flush.refresh()) {
 //            refresh(new Refresh(false));
 //        }
+    }
+
+    @Override public void maybeMerge() throws EngineException {
+        if (!possibleMergeNeeded) {
+            return;
+        }
+        possibleMergeNeeded = false;
+        rwl.readLock().lock();
+        try {
+            if (indexWriter == null) {
+                throw new EngineClosedException(shardId);
+            }
+            if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
+                ((EnableMergePolicy) indexWriter.getMergePolicy()).enableMerge();
+            }
+            indexWriter.maybeMerge();
+        } catch (Exception e) {
+            throw new OptimizeFailedEngineException(shardId, e);
+        } finally {
+            rwl.readLock().unlock();
+            if (indexWriter != null && indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
+                ((EnableMergePolicy) indexWriter.getMergePolicy()).disableMerge();
+            }
+        }
     }
 
     @Override public void optimize(Optimize optimize) throws EngineException {
@@ -642,6 +676,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     indexWriter.expungeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
                     indexWriter.maybeMerge();
+                    possibleMergeNeeded = false;
                 } else {
                     indexWriter.optimize(optimize.maxNumSegments(), false);
                 }
@@ -659,14 +694,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         if (optimize.waitForMerge()) {
             indexWriter.waitForMerges();
         }
-        // once we did the optimization, we are "dirty" since we removed deletes potentially which
-        // affects TermEnum
-        dirty = true;
         if (optimize.flush()) {
             flush(new Flush());
         }
         if (optimize.refresh()) {
-            refresh(new Refresh(false));
+            refresh(new Refresh(false).force(true));
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -162,8 +164,30 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
+        // read the checksums file
+        FSDirectory directory = FSDirectory.open(indexFile);
+        try {
+            Map<String, String> checksums = AbstractStore.readChecksums(directory);
+            for (File file : indexFile.listFiles()) {
+                // BACKWARD CKS SUPPORT
+                if (file.getName().endsWith(".cks")) {
+                    continue;
+                }
+                if (file.getName().startsWith("_checksums")) {
+                    continue;
+                }
+                files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksums.get(file.getName())));
+            }
+        } finally {
+            directory.close();
+        }
+
+        // BACKWARD CKS SUPPORT
         for (File file : indexFile.listFiles()) {
             if (file.getName().endsWith(".cks")) {
+                continue;
+            }
+            if (file.getName().startsWith("_checksums")) {
                 continue;
             }
             // try and load the checksum
@@ -177,6 +201,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             }
             files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksum));
         }
+
         return new StoreFilesMetaData(false, shardId, files);
     }
 

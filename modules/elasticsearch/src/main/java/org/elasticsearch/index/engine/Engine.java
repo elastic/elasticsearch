@@ -70,6 +70,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     boolean refreshNeeded();
 
     /**
+     * Returns <tt>true</tt> if a possible merge is really needed.
+     */
+    boolean possibleMergeNeeded();
+
+    void maybeMerge() throws EngineException;
+
+    /**
      * Refreshes the engine for new search operations to reflect the latest
      * changes. Pass <tt>true</tt> if the refresh operation should include
      * all the operations performed up to this call.
@@ -131,8 +138,19 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         private final boolean waitForOperations;
 
+        private boolean force = false;
+
         public Refresh(boolean waitForOperations) {
             this.waitForOperations = waitForOperations;
+        }
+
+        public Refresh force(boolean force) {
+            this.force = force;
+            return this;
+        }
+
+        public boolean force() {
+            return this.force;
         }
 
         public boolean waitForOperations() {

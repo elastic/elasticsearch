@@ -629,7 +629,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
                     } catch (OptimizeFailedEngineException e) {
-                        if (e.getCause() instanceof InterruptedException) {
+                        if (e.getCause() instanceof EngineClosedException) {
+                            // ignore, we are being shutdown
+                        } else if (e.getCause() instanceof InterruptedException) {
                             // ignore, we are being shutdown
                         } else if (e.getCause() instanceof ClosedByInterruptException) {
                             // ignore, we are being shutdown

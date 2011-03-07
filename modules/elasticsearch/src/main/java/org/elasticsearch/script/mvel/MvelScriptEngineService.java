@@ -179,5 +179,9 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         @Override public double runAsDouble() {
             return ((Number) run()).doubleValue();
         }
+
+        @Override public Object unwrap(Object value) {
+            return value;
+        }
     }
 }

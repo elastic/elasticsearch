@@ -64,7 +64,7 @@ public class IndexQueryParserPluginTests {
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
-                new ScriptModule(),
+                new ScriptModule(settings),
                 new IndexSettingsModule(settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),

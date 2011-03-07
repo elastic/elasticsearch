@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,25 +19,12 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Scorer;
+public abstract class AbstractExecutableScript implements ExecutableScript {
 
-/**
- * A search script.
- */
-public interface SearchScript extends ExecutableScript {
+    @Override public void setNextVar(String name, Object value) {
+    }
 
-    void setScorer(Scorer scorer);
-
-    void setNextReader(IndexReader reader);
-
-    void setNextDocId(int doc);
-
-    void setNextScore(float score);
-
-    float runAsFloat();
-
-    long runAsLong();
-
-    double runAsDouble();
+    @Override public Object unwrap(Object value) {
+        return value;
+    }
 }

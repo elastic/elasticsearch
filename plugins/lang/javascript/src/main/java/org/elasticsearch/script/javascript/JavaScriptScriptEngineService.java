@@ -243,6 +243,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         @Override public double runAsDouble() {
             return ((Number) run()).doubleValue();
         }
+
+        @Override public Object unwrap(Object value) {
+            return ScriptValueConverter.unwrapValue(value);
+        }
     }
 
     /**

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,25 +19,26 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.Nullable;
+
+import java.util.Map;
 
 /**
- * A search script.
+ * A factor to create instances of either {@link ExecutableScript} or {@link SearchScript}. Note,
+ * if this factor creates {@link SearchScript}, it must extend {@link AbstractSearchScript}.
+ *
+ * @see AbstractExecutableScript
+ * @see AbstractSearchScript
+ * @see AbstractFloatSearchScript
+ * @see AbstractLongSearchScript
+ * @see AbstractDoubleSearchScript
  */
-public interface SearchScript extends ExecutableScript {
+public interface NativeScriptFactory {
 
-    void setScorer(Scorer scorer);
-
-    void setNextReader(IndexReader reader);
-
-    void setNextDocId(int doc);
-
-    void setNextScore(float score);
-
-    float runAsFloat();
-
-    long runAsLong();
-
-    double runAsDouble();
+    /**
+     * Creates a new instance of either a {@link ExecutableScript} or a {@link SearchScript}.
+     *
+     * @param params The parameters passed to the script. Can be <tt>null</tt>.
+     */
+    ExecutableScript newScript(@Nullable Map<String, Object> params);
 }

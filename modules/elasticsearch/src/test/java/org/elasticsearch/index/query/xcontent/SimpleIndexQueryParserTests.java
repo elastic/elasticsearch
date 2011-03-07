@@ -79,7 +79,7 @@ public class SimpleIndexQueryParserTests {
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
-                new ScriptModule(),
+                new ScriptModule(settings),
                 new MapperServiceModule(),
                 new IndexSettingsModule(settings),
                 new IndexCacheModule(settings),

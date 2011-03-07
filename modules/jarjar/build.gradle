@@ -5,7 +5,7 @@ archivesBaseName = "$project.archivesBaseName"
 dependencies {
     runtime 'aopalliance:aopalliance:1.0'
     runtime 'javax.inject:javax.inject:1'
-    runtime 'com.google.inject:guice:3.0-rc2'
+    runtime 'com.google.inject:guice:3.0-rc3'
     runtime 'com.google.inject.extensions:guice-assistedinject:3.0-rc2'
     runtime 'com.google.inject.extensions:guice-multibindings:3.0-rc2'
 

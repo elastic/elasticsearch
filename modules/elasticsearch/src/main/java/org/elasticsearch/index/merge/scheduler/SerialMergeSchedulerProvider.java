@@ -25,6 +25,7 @@ import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.TrackingSerialMergeScheduler;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
@@ -49,7 +50,7 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
     }
 
     @Override public MergeScheduler newMergeScheduler() {
-        CustomSerialMergeScheduler scheduler = new CustomSerialMergeScheduler(this);
+        CustomSerialMergeScheduler scheduler = new CustomSerialMergeScheduler(logger, this);
         schedulers.add(scheduler);
         return scheduler;
     }
@@ -66,7 +67,8 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
 
         private final SerialMergeSchedulerProvider provider;
 
-        public CustomSerialMergeScheduler(SerialMergeSchedulerProvider provider) {
+        public CustomSerialMergeScheduler(ESLogger logger, SerialMergeSchedulerProvider provider) {
+            super(logger);
             this.provider = provider;
         }
 

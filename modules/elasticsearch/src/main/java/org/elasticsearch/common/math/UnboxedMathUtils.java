@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.math;
 
+import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -427,7 +429,31 @@ public class UnboxedMathUtils {
     }
 
     public static double random() {
-        return Math.random();
+        return ThreadLocalRandom.current().nextDouble();
+    }
+
+    public static double randomDouble() {
+        return ThreadLocalRandom.current().nextDouble();
+    }
+
+    public static double randomFloat() {
+        return ThreadLocalRandom.current().nextFloat();
+    }
+
+    public static double randomInt() {
+        return ThreadLocalRandom.current().nextInt();
+    }
+
+    public static double randomInt(Integer i) {
+        return ThreadLocalRandom.current().nextInt(i);
+    }
+
+    public static double randomLong() {
+        return ThreadLocalRandom.current().nextLong();
+    }
+
+    public static double randomLong(Long l) {
+        return ThreadLocalRandom.current().nextLong(l);
     }
 
     public static int abs(Integer a) {

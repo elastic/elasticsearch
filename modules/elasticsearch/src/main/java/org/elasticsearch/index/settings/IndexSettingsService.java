@@ -19,23 +19,20 @@
 
 package org.elasticsearch.index.settings;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * @author kimchy (shay.banon)
+ * A holds to the latest, updated settings for an index.
  */
-public class IndexSettingsModule extends AbstractModule {
+public class IndexSettingsService {
 
-    private final Settings settings;
+    private volatile Settings settings;
 
-    public IndexSettingsModule(Settings settings) {
+    public IndexSettingsService(Settings settings) {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(settings);
-        bind(IndexSettingsService.class).toInstance(indexSettingsService);
-        bind(Settings.class).annotatedWith(IndexSettings.class).toProvider(new IndexSettingsProvider(indexSettingsService));
+    public Settings getSettings() {
+        return this.settings;
     }
 }

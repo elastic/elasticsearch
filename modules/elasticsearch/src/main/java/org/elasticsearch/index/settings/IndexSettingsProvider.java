@@ -19,23 +19,24 @@
 
 package org.elasticsearch.index.settings;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * @author kimchy (shay.banon)
+ * A wrapper around the {@link IndexSettingsService} allowing to get the current
+ * settings associated with an index (thus, allowing to change those settings and
+ * new shards will use the new settings).
  */
-public class IndexSettingsModule extends AbstractModule {
+public class IndexSettingsProvider implements Provider<Settings> {
 
-    private final Settings settings;
+    private final IndexSettingsService indexSettingsService;
 
-    public IndexSettingsModule(Settings settings) {
-        this.settings = settings;
+    @Inject public IndexSettingsProvider(IndexSettingsService indexSettingsService) {
+        this.indexSettingsService = indexSettingsService;
     }
 
-    @Override protected void configure() {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(settings);
-        bind(IndexSettingsService.class).toInstance(indexSettingsService);
-        bind(Settings.class).annotatedWith(IndexSettings.class).toProvider(new IndexSettingsProvider(indexSettingsService));
+    @Override public Settings get() {
+        return indexSettingsService.getSettings();
     }
 }

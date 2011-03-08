@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -43,6 +44,11 @@ import org.elasticsearch.index.translog.Translog;
  */
 @ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
+
+    /**
+     * The default suggested refresh interval, -1 to disable it.
+     */
+    TimeValue defaultRefreshInterval();
 
     void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
 

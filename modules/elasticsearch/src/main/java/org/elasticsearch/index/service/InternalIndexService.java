@@ -46,6 +46,7 @@ import org.elasticsearch.index.gateway.IndexShardGatewayModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -347,10 +348,20 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // this logic is tricky, we want to close the engine so we rollback the changes done to it
         // and close the shard so no operations are allowed to it
         if (indexShard != null) {
-            ((InternalIndexShard) indexShard).close(reason);
+            try {
+                ((InternalIndexShard) indexShard).close(reason);
+            } catch (Exception e) {
+                // ignore
+            }
         }
         try {
             shardInjector.getInstance(Engine.class).close();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        try {
+            shardInjector.getInstance(MergePolicyProvider.class).close(delete);
         } catch (Exception e) {
             // ignore
         }

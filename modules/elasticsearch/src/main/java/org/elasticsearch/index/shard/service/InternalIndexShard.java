@@ -46,6 +46,7 @@ import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.recovery.RecoveryStatus;
 import org.elasticsearch.index.store.Store;
@@ -70,6 +71,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final ThreadPool threadPool;
 
+    private final IndexSettingsService indexSettingsService;
+
     private final MapperService mapperService;
 
     private final IndexQueryParserService queryParserService;
@@ -93,7 +96,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private volatile IndexShardState state;
 
-    private final TimeValue refreshInterval;
+    private TimeValue refreshInterval;
     private final TimeValue mergeInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
@@ -106,10 +109,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private CopyOnWriteArrayList<OperationListener> listeners = null;
 
-    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
+    private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
+
+    @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
+        this.indexSettingsService = indexSettingsService;
         this.store = store;
         this.engine = engine;
         this.mergeScheduler = mergeScheduler;
@@ -120,12 +126,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexCache = indexCache;
         state = IndexShardState.CREATED;
 
-        if (engine instanceof ScheduledRefreshableEngine) {
-            refreshInterval = ((ScheduledRefreshableEngine) engine).refreshInterval();
-        } else {
-            refreshInterval = new TimeValue(-2);
-        }
-        mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
+        this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime("index.refresh_interval", engine.defaultRefreshInterval()));
+        this.mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
+
+        indexSettingsService.addListener(applyRefreshSettings);
 
         logger.debug("state: [CREATED]");
 
@@ -438,6 +442,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     public void close(String reason) {
+        indexSettingsService.removeListener(applyRefreshSettings);
         synchronized (mutex) {
             if (state != IndexShardState.CLOSED) {
                 if (refreshScheduledFuture != null) {
@@ -576,12 +581,36 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return query;
     }
 
+    private class ApplyRefreshSettings implements IndexSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            synchronized (mutex) {
+                if (state == IndexShardState.CLOSED) {
+                    return;
+                }
+                TimeValue refreshInterval = settings.getAsTime("engine.robin.refresh_interval", settings.getAsTime("index.refresh_interval", InternalIndexShard.this.refreshInterval));
+                if (!refreshInterval.equals(InternalIndexShard.this.refreshInterval)) {
+                    logger.info("updating refresh_interval from [{}] to [{}]", InternalIndexShard.this.refreshInterval, refreshInterval);
+                    if (refreshScheduledFuture != null) {
+                        refreshScheduledFuture.cancel(false);
+                        refreshScheduledFuture = null;
+                    }
+                    InternalIndexShard.this.refreshInterval = refreshInterval;
+                    if (refreshInterval.millis() > 0) {
+                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
+                    }
+                }
+            }
+        }
+    }
+
     private class EngineRefresher implements Runnable {
         @Override public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!engine().refreshNeeded()) {
                 if (state != IndexShardState.CLOSED) {
-                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
+                    synchronized (mutex) {
+                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
+                    }
                 }
                 return;
             }
@@ -607,7 +636,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         logger.warn("Failed to perform scheduled engine refresh", e);
                     }
                     if (state != IndexShardState.CLOSED) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
+                        synchronized (mutex) {
+                            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
+                        }
                     }
                 }
             });
@@ -618,7 +649,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         @Override public void run() {
             if (!engine().possibleMergeNeeded()) {
                 if (state != IndexShardState.CLOSED) {
-                    mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
+                    synchronized (mutex) {
+                        mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
+                    }
                 }
                 return;
             }
@@ -644,7 +677,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         logger.warn("Failed to perform scheduled engine optimize/merge", e);
                     }
                     if (state != IndexShardState.CLOSED) {
-                        mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, EngineMerger.this);
+                        synchronized (mutex) {
+                            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, EngineMerger.this);
+                        }
                     }
                 }
             });

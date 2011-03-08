@@ -57,19 +57,19 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.lucene.Lucene.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.resource.AcquirableResourceFactory.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class RobinEngine extends AbstractIndexShardComponent implements Engine, ScheduledRefreshableEngine {
+public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile ByteSizeValue indexingBufferSize;
 
@@ -78,8 +78,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     private final int termIndexInterval;
 
     private final int termIndexDivisor;
-
-    private final TimeValue refreshInterval;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
 
@@ -139,7 +137,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
         this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
         this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", indexSettings.getAsBoolean("index.merge.policy.use_compound_file", store == null ? false : store.suggestUseCompoundFile()));
-        this.refreshInterval = componentSettings.getAsTime("refresh_interval", indexSettings.getAsTime("index.refresh_interval", timeValueSeconds(1)));
         this.asyncLoadBloomFilter = componentSettings.getAsBoolean("async_load_bloom", true); // Here for testing, should always be true
 
         this.store = store;
@@ -183,7 +180,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                 throw new EngineAlreadyStartedException(shardId);
             }
             if (logger.isDebugEnabled()) {
-                logger.debug("Starting engine with ram_buffer_size[" + indexingBufferSize + "], refresh_interval[" + refreshInterval + "]");
+                logger.debug("Starting engine");
             }
             try {
                 this.indexWriter = createWriter();
@@ -217,8 +214,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
-    @Override public TimeValue refreshInterval() {
-        return refreshInterval;
+    @Override public TimeValue defaultRefreshInterval() {
+        return new TimeValue(1, TimeUnit.SECONDS);
     }
 
     @Override public void create(Create create) throws EngineException {

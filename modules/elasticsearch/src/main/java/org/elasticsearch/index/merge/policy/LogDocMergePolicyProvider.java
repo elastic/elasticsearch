@@ -20,28 +20,39 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.*;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class LogDocMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogDocMergePolicy> {
 
-    private final int minMergeDocs;
-    private final int maxMergeDocs;
-    private final int mergeFactor;
+    private final IndexSettingsService indexSettingsService;
+
+    private volatile int minMergeDocs;
+    private volatile int maxMergeDocs;
+    private volatile int mergeFactor;
     private final boolean calibrateSizeByDeletes;
     private boolean asyncMerge;
 
-    @Inject public LogDocMergePolicyProvider(Store store) {
+    private final Set<CustomLogDocMergePolicy> policies = new CopyOnWriteArraySet<CustomLogDocMergePolicy>();
+
+    private final ApplySettings applySettings = new ApplySettings();
+
+    @Inject public LogDocMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store.shardId(), store.indexSettings());
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
+        this.indexSettingsService = indexSettingsService;
 
         this.minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
@@ -50,23 +61,76 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
         logger.debug("using [log_doc] merge policy with merge_factor[{}], min_merge_docs[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}], async_merge[{}]",
                 mergeFactor, minMergeDocs, maxMergeDocs, calibrateSizeByDeletes, asyncMerge);
+
+        indexSettingsService.addListener(applySettings);
+    }
+
+    @Override public void close(boolean delete) throws ElasticSearchException {
+        indexSettingsService.removeListener(applySettings);
     }
 
     @Override public LogDocMergePolicy newMergePolicy(IndexWriter indexWriter) {
-        LogDocMergePolicy mergePolicy;
+        CustomLogDocMergePolicy mergePolicy;
         if (asyncMerge) {
-            mergePolicy = new EnableMergeLogDocMergePolicy(indexWriter);
+            mergePolicy = new EnableMergeLogDocMergePolicy(indexWriter, this);
         } else {
-            mergePolicy = new LogDocMergePolicy(indexWriter);
+            mergePolicy = new CustomLogDocMergePolicy(indexWriter, this);
         }
         mergePolicy.setMinMergeDocs(minMergeDocs);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
+        policies.add(mergePolicy);
         return mergePolicy;
     }
 
-    public static class EnableMergeLogDocMergePolicy extends LogDocMergePolicy implements EnableMergePolicy {
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int minMergeDocs = settings.getAsInt("index.merge.policy.min_merge_docs", LogDocMergePolicyProvider.this.minMergeDocs);
+            if (minMergeDocs != LogDocMergePolicyProvider.this.minMergeDocs) {
+                logger.info("updating min_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.minMergeDocs, minMergeDocs);
+                LogDocMergePolicyProvider.this.minMergeDocs = minMergeDocs;
+                for (CustomLogDocMergePolicy policy : policies) {
+                    policy.setMinMergeDocs(minMergeDocs);
+                }
+            }
+
+            int maxMergeDocs = settings.getAsInt("index.merge.policy.max_merge_docs", LogDocMergePolicyProvider.this.maxMergeDocs);
+            if (maxMergeDocs != LogDocMergePolicyProvider.this.maxMergeDocs) {
+                logger.info("updating max_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.maxMergeDocs, maxMergeDocs);
+                LogDocMergePolicyProvider.this.maxMergeDocs = maxMergeDocs;
+                for (CustomLogDocMergePolicy policy : policies) {
+                    policy.setMaxMergeDocs(maxMergeDocs);
+                }
+            }
+
+            int mergeFactor = settings.getAsInt("index.merge.policy.merge_factor", LogDocMergePolicyProvider.this.mergeFactor);
+            if (mergeFactor != LogDocMergePolicyProvider.this.mergeFactor) {
+                logger.info("updating merge_factor from [{}] to [{}]", LogDocMergePolicyProvider.this.mergeFactor, mergeFactor);
+                LogDocMergePolicyProvider.this.mergeFactor = mergeFactor;
+                for (CustomLogDocMergePolicy policy : policies) {
+                    policy.setMergeFactor(mergeFactor);
+                }
+            }
+        }
+    }
+
+    public static class CustomLogDocMergePolicy extends LogDocMergePolicy {
+
+        private final LogDocMergePolicyProvider provider;
+
+        public CustomLogDocMergePolicy(IndexWriter writer, LogDocMergePolicyProvider provider) {
+            super(writer);
+            this.provider = provider;
+        }
+
+        @Override public void close() {
+            super.close();
+            provider.policies.remove(this);
+        }
+    }
+
+    public static class EnableMergeLogDocMergePolicy extends CustomLogDocMergePolicy implements EnableMergePolicy {
 
         private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
             @Override protected Boolean initialValue() {
@@ -74,8 +138,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
             }
         };
 
-        public EnableMergeLogDocMergePolicy(IndexWriter writer) {
-            super(writer);
+        public EnableMergeLogDocMergePolicy(IndexWriter writer, LogDocMergePolicyProvider provider) {
+            super(writer, provider);
         }
 
         @Override public void enableMerge() {

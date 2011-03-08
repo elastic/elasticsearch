@@ -244,7 +244,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new IndexNameModule(index));
         modules.add(new LocalNodeIdModule(localNodeId));
-        modules.add(new IndexSettingsModule(indexSettings));
+        modules.add(new IndexSettingsModule(index, indexSettings));
         modules.add(new IndexPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexStoreModule(indexSettings));
         modules.add(new IndexEngineModule(indexSettings));

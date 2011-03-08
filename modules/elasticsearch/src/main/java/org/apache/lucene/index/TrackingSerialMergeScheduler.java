@@ -19,15 +19,24 @@
 
 package org.apache.lucene.index;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
 // LUCENE MONITOR - Copied from SerialMergeScheduler
 public class TrackingSerialMergeScheduler extends MergeScheduler {
 
-    private AtomicLong totalMerges = new AtomicLong();
-    private AtomicLong totalMergeTime = new AtomicLong();
-    private AtomicLong currentMerges = new AtomicLong();
+    private final ESLogger logger;
+
+    private final AtomicLong totalMerges = new AtomicLong();
+    private final AtomicLong totalMergeTime = new AtomicLong();
+    private final AtomicLong currentMerges = new AtomicLong();
+
+    public TrackingSerialMergeScheduler(ESLogger logger) {
+        this.logger = logger;
+    }
 
     public long totalMerges() {
         return totalMerges.get();
@@ -53,6 +62,10 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             if (merge == null)
                 break;
 
+            if (logger.isTraceEnabled()) {
+                logger.trace("merge [{}] starting...", merge.info.name);
+            }
+
             long time = System.currentTimeMillis();
             currentMerges.incrementAndGet();
             try {
@@ -60,7 +73,13 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             } finally {
                 currentMerges.decrementAndGet();
                 totalMerges.incrementAndGet();
-                totalMergeTime.addAndGet(System.currentTimeMillis() - time);
+                long took = System.currentTimeMillis() - time;
+                totalMergeTime.addAndGet(took);
+                if (took > 20000) { // if more than 20 seconds, DEBUG log it
+                    logger.debug("merge [{}] done, took [{}]", merge.info.name, TimeValue.timeValueMillis(took));
+                } else if (logger.isTraceEnabled()) {
+                    logger.trace("merge [{}] done, took [{}]", merge.info.name, TimeValue.timeValueMillis(took));
+                }
             }
         }
     }

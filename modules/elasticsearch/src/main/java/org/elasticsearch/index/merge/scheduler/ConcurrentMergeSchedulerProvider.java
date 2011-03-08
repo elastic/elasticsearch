@@ -22,6 +22,7 @@ package org.elasticsearch.index.merge.scheduler;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
@@ -51,7 +52,7 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     }
 
     @Override public MergeScheduler newMergeScheduler() {
-        CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(shardId, this);
+        CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
         concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
         schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;
@@ -71,8 +72,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
 
         private final ConcurrentMergeSchedulerProvider provider;
 
-        private CustomConcurrentMergeScheduler(ShardId shardId, ConcurrentMergeSchedulerProvider provider) {
-            super();
+        private CustomConcurrentMergeScheduler(ESLogger logger, ShardId shardId, ConcurrentMergeSchedulerProvider provider) {
+            super(logger);
             this.shardId = shardId;
             this.provider = provider;
         }

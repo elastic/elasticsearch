@@ -45,7 +45,7 @@ public class MapperTests {
 
     public static AnalysisService newAnalysisService() {
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexNameModule(new Index("test")),
                 new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS)).createInjector();
 

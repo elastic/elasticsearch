@@ -61,7 +61,7 @@ public class AnalysisModuleTests {
     private void testSimpleConfiguration(Settings settings) {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(settings),
+                new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
                 new AnalysisModule(settings)).createInjector();
 
@@ -126,7 +126,7 @@ public class AnalysisModuleTests {
     }
 
     @Test public void testWordListPath() throws Exception {
-        String[] words = new String[] {"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
+        String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         File wordListFile = generateWordList(words);
         Settings settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.getAbsolutePath()).build();

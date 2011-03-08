@@ -19,20 +19,56 @@
 
 package org.elasticsearch.index.settings;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A holds to the latest, updated settings for an index.
  */
-public class IndexSettingsService {
+public class IndexSettingsService extends AbstractIndexComponent {
 
     private volatile Settings settings;
 
-    public IndexSettingsService(Settings settings) {
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+
+    @Inject public IndexSettingsService(Index index, Settings settings) {
+        super(index, settings);
         this.settings = settings;
+    }
+
+    public synchronized void refreshSettings(Settings settings) {
+        if (this.settings.getAsMap().equals(settings.getAsMap())) {
+            // nothing to update, same settings
+            return;
+        }
+        this.settings = ImmutableSettings.settingsBuilder().put(this.settings).put(settings).build();
+        for (Listener listener : listeners) {
+            try {
+                listener.onRefreshSettings(settings);
+            } catch (Exception e) {
+                logger.warn("failed to refresh settings for [{}]", e, listener);
+            }
+        }
     }
 
     public Settings getSettings() {
         return this.settings;
+    }
+
+    public void addListener(Listener listener) {
+        this.listeners.add(listener);
+    }
+
+    public void removeListener(Listener listener) {
+        this.listeners.remove(listener);
+    }
+
+    public static interface Listener {
+        void onRefreshSettings(Settings settings);
     }
 }

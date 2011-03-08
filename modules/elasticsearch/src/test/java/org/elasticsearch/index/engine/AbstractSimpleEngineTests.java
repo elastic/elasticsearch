@@ -32,6 +32,7 @@ import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ram.RamStore;
@@ -114,7 +115,7 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected MergePolicyProvider createMergePolicy() {
-        return new LogByteSizeMergePolicyProvider(store);
+        return new LogByteSizeMergePolicyProvider(store, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS));
     }
 
     protected MergeSchedulerProvider createMergeScheduler() {

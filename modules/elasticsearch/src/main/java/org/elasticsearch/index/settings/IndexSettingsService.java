@@ -42,7 +42,8 @@ public class IndexSettingsService extends AbstractIndexComponent {
     }
 
     public synchronized void refreshSettings(Settings settings) {
-        if (this.settings.getAsMap().equals(settings.getAsMap())) {
+        // this.settings include also the node settings
+        if (this.settings.getByPrefix("index.").getAsMap().equals(settings.getByPrefix("index.").getAsMap())) {
             // nothing to update, same settings
             return;
         }

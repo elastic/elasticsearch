@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * @author kimchy (shay.banon)
@@ -105,7 +106,7 @@ public class DynamicTemplate {
 
     public DynamicTemplate(String name, Map<String, Object> conf, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
         this.name = name;
-        this.conf = conf;
+        this.conf = new TreeMap<String, Object>(conf);
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
         this.match = match;

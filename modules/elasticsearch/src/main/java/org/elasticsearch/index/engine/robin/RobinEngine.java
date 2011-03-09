@@ -48,6 +48,7 @@ import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -75,13 +76,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private final boolean compoundFormat;
 
-    private final int termIndexInterval;
+    private volatile int termIndexInterval;
 
-    private final int termIndexDivisor;
+    private volatile int termIndexDivisor;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
 
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
+
+    private final IndexSettingsService indexSettingsService;
 
     private final Store store;
 
@@ -124,7 +127,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private final Object[] dirtyLocks;
 
-    @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
+    private final ApplySettings applySettings = new ApplySettings();
+
+    @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+                               Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                                MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
                                AnalysisService analysisService, SimilarityService similarityService,
                                BloomCache bloomCache) throws EngineException {
@@ -139,6 +145,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", indexSettings.getAsBoolean("index.merge.policy.use_compound_file", store == null ? false : store.suggestUseCompoundFile()));
         this.asyncLoadBloomFilter = componentSettings.getAsBoolean("async_load_bloom", true); // Here for testing, should always be true
 
+        this.indexSettingsService = indexSettingsService;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.translog = translog;
@@ -153,6 +160,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
         }
+
+        this.indexSettingsService.addListener(applySettings);
     }
 
     @Override public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
@@ -794,6 +803,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         if (closed) {
             return;
         }
+        indexSettingsService.removeListener(applySettings);
         closed = true;
         rwl.writeLock().lock();
         this.versionMap.clear();
@@ -877,6 +887,31 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             throw e;
         }
         return indexWriter;
+    }
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int termIndexInterval = settings.getAsInt("index.term_index_interval", RobinEngine.this.termIndexInterval);
+            int termIndexDivisor = settings.getAsInt("index.term_index_divisor", RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
+
+            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor) {
+                rwl.readLock().lock();
+                try {
+                    if (termIndexInterval != RobinEngine.this.termIndexInterval) {
+                        logger.info("updating term_index_interval from [{}] to [{}]", RobinEngine.this.termIndexInterval, termIndexInterval);
+                        RobinEngine.this.termIndexInterval = termIndexInterval;
+                    }
+                    if (termIndexDivisor != RobinEngine.this.termIndexDivisor) {
+                        logger.info("updating term_index_divisor from [{}] to [{}]", RobinEngine.this.termIndexDivisor, termIndexDivisor);
+                        RobinEngine.this.termIndexDivisor = termIndexDivisor;
+                    }
+                } finally {
+                    rwl.readLock().unlock();
+                }
+                // we need to do a full flush in order to have the new settings taken affect
+                flush(new Flush().full(true));
+            }
+        }
     }
 
     private AcquirableResource<ReaderSearcherHolder> buildNrtResource(IndexWriter indexWriter) throws IOException {

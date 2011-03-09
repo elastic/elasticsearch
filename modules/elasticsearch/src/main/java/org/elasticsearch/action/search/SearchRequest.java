@@ -294,6 +294,14 @@ public class SearchRequest implements ActionRequest {
         return source(source, 0, source.length, false);
     }
 
+
+    /**
+     * The search source to execute.
+     */
+    public SearchRequest source(byte[] source, int offset, int length) {
+        return source(source, offset, length, false);
+    }
+
     /**
      * The search source to execute.
      */
@@ -371,6 +379,13 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest extraSource(byte[] source) {
         return extraSource(source, 0, source.length, false);
+    }
+
+    /**
+     * Allows to provide additional source that will be used as well.
+     */
+    public SearchRequest extraSource(byte[] source, int offset, int length) {
+        return extraSource(source, offset, length, false);
     }
 
     /**

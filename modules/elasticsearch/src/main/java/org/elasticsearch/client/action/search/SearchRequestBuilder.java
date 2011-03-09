@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.Scroll;
@@ -471,6 +472,78 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder setHighlighterOrder(String order) {
         highlightBuilder().order(order);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Note, settings anything other
+     * than the search type will cause this source to be overridden, consifer using
+     * {@link #setExtraSource(String)}.
+     */
+    public SearchRequestBuilder setSource(String source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Allows to set other parameters.
+     */
+    public SearchRequestBuilder setExtraSource(String source) {
+        request.extraSource(source);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Note, settings anything other
+     * than the search type will cause this source to be overridden, consifer using
+     * {@link #setExtraSource(byte[])}.
+     */
+    public SearchRequestBuilder setSource(byte[] source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Allows to set other parameters.
+     */
+    public SearchRequestBuilder setExtraSource(byte[] source) {
+        request.extraSource(source);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Note, settings anything other
+     * than the search type will cause this source to be overridden, consifer using
+     * {@link #setExtraSource(byte[])}.
+     */
+    public SearchRequestBuilder setSource(byte[] source, int offset, int length) {
+        request.source(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Allows to set other parameters.
+     */
+    public SearchRequestBuilder setExtraSource(byte[] source, int offset, int length) {
+        request.extraSource(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Note, settings anything other
+     * than the search type will cause this source to be overridden, consifer using
+     * {@link #setExtraSource(byte[])}.
+     */
+    public SearchRequestBuilder setSource(XContentBuilder builder) {
+        request.source(builder);
+        return this;
+    }
+
+    /**
+     * Sets the source of the request as a json string. Allows to set other parameters.
+     */
+    public SearchRequestBuilder setExtraSource(XContentBuilder builder) {
+        request.extraSource(builder);
         return this;
     }
 

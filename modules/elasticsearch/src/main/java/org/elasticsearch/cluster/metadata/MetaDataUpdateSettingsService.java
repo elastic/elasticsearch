@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -102,7 +101,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
-                    boolean changed = false;
                     String[] actualIndices = currentState.metaData().concreteIndices(indices);
                     RoutingTable.Builder routingTableBuilder = newRoutingTableBuilder().routingTable(currentState.routingTable());
                     MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
@@ -111,15 +109,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     if (updatedNumberOfReplicas != -1) {
                         routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                         metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                        changed = true;
+                        logger.info("Updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                     }
 
-                    if (!changed) {
-                        listener.onFailure(new ElasticSearchIllegalArgumentException("No settings applied"));
-                        return currentState;
-                    }
-
-                    logger.info("Updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
+                    metaDataBuilder.updateSettings(settings, actualIndices);
 
                     return ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).build();
                 } catch (Exception e) {

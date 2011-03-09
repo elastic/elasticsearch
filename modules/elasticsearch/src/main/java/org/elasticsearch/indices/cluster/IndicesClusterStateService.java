@@ -47,6 +47,7 @@ import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.recovery.RecoveryFailedException;
 import org.elasticsearch.index.shard.recovery.RecoverySource;
@@ -135,6 +136,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             applyDeletedIndices(event);
             applyDeletedShards(event);
             applyCleanedIndices(event);
+            applySettings(event);
         }
     }
 
@@ -247,6 +249,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     }
                 });
             }
+        }
+    }
+
+    private void applySettings(ClusterChangedEvent event) {
+        for (IndexMetaData indexMetaData : event.state().metaData()) {
+            if (!indicesService.hasIndex(indexMetaData.index())) {
+                // we only create / update here
+                continue;
+            }
+            String index = indexMetaData.index();
+            IndexService indexService = indicesService.indexServiceSafe(index);
+            IndexSettingsService indexSettingsService = indexService.injector().getInstance(IndexSettingsService.class);
+            indexSettingsService.refreshSettings(indexMetaData.settings());
         }
     }
 

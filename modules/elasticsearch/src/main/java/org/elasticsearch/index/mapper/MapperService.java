@@ -153,6 +153,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().contains("#")) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
             }
+            if (mapper.type().contains(".")) {
+                logger.warn("Type [{}] contains a '.', it is recommended not to include it within a type name", mapper.type());
+            }
             remove(mapper.type()); // first remove it (in case its an update, we need to remove the aggregated mappers)
             mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
             mapper.addFieldMapperListener(fieldMapperListener, true);

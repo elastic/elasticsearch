@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
@@ -34,6 +35,7 @@ import java.util.*;
 
 import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Sets.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -310,6 +312,22 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public Builder remoteTemplate(String templateName) {
             templates.remove(templateName);
+            return this;
+        }
+
+        public Builder updateSettings(Settings settings, String... indices) {
+            if (indices == null || indices.length == 0) {
+                indices = this.indices.map().keySet().toArray(new String[this.indices.map().keySet().size()]);
+            }
+            for (String index : indices) {
+                IndexMetaData indexMetaData = this.indices.get(index);
+                if (indexMetaData == null) {
+                    throw new IndexMissingException(new Index(index));
+                }
+                put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData)
+                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings))
+                        .build());
+            }
             return this;
         }
 

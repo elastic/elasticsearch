@@ -25,7 +25,7 @@ import org.apache.lucene.search.Scorer;
 /**
  * A search script.
  */
-public interface SearchScript {
+public interface SearchScript extends ExecutableScript {
 
     void setScorer(Scorer scorer);
 
@@ -34,10 +34,6 @@ public interface SearchScript {
     void setNextDocId(int doc);
 
     void setNextScore(float score);
-
-    void setNextVar(String name, Object value);
-
-    Object run();
 
     float runAsFloat();
 

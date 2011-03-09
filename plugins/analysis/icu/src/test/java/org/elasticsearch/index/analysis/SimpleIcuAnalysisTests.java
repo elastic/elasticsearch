@@ -38,7 +38,7 @@ public class SimpleIcuAnalysisTests {
     @Test public void testDefaultsIcuAnalysis() {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(EMPTY_SETTINGS),
+                new IndexSettingsModule(index, EMPTY_SETTINGS),
                 new IndexNameModule(index),
                 new AnalysisModule(EMPTY_SETTINGS).addProcessor(new IcuAnalysisBinderProcessor())).createInjector();
 

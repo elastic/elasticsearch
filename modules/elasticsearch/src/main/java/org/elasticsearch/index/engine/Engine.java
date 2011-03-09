@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -43,6 +44,11 @@ import org.elasticsearch.index.translog.Translog;
  */
 @ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
+
+    /**
+     * The default suggested refresh interval, -1 to disable it.
+     */
+    TimeValue defaultRefreshInterval();
 
     void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
 
@@ -68,6 +74,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      * Returns <tt>true</tt> if a refresh is really needed.
      */
     boolean refreshNeeded();
+
+    /**
+     * Returns <tt>true</tt> if a possible merge is really needed.
+     */
+    boolean possibleMergeNeeded();
+
+    void maybeMerge() throws EngineException;
 
     /**
      * Refreshes the engine for new search operations to reflect the latest
@@ -131,8 +144,19 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         private final boolean waitForOperations;
 
+        private boolean force = false;
+
         public Refresh(boolean waitForOperations) {
             this.waitForOperations = waitForOperations;
+        }
+
+        public Refresh force(boolean force) {
+            this.force = force;
+            return this;
+        }
+
+        public boolean force() {
+            return this.force;
         }
 
         public boolean waitForOperations() {

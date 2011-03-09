@@ -116,16 +116,16 @@ launch_service()
         es_parms="$es_parms -Des-pidfile=$pidpath"
     fi
 
-    # The es-daemon option will tell Bootstrap to close stdout/stderr,
+    # The es-daemon option will tell ElasticSearch to close stdout/stderr,
     # but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         es_parms="$es_parms -Des-foreground=yes"
         exec $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $CLASSPATH $props \
-                org.elasticsearch.bootstrap.Bootstrap
+                org.elasticsearch.bootstrap.ElasticSearch
     else
-        # Startup Bootstrap, background it, and write the pid.
+        # Startup ElasticSearch, background it, and write the pid.
         exec $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $CLASSPATH $props \
-                    org.elasticsearch.bootstrap.Bootstrap <&- &
+                    org.elasticsearch.bootstrap.ElasticSearch <&- &
         [ ! -z $pidpath ] && printf "%d" $! > $pidpath
     fi
 

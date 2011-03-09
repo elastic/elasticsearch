@@ -186,5 +186,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         @Override public double runAsDouble() {
             return ((Number) run()).doubleValue();
         }
+
+        @Override public Object unwrap(Object value) {
+            return value;
+        }
     }
 }

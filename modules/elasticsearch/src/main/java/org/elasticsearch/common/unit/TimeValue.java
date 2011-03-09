@@ -189,6 +189,9 @@ public class TimeValue implements Serializable, Streamable {
     }
 
     @Override public String toString() {
+        if (duration < 0 && timeUnit == TimeUnit.MILLISECONDS) {
+            return Long.toString(duration);
+        }
         long nanos = nanos();
         if (nanos == 0) {
             return "0s";

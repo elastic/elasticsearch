@@ -17,14 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.script;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Nullable;
+
+import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * A factor to create instances of either {@link ExecutableScript} or {@link SearchScript}. Note,
+ * if this factor creates {@link SearchScript}, it must extend {@link AbstractSearchScript}.
+ *
+ * @see AbstractExecutableScript
+ * @see AbstractSearchScript
+ * @see AbstractFloatSearchScript
+ * @see AbstractLongSearchScript
+ * @see AbstractDoubleSearchScript
  */
-public interface ScheduledRefreshableEngine {
+public interface NativeScriptFactory {
 
-    TimeValue refreshInterval();
+    /**
+     * Creates a new instance of either a {@link ExecutableScript} or a {@link SearchScript}.
+     *
+     * @param params The parameters passed to the script. Can be <tt>null</tt>.
+     */
+    ExecutableScript newScript(@Nullable Map<String, Object> params);
 }

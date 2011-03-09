@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
-import org.elasticsearch.common.lucene.all.AllEntries;
-import org.elasticsearch.common.lucene.all.AllTokenStream;
-
-import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.lucene.all.AllEntries;
+import org.elasticsearch.common.lucene.all.AllTokenStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
@@ -35,10 +34,9 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
-
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.Matchers.*;
@@ -53,7 +51,7 @@ public class CompoundAnalysisTests {
         Settings settings = getJsonSettings();
 
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(settings),
+                new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
                 new AnalysisModule(settings)).createInjector();
 
@@ -64,7 +62,7 @@ public class CompoundAnalysisTests {
     }
 
     @Test public void testDictionaryDecompounder() throws Exception {
-        Settings[] settingsArr = new Settings[] {getJsonSettings(), getYamlSettings()};
+        Settings[] settingsArr = new Settings[]{getJsonSettings(), getYamlSettings()};
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "decompoundingAnalyzer", "donaudampfschiff spargelcremesuppe");
             MatcherAssert.assertThat(terms.size(), equalTo(8));
@@ -75,7 +73,7 @@ public class CompoundAnalysisTests {
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(settings),
+                new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
                 new AnalysisModule(settings)).createInjector();
 

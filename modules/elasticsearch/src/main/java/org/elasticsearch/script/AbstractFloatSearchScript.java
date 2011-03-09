@@ -17,29 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.settings;
+package org.elasticsearch.script;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+public abstract class AbstractFloatSearchScript extends AbstractSearchScript {
 
-/**
- * @author kimchy (shay.banon)
- */
-public class IndexSettingsModule extends AbstractModule {
-
-    private final Index index;
-
-    private final Settings settings;
-
-    public IndexSettingsModule(Index index, Settings settings) {
-        this.index = index;
-        this.settings = settings;
+    @Override public Object run() {
+        return runAsFloat();
     }
 
-    @Override protected void configure() {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(index, settings);
-        bind(IndexSettingsService.class).toInstance(indexSettingsService);
-        bind(Settings.class).annotatedWith(IndexSettings.class).toProvider(new IndexSettingsProvider(indexSettingsService));
+    @Override public abstract float runAsFloat();
+
+    @Override public double runAsDouble() {
+        return runAsFloat();
+    }
+
+    @Override public long runAsLong() {
+        return (long) runAsFloat();
     }
 }

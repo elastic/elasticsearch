@@ -61,9 +61,9 @@ public class PercolatorExecutorTests {
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
-                new ScriptModule(),
+                new ScriptModule(settings),
                 new MapperServiceModule(),
-                new IndexSettingsModule(settings),
+                new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),
                 new IndexEngineModule(settings),

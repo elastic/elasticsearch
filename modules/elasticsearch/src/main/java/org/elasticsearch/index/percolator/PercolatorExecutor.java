@@ -22,7 +22,7 @@ package org.elasticsearch.index.percolator;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.index.memory.CustomMemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -302,7 +302,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     public Response percolate(DocAndQueryRequest request) throws ElasticSearchException {
         // first, parse the source doc into a MemoryIndex
-        final MemoryIndex memoryIndex = new MemoryIndex();
+        final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
 
         for (Fieldable field : request.doc().doc().getFields()) {
             if (!field.isIndexed()) {

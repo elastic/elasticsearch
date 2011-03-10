@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.smile.SmileXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Arrays;
 
 /**
@@ -57,6 +58,13 @@ public class XContentFactory {
     }
 
     /**
+     * Constructs a new json builder that will output the result into the provided output stream.
+     */
+    public static XContentBuilder jsonBuilder(OutputStream os) throws IOException {
+        return new XContentBuilder(JsonXContent.jsonXContent, os);
+    }
+
+    /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}
      * that can be used outside of the scope of passing it directly to an API call.
      */
@@ -75,11 +83,30 @@ public class XContentFactory {
     }
 
     /**
+     * Constructs a new json builder that will output the result into the provided output stream.
+     */
+    public static XContentBuilder smileBuilder(OutputStream os) throws IOException {
+        return new XContentBuilder(SmileXContent.smileXContent, os);
+    }
+
+    /**
      * Returns a content builder using SMILE format ({@link org.elasticsearch.common.xcontent.XContentType#SMILE}
      * that can be used outside of the scope of passing it directly to an API call.
      */
     public static XContentBuilder safeSmileBuilder() throws IOException {
         return unCachedContentBuilder(XContentType.SMILE);
+    }
+
+    /**
+     * Constructs a xcontent builder that will output the result into the provided output stream.
+     */
+    public static XContentBuilder contentBuilder(XContentType type, OutputStream outputStream) throws IOException {
+        if (type == XContentType.JSON) {
+            return jsonBuilder(outputStream);
+        } else if (type == XContentType.SMILE) {
+            return smileBuilder(outputStream);
+        }
+        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
 
     /**

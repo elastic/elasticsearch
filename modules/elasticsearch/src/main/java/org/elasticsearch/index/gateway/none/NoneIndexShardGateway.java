@@ -87,6 +87,10 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         return null;
     }
 
+    @Override public boolean requiresSnapshot() {
+        return false;
+    }
+
     @Override public boolean requiresSnapshotScheduling() {
         return false;
     }

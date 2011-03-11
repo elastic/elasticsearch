@@ -56,7 +56,8 @@ public class NodeEnvironment extends AbstractComponent {
         Lock lock = null;
         File dir = null;
         int localNodeId = -1;
-        for (int i = 0; i < 100; i++) {
+        IOException lastException = null;
+        for (int i = 0; i < 50; i++) {
             dir = new File(new File(environment.dataWithClusterFile(), "nodes"), Integer.toString(i));
             if (!dir.exists()) {
                 dir.mkdirs();
@@ -71,11 +72,11 @@ public class NodeEnvironment extends AbstractComponent {
                     break;
                 }
             } catch (IOException e) {
-                // ignore
+                lastException = e;
             }
         }
         if (lock == null) {
-            throw new IOException("Failed to obtain node lock");
+            throw new IOException("Failed to obtain node lock", lastException);
         }
         this.localNodeId = localNodeId;
         this.lock = lock;

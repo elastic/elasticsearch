@@ -109,6 +109,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         return type() + "://" + blobStore + "/" + shardPath;
     }
 
+    @Override public boolean requiresSnapshot() {
+        return true;
+    }
+
     @Override public boolean requiresSnapshotScheduling() {
         return true;
     }

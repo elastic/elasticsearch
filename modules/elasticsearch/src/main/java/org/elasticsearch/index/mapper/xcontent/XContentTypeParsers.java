@@ -129,7 +129,12 @@ public class XContentTypeParsers {
         } else if ("yes".equals(store)) {
             return Field.Store.YES;
         } else {
-            throw new MapperParsingException("Wrong value for store [" + store + "] for field [" + fieldName + "]");
+            boolean value = nodeBooleanValue(store);
+            if (value) {
+                return Field.Store.YES;
+            } else {
+                return Field.Store.NO;
+            }
         }
     }
 

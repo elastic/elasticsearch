@@ -28,6 +28,7 @@ import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 
@@ -52,6 +53,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     @Nullable private String routing;
     private boolean refresh;
     private long version;
+    private VersionType versionType = VersionType.INTERNAL;
 
     /**
      * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
@@ -222,6 +224,15 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         return this.version;
     }
 
+    public DeleteRequest versionType(VersionType versionType) {
+        this.versionType = versionType;
+        return this;
+    }
+
+    public VersionType versionType() {
+        return this.versionType;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
@@ -231,6 +242,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         }
         refresh = in.readBoolean();
         version = in.readLong();
+        versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -245,6 +257,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         }
         out.writeBoolean(refresh);
         out.writeLong(version);
+        out.writeByte(versionType.getValue());
     }
 
     @Override public String toString() {

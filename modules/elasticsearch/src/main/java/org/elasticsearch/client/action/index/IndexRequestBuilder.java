@@ -30,6 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 
 import java.util.Map;
 
@@ -281,6 +282,14 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
      */
     public IndexRequestBuilder setVersion(long version) {
         request.version(version);
+        return this;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
+     */
+    public IndexRequestBuilder setVersionType(VersionType versionType) {
+        request.versionType(versionType);
         return this;
     }
 

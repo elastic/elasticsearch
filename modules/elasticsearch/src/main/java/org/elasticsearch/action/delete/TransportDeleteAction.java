@@ -150,6 +150,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indexShard(shardRequest);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
+                .versionType(request.versionType())
                 .origin(Engine.Operation.Origin.PRIMARY);
         delete.refresh(request.refresh());
         indexShard.delete(delete);

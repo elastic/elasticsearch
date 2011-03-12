@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
@@ -445,6 +446,17 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(create.version(), equalTo(1l));
     }
 
+    @Test public void testExternalVersioningNewCreate() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Create create = new Engine.Create(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        engine.create(create);
+        assertThat(create.version(), equalTo(12l));
+
+        create = new Engine.Create(newUid("1"), doc).version(create.version()).origin(REPLICA);
+        replicaEngine.create(create);
+        assertThat(create.version(), equalTo(12l));
+    }
+
     @Test public void testVersioningNewIndex() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(newUid("1"), doc);
@@ -454,6 +466,17 @@ public abstract class AbstractSimpleEngineTests {
         index = new Engine.Index(newUid("1"), doc).version(index.version()).origin(REPLICA);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(1l));
+    }
+
+    @Test public void testExternalVersioningNewIndex() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        engine.index(index);
+        assertThat(index.version(), equalTo(12l));
+
+        index = new Engine.Index(newUid("1"), doc).version(index.version()).origin(REPLICA);
+        replicaEngine.index(index);
+        assertThat(index.version(), equalTo(12l));
     }
 
     @Test public void testVersioningIndexConflict() {
@@ -484,6 +507,25 @@ public abstract class AbstractSimpleEngineTests {
         }
     }
 
+    @Test public void testExternalVersioningIndexConflict() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        engine.index(index);
+        assertThat(index.version(), equalTo(12l));
+
+        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
+        engine.index(index);
+        assertThat(index.version(), equalTo(14l));
+
+        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13l);
+        try {
+            engine.index(index);
+            assert false;
+        } catch (VersionConflictEngineException e) {
+            // all is well
+        }
+    }
+
     @Test public void testVersioningIndexConflictWithFlush() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(newUid("1"), doc);
@@ -506,6 +548,27 @@ public abstract class AbstractSimpleEngineTests {
 
         // future versions should not work as well
         index = new Engine.Index(newUid("1"), doc).version(3l);
+        try {
+            engine.index(index);
+            assert false;
+        } catch (VersionConflictEngineException e) {
+            // all is well
+        }
+    }
+
+    @Test public void testExternalVersioningIndexConflictWithFlush() {
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        engine.index(index);
+        assertThat(index.version(), equalTo(12l));
+
+        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
+        engine.index(index);
+        assertThat(index.version(), equalTo(14l));
+
+        engine.flush(new Engine.Flush());
+
+        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13);
         try {
             engine.index(index);
             assert false;

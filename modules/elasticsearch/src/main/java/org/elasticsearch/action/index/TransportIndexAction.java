@@ -179,6 +179,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())
+                    .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
             index.refresh(request.refresh());
             doc = indexShard.index(index);
@@ -186,6 +187,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
+                    .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
             create.refresh(request.refresh());
             doc = indexShard.create(create);

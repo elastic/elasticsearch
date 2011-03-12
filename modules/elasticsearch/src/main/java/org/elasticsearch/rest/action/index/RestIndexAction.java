@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -67,6 +68,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
         indexRequest.version(RestActions.parseVersion(request));
+        indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         indexRequest.percolate(request.param("percolate", null));
         String sOpType = request.param("op_type");
         if (sOpType != null) {

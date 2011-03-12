@@ -46,7 +46,7 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override public int compareBottom(int doc) {
-        return bottom - currentFieldData.shortValue(doc);
+        return bottom - currentFieldData.byteValue(doc);
     }
 
     @Override public void copy(int slot, int doc) {

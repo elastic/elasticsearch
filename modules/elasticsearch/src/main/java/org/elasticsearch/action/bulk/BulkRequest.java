@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.List;
@@ -113,6 +114,7 @@ public class BulkRequest implements ActionRequest {
             String parent = null;
             String opType = null;
             long version = 0;
+            VersionType versionType = VersionType.INTERNAL;
             String percolate = null;
 
             String currentFieldName = null;
@@ -134,6 +136,8 @@ public class BulkRequest implements ActionRequest {
                         opType = parser.text();
                     } else if ("_version".equals(currentFieldName)) {
                         version = parser.longValue();
+                    } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName)) {
+                        versionType = VersionType.fromString(parser.text());
                     } else if ("percolate".equals(currentFieldName)) {
                         percolate = parser.textOrNull();
                     }
@@ -141,7 +145,7 @@ public class BulkRequest implements ActionRequest {
             }
 
             if ("delete".equals(action)) {
-                add(new DeleteRequest(index, type, id).parent(parent).routing(routing));
+                add(new DeleteRequest(index, type, id).parent(parent).versionType(versionType).routing(routing));
             } else {
                 nextMarker = findNextMarker(marker, from, data, length);
                 if (nextMarker == -1) {
@@ -150,17 +154,17 @@ public class BulkRequest implements ActionRequest {
                 // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     } else {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     }
                 } else if ("create".equals(action)) {
-                    add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
+                    add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe)
                             .percolate(percolate));

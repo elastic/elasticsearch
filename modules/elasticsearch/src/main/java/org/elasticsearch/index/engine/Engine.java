@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -291,6 +292,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final ParsedDocument doc;
         private boolean refresh;
         private long version;
+        private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
         public Create(Term uid, ParsedDocument doc) {
@@ -340,6 +342,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        public VersionType versionType() {
+            return this.versionType;
+        }
+
+        public Create versionType(VersionType versionType) {
+            this.versionType = versionType;
+            return this;
+        }
+
         public String parent() {
             return this.doc.parent();
         }
@@ -374,6 +385,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final ParsedDocument doc;
         private boolean refresh;
         private long version;
+        private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
         public Index(Term uid, ParsedDocument doc) {
@@ -409,6 +421,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public long version() {
             return this.version;
+        }
+
+        public Index versionType(VersionType versionType) {
+            this.versionType = versionType;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return this.versionType;
         }
 
         public Document doc() {
@@ -458,6 +479,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Term uid;
         private boolean refresh;
         private long version;
+        private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
         private boolean notFound;
 
@@ -507,6 +529,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public long version() {
             return this.version;
+        }
+
+        public Delete versionType(VersionType versionType) {
+            this.versionType = versionType;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return this.versionType;
         }
 
         public boolean notFound() {

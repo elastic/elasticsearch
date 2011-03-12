@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -125,6 +126,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private boolean refresh = false;
     private long version = 0;
+    private VersionType versionType = VersionType.INTERNAL;
     private String percolate;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
@@ -535,6 +537,18 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
+     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
+     */
+    public IndexRequest versionType(VersionType versionType) {
+        this.versionType = versionType;
+        return this;
+    }
+
+    public VersionType versionType() {
+        return this.versionType;
+    }
+
+    /**
      * Causes the index request document to be percolated. The parameter is the percolate query
      * to use to reduce the percolated queries that are going to run against this doc. Can be
      * set to <tt>*</tt> to indicate that all percolate queries should be run.
@@ -594,6 +608,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (in.readBoolean()) {
             percolate = in.readUTF();
         }
+        versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -628,6 +643,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(percolate);
         }
+        out.writeByte(versionType.getValue());
     }
 
     @Override public String toString() {

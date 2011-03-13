@@ -35,7 +35,7 @@ public class GeoPointFieldDataType implements FieldDataType<GeoPointFieldData> {
 
     public static final GeoPointFieldDataType TYPE = new GeoPointFieldDataType();
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new StringOrdValFieldDataComparator(numHits, fieldname, sortPos, reversed, cache);

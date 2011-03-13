@@ -40,6 +40,10 @@ public class ScoreSortBuilder extends SortBuilder {
         return this;
     }
 
+    @Override public SortBuilder missing(Object missing) {
+        return this;
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_score");
         if (order == SortOrder.ASC) {

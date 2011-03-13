@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,7 +68,7 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false);
+                    addSortField(context, sortFields, parser.text(), false, null);
                 }
             }
         } else {
@@ -84,6 +85,7 @@ public class SortParseElement implements SearchParseElement {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
                 boolean reverse = false;
+                String missing = null;
                 String innerJsonName = null;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
@@ -93,7 +95,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     }
-                    addSortField(context, sortFields, fieldName, reverse);
+                    addSortField(context, sortFields, fieldName, reverse, missing);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -110,17 +112,19 @@ public class SortParseElement implements SearchParseElement {
                                     } else if ("desc".equals(parser.text())) {
                                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                                     }
+                                } else if ("missing".equals(innerJsonName)) {
+                                    missing = parser.textOrNull();
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse);
+                        addSortField(context, sortFields, fieldName, reverse, missing);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, @Nullable final String missing) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -138,7 +142,7 @@ public class SortParseElement implements SearchParseElement {
             if (fieldMapper == null) {
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "]");
             }
-            sortFields.add(new SortField(fieldName, fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache()), reverse));
+            sortFields.add(new SortField(fieldName, fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache(), missing), reverse));
         }
     }
 }

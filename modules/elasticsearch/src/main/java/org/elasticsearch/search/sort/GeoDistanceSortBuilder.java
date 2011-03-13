@@ -95,6 +95,13 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Not relevant.
+     */
+    @Override public SortBuilder missing(Object missing) {
+        return this;
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
 

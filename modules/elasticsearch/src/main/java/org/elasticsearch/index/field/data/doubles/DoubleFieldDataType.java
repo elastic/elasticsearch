@@ -32,10 +32,31 @@ import java.io.IOException;
  */
 public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        if (missing == null) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new DoubleFieldDataComparator(numHits, fieldname, cache);
+                }
+            };
+        }
+        if (missing.equals("_last")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.MIN_VALUE : Double.MAX_VALUE);
+                }
+            };
+        }
+        if (missing.equals("_first")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.MAX_VALUE : Double.MIN_VALUE);
+                }
+            };
+        }
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new DoubleFieldDataComparator(numHits, fieldname, cache);
+                return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, Double.parseDouble(missing));
             }
         };
     }

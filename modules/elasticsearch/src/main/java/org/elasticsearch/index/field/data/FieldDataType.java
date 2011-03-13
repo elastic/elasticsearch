@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparatorSource;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.bytes.ByteFieldDataType;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldDataType;
@@ -47,7 +48,7 @@ public interface FieldDataType<T extends FieldData> {
         public static final DoubleFieldDataType DOUBLE = new DoubleFieldDataType();
     }
 
-    FieldComparatorSource newFieldComparatorSource(FieldDataCache cache);
+    FieldComparatorSource newFieldComparatorSource(FieldDataCache cache, @Nullable String missing);
 
     T load(IndexReader reader, String fieldName) throws IOException;
 }

@@ -34,6 +34,8 @@ public class FieldSortBuilder extends SortBuilder {
 
     private SortOrder order;
 
+    private Object missing;
+
     /**
      * Constructs a new sort based on a document field.
      *
@@ -51,10 +53,22 @@ public class FieldSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
+     * <tt>_first</tt> to sort missing last or first respectively.
+     */
+    public FieldSortBuilder missing(Object missing) {
+        this.missing = missing;
+        return this;
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);
+        }
+        if (missing != null) {
+            builder.field("missing", missing);
         }
         builder.endObject();
         return builder;

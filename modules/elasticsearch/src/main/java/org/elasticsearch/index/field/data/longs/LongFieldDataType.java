@@ -32,10 +32,31 @@ import java.io.IOException;
  */
 public class LongFieldDataType implements FieldDataType<LongFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        if (missing == null) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new LongFieldDataComparator(numHits, fieldname, cache);
+                }
+            };
+        }
+        if (missing.equals("_last")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new LongFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Long.MIN_VALUE : Long.MAX_VALUE);
+                }
+            };
+        }
+        if (missing.equals("_first")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new LongFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Long.MAX_VALUE : Long.MIN_VALUE);
+                }
+            };
+        }
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new LongFieldDataComparator(numHits, fieldname, cache);
+                return new LongFieldDataMissingComparator(numHits, fieldname, cache, Long.parseLong(missing));
             }
         };
     }

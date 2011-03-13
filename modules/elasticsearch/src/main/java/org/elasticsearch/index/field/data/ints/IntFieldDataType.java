@@ -32,10 +32,31 @@ import java.io.IOException;
  */
 public class IntFieldDataType implements FieldDataType<IntFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        if (missing == null) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new IntFieldDataComparator(numHits, fieldname, cache);
+                }
+            };
+        }
+        if (missing.equals("_last")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new IntFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Integer.MIN_VALUE : Integer.MAX_VALUE);
+                }
+            };
+        }
+        if (missing.equals("_first")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new IntFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Integer.MAX_VALUE : Integer.MIN_VALUE);
+                }
+            };
+        }
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new IntFieldDataComparator(numHits, fieldname, cache);
+                return new IntFieldDataMissingComparator(numHits, fieldname, cache, Integer.parseInt(missing));
             }
         };
     }

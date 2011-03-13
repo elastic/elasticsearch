@@ -128,15 +128,15 @@ public class BulkRequest implements ActionRequest {
                         type = parser.text();
                     } else if ("_id".equals(currentFieldName)) {
                         id = parser.text();
-                    } else if ("_routing".equals(currentFieldName)) {
+                    } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                         routing = parser.text();
-                    } else if ("_parent".equals(currentFieldName)) {
+                    } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                         parent = parser.text();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
-                    } else if ("_version".equals(currentFieldName)) {
+                    } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
                         version = parser.longValue();
-                    } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName)) {
+                    } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                         versionType = VersionType.fromString(parser.text());
                     } else if ("percolate".equals(currentFieldName)) {
                         percolate = parser.textOrNull();

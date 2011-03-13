@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.VersionType;
 
 /**
  * A delete document action request builder.
@@ -88,6 +89,14 @@ public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, Dele
      */
     public DeleteRequestBuilder setVersion(long version) {
         request.version(version);
+        return this;
+    }
+
+    /**
+     * Sets the type of versioning to use. Defaults to {@link VersionType#INTERNAL}.
+     */
+    public DeleteRequestBuilder setVersionType(VersionType versionType) {
+        request.versionType(versionType);
         return this;
     }
 

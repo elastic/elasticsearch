@@ -40,6 +40,7 @@ public class IndexingMemoryBufferController extends AbstractComponent {
     private final ByteSizeValue indexingBuffer;
 
     private final ByteSizeValue minShardIndexBufferSize;
+    private final ByteSizeValue maxShardIndexBufferSize;
 
     private final IndicesService indicesService;
 
@@ -69,8 +70,10 @@ public class IndexingMemoryBufferController extends AbstractComponent {
 
         this.indexingBuffer = indexingBuffer;
         this.minShardIndexBufferSize = componentSettings.getAsBytesSize("min_shard_index_buffer_size", new ByteSizeValue(4, ByteSizeUnit.MB));
+        // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
+        this.maxShardIndexBufferSize = componentSettings.getAsBytesSize("max_shard_index_buffer_size", new ByteSizeValue(512, ByteSizeUnit.MB));
 
-        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}]", this.indexingBuffer, this.minShardIndexBufferSize);
+        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}], max_shard_index_buffer_size [{}]", this.indexingBuffer, this.minShardIndexBufferSize, this.maxShardIndexBufferSize);
 
         indicesService.indicesLifecycle().addListener(listener);
     }
@@ -96,6 +99,9 @@ public class IndexingMemoryBufferController extends AbstractComponent {
             }
             if (shardIndexingBufferSize.bytes() < minShardIndexBufferSize.bytes()) {
                 shardIndexingBufferSize = minShardIndexBufferSize;
+            }
+            if (shardIndexingBufferSize.bytes() > maxShardIndexBufferSize.bytes()) {
+                shardIndexingBufferSize = maxShardIndexBufferSize;
             }
             logger.debug("recalculating shard indexing buffer (reason={}), total is [{}] with [{}] shards, each shard set to [{}]", reason, indexingBuffer, shardsCount, shardIndexingBufferSize);
             for (IndexService indexService : indicesService) {

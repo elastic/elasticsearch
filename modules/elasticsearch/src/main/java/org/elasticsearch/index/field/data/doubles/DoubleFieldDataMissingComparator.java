@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.bytes;
+package org.elasticsearch.index.field.data.doubles;
 
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -26,31 +26,55 @@ import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 /**
  * @author kimchy (shay.banon)
  */
-// LUCENE MONITOR: Monitor against FieldComparator.Short
-public class ByteFieldDataComparator extends NumericFieldDataComparator {
+// LUCENE MONITOR: Monitor against FieldComparator.Double
+public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator {
 
-    private final byte[] values;
-    private short bottom;
+    private final double[] values;
+    private double bottom;
+    private final double missingValue;
 
-    public ByteFieldDataComparator(int numHits, String fieldName, FieldDataCache fieldDataCache) {
+    public DoubleFieldDataMissingComparator(int numHits, String fieldName, FieldDataCache fieldDataCache, double missingValue) {
         super(fieldName, fieldDataCache);
-        values = new byte[numHits];
+        values = new double[numHits];
+        this.missingValue = missingValue;
     }
 
     @Override public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.BYTE;
+        return FieldDataType.DefaultTypes.DOUBLE;
     }
 
     @Override public int compare(int slot1, int slot2) {
-        return values[slot1] - values[slot2];
+        final double v1 = values[slot1];
+        final double v2 = values[slot2];
+        if (v1 > v2) {
+            return 1;
+        } else if (v1 < v2) {
+            return -1;
+        } else {
+            return 0;
+        }
     }
 
     @Override public int compareBottom(int doc) {
-        return bottom - currentFieldData.byteValue(doc);
+        double v2 = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            v2 = currentFieldData.doubleValue(doc);
+        }
+        if (bottom > v2) {
+            return 1;
+        } else if (bottom < v2) {
+            return -1;
+        } else {
+            return 0;
+        }
     }
 
     @Override public void copy(int slot, int doc) {
-        values[slot] = currentFieldData.byteValue(doc);
+        double value = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            value = currentFieldData.doubleValue(doc);
+        }
+        values[slot] = value;
     }
 
     @Override public void setBottom(final int bottom) {
@@ -58,6 +82,6 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override public Comparable value(int slot) {
-        return Byte.valueOf(values[slot]);
+        return Double.valueOf(values[slot]);
     }
 }

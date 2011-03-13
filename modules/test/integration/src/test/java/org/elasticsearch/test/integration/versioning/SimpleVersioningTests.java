@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -57,6 +58,33 @@ public class SimpleVersioningTests extends AbstractNodesTests {
     @AfterClass public void closeNodes() {
         client.close();
         closeAllNodes();
+    }
+
+    @Test public void testExternalVersioning() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(indexResponse.version(), equalTo(12l));
+
+        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(14).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(indexResponse.version(), equalTo(14l));
+
+        try {
+            client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(14l));
+        }
     }
 
     @Test public void testSimpleVersioning() throws Exception {

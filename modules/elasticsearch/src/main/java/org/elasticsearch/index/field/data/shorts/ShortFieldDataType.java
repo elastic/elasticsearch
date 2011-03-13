@@ -32,10 +32,31 @@ import java.io.IOException;
  */
 public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        if (missing == null) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new ShortFieldDataComparator(numHits, fieldname, cache);
+                }
+            };
+        }
+        if (missing.equals("_last")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new ShortFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Short.MIN_VALUE : Short.MAX_VALUE);
+                }
+            };
+        }
+        if (missing.equals("_first")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new ShortFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Short.MAX_VALUE : Short.MIN_VALUE);
+                }
+            };
+        }
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new ShortFieldDataComparator(numHits, fieldname, cache);
+                return new ShortFieldDataMissingComparator(numHits, fieldname, cache, Short.parseShort(missing));
             }
         };
     }

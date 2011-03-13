@@ -76,6 +76,13 @@ public class ScriptSortBuilder extends SortBuilder {
     }
 
     /**
+     * Not really relevant.
+     */
+    @Override public SortBuilder missing(Object missing) {
+        return this;
+    }
+
+    /**
      * The language of the script.
      */
     public ScriptSortBuilder lang(String lang) {

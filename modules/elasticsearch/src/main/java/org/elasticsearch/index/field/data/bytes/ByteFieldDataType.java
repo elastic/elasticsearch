@@ -32,10 +32,31 @@ import java.io.IOException;
  */
 public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        if (missing == null) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new ByteFieldDataComparator(numHits, fieldname, cache);
+                }
+            };
+        }
+        if (missing.equals("_last")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new ByteFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Byte.MIN_VALUE : Byte.MAX_VALUE);
+                }
+            };
+        }
+        if (missing.equals("_first")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new ByteFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Byte.MAX_VALUE : Byte.MIN_VALUE);
+                }
+            };
+        }
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new ByteFieldDataComparator(numHits, fieldname, cache);
+                return new ByteFieldDataMissingComparator(numHits, fieldname, cache, Byte.parseByte(missing));
             }
         };
     }

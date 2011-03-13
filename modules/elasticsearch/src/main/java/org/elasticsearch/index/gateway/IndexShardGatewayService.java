@@ -270,7 +270,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     }
 
     public void snapshotOnClose() {
-        if (snapshotOnClose) {
+        if (shardGateway.requiresSnapshot() && snapshotOnClose) {
             try {
                 snapshot("shutdown");
             } catch (Exception e) {
@@ -296,6 +296,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     }
 
     private synchronized void scheduleSnapshotIfNeeded() {
+        if (!shardGateway.requiresSnapshot()) {
+            return;
+        }
         if (!shardGateway.requiresSnapshotScheduling()) {
             return;
         }

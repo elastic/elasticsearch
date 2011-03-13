@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.bytes;
+package org.elasticsearch.index.field.data.shorts;
 
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -27,18 +27,20 @@ import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
  * @author kimchy (shay.banon)
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Short
-public class ByteFieldDataComparator extends NumericFieldDataComparator {
+public class ShortFieldDataMissingComparator extends NumericFieldDataComparator {
 
-    private final byte[] values;
+    private final short[] values;
     private short bottom;
+    private final short missingValue;
 
-    public ByteFieldDataComparator(int numHits, String fieldName, FieldDataCache fieldDataCache) {
+    public ShortFieldDataMissingComparator(int numHits, String fieldName, FieldDataCache fieldDataCache, short missingValue) {
         super(fieldName, fieldDataCache);
-        values = new byte[numHits];
+        values = new short[numHits];
+        this.missingValue = missingValue;
     }
 
     @Override public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.BYTE;
+        return FieldDataType.DefaultTypes.SHORT;
     }
 
     @Override public int compare(int slot1, int slot2) {
@@ -46,11 +48,19 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override public int compareBottom(int doc) {
-        return bottom - currentFieldData.byteValue(doc);
+        short value = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            value = currentFieldData.shortValue(doc);
+        }
+        return bottom - value;
     }
 
     @Override public void copy(int slot, int doc) {
-        values[slot] = currentFieldData.byteValue(doc);
+        short value = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            value = currentFieldData.shortValue(doc);
+        }
+        values[slot] = value;
     }
 
     @Override public void setBottom(final int bottom) {
@@ -58,6 +68,6 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override public Comparable value(int slot) {
-        return Byte.valueOf(values[slot]);
+        return Short.valueOf(values[slot]);
     }
 }

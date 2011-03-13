@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -27,14 +27,16 @@ import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
  * @author kimchy (shay.banon)
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Short
-public class ByteFieldDataComparator extends NumericFieldDataComparator {
+public class ByteFieldDataMissingComparator extends NumericFieldDataComparator {
 
     private final byte[] values;
     private short bottom;
+    private final byte missingValue;
 
-    public ByteFieldDataComparator(int numHits, String fieldName, FieldDataCache fieldDataCache) {
+    public ByteFieldDataMissingComparator(int numHits, String fieldName, FieldDataCache fieldDataCache, byte missingValue) {
         super(fieldName, fieldDataCache);
         values = new byte[numHits];
+        this.missingValue = missingValue;
     }
 
     @Override public FieldDataType fieldDataType() {
@@ -46,11 +48,19 @@ public class ByteFieldDataComparator extends NumericFieldDataComparator {
     }
 
     @Override public int compareBottom(int doc) {
-        return bottom - currentFieldData.byteValue(doc);
+        byte value = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            value = currentFieldData.byteValue(doc);
+        }
+        return bottom - value;
     }
 
     @Override public void copy(int slot, int doc) {
-        values[slot] = currentFieldData.byteValue(doc);
+        byte value = missingValue;
+        if (currentFieldData.hasValue(doc)) {
+            value = currentFieldData.byteValue(doc);
+        }
+        values[slot] = value;
     }
 
     @Override public void setBottom(final int bottom) {

@@ -199,7 +199,7 @@ public class FetchPhase implements SearchPhase {
         for (String fieldName : context.fieldNames()) {
             FieldMappers x = context.mapperService().smartNameFieldMappers(fieldName);
             if (x == null) {
-                throw new FetchPhaseExecutionException(context, "No mapping for field [" + fieldName + "]");
+                throw new FetchPhaseExecutionException(context, "No mapping for field [" + fieldName + "] in order to load it");
             }
             fieldSelector.add(x);
         }

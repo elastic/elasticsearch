@@ -32,10 +32,31 @@ import java.io.IOException;
  */
 public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        if (missing == null) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new FloatFieldDataComparator(numHits, fieldname, cache);
+                }
+            };
+        }
+        if (missing.equals("_last")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.MIN_VALUE : Float.MAX_VALUE);
+                }
+            };
+        }
+        if (missing.equals("_first")) {
+            return new FieldComparatorSource() {
+                @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                    return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.MAX_VALUE : Float.MIN_VALUE);
+                }
+            };
+        }
         return new FieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new FloatFieldDataComparator(numHits, fieldname, cache);
+                return new FloatFieldDataMissingComparator(numHits, fieldname, cache, Float.parseFloat(missing));
             }
         };
     }

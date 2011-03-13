@@ -59,6 +59,11 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
     SnapshotStatus snapshot(Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException;
 
     /**
+     * Returns <tt>true</tt> if snapshot is even required on this gateway (i.e. mainly handles recovery).
+     */
+    boolean requiresSnapshot();
+
+    /**
      * Returns <tt>true</tt> if this gateway requires scheduling management for snapshot
      * operations.
      */

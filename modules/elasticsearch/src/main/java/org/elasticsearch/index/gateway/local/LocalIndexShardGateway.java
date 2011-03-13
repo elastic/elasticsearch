@@ -177,6 +177,10 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         return null;
     }
 
+    @Override public boolean requiresSnapshot() {
+        return false;
+    }
+
     @Override public boolean requiresSnapshotScheduling() {
         return false;
     }

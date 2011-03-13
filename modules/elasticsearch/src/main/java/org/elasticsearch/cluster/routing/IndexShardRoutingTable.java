@@ -103,6 +103,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, shards);
     }
 
+    public ShardIterator shardsIt(int index) {
+        return new PlainShardIterator(shardId, shards, index);
+    }
+
     public ShardIterator shardsRandomIt() {
         return new PlainShardIterator(shardId, shards, counter.getAndIncrement());
     }

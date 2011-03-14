@@ -36,6 +36,7 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
     protected String type;
     protected String id;
     protected String routing;
+    protected String preference;
 
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
@@ -84,6 +85,10 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         return this.routing;
     }
 
+    public String preference() {
+        return this.preference;
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */
@@ -118,6 +123,9 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
+        if (in.readBoolean()) {
+            preference = in.readUTF();
+        }
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
@@ -130,6 +138,12 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if (preference == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(preference);
         }
     }
 

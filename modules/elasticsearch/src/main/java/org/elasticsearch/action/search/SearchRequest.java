@@ -71,6 +71,7 @@ public class SearchRequest implements ActionRequest {
 
     @Nullable private String queryHint;
     @Nullable private String routing;
+    @Nullable private String preference;
 
     private byte[] source;
     private int sourceOffset;
@@ -218,6 +219,20 @@ public class SearchRequest implements ActionRequest {
     public SearchRequest routing(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
+    }
+
+    /**
+     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
+     * a custom value, which guarantees that the same order will be used across different requests.
+     */
+    public SearchRequest preference(String preference) {
+        this.preference = preference;
+        return this;
+    }
+
+    public String preference() {
+        return this.preference;
     }
 
     /**
@@ -509,6 +524,9 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
+        if (in.readBoolean()) {
+            preference = in.readUTF();
+        }
 
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -566,6 +584,12 @@ public class SearchRequest implements ActionRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if (preference == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(preference);
         }
 
         if (scroll == null) {

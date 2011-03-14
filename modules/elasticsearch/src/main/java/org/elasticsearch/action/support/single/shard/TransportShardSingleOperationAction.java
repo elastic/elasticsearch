@@ -109,7 +109,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             checkBlock(request, clusterState);
 
             this.shardIt = clusterService.operationRouting()
-                    .getShards(clusterState, request.index(), request.type(), request.id(), request.routing());
+                    .getShards(clusterState, request.index(), request.type(), request.id(), request.routing(), request.preference());
         }
 
         public void start() {

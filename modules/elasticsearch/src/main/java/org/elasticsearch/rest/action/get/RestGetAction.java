@@ -59,7 +59,7 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
-
+        getRequest.preference(request.param("preference"));
 
         String sField = request.param("fields");
         if (sField != null) {

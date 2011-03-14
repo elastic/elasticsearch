@@ -144,6 +144,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.types(RestActions.splitTypes(request.param("type")));
         searchRequest.queryHint(request.param("query_hint"));
         searchRequest.routing(request.param("routing"));
+        searchRequest.preference(request.param("preference"));
 
         return searchRequest;
     }

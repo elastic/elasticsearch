@@ -107,6 +107,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                     clusterState.metaData().concreteIndices(request.indices());
                     waitForCounter++;
                 } catch (IndexMissingException e) {
+                    response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
                     // missing indices, wait a bit more...
                 }
             }

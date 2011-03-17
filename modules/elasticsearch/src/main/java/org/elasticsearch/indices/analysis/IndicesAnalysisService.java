@@ -60,7 +60,9 @@ public class IndicesAnalysisService extends AbstractComponent {
     @Inject public IndicesAnalysisService(Settings settings) {
         super(settings);
 
-        analyzerProviderFactories.put("standard", new PreBuiltAnalyzerProviderFactory("standard", AnalyzerScope.INDICES, new StandardAnalyzer(Lucene.ANALYZER_VERSION)));
+        StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Lucene.ANALYZER_VERSION);
+        analyzerProviderFactories.put("default", new PreBuiltAnalyzerProviderFactory("default", AnalyzerScope.INDICES, standardAnalyzer));
+        analyzerProviderFactories.put("standard", new PreBuiltAnalyzerProviderFactory("standard", AnalyzerScope.INDICES, standardAnalyzer));
         analyzerProviderFactories.put("keyword", new PreBuiltAnalyzerProviderFactory("keyword", AnalyzerScope.INDICES, new KeywordAnalyzer()));
         analyzerProviderFactories.put("stop", new PreBuiltAnalyzerProviderFactory("stop", AnalyzerScope.INDICES, new StopAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("whitespace", new PreBuiltAnalyzerProviderFactory("whitespace", AnalyzerScope.INDICES, new WhitespaceAnalyzer()));
@@ -99,7 +101,11 @@ public class IndicesAnalysisService extends AbstractComponent {
 
     public void close() {
         for (PreBuiltAnalyzerProviderFactory analyzerProviderFactory : analyzerProviderFactories.values()) {
-            analyzerProviderFactory.analyzer().close();
+            try {
+                analyzerProviderFactory.analyzer().close();
+            } catch (Exception e) {
+                // ignore
+            }
         }
     }
 }

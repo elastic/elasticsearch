@@ -37,6 +37,7 @@ public class QueryParserSettings {
     private int phraseSlop = 0;
     private float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    private boolean analyzeWildcard = false;
     private boolean escape = false;
     private Analyzer analyzer = null;
 
@@ -136,6 +137,14 @@ public class QueryParserSettings {
         this.analyzer = analyzer;
     }
 
+    public boolean analyzeWildcard() {
+        return this.analyzeWildcard;
+    }
+
+    public void analyzeWildcard(boolean analyzeWildcard) {
+        this.analyzeWildcard = analyzeWildcard;
+    }
+
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -146,6 +155,7 @@ public class QueryParserSettings {
         if (Float.compare(that.boost, boost) != 0) return false;
         if (enablePositionIncrements != that.enablePositionIncrements) return false;
         if (escape != that.escape) return false;
+        if (analyzeWildcard != that.analyzeWildcard) return false;
         if (Float.compare(that.fuzzyMinSim, fuzzyMinSim) != 0) return false;
         if (fuzzyPrefixLength != that.fuzzyPrefixLength) return false;
         if (lowercaseExpandedTerms != that.lowercaseExpandedTerms) return false;
@@ -171,6 +181,7 @@ public class QueryParserSettings {
         result = 31 * result + fuzzyPrefixLength;
         result = 31 * result + (escape ? 1 : 0);
         result = 31 * result + (analyzer != null ? analyzer.hashCode() : 0);
+        result = 31 * result + (analyzeWildcard ? 1 : 0);
         return result;
     }
 }

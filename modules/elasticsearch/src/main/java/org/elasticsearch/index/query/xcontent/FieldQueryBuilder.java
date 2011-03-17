@@ -51,6 +51,8 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
 
     private Boolean enablePositionIncrements;
 
+    private Boolean analyzeWildcard;
+
     private float fuzzyMinSim = -1;
 
     private float boost = -1;
@@ -242,6 +244,15 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * Set to <tt>true</tt> to enable analysis on wildcard and prefix queries.
+     */
+    public FieldQueryBuilder analyzeWildcard(boolean analyzeWildcard) {
+        this.analyzeWildcard = analyzeWildcard;
+        extraSet = true;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FieldQueryParser.NAME);
         if (!extraSet) {
@@ -275,6 +286,9 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
             }
             if (phraseSlop != -1) {
                 builder.field("phrase_slop", phraseSlop);
+            }
+            if (analyzeWildcard != null) {
+                builder.field("analyze_wildcard", analyzeWildcard);
             }
             builder.endObject();
         }

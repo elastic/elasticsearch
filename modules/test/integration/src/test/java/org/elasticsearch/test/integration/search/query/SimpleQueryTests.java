@@ -68,6 +68,35 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
+    @Test public void queryStringAnalyzedWildcard() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(queryString("value*").analyzeWildcard(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse = client.prepareSearch().setQuery(queryString("*ue*").analyzeWildcard(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse = client.prepareSearch().setQuery(queryString("*ue_1").analyzeWildcard(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse = client.prepareSearch().setQuery(queryString("val*e_1").analyzeWildcard(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse = client.prepareSearch().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+
     @Test public void filterExistsMissingTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

@@ -19,11 +19,14 @@
 
 package org.apache.lucene.queryParser;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.AllFieldMapper;
@@ -32,6 +35,9 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.*;
@@ -61,6 +67,8 @@ public class MapperQueryParser extends QueryParser {
 
     private FieldMapper currentMapper;
 
+    private boolean analyzeWildcard;
+
     public MapperQueryParser(QueryParseContext parseContext) {
         super(Lucene.QUERYPARSER_VERSION, null, null);
         this.parseContext = parseContext;
@@ -83,6 +91,7 @@ public class MapperQueryParser extends QueryParser {
         setDefaultOperator(settings.defaultOperator());
         setFuzzyMinSim(settings.fuzzyMinSim());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
+        this.analyzeWildcard = settings.analyzeWildcard();
     }
 
     @Override protected Query newTermQuery(Term term) {
@@ -145,22 +154,6 @@ public class MapperQueryParser extends QueryParser {
         return newRangeQuery(field, part1, part2, inclusive);
     }
 
-    @Override protected Query getPrefixQuery(String field, String termStr) throws ParseException {
-        String indexedNameField = field;
-        currentMapper = null;
-        if (parseContext.mapperService() != null) {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
-            if (fieldMappers != null) {
-                currentMapper = fieldMappers.fieldMappers().mapper();
-                if (currentMapper != null) {
-                    indexedNameField = currentMapper.names().indexName();
-                }
-                return wrapSmartNameQuery(super.getPrefixQuery(indexedNameField, termStr), fieldMappers, parseContext);
-            }
-        }
-        return super.getPrefixQuery(indexedNameField, termStr);
-    }
-
     @Override protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
         String indexedNameField = field;
         currentMapper = null;
@@ -177,6 +170,65 @@ public class MapperQueryParser extends QueryParser {
         return super.getFuzzyQuery(indexedNameField, termStr, minSimilarity);
     }
 
+    @Override protected Query getPrefixQuery(String field, String termStr) throws ParseException {
+        String indexedNameField = field;
+        currentMapper = null;
+        if (parseContext.mapperService() != null) {
+            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
+            if (fieldMappers != null) {
+                currentMapper = fieldMappers.fieldMappers().mapper();
+                if (currentMapper != null) {
+                    indexedNameField = currentMapper.names().indexName();
+                }
+                return wrapSmartNameQuery(getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr), fieldMappers, parseContext);
+            }
+        }
+        return getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr);
+    }
+
+    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr) throws ParseException {
+        if (!analyzeWildcard) {
+            return super.getPrefixQuery(field, termStr);
+        }
+        // LUCENE MONITOR: TermAttribute deprecated in 3.1
+        // get Analyzer from superclass and tokenize the term
+        TokenStream source = null;
+        try {
+            source = getAnalyzer().reusableTokenStream(field, new StringReader(termStr));
+        } catch (IOException e) {
+            return super.getPrefixQuery(field, termStr);
+        }
+        List<String> tlist = new ArrayList<String>();
+        TermAttribute termAtt = source.addAttribute(TermAttribute.class);
+
+        while (true) {
+            try {
+                if (!source.incrementToken()) break;
+            } catch (IOException e) {
+                break;
+            }
+            tlist.add(termAtt.term());
+        }
+
+        try {
+            source.close();
+        } catch (IOException e) {
+            // ignore
+        }
+
+        if (tlist.size() == 1) {
+            return super.getPrefixQuery(field, tlist.get(0));
+        } else {
+            return super.getPrefixQuery(field, termStr);
+            /* this means that the analyzer used either added or consumed
+* (common for a stemmer) tokens, and we can't build a PrefixQuery */
+//            throw new ParseException("Cannot build PrefixQuery with analyzer "
+//                    + getAnalyzer().getClass()
+//                    + (tlist.size() > 1 ? " - token(s) added" : " - token consumed"));
+        }
+
+    }
+
     @Override protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (AllFieldMapper.NAME.equals(field) && termStr.equals("*")) {
             return newMatchAllDocsQuery();
@@ -190,10 +242,74 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
-                return wrapSmartNameQuery(super.getWildcardQuery(indexedNameField, termStr), fieldMappers, parseContext);
+                return wrapSmartNameQuery(getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr), fieldMappers, parseContext);
             }
         }
-        return super.getWildcardQuery(indexedNameField, termStr);
+        return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
+    }
+
+    private Query getPossiblyAnalyzedWildcardQuery(String field, String termStr) throws ParseException {
+        if (!analyzeWildcard) {
+            return super.getWildcardQuery(field, termStr);
+        }
+        boolean isWithinToken = (!termStr.startsWith("?") && !termStr.startsWith("*"));
+        StringBuilder aggStr = new StringBuilder();
+        StringBuilder tmp = new StringBuilder();
+        for (int i = 0; i < termStr.length(); i++) {
+            char c = termStr.charAt(i);
+            if (c == '?' || c == '*') {
+                if (isWithinToken) {
+                    try {
+                        TokenStream source = getAnalyzer().reusableTokenStream(field, new FastStringReader(tmp.toString()));
+                        TermAttribute termAtt = source.addAttribute(TermAttribute.class);
+                        if (source.incrementToken()) {
+                            String term = termAtt.term();
+                            if (term.length() == 0) {
+                                // no tokens, just use what we have now
+                                aggStr.append(tmp);
+                            } else {
+                                aggStr.append(term);
+                            }
+                        } else {
+                            // no tokens, just use what we have now
+                            aggStr.append(tmp);
+                        }
+                        source.close();
+                    } catch (IOException e) {
+                        aggStr.append(tmp);
+                    }
+                    tmp.setLength(0);
+                }
+                isWithinToken = false;
+                aggStr.append(c);
+            } else {
+                tmp.append(c);
+                isWithinToken = true;
+            }
+        }
+        if (isWithinToken) {
+            try {
+                TokenStream source = getAnalyzer().reusableTokenStream(field, new FastStringReader(tmp.toString()));
+                TermAttribute termAtt = source.addAttribute(TermAttribute.class);
+                if (source.incrementToken()) {
+                    String term = termAtt.term();
+                    if (term.length() == 0) {
+                        // no tokens, just use what we have now
+                        aggStr.append(tmp);
+                    } else {
+                        aggStr.append(term);
+                    }
+                } else {
+                    // no tokens, just use what we have now
+                    aggStr.append(tmp);
+                }
+                source.close();
+            } catch (IOException e) {
+                aggStr.append(tmp);
+            }
+        }
+
+        return super.getWildcardQuery(field, aggStr.toString());
     }
 
     @Override protected Query getBooleanQuery(List<BooleanClause> clauses, boolean disableCoord) throws ParseException {

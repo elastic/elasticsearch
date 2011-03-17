@@ -155,6 +155,8 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
                     qpSettings.boost(parser.floatValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
                     qpSettings.tieBreaker(parser.floatValue());
+                } else if ("analyze_wildcard".equals(currentFieldName) || "analyzeWildcard".equals(currentFieldName)) {
+                    qpSettings.analyzeWildcard(parser.booleanValue());
                 }
             }
         }

@@ -39,7 +39,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String[] fieldsNames;
     private int size = 10;
     private Boolean allTerms;
-    private String[] exclude;
+    private Object[] exclude;
     private String regex;
     private int regexFlags = 0;
     private TermsFacet.ComparatorType comparatorType;
@@ -110,7 +110,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     /**
      * A set of terms that will be excluded.
      */
-    public TermsFacetBuilder exclude(String... exclude) {
+    public TermsFacetBuilder exclude(Object... exclude) {
         this.exclude = exclude;
         return this;
     }
@@ -205,7 +205,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         builder.field("size", size);
         if (exclude != null) {
             builder.startArray("exclude");
-            for (String ex : exclude) {
+            for (Object ex : exclude) {
                 builder.value(ex);
             }
             builder.endArray();

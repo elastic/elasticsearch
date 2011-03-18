@@ -144,17 +144,17 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
             if (fieldMapper instanceof IpFieldMapper) {
                 return new TermsIpFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
-                return new TermsLongFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+                return new TermsLongFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
-                return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+                return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
-                return new TermsIntFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+                return new TermsIntFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
-                return new TermsFloatFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+                return new TermsFloatFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.SHORT) {
-                return new TermsShortFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+                return new TermsShortFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.BYTE) {
-                return new TermsByteFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
+                return new TermsByteFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
             }
         }
         return new TermsStringFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, pattern, scriptLang, script, params);

@@ -432,6 +432,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .setQuery(termQuery("stag", "111"))
                 .addFacet(termsFacet("facet1").field("lstag").size(10))
                 .addFacet(termsFacet("facet2").field("ltag").size(10))
+                .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000))
                 .execute().actionGet();
 
         facet = searchResponse.facets().facet("facet1");
@@ -451,6 +452,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(1));
         assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000"), equalTo("3000")));
         assertThat(facet.entries().get(2).count(), equalTo(1));
+
+        facet = searchResponse.facets().facet("facet3");
+        assertThat(facet, instanceOf(InternalLongTermsFacet.class));
+        assertThat(facet.name(), equalTo("facet3"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).term(), equalTo("2000"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(1).term(), equalTo("1000"));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
 
         searchResponse = client.prepareSearch()
                 .setQuery(termQuery("stag", "111"))

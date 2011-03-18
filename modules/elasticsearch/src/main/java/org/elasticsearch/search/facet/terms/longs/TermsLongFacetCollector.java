@@ -24,9 +24,11 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TLongIntIterator;
 import org.elasticsearch.common.trove.map.hash.TLongIntHashMap;
+import org.elasticsearch.common.trove.set.hash.TLongHashSet;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -74,7 +77,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
     private final SearchScript script;
 
     public TermsLongFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                   String scriptLang, String script, Map<String, Object> params) {
+                                   ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -104,10 +107,10 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             this.script = null;
         }
 
-        if (this.script == null) {
+        if (this.script == null && excluded.isEmpty()) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), this.script);
+            aggregator = new AggregatorValueProc(popFacets(), excluded, this.script);
         }
 
         if (allTerms) {
@@ -178,12 +181,25 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         private final SearchScript script;
 
-        public AggregatorValueProc(TLongIntHashMap facets, SearchScript script) {
+        private final TLongHashSet excluded;
+
+        public AggregatorValueProc(TLongIntHashMap facets, Set<String> excluded, SearchScript script) {
             super(facets);
             this.script = script;
+            if (excluded == null || excluded.isEmpty()) {
+                this.excluded = null;
+            } else {
+                this.excluded = new TLongHashSet(excluded.size());
+                for (String s : excluded) {
+                    this.excluded.add(Long.parseLong(s));
+                }
+            }
         }
 
         @Override public void onValue(int docId, long value) {
+            if (excluded != null && excluded.contains(value)) {
+                return;
+            }
             if (script != null) {
                 script.setNextDocId(docId);
                 script.setNextVar("term", value);

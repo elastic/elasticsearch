@@ -175,6 +175,17 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                     .execute().actionGet();
             assertThat(percolate.matches().size(), equalTo(1));
         }
+
+        logger.info("--> delete the index");
+
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        logger.info("--> make sure percoalted queries for it have been deleted as well");
+        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
     }
 
     @Test public void percolateOnIndexOperation() throws Exception {

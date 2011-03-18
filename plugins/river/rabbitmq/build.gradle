@@ -32,9 +32,9 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('com.rabbitmq:amqp-client:2.2.0') { transitive = false }
+    compile('com.rabbitmq:amqp-client:2.3.1') { transitive = false }
     compile("commons-io:commons-io:1.2") { transitive = false }
-    distLib('com.rabbitmq:amqp-client:2.2.0') { transitive = false }
+    distLib('com.rabbitmq:amqp-client:2.3.1') { transitive = false }
     distLib("commons-io:commons-io:1.2") { transitive = false }
 }
 

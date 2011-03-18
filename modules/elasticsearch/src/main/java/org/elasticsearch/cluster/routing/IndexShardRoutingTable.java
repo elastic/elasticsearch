@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -99,6 +100,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return count;
     }
 
+    /**
+     * Returns a regular shard iterator.
+     */
     public ShardIterator shardsIt() {
         return new PlainShardIterator(shardId, shards);
     }
@@ -107,6 +111,43 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, shards, index);
     }
 
+    /**
+     * Returns an iterator only on the primary shard.
+     */
+    public ShardIterator primaryShardIt() {
+        ShardRouting primary = primaryShard();
+        if (primary == null) {
+            return new PlainShardIterator(shardId, ImmutableList.<ShardRouting>of());
+        }
+        return new PlainShardIterator(shardId, ImmutableList.of(primary));
+    }
+
+    /**
+     * Prefers execution on the local node if applicable.
+     */
+    public ShardIterator preferLocalShardsIt(String nodeId) {
+        ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(this.shards.size());
+        // fill it in a randomized fashion
+        int index = counter.getAndIncrement();
+        for (int i = 0; i < this.shards.size(); i++) {
+            int loc = (index + i) % this.shards.size();
+            ordered.add(this.shards.get(loc));
+        }
+        // find the local one, and push it upfront
+        for (int i = 0; i < ordered.size(); i++) {
+            ShardRouting current = ordered.get(i);
+            if (nodeId.equals(current.currentNodeId())) {
+                ordered.set(i, ordered.get(0));
+                ordered.set(0, current);
+                break;
+            }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns a random shards iterator.
+     */
     public ShardIterator shardsRandomIt() {
         return new PlainShardIterator(shardId, shards, counter.getAndIncrement());
     }

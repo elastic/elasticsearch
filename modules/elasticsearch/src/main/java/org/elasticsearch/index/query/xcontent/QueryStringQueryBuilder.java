@@ -58,6 +58,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private Boolean enablePositionIncrements;
 
+    private Boolean analyzeWildcard;
+
     private float fuzzyMinSim = -1;
 
     private float boost = -1;
@@ -210,6 +212,14 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
+     * Set to <tt>true</tt> to enable analysis on wildcard and prefix queries.
+     */
+    public QueryStringQueryBuilder analyzeWildcard(boolean analyzeWildcard) {
+        this.analyzeWildcard = analyzeWildcard;
+        return this;
+    }
+
+    /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
@@ -270,6 +280,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (phraseSlop != -1) {
             builder.field("phrase_slop", phraseSlop);
+        }
+        if (analyzeWildcard != null) {
+            builder.field("analyze_wildcard", analyzeWildcard);
         }
         builder.endObject();
     }

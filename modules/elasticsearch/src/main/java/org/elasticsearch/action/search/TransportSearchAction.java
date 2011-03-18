@@ -85,7 +85,7 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             try {
                 ClusterState clusterState = clusterService.state();
                 searchRequest.indices(clusterState.metaData().concreteIndices(searchRequest.indices()));
-                GroupShardsIterator groupIt = clusterService.operationRouting().searchShards(clusterState, searchRequest.indices(), searchRequest.queryHint(), searchRequest.routing());
+                GroupShardsIterator groupIt = clusterService.operationRouting().searchShards(clusterState, searchRequest.indices(), searchRequest.queryHint(), searchRequest.routing(), searchRequest.preference());
                 if (groupIt.size() == 1) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);

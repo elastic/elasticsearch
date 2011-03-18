@@ -442,6 +442,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     public void close(String reason) {
+        listeners.clear();
+        listeners = null;
         indexSettingsService.removeListener(applyRefreshSettings);
         synchronized (mutex) {
             if (state != IndexShardState.CLOSED) {

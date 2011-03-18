@@ -16,7 +16,7 @@
       <library name="rabbitmq">
         <CLASSES>
           <root url="jar://$GRADLE_REPOSITORY$/commons-io/commons-io/jars/commons-io-1.2.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/com.rabbitmq/amqp-client/jars/amqp-client-2.2.0.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.rabbitmq/amqp-client/jars/amqp-client-2.3.1.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

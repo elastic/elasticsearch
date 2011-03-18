@@ -104,6 +104,8 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
                         qpSettings.fuzzyPrefixLength(parser.intValue());
                     } else if ("escape".equals(currentFieldName)) {
                         qpSettings.escape(parser.booleanValue());
+                    } else if ("analyze_wildcard".equals(currentFieldName) || "analyzeWildcard".equals(currentFieldName)) {
+                        qpSettings.analyzeWildcard(parser.booleanValue());
                     }
                 }
             }

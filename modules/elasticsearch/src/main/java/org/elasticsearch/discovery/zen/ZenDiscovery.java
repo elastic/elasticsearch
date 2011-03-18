@@ -295,12 +295,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 // we update the metadata once we managed to join, so we pre-create indices and so on (no shards allocation)
                 final MetaData metaData = clusterState.metaData();
+                // sync also the version with the version the master currently has, so the next update will be applied
+                final long version = clusterState.version();
                 clusterService.submitStateUpdateTask("zen-disco-join (detected master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
                         // make sure we have the local node id set, we might need it as a result of the new metadata
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
-                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).blocks(clusterBlocks).metaData(metaData).build();
+                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).blocks(clusterBlocks).metaData(metaData).version(version).build();
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {

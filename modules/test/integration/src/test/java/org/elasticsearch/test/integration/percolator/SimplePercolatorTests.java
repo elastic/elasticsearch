@@ -58,6 +58,45 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         return client("node1");
     }
 
+    @Test public void percolateOnRecreatedIndex() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            client.admin().indices().prepareDelete("_percolator").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
+
+        logger.info("--> register a query");
+        client.prepareIndex("_percolator", "test", "kuku")
+                .setSource(jsonBuilder().startObject()
+                        .field("color", "blue")
+                        .field("query", termQuery("field1", "value1"))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        client.admin().indices().prepareDelete("test").execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
+
+        logger.info("--> register a query");
+        client.prepareIndex("_percolator", "test", "kuku")
+                .setSource(jsonBuilder().startObject()
+                        .field("color", "blue")
+                        .field("query", termQuery("field1", "value1"))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+    }
+
     @Test public void registerPercolatorAndThenCreateAnIndex() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

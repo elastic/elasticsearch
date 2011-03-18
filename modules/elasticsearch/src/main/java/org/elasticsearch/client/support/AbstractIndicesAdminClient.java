@@ -55,8 +55,8 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
         return new CreateIndexRequestBuilder(this, index);
     }
 
-    @Override public DeleteIndexRequestBuilder prepareDelete(String index) {
-        return new DeleteIndexRequestBuilder(this, index);
+    @Override public DeleteIndexRequestBuilder prepareDelete(String... indices) {
+        return new DeleteIndexRequestBuilder(this, indices);
     }
 
     @Override public CloseIndexRequestBuilder prepareClose(String index) {

@@ -31,8 +31,8 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class DeleteIndexRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexRequest, DeleteIndexResponse> {
 
-    public DeleteIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
-        super(indicesClient, new DeleteIndexRequest(index));
+    public DeleteIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
+        super(indicesClient, new DeleteIndexRequest(indices));
     }
 
     /**

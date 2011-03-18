@@ -34,6 +34,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -42,11 +43,12 @@ public class RestDeleteIndexAction extends BaseRestHandler {
 
     @Inject public RestDeleteIndexAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
+        controller.registerHandler(RestRequest.Method.DELETE, "/", this);
         controller.registerHandler(RestRequest.Method.DELETE, "/{index}", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(request.param("index"));
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(splitIndices(request.param("index")));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override public void onResponse(DeleteIndexResponse response) {

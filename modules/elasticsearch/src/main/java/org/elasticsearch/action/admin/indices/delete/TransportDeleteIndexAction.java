@@ -22,14 +22,19 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,10 +50,13 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     private final MetaDataDeleteIndexService deleteIndexService;
 
+    private final TransportDeleteMappingAction deleteMappingAction;
+
     @Inject public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService) {
+                                              ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService, TransportDeleteMappingAction deleteMappingAction) {
         super(settings, transportService, clusterService, threadPool);
         this.deleteIndexService = deleteIndexService;
+        this.deleteMappingAction = deleteMappingAction;
     }
 
     @Override protected String executor() {
@@ -76,15 +84,27 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
-    @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, ClusterState state) throws ElasticSearchException {
+    @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, final ClusterState state) throws ElasticSearchException {
         final AtomicReference<DeleteIndexResponse> responseRef = new AtomicReference<DeleteIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(request.indices().length);
-        for (String index : request.indices()) {
+        for (final String index : request.indices()) {
             deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()), new MetaDataDeleteIndexService.Listener() {
                 @Override public void onResponse(MetaDataDeleteIndexService.Response response) {
                     responseRef.set(new DeleteIndexResponse(response.acknowledged()));
-                    latch.countDown();
+                    // YACK, but here we go: If this index is also percolated, make sure to delete all percolated queries from the _percolator index
+                    IndexMetaData percolatorMetaData = state.metaData().index(PercolatorService.INDEX_NAME);
+                    if (percolatorMetaData != null && percolatorMetaData.mappings().containsKey(index)) {
+                        deleteMappingAction.execute(new DeleteMappingRequest(PercolatorService.INDEX_NAME).type(index), new ActionListener<DeleteMappingResponse>() {
+                            @Override public void onResponse(DeleteMappingResponse deleteMappingResponse) {
+                                latch.countDown();
+                            }
+
+                            @Override public void onFailure(Throwable e) {
+                                latch.countDown();
+                            }
+                        });
+                    }
                 }
 
                 @Override public void onFailure(Throwable t) {

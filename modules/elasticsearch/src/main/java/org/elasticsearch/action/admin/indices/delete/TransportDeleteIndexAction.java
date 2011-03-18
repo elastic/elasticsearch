@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -66,25 +67,32 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         return new DeleteIndexResponse();
     }
 
+    @Override protected void doExecute(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        super.doExecute(request, listener);
+    }
+
     @Override protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, ClusterState state) throws ElasticSearchException {
         final AtomicReference<DeleteIndexResponse> responseRef = new AtomicReference<DeleteIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataDeleteIndexService.Listener() {
-            @Override public void onResponse(MetaDataDeleteIndexService.Response response) {
-                responseRef.set(new DeleteIndexResponse(response.acknowledged()));
-                latch.countDown();
-            }
+        final CountDownLatch latch = new CountDownLatch(request.indices().length);
+        for (String index : request.indices()) {
+            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()), new MetaDataDeleteIndexService.Listener() {
+                @Override public void onResponse(MetaDataDeleteIndexService.Response response) {
+                    responseRef.set(new DeleteIndexResponse(response.acknowledged()));
+                    latch.countDown();
+                }
 
-            @Override public void onFailure(Throwable t) {
-                failureRef.set(t);
-                latch.countDown();
-            }
-        });
+                @Override public void onFailure(Throwable t) {
+                    failureRef.set(t);
+                    latch.countDown();
+                }
+            });
+        }
 
         try {
             latch.await();

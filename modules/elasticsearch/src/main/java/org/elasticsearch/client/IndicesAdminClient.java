@@ -150,9 +150,9 @@ public interface IndicesAdminClient {
     /**
      * Deletes an index based on the index name.
      *
-     * @param index The index name to delete
+     * @param indices The indices to delete. Empty array to delete all indices.
      */
-    DeleteIndexRequestBuilder prepareDelete(String index);
+    DeleteIndexRequestBuilder prepareDelete(String... indices);
 
     /**
      * Closes an index based on the index name.

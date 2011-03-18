@@ -37,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  */
 public class DeleteIndexRequest extends MasterNodeOperationRequest {
 
-    private String index;
+    private String[] indices;
 
     private TimeValue timeout = timeValueSeconds(10);
 
@@ -48,22 +48,31 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
      * Constructs a new delete index request for the specified index.
      */
     public DeleteIndexRequest(String index) {
-        this.index = index;
+        this.indices = new String[]{index};
+    }
+
+    public DeleteIndexRequest(String... indices) {
+        this.indices = indices;
     }
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (index == null) {
-            validationException = addValidationError("index is missing", validationException);
+        if (indices == null) {
+            validationException = addValidationError("index / indices is missing", validationException);
         }
         return validationException;
+    }
+
+    public DeleteIndexRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
     }
 
     /**
      * The index to delete.
      */
-    String index() {
-        return index;
+    String[] indices() {
+        return indices;
     }
 
     /**
@@ -93,13 +102,23 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readUTF();
+        indices = new String[in.readVInt()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = in.readUTF();
+        }
         timeout = readTimeValue(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(index);
+        if (indices == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(indices.length);
+            for (String index : indices) {
+                out.writeUTF(index);
+            }
+        }
         timeout.writeTo(out);
     }
 }

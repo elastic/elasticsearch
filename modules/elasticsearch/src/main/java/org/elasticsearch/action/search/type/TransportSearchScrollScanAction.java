@@ -108,7 +108,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
         public void start() {
             if (scrollId.context().length == 0) {
-                final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, 0, 0.0f), null, false);
+                final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.attributes().get("total_hits")), 0.0f), null, false);
                 searchCache.releaseQueryFetchResults(queryFetchResults);
                 listener.onResponse(new SearchResponse(internalResponse, request.scrollId(), 0, 0, 0l, TransportSearchHelper.buildShardFailures(shardFailures, searchCache)));
                 return;
@@ -224,6 +224,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 }
             }
             final InternalSearchResponse internalResponse = searchPhaseController.merge(docs, queryFetchResults, queryFetchResults);
+            ((InternalSearchHits) internalResponse.hits()).totalHits = Long.parseLong(this.scrollId.attributes().get("total_hits"));
 
 
             for (QueryFetchSearchResult shardResult : queryFetchResults.values()) {
@@ -236,7 +237,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             String scrollId = null;
             if (request.scroll() != null) {
                 // we rebuild the scroll id since we remove shards that we finished scrolling on
-                scrollId = TransportSearchHelper.buildScrollId(this.scrollId.type(), queryFetchResults.values(), null);
+                scrollId = TransportSearchHelper.buildScrollId(this.scrollId.type(), queryFetchResults.values(), this.scrollId.attributes()); // continue moving the total_hits
             }
             searchCache.releaseQueryFetchResults(queryFetchResults);
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.context().length, successfulOps.get(),

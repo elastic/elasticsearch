@@ -56,62 +56,82 @@ public class SearchScanTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void testSimpleScroll1() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-
-        Set<String> ids = Sets.newHashSet();
-        Set<String> expectedIds = Sets.newHashSet();
-        for (int i = 0; i < 100; i++) {
-            String id = Integer.toString(i);
-            expectedIds.add(id);
-            client.prepareIndex("test", "type1", id).setSource("field", i).execute().actionGet();
-        }
-
-        client.admin().indices().prepareRefresh().execute().actionGet();
-
-        SearchResponse searchResponse = client.prepareSearch()
-                .setSearchType(SearchType.SCAN)
-                .setQuery(matchAllQuery())
-                .setSize(7)
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .execute().actionGet();
-
-        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
-
-        // start scrolling, until we get not results
-        while (true) {
-            searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-            assertThat(searchResponse.failedShards(), equalTo(0));
-            for (SearchHit hit : searchResponse.hits()) {
-                assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
-                ids.add(hit.id());
-            }
-            if (searchResponse.hits().totalHits() == 0) {
-                break;
-            }
-        }
-
-        assertThat(expectedIds, equalTo(ids));
+    @Test public void shard1docs100size3() throws Exception {
+        testScroll(1, 100, 3);
     }
 
-    @Test public void testSimpleScroll2() throws Exception {
+    @Test public void shard1docs100size7() throws Exception {
+        testScroll(1, 100, 7);
+    }
+
+    @Test public void shard1docs100size13() throws Exception {
+        testScroll(1, 100, 13);
+    }
+
+    @Test public void shard1docs100size24() throws Exception {
+        testScroll(1, 100, 24);
+    }
+
+    @Test public void shard1docs100size45() throws Exception {
+        testScroll(1, 100, 45);
+    }
+
+    @Test public void shard1docs100size63() throws Exception {
+        testScroll(1, 100, 63);
+    }
+
+    @Test public void shard1docs100size89() throws Exception {
+        testScroll(1, 100, 89);
+    }
+
+    @Test public void shard1docs100size120() throws Exception {
+        testScroll(1, 100, 120);
+    }
+
+    @Test public void shard3docs100size3() throws Exception {
+        testScroll(3, 100, 3);
+    }
+
+    @Test public void shard3docs100size7() throws Exception {
+        testScroll(3, 100, 7);
+    }
+
+    @Test public void shard3docs100size13() throws Exception {
+        testScroll(3, 100, 13);
+    }
+
+    @Test public void shard3docs100size24() throws Exception {
+        testScroll(3, 100, 24);
+    }
+
+    @Test public void shard3docs100size45() throws Exception {
+        testScroll(3, 100, 45);
+    }
+
+    @Test public void shard3docs100size63() throws Exception {
+        testScroll(3, 100, 63);
+    }
+
+    @Test public void shard3docs100size89() throws Exception {
+        testScroll(3, 100, 89);
+    }
+
+    @Test public void shard3docs100size120() throws Exception {
+        testScroll(3, 100, 120);
+    }
+
+    private void testScroll(int numberOfShards, long numberOfDocs, int size) throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         Set<String> ids = Sets.newHashSet();
         Set<String> expectedIds = Sets.newHashSet();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < numberOfDocs; i++) {
             String id = Integer.toString(i);
             expectedIds.add(id);
             client.prepareIndex("test", "type1", id).setSource("field", i).execute().actionGet();
@@ -122,21 +142,22 @@ public class SearchScanTests extends AbstractNodesTests {
         SearchResponse searchResponse = client.prepareSearch()
                 .setSearchType(SearchType.SCAN)
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().totalHits(), equalTo(numberOfDocs));
 
         // start scrolling, until we get not results
         while (true) {
             searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            assertThat(searchResponse.hits().totalHits(), equalTo(numberOfDocs));
             assertThat(searchResponse.failedShards(), equalTo(0));
             for (SearchHit hit : searchResponse.hits()) {
                 assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
                 ids.add(hit.id());
             }
-            if (searchResponse.hits().totalHits() == 0) {
+            if (searchResponse.hits().hits().length == 0) {
                 break;
             }
         }

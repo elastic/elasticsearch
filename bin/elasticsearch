@@ -66,10 +66,10 @@ done
 ES_HOME=`dirname "$SCRIPT"`/..
 
 # make ELASTICSEARCH_HOME absolute
-ES_HOME=`cd $ES_HOME; pwd`
+ES_HOME=`cd "$ES_HOME"; pwd`
 
 
-if [ -x $JAVA_HOME/bin/java ]; then
+if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
 else
     JAVA=`which java`
@@ -82,24 +82,24 @@ if [ "x$ES_INCLUDE" = "x" ]; then
                    /usr/local/share/elasticsearch/elasticsearch.in.sh \
                    /opt/elasticsearch/elasticsearch.in.sh \
                    ~/.elasticsearch.in.sh \
-                   `dirname $0`/elasticsearch.in.sh; do
-        if [ -r $include ]; then
-            . $include
+                   `dirname "$0"`/elasticsearch.in.sh; do
+        if [ -r "$include" ]; then
+            . "$include"
             break
         fi
     done
 # ...otherwise, source the specified include.
-elif [ -r $ES_INCLUDE ]; then
-    . $ES_INCLUDE
+elif [ -r "$ES_INCLUDE" ]; then
+    . "$ES_INCLUDE"
 fi
 
-if [ -z $ES_CLASSPATH ]; then
+if [ -z "$ES_CLASSPATH" ]; then
     echo "You must set the ES_CLASSPATH var" >&2
     exit 1
 fi
 
 # Special-case path variables.
-case "`uname`" in
+case `uname` in
     CYGWIN*)
         ES_CLASSPATH=`cygpath -p -w "$ES_CLASSPATH"`
     ;;
@@ -126,7 +126,7 @@ launch_service()
         # Startup ElasticSearch, background it, and write the pid.
         exec $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
-        [ ! -z $pidpath ] && printf "%d" $! > $pidpath
+        [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
     fi
 
     return $?
@@ -137,7 +137,7 @@ args=`getopt vfhp:D:X: "$@"`
 eval set -- "$args"
 
 while true; do
-    case "$1" in
+    case $1 in
         -v)
             $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
                     org.elasticsearch.Version

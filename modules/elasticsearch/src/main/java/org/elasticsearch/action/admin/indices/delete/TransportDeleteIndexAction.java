@@ -104,6 +104,8 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                                 latch.countDown();
                             }
                         });
+                    } else {
+                        latch.countDown();
                     }
                 }
 

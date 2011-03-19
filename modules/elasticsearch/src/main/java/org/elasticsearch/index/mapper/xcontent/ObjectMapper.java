@@ -305,6 +305,8 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, currentFieldName);
+            } else if (token == null) {
+                break;  // We've reached EOF.
             } else if (token.isValue()) {
                 serializeValue(context, currentFieldName, token);
             }

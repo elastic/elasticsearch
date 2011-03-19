@@ -21,6 +21,8 @@ package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.common.collect.Tuple;
 
+import java.util.Map;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -36,12 +38,15 @@ public class ParsedScrollId {
 
     private final String type;
 
-    private final Tuple<String, Long>[] values;
+    private final Tuple<String, Long>[] context;
 
-    public ParsedScrollId(String source, String type, Tuple<String, Long>[] values) {
+    private final Map<String, String> attributes;
+
+    public ParsedScrollId(String source, String type, Tuple<String, Long>[] context, Map<String, String> attributes) {
         this.source = source;
         this.type = type;
-        this.values = values;
+        this.context = context;
+        this.attributes = attributes;
     }
 
     public String source() {
@@ -52,7 +57,11 @@ public class ParsedScrollId {
         return type;
     }
 
-    public Tuple<String, Long>[] values() {
-        return values;
+    public Tuple<String, Long>[] context() {
+        return context;
+    }
+
+    public Map<String, String> attributes() {
+        return this.attributes;
     }
 }

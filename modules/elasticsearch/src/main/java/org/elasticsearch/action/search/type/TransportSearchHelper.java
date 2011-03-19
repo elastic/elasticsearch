@@ -27,7 +27,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -35,6 +38,7 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -79,22 +83,31 @@ public abstract class TransportSearchHelper {
         return internalRequest;
     }
 
-    public static String buildScrollId(SearchType searchType, Iterable<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
+    public static String buildScrollId(SearchType searchType, Collection<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
         if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults);
+            return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults, attributes);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults);
+            return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults, attributes);
         } else if (searchType == SearchType.SCAN) {
-            return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults);
+            return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
             throw new ElasticSearchIllegalStateException();
         }
     }
 
-    public static String buildScrollId(String type, Iterable<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
+    public static String buildScrollId(String type, Collection<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
         StringBuilder sb = new StringBuilder().append(type).append(';');
+        sb.append(searchPhaseResults.size()).append(';');
         for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
             sb.append(searchPhaseResult.id()).append(':').append(searchPhaseResult.shardTarget().nodeId()).append(';');
+        }
+        if (attributes == null) {
+            sb.append("0;");
+        } else {
+            sb.append(attributes.size()).append(";");
+            for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                sb.append(entry.getKey()).append(':').append(entry.getValue()).append(';');
+            }
         }
         return Base64.encodeBytes(Unicode.fromStringAsBytes(sb.toString()), Base64.URL_SAFE);
     }
@@ -106,13 +119,28 @@ public abstract class TransportSearchHelper {
             throw new ElasticSearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = scrollIdPattern.split(scrollId);
-        @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] values = new Tuple[elements.length - 1];
-        for (int i = 1; i < elements.length; i++) {
-            String element = elements[i];
-            int index = element.indexOf(':');
-            values[i - 1] = new Tuple<String, Long>(element.substring(index + 1), Long.parseLong(element.substring(0, index)));
+        int index = 0;
+        String type = elements[index++];
+        int contextSize = Integer.parseInt(elements[index++]);
+        @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] context = new Tuple[contextSize];
+        for (int i = 0; i < contextSize; i++) {
+            String element = elements[index++];
+            int sep = element.indexOf(':');
+            context[i] = new Tuple<String, Long>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }
-        return new ParsedScrollId(scrollId, elements[0], values);
+        Map<String, String> attributes;
+        int attributesSize = Integer.parseInt(elements[index++]);
+        if (attributesSize == 0) {
+            attributes = ImmutableMap.of();
+        } else {
+            attributes = Maps.newHashMapWithExpectedSize(attributesSize);
+            for (int i = 0; i < attributesSize; i++) {
+                String element = elements[index++];
+                int sep = element.indexOf(':');
+                attributes.put(element.substring(0, sep), element.substring(sep + 1));
+            }
+        }
+        return new ParsedScrollId(scrollId, type, context, attributes);
     }
 
     private TransportSearchHelper() {

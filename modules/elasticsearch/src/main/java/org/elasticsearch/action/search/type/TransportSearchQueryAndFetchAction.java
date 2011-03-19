@@ -80,7 +80,7 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), queryFetchResults.values());
+                scrollId = buildScrollId(request.searchType(), queryFetchResults.values(), null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
             searchCache.releaseQueryFetchResults(queryFetchResults);

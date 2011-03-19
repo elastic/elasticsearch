@@ -18,10 +18,10 @@ done
 ES_HOME=`dirname "$SCRIPT"`/..
 
 # make ELASTICSEARCH_HOME absolute
-ES_HOME=`cd $ES_HOME; pwd`
+ES_HOME=`cd "$ES_HOME"; pwd`
 
 
-if [ -x $JAVA_HOME/bin/java ]; then
+if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
 else
     JAVA=`which java`
@@ -29,5 +29,4 @@ fi
 
 CLASSPATH=$CLASSPATH:$ES_HOME/lib/*
 
-$JAVA -Delasticsearch -Des.path.home=$ES_HOME -cp $CLASSPATH org.elasticsearch.plugins.PluginManager $*
-  
+exec $JAVA -Delasticsearch -Des.path.home="$ES_HOME" -cp $CLASSPATH org.elasticsearch.plugins.PluginManager $*

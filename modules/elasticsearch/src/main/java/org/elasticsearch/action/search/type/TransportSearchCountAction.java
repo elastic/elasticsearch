@@ -83,7 +83,7 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(EMPTY_DOCS, queryFetchResults, ImmutableMap.<SearchShardTarget, FetchSearchResultProvider>of());
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), queryFetchResults.values());
+                scrollId = buildScrollId(request.searchType(), queryFetchResults.values(), null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
             searchCache.releaseQueryResults(queryFetchResults);

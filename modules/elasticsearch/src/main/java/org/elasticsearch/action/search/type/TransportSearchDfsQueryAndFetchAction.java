@@ -168,7 +168,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), dfsResults);
+                scrollId = buildScrollId(request.searchType(), dfsResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }

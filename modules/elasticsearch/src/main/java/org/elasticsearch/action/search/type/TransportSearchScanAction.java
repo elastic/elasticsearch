@@ -80,7 +80,7 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(EMPTY_DOCS, queryResults, ImmutableMap.<SearchShardTarget, FetchSearchResultProvider>of());
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), queryResults.values());
+                scrollId = buildScrollId(request.searchType(), queryResults.values(), null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
             searchCache.releaseQueryResults(queryResults);

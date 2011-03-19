@@ -295,8 +295,6 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         if (token == XContentParser.Token.START_OBJECT) {
             // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
             token = parser.nextToken();
-        } else if (token.isValue()) {
-            throw new MapperParsingException("object_mapper [" + name + "] expected object type, but got value [" + token + "]");
         }
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
@@ -308,7 +306,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, currentFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object_mapper [" + name + "] tried to parse as object, but got EOF");
+                throw new MapperParsingException("object_mapper [" + name + "] tried to parse as object, but got EOF, has a concrete value been provided to it?");
             } else if (token.isValue()) {
                 serializeValue(context, currentFieldName, token);
             }

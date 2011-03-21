@@ -55,13 +55,19 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 try {
                     final int numberOfReplicas = event.state().nodes().dataNodes().size() - 1;
 
-                    int min = Integer.parseInt(autoExpandReplicas.substring(0, autoExpandReplicas.indexOf('-')));
+                    int min;
                     int max;
-                    String sMax = autoExpandReplicas.substring(autoExpandReplicas.indexOf('-') + 1);
-                    if (sMax.equals("all")) {
-                        max = event.state().nodes().dataNodes().size() - 1;
-                    } else {
-                        max = Integer.parseInt(sMax);
+                    try {
+                        min = Integer.parseInt(autoExpandReplicas.substring(0, autoExpandReplicas.indexOf('-')));
+                        String sMax = autoExpandReplicas.substring(autoExpandReplicas.indexOf('-') + 1);
+                        if (sMax.equals("all")) {
+                            max = event.state().nodes().dataNodes().size() - 1;
+                        } else {
+                            max = Integer.parseInt(sMax);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("failed to set [{}], wrong format [{}]", IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, autoExpandReplicas);
+                        continue;
                     }
 
                     // same value, nothing to do there

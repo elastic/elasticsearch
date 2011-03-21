@@ -206,7 +206,13 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures(shardFailures, searchCache)));
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures(shardFailures, searchCache));
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to reduce search", failure);
+                }
+                listener.onFailure(failure);
+            } finally {
+                searchCache.releaseQueryFetchResults(queryFetchResults);
             }
         }
 
@@ -239,7 +245,6 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 // we rebuild the scroll id since we remove shards that we finished scrolling on
                 scrollId = TransportSearchHelper.buildScrollId(this.scrollId.type(), queryFetchResults.values(), this.scrollId.attributes()); // continue moving the total_hits
             }
-            searchCache.releaseQueryFetchResults(queryFetchResults);
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.context().length, successfulOps.get(),
                     System.currentTimeMillis() - startTime, buildShardFailures(shardFailures, searchCache)));
         }

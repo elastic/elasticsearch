@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -51,7 +52,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         // TODO we only need to do that on first create of an index, or the number of nodes changed
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
             String autoExpandReplicas = indexMetaData.settings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
-            if (autoExpandReplicas != null) {
+            if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
                 try {
                     final int numberOfReplicas = event.state().nodes().dataNodes().size() - 1;
 

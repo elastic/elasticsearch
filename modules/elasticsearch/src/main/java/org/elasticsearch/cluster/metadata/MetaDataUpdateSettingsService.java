@@ -66,7 +66,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             max = Integer.parseInt(sMax);
                         }
                     } catch (Exception e) {
-                        logger.warn("failed to set [{}], wrong format [{}]", IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, autoExpandReplicas);
+                        logger.warn("failed to set [{}], wrong format [{}]", e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, autoExpandReplicas);
                         continue;
                     }
 

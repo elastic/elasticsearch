@@ -177,18 +177,31 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
-        String dateAsString;
+        String dateAsString = null;
+        long value = -1;
         if (context.externalValueSet()) {
-            dateAsString = (String) context.externalValue();
-            if (dateAsString == null) {
-                dateAsString = nullValue;
+            Object externalValue = context.externalValue();
+            if (externalValue instanceof Number) {
+                value = ((Number) externalValue).longValue();
+            } else {
+                dateAsString = (String) externalValue;
+                if (dateAsString == null) {
+                    dateAsString = nullValue;
+                }
             }
         } else {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
                 dateAsString = nullValue;
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                value = context.parser().longValue();
             } else {
                 dateAsString = context.parser().text();
             }
+        }
+
+        if (value != -1) {
+            return new LongFieldMapper.CustomLongNumericField(this, value);
         }
 
         if (dateAsString == null) {
@@ -198,7 +211,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             context.allEntries().addText(names.fullName(), dateAsString, boost);
         }
 
-        final long value = parseStringValue(dateAsString);
+        value = parseStringValue(dateAsString);
         return new LongFieldMapper.CustomLongNumericField(this, value);
     }
 

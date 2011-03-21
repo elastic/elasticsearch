@@ -505,6 +505,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         XContentDocumentMapper xContentMergeWith = (XContentDocumentMapper) mergeWith;
         MergeContext mergeContext = new MergeContext(this, mergeFlags);
         rootObjectMapper.merge(xContentMergeWith.rootObjectMapper, mergeContext);
+
+        allFieldMapper.merge(xContentMergeWith.allFieldMapper, mergeContext);
+        analyzerMapper.merge(xContentMergeWith.analyzerMapper, mergeContext);
+        sourceFieldMapper.merge(xContentMergeWith.sourceFieldMapper, mergeContext);
+
         if (!mergeFlags.simulate()) {
             // let the merge with attributes to override the attributes
             meta = mergeWith.meta();

@@ -163,7 +163,11 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to reduce search", failure);
+                }
+                listener.onFailure(failure);
             } finally {
                 releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
                 searchCache.releaseQueryResults(queryResults);

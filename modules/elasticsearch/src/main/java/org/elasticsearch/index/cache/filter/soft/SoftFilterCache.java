@@ -24,11 +24,13 @@ import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractDoubleConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A soft reference based filter cache that has soft keys on the <tt>IndexReader</tt>.
@@ -39,9 +41,12 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
 
     private final int maxSize;
 
+    private final TimeValue expire;
+
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         this.maxSize = componentSettings.getAsInt("max_size", -1);
+        this.expire = componentSettings.getAsTime("expire", null);
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
@@ -50,6 +55,9 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
         MapMaker mapMaker = new MapMaker().softValues();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
+        }
+        if (expire != null) {
+            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
         return mapMaker.makeMap();
     }
@@ -60,6 +68,9 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
         MapMaker mapMaker = new MapMaker().weakValues();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
+        }
+        if (expire != null) {
+            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
         return mapMaker.makeMap();
     }

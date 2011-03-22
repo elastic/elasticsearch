@@ -156,7 +156,11 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to reduce search", failure);
+                }
+                listener.onFailure(failure);
             } finally {
                 searchCache.releaseDfsResults(dfsResults);
                 searchCache.releaseQueryFetchResults(queryFetchResults);
@@ -168,7 +172,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), dfsResults);
+                scrollId = buildScrollId(request.searchType(), dfsResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }

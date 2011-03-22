@@ -98,6 +98,14 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return sizeInBytes;
     }
 
+    @Override public long count() {
+        long entries = 0;
+        for (ConcurrentMap<Filter, DocSet> map : cache.values()) {
+            entries += map.size();
+        }
+        return entries;
+    }
+
     @Override public Filter cache(Filter filterToCache) {
         if (isCached(filterToCache)) {
             return filterToCache;

@@ -20,28 +20,37 @@
 package org.elasticsearch.index.cache.filter.soft;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractDoubleConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A soft reference based filter cache that has soft keys on the <tt>IndexReader</tt>.
  *
  * @author kimchy (shay.banon)
  */
-public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
+public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
 
     private final int maxSize;
+
+    private final TimeValue expire;
+
+    private final AtomicLong evictions = new AtomicLong();
 
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         this.maxSize = componentSettings.getAsInt("max_size", -1);
+        this.expire = componentSettings.getAsTime("expire", null);
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
@@ -50,6 +59,9 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
         MapMaker mapMaker = new MapMaker().softValues();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
+        }
+        if (expire != null) {
+            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
         return mapMaker.makeMap();
     }
@@ -61,10 +73,22 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache {
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
         }
+        if (expire != null) {
+            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
+        }
+        mapMaker.evictionListener(this);
         return mapMaker.makeMap();
     }
 
     @Override public String type() {
         return "soft";
+    }
+
+    @Override public long evictions() {
+        return evictions.get();
+    }
+
+    @Override public void onEviction(Filter filter, DocSet docSet) {
+        evictions.incrementAndGet();
     }
 }

@@ -95,7 +95,7 @@ public class InternalSearchHits implements SearchHits {
 
     private InternalSearchHit[] hits;
 
-    private long totalHits;
+    public long totalHits;
 
     private float maxScore;
 

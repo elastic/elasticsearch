@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.filter.resident;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
@@ -31,17 +32,20 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A resident reference based filter cache that has soft keys on the <tt>IndexReader</tt>.
  *
  * @author kimchy (shay.banon)
  */
-public class ResidentFilterCache extends AbstractDoubleConcurrentMapFilterCache {
+public class ResidentFilterCache extends AbstractDoubleConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
 
     private final int maxSize;
 
     private final TimeValue expire;
+
+    private final AtomicLong evictions = new AtomicLong();
 
     @Inject public ResidentFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -70,10 +74,19 @@ public class ResidentFilterCache extends AbstractDoubleConcurrentMapFilterCache 
         if (expire != null) {
             mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
+        mapMaker.evictionListener(this);
         return mapMaker.makeMap();
     }
 
     @Override public String type() {
         return "soft";
+    }
+
+    @Override public long evictions() {
+        return evictions.get();
+    }
+
+    @Override public void onEviction(Filter filter, DocSet docSet) {
+        evictions.incrementAndGet();
     }
 }

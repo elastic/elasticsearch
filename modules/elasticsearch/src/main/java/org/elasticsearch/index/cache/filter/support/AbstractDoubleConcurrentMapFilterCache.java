@@ -79,6 +79,14 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
     @Override public void clearUnreferenced() {
     }
 
+    @Override public long count() {
+        long entries = 0;
+        for (ConcurrentMap<Filter, DocSet> map : cache.values()) {
+            entries += map.size();
+        }
+        return entries;
+    }
+
     @Override public long sizeInBytes() {
         long sizeInBytes = 0;
         for (ConcurrentMap<Filter, DocSet> map : cache.values()) {

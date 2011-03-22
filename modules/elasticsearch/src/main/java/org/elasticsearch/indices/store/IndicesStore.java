@@ -57,6 +57,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             return;
         }
 
+        if (event.state().blocks().disableStatePersistence()) {
+            return;
+        }
+
         // when all shards are started within a shard replication group, delete an unallocated shard on this node
         RoutingTable routingTable = event.state().routingTable();
         for (IndexRoutingTable indexRoutingTable : routingTable) {

@@ -31,10 +31,15 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.LZFOutputStream;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
@@ -65,6 +70,9 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
 
+
+    private final boolean compress;
+
     private volatile LocalGatewayMetaState currentMetaState;
 
     private volatile LocalGatewayStartedShards currentStartedShards;
@@ -80,6 +88,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         this.nodeEnv = nodeEnv;
         this.listGatewayMetaState = listGatewayMetaState.initGateway(this);
         this.listGatewayStartedShards = listGatewayStartedShards.initGateway(this);
+
+        this.compress = componentSettings.getAsBoolean("compress", true);
     }
 
     @Override public String type() {
@@ -181,13 +191,15 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     try {
                         LocalGatewayMetaState stateToWrite = builder.build();
                         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-                        xContentBuilder.prettyPrint();
                         xContentBuilder.startObject();
                         LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                         xContentBuilder.endObject();
 
                         File stateFile = new File(location, "metadata-" + event.state().version());
-                        FileOutputStream fos = new FileOutputStream(stateFile);
+                        OutputStream fos = new FileOutputStream(stateFile);
+                        if (compress) {
+                            fos = new LZFOutputStream(fos);
+                        }
                         fos.write(xContentBuilder.unsafeBytes(), 0, xContentBuilder.unsafeBytesLength());
                         fos.close();
 
@@ -246,13 +258,15 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     try {
                         LocalGatewayStartedShards stateToWrite = builder.build();
                         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-                        xContentBuilder.prettyPrint();
                         xContentBuilder.startObject();
                         LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                         xContentBuilder.endObject();
 
                         File stateFile = new File(location, "shards-" + event.state().version());
-                        FileOutputStream fos = new FileOutputStream(stateFile);
+                        OutputStream fos = new FileOutputStream(stateFile);
+                        if (compress) {
+                            fos = new LZFOutputStream(fos);
+                        }
                         fos.write(xContentBuilder.unsafeBytes(), 0, xContentBuilder.unsafeBytesLength());
                         fos.close();
 
@@ -376,7 +390,13 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     private LocalGatewayMetaState readMetaState(byte[] data) throws IOException {
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
+            if (LZFDecoder.isCompressed(data)) {
+                BytesStreamInput siBytes = new BytesStreamInput(data);
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
+            } else {
+                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
+            }
             return LocalGatewayMetaState.Builder.fromXContent(parser);
         } finally {
             if (parser != null) {
@@ -388,7 +408,13 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     private LocalGatewayStartedShards readStartedShards(byte[] data) throws IOException {
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
+            if (LZFDecoder.isCompressed(data)) {
+                BytesStreamInput siBytes = new BytesStreamInput(data);
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
+            } else {
+                parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
+            }
             return LocalGatewayStartedShards.Builder.fromXContent(parser);
         } finally {
             if (parser != null) {

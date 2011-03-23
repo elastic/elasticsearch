@@ -130,7 +130,7 @@ public abstract class AbstractSimpleTransportTests {
             @Override public void messageReceived(StringMessage request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
-                    channel.sendResponse(new StringMessage("hello " + request.message), TransportResponseOptions.options().withCompress());
+                    channel.sendResponse(new StringMessage("hello " + request.message), TransportResponseOptions.options().withCompress(true));
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));

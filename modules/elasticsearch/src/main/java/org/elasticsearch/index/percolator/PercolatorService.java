@@ -213,7 +213,11 @@ public class PercolatorService extends AbstractIndexComponent {
             }
             // we are only interested when the first shard on this node has been created for an index
             // when it does, fetch the relevant queries if not fetched already
-            if (indicesService.indexService(indexShard.shardId().index().name()).numberOfShards() != 1) {
+            IndexService indexService = indicesService.indexService(indexShard.shardId().index().name());
+            if (indexService == null) {
+                return;
+            }
+            if (indexService.numberOfShards() != 1) {
                 return;
             }
             synchronized (mutex) {

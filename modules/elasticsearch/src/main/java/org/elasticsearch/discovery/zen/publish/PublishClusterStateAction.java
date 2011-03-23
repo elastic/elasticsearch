@@ -48,12 +48,17 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     private final NewClusterStateListener listener;
 
+    private final boolean compesss;
+
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
                                      NewClusterStateListener listener) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
+
+        this.compesss = componentSettings.getAsBoolean("compress", true);
+
         transportService.registerHandler(PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequestHandler());
     }
 
@@ -70,7 +75,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
             transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
                     new PublishClusterStateRequest(clusterState),
-                    TransportRequestOptions.options().withHighType(),
+                    TransportRequestOptions.options().withHighType().withCompress(compesss),
 
                     new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
                         @Override public void handleException(TransportException exp) {

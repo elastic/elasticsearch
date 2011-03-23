@@ -74,6 +74,8 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
                     valueField = parser.text();
                 } else if ("script_field".equals(currentFieldName)) {
                     script = parser.text();
+                } else if ("value_script".equals(currentFieldName)) {
+                    script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
                 } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {

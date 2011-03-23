@@ -57,6 +57,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         JvmInfo info = new JvmInfo();
         info.pid = pid;
         info.startTime = runtimeMXBean.getStartTime();
+        info.version = runtimeMXBean.getSystemProperties().get("java.version");
         info.vmName = runtimeMXBean.getVmName();
         info.vmVendor = runtimeMXBean.getVmVendor();
         info.vmVersion = runtimeMXBean.getVmVersion();
@@ -79,6 +80,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     long pid = -1;
 
+    String version = "";
     String vmName = "";
     String vmVersion = "";
     String vmVendor = "";
@@ -110,6 +112,14 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
      */
     public long getPid() {
         return pid;
+    }
+
+    public String version() {
+        return this.version;
+    }
+
+    public String getVersion() {
+        return this.version;
     }
 
     public String vmName() {
@@ -187,6 +197,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("jvm");
         builder.field("pid", pid);
+        builder.field("version", version);
         builder.field("vm_name", vmName);
         builder.field("vm_version", vmVersion);
         builder.field("vm_vendor", vmVendor);
@@ -203,6 +214,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         pid = in.readLong();
+        version = in.readUTF();
         vmName = in.readUTF();
         vmVersion = in.readUTF();
         vmVendor = in.readUTF();
@@ -222,6 +234,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(pid);
+        out.writeUTF(version);
         out.writeUTF(vmName);
         out.writeUTF(vmVersion);
         out.writeUTF(vmVendor);

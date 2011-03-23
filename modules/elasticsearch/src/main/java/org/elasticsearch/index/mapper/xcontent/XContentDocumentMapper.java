@@ -57,6 +57,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         private IndexFieldMapper indexFieldMapper = new IndexFieldMapper();
 
         private SourceFieldMapper sourceFieldMapper = new SourceFieldMapper();
+        private SizeFieldMapper sizeFieldMapper = new SizeFieldMapper();
 
         private RoutingFieldMapper routingFieldMapper = new RoutingFieldMapper();
 
@@ -92,6 +93,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         public Builder sourceField(SourceFieldMapper.Builder builder) {
             this.sourceFieldMapper = builder.build(builderContext);
+            return this;
+        }
+
+        public Builder sizeField(SizeFieldMapper.Builder builder) {
+            this.sizeFieldMapper = builder.build(builderContext);
             return this;
         }
 
@@ -161,7 +167,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         public XContentDocumentMapper build(XContentDocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new XContentDocumentMapper(index, docMapperParser, rootObjectMapper, meta, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
-                    sourceFieldMapper, parentFieldMapper, routingFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
+                    sourceFieldMapper, sizeFieldMapper, parentFieldMapper, routingFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
 
@@ -191,6 +197,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     private final IndexFieldMapper indexFieldMapper;
 
     private final SourceFieldMapper sourceFieldMapper;
+    private final SizeFieldMapper sizeFieldMapper;
 
     private final RoutingFieldMapper routingFieldMapper;
 
@@ -224,6 +231,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   TypeFieldMapper typeFieldMapper,
                                   IndexFieldMapper indexFieldMapper,
                                   SourceFieldMapper sourceFieldMapper,
+                                  SizeFieldMapper sizeFieldMapper,
                                   @Nullable ParentFieldMapper parentFieldMapper,
                                   RoutingFieldMapper routingFieldMapper,
                                   AllFieldMapper allFieldMapper,
@@ -240,6 +248,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         this.typeFieldMapper = typeFieldMapper;
         this.indexFieldMapper = indexFieldMapper;
         this.sourceFieldMapper = sourceFieldMapper;
+        this.sizeFieldMapper = sizeFieldMapper;
         this.parentFieldMapper = parentFieldMapper;
         this.routingFieldMapper = routingFieldMapper;
         this.allFieldMapper = allFieldMapper;
@@ -269,6 +278,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         }
         tempFieldMappers.add(typeFieldMapper);
         tempFieldMappers.add(sourceFieldMapper);
+        tempFieldMappers.add(sizeFieldMapper);
         tempFieldMappers.add(uidFieldMapper);
         tempFieldMappers.add(allFieldMapper);
         // now traverse and get all the statically defined ones
@@ -410,6 +420,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 //                }
             }
 
+            if (sizeFieldMapper.enabled()) {
+                context.externalValue(source.source().length);
+                sizeFieldMapper.parse(context);
+            }
+
             if (sourceFieldMapper.enabled()) {
                 sourceFieldMapper.parse(context);
             }
@@ -493,6 +508,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                     fieldMapperListener.fieldMapper(indexFieldMapper);
                 }
                 fieldMapperListener.fieldMapper(sourceFieldMapper);
+                fieldMapperListener.fieldMapper(sizeFieldMapper);
                 fieldMapperListener.fieldMapper(typeFieldMapper);
                 fieldMapperListener.fieldMapper(uidFieldMapper);
                 fieldMapperListener.fieldMapper(allFieldMapper);
@@ -509,6 +525,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         allFieldMapper.merge(xContentMergeWith.allFieldMapper, mergeContext);
         analyzerMapper.merge(xContentMergeWith.analyzerMapper, mergeContext);
         sourceFieldMapper.merge(xContentMergeWith.sourceFieldMapper, mergeContext);
+        sizeFieldMapper.merge(xContentMergeWith.sizeFieldMapper, mergeContext);
 
         if (!mergeFlags.simulate()) {
             // let the merge with attributes to override the attributes
@@ -559,7 +576,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             }
             // no need to pass here id and boost, since they are added to the root object mapper
             // in the constructor
-        }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper);
+        }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper, sizeFieldMapper);
         return builder;
     }
 }

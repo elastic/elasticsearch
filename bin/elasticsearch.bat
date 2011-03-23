@@ -10,17 +10,51 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 REM ***** JAVA options *****
 
-set JAVA_OPTS=^
- -Xms256m^
- -Xmx1G^
- -Djline.enabled=false^
- -XX:+AggressiveOpts^
- -XX:+UseParNewGC^
- -XX:+UseConcMarkSweepGC^
- -XX:+CMSParallelRemarkEnabled^
- -XX:+HeapDumpOnOutOfMemoryError
+if "%ES_MIN_MEM%" == "" (
+set ES_MIN_MEM=256m
+)
 
-set ES_CLASSPATH=%CLASSPATH%;%ES_HOME%/lib/elasticsearch-@ES_VERSION@.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
+if "%ES_MAX_MEM%" == "" (
+set ES_MAX_MEM=1g
+)
+
+set JAVA_OPTS=%JAVA_OPTS% -Xms%ES_MIN_MEM% -Xmx%ES_MAX_MEM%
+set JAVA_OPTS=%JAVA_OPTS% -Xss128k
+
+REM Enable aggressive optimizations in the JVM
+REM    - Disabled by default as it might cause the JVM to crash
+REM set JAVA_OPTS=%JAVA_OPTS% -XX:+AggressiveOpts
+
+REM Enable reference compression, reducing memory overhead on 64bit JVMs
+REM    - Disabled by default as it is not stable for Sun JVM before 6u19
+REM set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCompressedOops
+
+set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
+set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
+set JAVA_OPTS=%JAVA_OPTS% -XX:+CMSParallelRemarkEnabled
+set JAVA_OPTS=%JAVA_OPTS% -XX:SurvivorRatio=8
+set JAVA_OPTS=%JAVA_OPTS% -XX:MaxTenuringThreshold=1
+set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
+set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
+
+REM GC logging options -- uncomment to enable
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
+REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime
+REM JAVA_OPTS=%JAVA_OPTS% -Xloggc:/var/log/elasticsearch/gc.log
+
+REM Causes the JVM to dump its heap on OutOfMemory.
+set JAVA_OPTS=%JAVA_OPTS% -XX:+HeapDumpOnOutOfMemoryError
+REM The path to the heap dump location, note directory must exists and have enough
+REM space for a full heap dump.
+REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
+
+
+set JAVA_OPTS=%JAVA_OPTS% -Djline.enabled=false
+
+set ES_CLASSPATH=%CLASSPATH%;%ES_HOME%/lib/elasticsearch-0.16.0-SNAPSHOT.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"
 
 "%JAVA_HOME%\bin\java" %JAVA_OPTS% %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.ElasticSearch"

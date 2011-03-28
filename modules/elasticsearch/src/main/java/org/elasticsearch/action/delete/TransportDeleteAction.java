@@ -152,10 +152,18 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .versionType(request.versionType())
                 .origin(Engine.Operation.Origin.PRIMARY);
-        delete.refresh(request.refresh());
         indexShard.delete(delete);
         // update the request with teh version so it will go to the replicas
         request.version(delete.version());
+
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
         DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.notFound());
         return new PrimaryResponse<DeleteResponse>(response, null);
     }
@@ -165,7 +173,15 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         IndexShard indexShard = indexShard(shardRequest);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
-        delete.refresh(request.refresh());
+
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
         indexShard.delete(delete);
     }
 

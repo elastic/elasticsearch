@@ -290,7 +290,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Create implements Operation {
         private final Term uid;
         private final ParsedDocument doc;
-        private boolean refresh;
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
@@ -367,14 +366,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.source();
         }
 
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public void refresh(boolean refresh) {
-            this.refresh = refresh;
-        }
-
         public UidField uidField() {
             return (UidField) doc().getFieldable(UidFieldMapper.NAME);
         }
@@ -383,7 +374,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Index implements Operation {
         private final Term uid;
         private final ParsedDocument doc;
-        private boolean refresh;
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
@@ -460,14 +450,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.source();
         }
 
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public void refresh(boolean refresh) {
-            this.refresh = refresh;
-        }
-
         public UidField uidField() {
             return (UidField) doc().getFieldable(UidFieldMapper.NAME);
         }
@@ -477,7 +459,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String type;
         private final String id;
         private final Term uid;
-        private boolean refresh;
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
@@ -512,14 +493,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Term uid() {
             return this.uid;
-        }
-
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public void refresh(boolean refresh) {
-            this.refresh = refresh;
         }
 
         public Delete version(long version) {

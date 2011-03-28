@@ -442,10 +442,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     public void close(String reason) {
-        listeners.clear();
-        listeners = null;
-        indexSettingsService.removeListener(applyRefreshSettings);
         synchronized (mutex) {
+            if (listeners != null) {
+                listeners.clear();
+            }
+            listeners = null;
+            indexSettingsService.removeListener(applyRefreshSettings);
             if (state != IndexShardState.CLOSED) {
                 if (refreshScheduledFuture != null) {
                     refreshScheduledFuture.cancel(true);
@@ -609,8 +611,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         @Override public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!engine().refreshNeeded()) {
-                if (state != IndexShardState.CLOSED) {
-                    synchronized (mutex) {
+                synchronized (mutex) {
+                    if (state != IndexShardState.CLOSED) {
                         refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
                     }
                 }
@@ -637,8 +639,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     } catch (Exception e) {
                         logger.warn("Failed to perform scheduled engine refresh", e);
                     }
-                    if (state != IndexShardState.CLOSED) {
-                        synchronized (mutex) {
+                    synchronized (mutex) {
+                        if (state != IndexShardState.CLOSED) {
                             refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
                         }
                     }
@@ -650,8 +652,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private class EngineMerger implements Runnable {
         @Override public void run() {
             if (!engine().possibleMergeNeeded()) {
-                if (state != IndexShardState.CLOSED) {
-                    synchronized (mutex) {
+                synchronized (mutex) {
+                    if (state != IndexShardState.CLOSED) {
                         mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
                     }
                 }
@@ -678,8 +680,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     } catch (Exception e) {
                         logger.warn("Failed to perform scheduled engine optimize/merge", e);
                     }
-                    if (state != IndexShardState.CLOSED) {
-                        synchronized (mutex) {
+                    synchronized (mutex) {
+                        if (state != IndexShardState.CLOSED) {
                             mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, EngineMerger.this);
                         }
                     }

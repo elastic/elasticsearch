@@ -244,7 +244,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         } else {
             Object[] values = map.internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<StringEntry> ordered = new ArrayList<StringEntry>();
+            List<StringEntry> ordered = new ArrayList<StringEntry>(map.size());
             for (int i = 0; i < requiredSize; i++) {
                 StringEntry value = (StringEntry) values[i];
                 if (value == null) {

@@ -245,7 +245,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         } else {
             Object[] values = map.internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<LongEntry> ordered = new ArrayList<LongEntry>();
+            List<LongEntry> ordered = new ArrayList<LongEntry>(map.size());
             for (int i = 0; i < requiredSize; i++) {
                 LongEntry value = (LongEntry) values[i];
                 if (value == null) {

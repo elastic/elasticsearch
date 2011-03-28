@@ -238,9 +238,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             innerCreate(create, writer);
             dirty = true;
             possibleMergeNeeded = true;
-            if (create.refresh()) {
-                refresh(new Refresh(false));
-            }
         } catch (IOException e) {
             throw new CreateFailedEngineException(shardId, create, e);
         } finally {
@@ -342,9 +339,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             innerIndex(index, writer);
             dirty = true;
             possibleMergeNeeded = true;
-            if (index.refresh()) {
-                refresh(new Refresh(false));
-            }
         } catch (IOException e) {
             throw new IndexFailedEngineException(shardId, index, e);
         } finally {
@@ -439,9 +433,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             innerDelete(delete, writer);
             dirty = true;
             possibleMergeNeeded = true;
-            if (delete.refresh()) {
-                refresh(new Refresh(false));
-            }
         } catch (IOException e) {
             throw new DeleteFailedEngineException(shardId, delete, e);
         } finally {

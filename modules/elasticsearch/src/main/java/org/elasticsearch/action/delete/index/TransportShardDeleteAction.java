@@ -75,10 +75,19 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         IndexShard indexShard = indexShard(shardRequest);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.PRIMARY);
-        delete.refresh(request.refresh());
         indexShard.delete(delete);
         // update the version to happen on the replicas
         request.version(delete.version());
+
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+
         ShardDeleteResponse response = new ShardDeleteResponse(delete.version(), delete.notFound());
         return new PrimaryResponse<ShardDeleteResponse>(response, null);
     }
@@ -88,8 +97,16 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         IndexShard indexShard = indexShard(shardRequest);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
-        delete.refresh(request.refresh());
         indexShard.delete(delete);
+
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
     }
 
     @Override protected ShardIterator shards(ClusterState clusterState, ShardDeleteRequest request) {

@@ -337,6 +337,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             // now we can close the translog service, we need to close it before the we close the shard
             shardInjector.getInstance(TranslogService.class).close();
         } catch (Exception e) {
+            logger.debug("failed to close translog service", e);
             // ignore
         }
 
@@ -351,18 +352,21 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             try {
                 ((InternalIndexShard) indexShard).close(reason);
             } catch (Exception e) {
+                logger.debug("failed to close index shard", e);
                 // ignore
             }
         }
         try {
             shardInjector.getInstance(Engine.class).close();
         } catch (Exception e) {
+            logger.debug("failed to close engine", e);
             // ignore
         }
 
         try {
             shardInjector.getInstance(MergePolicyProvider.class).close(delete);
         } catch (Exception e) {
+            logger.debug("failed to close merge policy provider", e);
             // ignore
         }
 
@@ -372,17 +376,20 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 shardInjector.getInstance(IndexShardGatewayService.class).snapshotOnClose();
             }
         } catch (Exception e) {
+            logger.debug("failed to snapshot gateway on close", e);
             // ignore
         }
         try {
             shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
         } catch (Exception e) {
+            logger.debug("failed to close index shard gateway", e);
             // ignore
         }
         try {
             // now we can close the translog
             shardInjector.getInstance(Translog.class).close(delete);
         } catch (Exception e) {
+            logger.debug("failed to close translog", e);
             // ignore
         }
 

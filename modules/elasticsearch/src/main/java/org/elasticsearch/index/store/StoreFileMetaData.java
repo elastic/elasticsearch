@@ -66,10 +66,10 @@ public class StoreFileMetaData implements Streamable {
     }
 
     public boolean isSame(StoreFileMetaData other) {
-        if (checksum != null && other.checksum != null) {
-            return checksum.equals(other.checksum);
+        if (checksum == null || other.checksum == null) {
+            return false;
         }
-        return length == other.length;
+        return length == other.length && checksum.equals(other.checksum);
     }
 
     public static StoreFileMetaData readStoreFileMetaData(StreamInput in) throws IOException {

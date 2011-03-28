@@ -42,29 +42,6 @@ import static org.elasticsearch.common.io.FileSystemUtils.*;
 public class Directories {
 
     /**
-     * Deletes all the files from a directory.
-     *
-     * @param directory The directory to delete all the files from
-     * @throws IOException if an exception occurs during the delete process
-     */
-    public static void deleteFiles(Directory directory) throws IOException {
-        String[] files = directory.listAll();
-        IOException lastException = null;
-        for (String file : files) {
-            try {
-                directory.deleteFile(file);
-            } catch (FileNotFoundException e) {
-                // ignore
-            } catch (IOException e) {
-                lastException = e;
-            }
-        }
-        if (lastException != null) {
-            throw lastException;
-        }
-    }
-
-    /**
      * Returns the estimated size of a {@link Directory}.
      */
     public static ByteSizeValue estimateSize(Directory directory) throws IOException {

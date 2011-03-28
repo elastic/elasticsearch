@@ -46,6 +46,8 @@ import java.util.zip.Checksum;
  */
 public abstract class AbstractStore extends AbstractIndexShardComponent implements Store {
 
+    static final String CHECKSUMS_PREFIX = "_checksums-";
+
     protected final IndexStore indexStore;
 
     private volatile ImmutableMap<String, StoreFileMetaData> filesMetadata = ImmutableMap.of();
@@ -90,7 +92,24 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     }
 
     @Override public void deleteContent() throws IOException {
-        Directories.deleteFiles(directory());
+        String[] files = directory().listAll();
+        IOException lastException = null;
+        for (String file : files) {
+            if (file.startsWith(CHECKSUMS_PREFIX)) {
+                ((StoreDirectory) directory()).deleteFileChecksum(file);
+            } else {
+                try {
+                    directory().deleteFile(file);
+                } catch (FileNotFoundException e) {
+                    // ignore
+                } catch (IOException e) {
+                    lastException = e;
+                }
+            }
+        }
+        if (lastException != null) {
+            throw lastException;
+        }
     }
 
     @Override public void fullDelete() throws IOException {
@@ -104,10 +123,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     public static Map<String, String> readChecksums(Directory dir) throws IOException {
         long lastFound = -1;
         for (String name : dir.listAll()) {
-            if (!name.startsWith("_checksums-")) {
+            if (!name.startsWith(CHECKSUMS_PREFIX)) {
                 continue;
             }
-            long current = Long.parseLong(name.substring("_checksums-".length()));
+            long current = Long.parseLong(name.substring(CHECKSUMS_PREFIX.length()));
             if (current > lastFound) {
                 lastFound = current;
             }
@@ -115,7 +134,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         if (lastFound == -1) {
             return ImmutableMap.of();
         }
-        IndexInput indexInput = dir.openInput("_checksums-" + lastFound);
+        IndexInput indexInput = dir.openInput(CHECKSUMS_PREFIX + lastFound);
         try {
             indexInput.readInt(); // version
             return indexInput.readStringStringMap();
@@ -129,7 +148,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     }
 
     private void writeChecksums(StoreDirectory dir) throws IOException {
-        String checksumName = "_checksums-" + System.currentTimeMillis();
+        String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
         ImmutableMap<String, StoreFileMetaData> files = list();
         synchronized (mutex) {
             Map<String, String> checksums = new HashMap<String, String>();
@@ -144,9 +163,9 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             output.close();
         }
         for (StoreFileMetaData metaData : files.values()) {
-            if (metaData.name().startsWith("_checksums") && !checksumName.equals(metaData.name())) {
+            if (metaData.name().startsWith(CHECKSUMS_PREFIX) && !checksumName.equals(metaData.name())) {
                 try {
-                    directory().deleteFile(metaData.name());
+                    dir.deleteFileChecksum(metaData.name());
                 } catch (Exception e) {
                     // ignore
                 }
@@ -255,7 +274,19 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             }
         }
 
+        public void deleteFileChecksum(String name) throws IOException {
+            delegate.deleteFile(name);
+            synchronized (mutex) {
+                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
+                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+            }
+        }
+
         @Override public void deleteFile(String name) throws IOException {
+            // we don't allow to delete the checksums files, only using the deleteChecksum method
+            if (name.startsWith(CHECKSUMS_PREFIX)) {
+                return;
+            }
             delegate.deleteFile(name);
             synchronized (mutex) {
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();

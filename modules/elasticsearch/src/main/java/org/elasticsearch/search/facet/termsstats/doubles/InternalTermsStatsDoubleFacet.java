@@ -245,7 +245,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         } else {
             Object[] values = map.internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>();
+            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.size());
             for (int i = 0; i < requiredSize; i++) {
                 DoubleEntry value = (DoubleEntry) values[i];
                 if (value == null) {

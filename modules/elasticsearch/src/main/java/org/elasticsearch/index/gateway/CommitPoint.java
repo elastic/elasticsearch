@@ -62,10 +62,10 @@ public class CommitPoint {
         }
 
         public boolean isSame(StoreFileMetaData md) {
-            if (checksum != null && md.checksum() != null) {
-                return checksum.equals(md.checksum());
+            if (checksum == null || md.checksum() == null) {
+                return false;
             }
-            return length == md.length();
+            return length == md.length() && checksum.equals(md.checksum());
         }
     }
 

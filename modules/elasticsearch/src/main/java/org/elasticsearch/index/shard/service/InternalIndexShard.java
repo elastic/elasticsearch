@@ -622,7 +622,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 @Override public void run() {
                     try {
                         if (engine.refreshNeeded()) {
-                            engine.refresh(new Engine.Refresh(false));
+                            refresh(new Engine.Refresh(false));
                         }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore

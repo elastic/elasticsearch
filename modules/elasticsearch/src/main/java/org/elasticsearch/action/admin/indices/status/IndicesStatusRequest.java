@@ -22,11 +22,19 @@ package org.elasticsearch.action.admin.indices.status;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class IndicesStatusRequest extends BroadcastOperationRequest {
+
+    private boolean recovery = false;
+
+    private boolean snapshot = false;
 
     public IndicesStatusRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -36,6 +44,30 @@ public class IndicesStatusRequest extends BroadcastOperationRequest {
         super(indices);
     }
 
+    /**
+     * Should the status include recovery information. Defaults to <tt>false</tt>.
+     */
+    public IndicesStatusRequest recovery(boolean recovery) {
+        this.recovery = recovery;
+        return this;
+    }
+
+    public boolean recovery() {
+        return this.recovery;
+    }
+
+    /**
+     * Should the status include recovery information. Defaults to <tt>false</tt>.
+     */
+    public IndicesStatusRequest snapshot(boolean snapshot) {
+        this.snapshot = snapshot;
+        return this;
+    }
+
+    public boolean snapshot() {
+        return this.snapshot;
+    }
+
     @Override public IndicesStatusRequest listenerThreaded(boolean listenerThreaded) {
         super.listenerThreaded(listenerThreaded);
         return this;
@@ -43,5 +75,15 @@ public class IndicesStatusRequest extends BroadcastOperationRequest {
 
     @Override public BroadcastOperationRequest operationThreading(BroadcastOperationThreading operationThreading) {
         return super.operationThreading(operationThreading);
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(recovery);
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        recovery = in.readBoolean();
     }
 }

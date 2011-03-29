@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.merge.MergeStats;
 
@@ -39,11 +38,8 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
 
     private final Map<Integer, IndexShardStatus> indexShards;
 
-    private final Settings settings;
-
-    IndexStatus(String index, Settings settings, ShardStatus[] shards) {
+    IndexStatus(String index, ShardStatus[] shards) {
         this.index = index;
-        this.settings = settings;
 
         Map<Integer, List<ShardStatus>> tmpIndexShards = Maps.newHashMap();
         for (ShardStatus shard : shards) {
@@ -78,14 +74,6 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
 
     public Map<Integer, IndexShardStatus> getShards() {
         return shards();
-    }
-
-    public Settings settings() {
-        return this.settings;
-    }
-
-    public Settings getSettings() {
-        return settings();
     }
 
     /**

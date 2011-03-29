@@ -45,6 +45,7 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
@@ -60,6 +61,7 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.mapper.SourceToParse.*;
 
@@ -110,6 +112,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private CopyOnWriteArrayList<OperationListener> listeners = null;
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
+
+    private final AtomicLong totalRefresh = new AtomicLong();
+    private final AtomicLong totalRefreshTime = new AtomicLong();
 
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
@@ -403,7 +408,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with {}", refresh);
         }
+        long time = System.currentTimeMillis();
         engine.refresh(refresh);
+        totalRefresh.incrementAndGet();
+        totalRefreshTime.addAndGet(System.currentTimeMillis() - time);
+    }
+
+    @Override public RefreshStats refreshStats() {
+        return new RefreshStats(totalRefresh.get(), totalRefreshTime.get());
     }
 
     @Override public void flush(Engine.Flush flush) throws ElasticSearchException {

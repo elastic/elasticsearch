@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -153,6 +154,10 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
             if (mergeStats != null) {
                 mergeStats.toXContent(builder, params);
             }
+            RefreshStats refreshStats = indexStatus.refreshStats();
+            if (refreshStats != null) {
+                refreshStats.toXContent(builder, params);
+            }
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardStatus indexShardStatus : indexStatus) {
@@ -194,6 +199,11 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                     mergeStats = shardStatus.mergeStats();
                     if (mergeStats != null) {
                         mergeStats.toXContent(builder, params);
+                    }
+
+                    refreshStats = shardStatus.refreshStats();
+                    if (refreshStats != null) {
+                        refreshStats.toXContent(builder, params);
                     }
 
                     if (shardStatus.peerRecoveryStatus() != null) {

@@ -28,6 +28,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 
@@ -42,6 +43,8 @@ public interface IndexShard extends IndexShardComponent {
     void removeListener(OperationListener listener);
 
     ShardRouting routingEntry();
+
+    RefreshStats refreshStats();
 
     IndexShardState state();
 

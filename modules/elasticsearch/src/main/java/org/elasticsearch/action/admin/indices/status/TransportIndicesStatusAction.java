@@ -170,6 +170,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             }
 
             shardStatus.mergeStats = indexShard.mergeScheduler().stats();
+            shardStatus.refreshStats = indexShard.refreshStats();
         }
 
         if (request.recovery) {

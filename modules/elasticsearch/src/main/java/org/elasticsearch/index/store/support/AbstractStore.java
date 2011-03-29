@@ -38,7 +38,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.zip.CRC32;
+import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 /**
@@ -391,7 +391,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
                     // and since we, in any case, always recover the segments files
                     this.digest = null;
                 } else {
-                    this.digest = new CRC32();
+//                    this.digest = new CRC32();
+                    // adler is faster, and we compare on length as well, should be enough to check for difference
+                    // between files
+                    this.digest = new Adler32();
                 }
             } else {
                 this.digest = null;

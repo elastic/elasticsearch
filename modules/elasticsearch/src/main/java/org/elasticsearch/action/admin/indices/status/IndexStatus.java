@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.status;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
 
 import java.util.Iterator;
 import java.util.List;
@@ -187,6 +188,18 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
      */
     public MergeStats getMergeStats() {
         return this.mergeStats();
+    }
+
+    public RefreshStats refreshStats() {
+        RefreshStats refreshStats = new RefreshStats();
+        for (IndexShardStatus shard : this) {
+            refreshStats.add(shard.refreshStats());
+        }
+        return refreshStats;
+    }
+
+    public RefreshStats getRefreshStats() {
+        return refreshStats();
     }
 
     @Override public Iterator<IndexShardStatus> iterator() {

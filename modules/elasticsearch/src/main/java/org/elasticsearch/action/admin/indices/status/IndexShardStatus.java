@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.status;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Iterator;
@@ -179,6 +180,18 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
      */
     public MergeStats getMergeStats() {
         return this.mergeStats();
+    }
+
+    public RefreshStats refreshStats() {
+        RefreshStats refreshStats = new RefreshStats();
+        for (ShardStatus shard : shards) {
+            refreshStats.add(shard.refreshStats());
+        }
+        return refreshStats;
+    }
+
+    public RefreshStats getRefreshStats() {
+        return refreshStats();
     }
 
     @Override public Iterator<ShardStatus> iterator() {

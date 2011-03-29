@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.merge;
+package org.elasticsearch.index.refresh;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,54 +29,39 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class MergeStats implements Streamable, ToXContent {
+public class RefreshStats implements Streamable, ToXContent {
 
     private long total;
 
-    private long current;
-
     private long totalTimeInMillis;
 
-    public MergeStats() {
+    public RefreshStats() {
 
     }
 
-    public MergeStats(long total, long current, long totalTimeInMillis) {
+    public RefreshStats(long total, long totalTimeInMillis) {
         this.total = total;
-        this.current = current;
         this.totalTimeInMillis = totalTimeInMillis;
     }
 
-    public void add(long totalMerges, long currentMerges, long totalMergeTime) {
-        this.total += totalMerges;
-        this.current += currentMerges;
-        this.totalTimeInMillis += totalMergeTime;
+    public void add(long total, long totalTimeInMillis) {
+        this.total += total;
+        this.totalTimeInMillis += totalTimeInMillis;
     }
 
-    public void add(MergeStats mergeStats) {
-        if (mergeStats == null) {
+    public void add(RefreshStats refreshStats) {
+        if (refreshStats == null) {
             return;
         }
-        this.total += mergeStats.total;
-        this.current += mergeStats.current;
-        this.totalTimeInMillis += mergeStats.totalTimeInMillis;
+        this.total += refreshStats.total;
+        this.totalTimeInMillis += refreshStats.totalTimeInMillis;
     }
 
     /**
-     * The total number of merges executed.
+     * The total number of refresh executed.
      */
     public long total() {
         return this.total;
-    }
-
-    /**
-     * The current number of merges executing.
-     */
-    public long current() {
-        return this.current;
     }
 
     /**
@@ -93,15 +78,14 @@ public class MergeStats implements Streamable, ToXContent {
         return new TimeValue(totalTimeInMillis);
     }
 
-    public static MergeStats readMergeStats(StreamInput in) throws IOException {
-        MergeStats stats = new MergeStats();
-        stats.readFrom(in);
-        return stats;
+    public static RefreshStats readRefreshStats(StreamInput in) throws IOException {
+        RefreshStats refreshStats = new RefreshStats();
+        refreshStats.readFrom(in);
+        return refreshStats;
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.MERGES);
-        builder.field(Fields.CURRENT, current);
+        builder.startObject(Fields.REFRESH);
         builder.field(Fields.TOTAL, total);
         builder.field(Fields.TOTAL_TIME, totalTime().toString());
         builder.field(Fields.TOTAL_TIME_IN_MILLIS, totalTimeInMillis);
@@ -110,8 +94,7 @@ public class MergeStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString MERGES = new XContentBuilderString("merges");
-        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
+        static final XContentBuilderString REFRESH = new XContentBuilderString("refresh");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
         static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
@@ -119,13 +102,11 @@ public class MergeStats implements Streamable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         total = in.readVLong();
-        current = in.readVLong();
         totalTimeInMillis = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
-        out.writeVLong(current);
         out.writeVLong(totalTimeInMillis);
     }
 }

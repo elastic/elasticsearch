@@ -298,7 +298,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
 
         logger.info("--> checking reuse / recovery status");
-        IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().execute().actionGet();
+        IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().setRecovery(true).execute().actionGet();
         for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
                 if (shardStatus.shardRouting().primary()) {

@@ -43,6 +43,7 @@ public class NodeAllocations extends NodeAllocation {
                 .add(new ThrottlingNodeAllocation(settings))
                 .add(new RebalanceOnlyWhenActiveNodeAllocation(settings))
                 .add(new ClusterRebalanceNodeAllocation(settings))
+                .add(new ConcurrentRebalanceNodeAllocation(settings))
                 .build()
         );
     }

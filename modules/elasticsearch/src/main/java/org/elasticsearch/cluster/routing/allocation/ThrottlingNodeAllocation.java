@@ -31,13 +31,15 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class ThrottlingNodeAllocation extends NodeAllocation {
 
+    private final int primariesInitialRecoveries;
     private final int concurrentRecoveries;
 
     @Inject public ThrottlingNodeAllocation(Settings settings) {
         super(settings);
 
+        this.primariesInitialRecoveries = componentSettings.getAsInt("node_initial_primaries_recoveries", 4);
         this.concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", componentSettings.getAsInt("node_concurrent_recoveries", 2));
-        logger.debug("using [concurrent_recoveries] with [{}]", concurrentRecoveries);
+        logger.debug("using node_concurrent_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentRecoveries, primariesInitialRecoveries);
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -57,7 +59,7 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
                         primariesInRecovery++;
                     }
                 }
-                if (primariesInRecovery >= concurrentRecoveries) {
+                if (primariesInRecovery >= primariesInitialRecoveries) {
                     return Decision.THROTTLE;
                 } else {
                     return Decision.YES;

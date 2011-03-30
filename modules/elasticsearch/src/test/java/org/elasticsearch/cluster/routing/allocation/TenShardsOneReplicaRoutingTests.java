@@ -47,7 +47,8 @@ public class TenShardsOneReplicaRoutingTests {
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
         ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());

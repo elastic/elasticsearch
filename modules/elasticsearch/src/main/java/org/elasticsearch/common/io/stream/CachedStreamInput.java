@@ -41,7 +41,7 @@ public class CachedStreamInput {
     private static final ThreadLocal<ThreadLocals.CleanableValue<Entry>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Entry>>() {
         @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
             HandlesStreamInput handles = new HandlesStreamInput();
-            LZFStreamInput lzf = new LZFStreamInput();
+            LZFStreamInput lzf = new LZFStreamInput(null, true);
             return new ThreadLocals.CleanableValue<Entry>(new Entry(handles, lzf));
         }
     };

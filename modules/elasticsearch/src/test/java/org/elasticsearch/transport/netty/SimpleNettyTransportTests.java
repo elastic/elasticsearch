@@ -39,6 +39,10 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
         serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
     }
 
+    @Override public void testVoidMessageCompressed() {
+        super.testVoidMessageCompressed();    //To change body of overridden methods use File | Settings | File Templates.
+    }
+
     @Test public void testConnectException() {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress("localhost", 9876)));

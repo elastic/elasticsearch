@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -156,7 +157,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (source == null) {
             return null;
         }
-        if (LZFDecoder.isCompressed(source)) {
+        if (LZF.isCompressed(source)) {
             try {
                 this.source = LZFDecoder.decode(source);
             } catch (IOException e) {

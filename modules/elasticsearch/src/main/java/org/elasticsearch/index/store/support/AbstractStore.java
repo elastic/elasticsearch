@@ -138,6 +138,9 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         try {
             indexInput.readInt(); // version
             return indexInput.readStringStringMap();
+        } catch (Exception e) {
+            // failed to load checksums, ignore and return an empty map
+            return new HashMap<String, String>();
         } finally {
             indexInput.close();
         }

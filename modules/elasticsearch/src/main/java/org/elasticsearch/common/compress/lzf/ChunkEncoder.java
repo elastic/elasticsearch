@@ -1,22 +1,3 @@
-/*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 /* Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
  * file except in compliance with the License. You may obtain a copy of the License at
  *
@@ -53,16 +34,23 @@ public class ChunkEncoder {
     private static final int MAX_OFF = 1 << 13; // 8k
     private static final int MAX_REF = (1 << 8) + (1 << 3); // 264
 
-    // // Encoding tables
+    // // Encoding tables etc
+
+    private final BufferRecycler _recycler;
+
+    private int[] _hashTable;
+
+    private final int _hashModulo;
 
     /**
      * Buffer in which encoded content is stored during processing
      */
-    private final byte[] _encodeBuffer;
+    private byte[] _encodeBuffer;
 
-    private final int[] _hashTable;
-
-    private final int _hashModulo;
+    /**
+     * Small buffer passed to LZFChunk, needed for writing chunk header
+     */
+    private byte[] _headerBuffer;
 
     /**
      * @param totalLength Total encoded length; used for calculating size
@@ -71,30 +59,37 @@ public class ChunkEncoder {
     public ChunkEncoder(int totalLength) {
         int largestChunkLen = Math.max(totalLength, LZFChunk.MAX_CHUNK_LEN);
 
-        int hashLen = calcHashLen(largestChunkLen);
-        _hashTable = new int[hashLen];
-        _hashModulo = hashLen - 1;
+        int suggestedHashLen = calcHashLen(largestChunkLen);
+        _recycler = BufferRecycler.instance();
+        _hashTable = _recycler.allocEncodingHash(suggestedHashLen);
+        _hashModulo = _hashTable.length - 1;
         // Ok, then, what's the worst case output buffer length?
         // length indicator for each 32 literals, so:
         int bufferLen = largestChunkLen + ((largestChunkLen + 31) >> 5);
-        _encodeBuffer = new byte[bufferLen];
+        _encodeBuffer = _recycler.allocEncodingBuffer(bufferLen);
     }
 
-    /**
-     * Method for compressing (or not) individual chunks
+    /*
+    ///////////////////////////////////////////////////////////////////////
+    // Public API
+    ///////////////////////////////////////////////////////////////////////
      */
-    public int encodeChunk(OutputStream os, byte[] data, int offset, int len) throws IOException {
-        if (len >= MIN_BLOCK_TO_COMPRESS) {
-            /* If we have non-trivial block, and can compress it by at least
-             * 2 bytes (since header is 2 bytes longer), let's compress:
-             */
-            int compLen = tryCompress(data, offset, offset + len, _encodeBuffer, 0);
-            if (compLen < (len - 2)) { // nah; just return uncompressed
-                return LZFChunk.createCompressed(os, len, _encodeBuffer, 0, compLen);
-            }
+
+    /**
+     * Method to close once encoder is no longer in use. Note: after calling
+     * this method, further calls to {@link #_encodeChunk} will fail
+     */
+    public void close() {
+        byte[] buf = _encodeBuffer;
+        if (buf != null) {
+            _encodeBuffer = null;
+            _recycler.releaseEncodeBuffer(buf);
         }
-        // Otherwise leave uncompressed:
-        return LZFChunk.createNonCompressed(os, data, offset, len);
+        int[] ibuf = _hashTable;
+        if (ibuf != null) {
+            _hashTable = null;
+            _recycler.releaseEncodingHash(ibuf);
+        }
     }
 
     /**
@@ -113,6 +108,37 @@ public class ChunkEncoder {
         // Otherwise leave uncompressed:
         return LZFChunk.createNonCompressed(data, offset, len);
     }
+
+    /**
+     * Method for encoding individual chunk, writing it to given output stream.
+     */
+    public void encodeAndWriteChunk(byte[] data, int offset, int len, OutputStream out)
+            throws IOException {
+        byte[] headerBuf = _headerBuffer;
+        if (headerBuf == null) {
+            _headerBuffer = headerBuf = new byte[LZFChunk.MAX_HEADER_LEN];
+        }
+        if (len >= MIN_BLOCK_TO_COMPRESS) {
+            /* If we have non-trivial block, and can compress it by at least
+             * 2 bytes (since header is 2 bytes longer), let's compress:
+             */
+            int compLen = tryCompress(data, offset, offset + len, _encodeBuffer, 0);
+            if (compLen < (len - 2)) { // nah; just return uncompressed
+                LZFChunk.writeCompressedHeader(len, compLen, out, headerBuf);
+                out.write(_encodeBuffer, 0, compLen);
+                return;
+            }
+        }
+        // Otherwise leave uncompressed:
+        LZFChunk.writeNonCompressedHeader(len, out, headerBuf);
+        out.write(data, offset, len);
+    }
+
+    /*
+    ///////////////////////////////////////////////////////////////////////
+    // Internal methods
+    ///////////////////////////////////////////////////////////////////////
+     */
 
     private static int calcHashLen(int chunkSize) {
         // in general try get hash table size of 2x input size
@@ -133,12 +159,13 @@ public class ChunkEncoder {
         return (in[inPos] << 8) + (in[inPos + 1] & 255);
     }
 
+    /*
     private static int next(int v, byte[] in, int inPos) {
         return (v << 8) + (in[inPos + 2] & 255);
     }
+*/
 
-
-    private int hash(int h) {
+    private final int hash(int h) {
         // or 184117; but this seems to give better hashing?
         return ((h * 57321) >> 9) & _hashModulo;
         // original lzf-c.c used this:
@@ -147,65 +174,75 @@ public class ChunkEncoder {
     }
 
     private int tryCompress(byte[] in, int inPos, int inEnd, byte[] out, int outPos) {
-        int literals = 0;
-        outPos++;
+        final int[] hashTable = _hashTable;
+        ++outPos;
         int hash = first(in, 0);
+        int literals = 0;
         inEnd -= 4;
         final int firstPos = inPos; // so that we won't have back references across block boundary
+
         while (inPos < inEnd) {
             byte p2 = in[inPos + 2];
             // next
             hash = (hash << 8) + (p2 & 255);
             int off = hash(hash);
-            int ref = _hashTable[off];
-            _hashTable[off] = inPos;
-            if (ref < inPos
-                    && ref >= firstPos
-                    && (off = inPos - ref - 1) < MAX_OFF
-                    && in[ref + 2] == p2
-                    && in[ref + 1] == (byte) (hash >> 8)
-                    && in[ref] == (byte) (hash >> 16)) {
-                // match
-                int maxLen = inEnd - inPos + 2;
-                if (maxLen > MAX_REF) {
-                    maxLen = MAX_REF;
-                }
-                if (literals == 0) {
-                    outPos--;
-                } else {
-                    out[outPos - literals - 1] = (byte) (literals - 1);
-                    literals = 0;
-                }
-                int len = 3;
-                while (len < maxLen && in[ref + len] == in[inPos + len]) {
-                    len++;
-                }
-                len -= 2;
-                if (len < 7) {
-                    out[outPos++] = (byte) ((off >> 8) + (len << 5));
-                } else {
-                    out[outPos++] = (byte) ((off >> 8) + (7 << 5));
-                    out[outPos++] = (byte) (len - 7);
-                }
-                out[outPos++] = (byte) off;
-                outPos++;
-                inPos += len;
-                hash = first(in, inPos);
-                hash = next(hash, in, inPos);
-                _hashTable[hash(hash)] = inPos++;
-                hash = next(hash, in, inPos);
-                _hashTable[hash(hash)] = inPos++;
-            } else {
+            int ref = hashTable[off];
+            hashTable[off] = inPos;
+
+            // First expected common case: no back-ref (for whatever reason)
+            if (ref >= inPos // can't refer forward (i.e. leftovers)
+                    || ref < firstPos // or to previous block
+                    || (off = inPos - ref - 1) >= MAX_OFF
+                    || in[ref + 2] != p2 // must match hash
+                    || in[ref + 1] != (byte) (hash >> 8)
+                    || in[ref] != (byte) (hash >> 16)) {
                 out[outPos++] = in[inPos++];
                 literals++;
                 if (literals == LZFChunk.MAX_LITERAL) {
-                    out[outPos - literals - 1] = (byte) (literals - 1);
+                    out[outPos - 33] = (byte) 31; // <= out[outPos - literals - 1] = MAX_LITERAL_MINUS_1;
                     literals = 0;
                     outPos++;
                 }
+                continue;
             }
+            // match
+            int maxLen = inEnd - inPos + 2;
+            if (maxLen > MAX_REF) {
+                maxLen = MAX_REF;
+            }
+            if (literals == 0) {
+                outPos--;
+            } else {
+                out[outPos - literals - 1] = (byte) (literals - 1);
+                literals = 0;
+            }
+            int len = 3;
+            while (len < maxLen && in[ref + len] == in[inPos + len]) {
+                len++;
+            }
+            len -= 2;
+            if (len < 7) {
+                out[outPos++] = (byte) ((off >> 8) + (len << 5));
+            } else {
+                out[outPos++] = (byte) ((off >> 8) + (7 << 5));
+                out[outPos++] = (byte) (len - 7);
+            }
+            out[outPos++] = (byte) off;
+            outPos++;
+            inPos += len;
+            hash = first(in, inPos);
+            hash = (hash << 8) + (in[inPos + 2] & 255);
+            hashTable[hash(hash)] = inPos++;
+            hash = (hash << 8) + (in[inPos + 2] & 255); // hash = next(hash, in, inPos);
+            hashTable[hash(hash)] = inPos++;
         }
         inEnd += 4;
+        // try offlining the tail
+        return tryCompressTail(in, inPos, inEnd, out, outPos, literals);
+    }
+
+    private int tryCompressTail(byte[] in, int inPos, int inEnd, byte[] out, int outPos,
+                                int literals) {
         while (inPos < inEnd) {
             out[outPos++] = in[inPos++];
             literals++;

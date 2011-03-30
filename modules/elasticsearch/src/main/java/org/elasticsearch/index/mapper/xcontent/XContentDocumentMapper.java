@@ -26,7 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
@@ -384,7 +384,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         XContentParser parser = source.parser();
         try {
             if (parser == null) {
-                if (LZFDecoder.isCompressed(source.source())) {
+                if (LZF.isCompressed(source.source())) {
                     BytesStreamInput siBytes = new BytesStreamInput(source.source());
                     LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                     XContentType contentType = XContentFactory.xContentType(siLzf);

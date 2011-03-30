@@ -44,7 +44,7 @@ public class CachedStreamOutput {
         @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
             BytesStreamOutput bytes = new BytesStreamOutput();
             HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
-            LZFStreamOutput lzf = new LZFStreamOutput(bytes);
+            LZFStreamOutput lzf = new LZFStreamOutput(bytes, true);
             return new ThreadLocals.CleanableValue<Entry>(new Entry(bytes, handles, lzf));
         }
     };

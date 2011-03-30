@@ -26,7 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFEncoder;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
@@ -206,7 +206,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
     private MetaData readMetaData(byte[] data) throws IOException {
         XContentParser parser = null;
         try {
-            if (LZFDecoder.isCompressed(data)) {
+            if (LZF.isCompressed(data)) {
                 BytesStreamInput siBytes = new BytesStreamInput(data);
                 LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                 parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);

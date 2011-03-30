@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.*;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.compress.lzf.LZFEncoder;
 import org.elasticsearch.common.lucene.Lucene;
@@ -116,9 +117,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
             return null;
         }
         byte[] data = context.source();
-        if (compress != null && compress && !LZFDecoder.isCompressed(data)) {
+        if (compress != null && compress && !LZF.isCompressed(data)) {
             if (compressThreshold == -1 || data.length > compressThreshold) {
-                data = LZFEncoder.encodeWithCache(data, data.length);
+                data = LZFEncoder.encode(data, data.length);
                 context.source(data);
             }
         }
@@ -139,7 +140,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         if (value == null) {
             return value;
         }
-        if (LZFDecoder.isCompressed(value)) {
+        if (LZF.isCompressed(value)) {
             try {
                 return LZFDecoder.decode(value);
             } catch (IOException e) {

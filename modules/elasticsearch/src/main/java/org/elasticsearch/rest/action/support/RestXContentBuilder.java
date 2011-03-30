@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
@@ -61,7 +61,7 @@ public class RestXContentBuilder {
     }
 
     public static void restDocumentSource(byte[] source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (LZFDecoder.isCompressed(source)) {
+        if (LZF.isCompressed(source)) {
             BytesStreamInput siBytes = new BytesStreamInput(source);
             LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
             XContentType contentType = XContentFactory.xContentType(siLzf);

@@ -1,22 +1,3 @@
-/*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 /* Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
  * file except in compliance with the License. You may obtain a copy of the License at
  *
@@ -44,12 +25,7 @@ public class LZFDecoder {
     private final static int HEADER_BYTES = 5;
 
     // static methods, no need to instantiate
-
     private LZFDecoder() {
-    }
-
-    public static boolean isCompressed(final byte[] buffer) {
-        return buffer.length >= 2 && buffer[0] == LZFChunk.BYTE_Z && buffer[1] == LZFChunk.BYTE_V;
     }
 
     public static byte[] decode(final byte[] sourceBuffer) throws IOException {
@@ -153,16 +129,15 @@ public class LZFDecoder {
         }
         inPtr += 2;
         int type = inputBuffer[inPtr++];
-        int len = uint16(inputBuffer, inPtr);
+        int compLen = uint16(inputBuffer, inPtr);
         inPtr += 2;
         if (type == LZFChunk.BLOCK_TYPE_NON_COMPRESSED) { // uncompressed
-            is.read(outputBuffer, 0, len);
-            bytesInOutput = len;
+            readFully(is, false, outputBuffer, 0, compLen);
+            bytesInOutput = compLen;
         } else { // compressed
-            is.read(inputBuffer, inPtr, 2);
-            int uncompLen = uint16(inputBuffer, inPtr);
-            is.read(inputBuffer, 0, len);
-            decompressChunk(inputBuffer, 0, outputBuffer, 0, uncompLen);
+            readFully(is, true, inputBuffer, 0, 2 + compLen); // first 2 bytes are uncompressed length
+            int uncompLen = uint16(inputBuffer, 0);
+            decompressChunk(inputBuffer, 2, outputBuffer, 0, uncompLen);
             bytesInOutput = uncompLen;
         }
         return bytesInOutput;
@@ -180,29 +155,38 @@ public class LZFDecoder {
                 do {
                     out[outPos++] = in[inPos];
                 } while (inPos++ < ctrl);
-            } else {
-                // back reference
-                int len = ctrl >> 5;
-                ctrl = -((ctrl & 0x1f) << 8) - 1;
-                if (len == 7) {
-                    len += in[inPos++] & 255;
-                }
-                ctrl -= in[inPos++] & 255;
-                len += outPos + 2;
+                continue;
+            }
+            // back reference
+            int len = ctrl >> 5;
+            ctrl = -((ctrl & 0x1f) << 8) - 1;
+            if (len == 7) {
+                len += in[inPos++] & 255;
+            }
+            ctrl -= in[inPos++] & 255;
+            len += outPos + 2;
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
+
+            /* Odd: after extensive profiling, looks like magic number
+             * for unrolling is 4: with 8 performance is worse (even
+             * bit less than with no unrolling).
+             */
+            final int end = len - 3;
+            while (outPos < end) {
                 out[outPos] = out[outPos++ + ctrl];
                 out[outPos] = out[outPos++ + ctrl];
-                while (outPos < len - 8) {
+                out[outPos] = out[outPos++ + ctrl];
+                out[outPos] = out[outPos++ + ctrl];
+            }
+            // and, interestingly, unlooping works here too:
+            if (outPos < len) { // max 3 bytes to copy
+                out[outPos] = out[outPos++ + ctrl];
+                if (outPos < len) {
                     out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                    out[outPos] = out[outPos++ + ctrl];
-                }
-                while (outPos < len) {
-                    out[outPos] = out[outPos++ + ctrl];
+                    if (outPos < len) {
+                        out[outPos] = out[outPos++ + ctrl];
+                    }
                 }
             }
         } while (outPos < outEnd);
@@ -212,7 +196,22 @@ public class LZFDecoder {
             throw new IOException("Corrupt data: overrun in decompress, input offset " + inPos + ", output offset " + outPos);
     }
 
-    private static int uint16(byte[] data, int ptr) {
+    private final static int uint16(byte[] data, int ptr) {
         return ((data[ptr] & 0xFF) << 8) + (data[ptr + 1] & 0xFF);
+    }
+
+    private final static void readFully(InputStream is, boolean compressed,
+                                        byte[] outputBuffer, int offset, int len) throws IOException {
+        int left = len;
+        while (left > 0) {
+            int count = is.read(outputBuffer, offset, left);
+            if (count < 0) { // EOF not allowed here
+                throw new IOException("EOF in " + len + " byte ("
+                        + (compressed ? "" : "un") + "compressed) block: could only read "
+                        + (len - left) + " bytes");
+            }
+            offset += count;
+            left -= count;
+        }
     }
 }

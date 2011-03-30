@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFOutputStream;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -390,7 +390,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     private LocalGatewayMetaState readMetaState(byte[] data) throws IOException {
         XContentParser parser = null;
         try {
-            if (LZFDecoder.isCompressed(data)) {
+            if (LZF.isCompressed(data)) {
                 BytesStreamInput siBytes = new BytesStreamInput(data);
                 LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                 parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);
@@ -408,7 +408,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     private LocalGatewayStartedShards readStartedShards(byte[] data) throws IOException {
         XContentParser parser = null;
         try {
-            if (LZFDecoder.isCompressed(data)) {
+            if (LZF.isCompressed(data)) {
                 BytesStreamInput siBytes = new BytesStreamInput(data);
                 LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                 parser = XContentFactory.xContent(XContentType.JSON).createParser(siLzf);

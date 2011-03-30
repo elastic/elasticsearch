@@ -47,7 +47,10 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests {
 
 
     @Test public void testPrimaryNotRelocatedWhileBeingRecoveredFrom() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+                .build());
 
         logger.info("Building initial routing table");
 

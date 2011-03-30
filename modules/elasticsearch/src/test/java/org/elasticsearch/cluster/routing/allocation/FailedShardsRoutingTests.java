@@ -166,7 +166,10 @@ public class FailedShardsRoutingTests {
     }
 
     @Test public void test10ShardsWith1ReplicaFailure() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+                .build());
 
         logger.info("Building initial routing table");
 

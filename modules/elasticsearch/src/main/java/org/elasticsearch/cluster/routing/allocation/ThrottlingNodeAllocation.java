@@ -36,7 +36,8 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
     @Inject public ThrottlingNodeAllocation(Settings settings) {
         super(settings);
 
-        this.concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", 2);
+        this.concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", componentSettings.getAsInt("node_concurrent_recoveries", 2));
+        logger.debug("using [concurrent_recoveries] with [{}]", concurrentRecoveries);
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

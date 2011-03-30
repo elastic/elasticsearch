@@ -35,7 +35,14 @@ public class ChecksumBenchmarkTest {
     public static final int BATCH_SIZE = 16 * 1024;
 
     public static void main(String[] args) {
-        long dataSize = ByteSizeValue.parseBytesSizeValue("1g", null).bytes();
+        System.out.println("Warning up");
+        long warmSize = ByteSizeValue.parseBytesSizeValue("1g", null).bytes();
+        crc(warmSize);
+        adler(warmSize);
+        md5(warmSize);
+
+        long dataSize = ByteSizeValue.parseBytesSizeValue("10g", null).bytes();
+        System.out.println("Running size: " + dataSize);
         crc(dataSize);
         adler(dataSize);
         md5(dataSize);

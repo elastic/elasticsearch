@@ -42,6 +42,7 @@ public class NodeAllocations extends NodeAllocation {
                 .add(new ReplicaAfterPrimaryActiveNodeAllocation(settings))
                 .add(new ThrottlingNodeAllocation(settings))
                 .add(new RebalanceOnlyWhenActiveNodeAllocation(settings))
+                .add(new ClusterRebalanceNodeAllocation(settings))
                 .build()
         );
     }

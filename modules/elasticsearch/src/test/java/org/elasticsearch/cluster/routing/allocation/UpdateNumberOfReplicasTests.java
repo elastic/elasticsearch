@@ -2,12 +2,10 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.cluster.ClusterState.*;
@@ -17,6 +15,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.RoutingTable.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -157,9 +156,5 @@ public class UpdateNumberOfReplicasTests {
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(false));
-    }
-
-    private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
     }
 }

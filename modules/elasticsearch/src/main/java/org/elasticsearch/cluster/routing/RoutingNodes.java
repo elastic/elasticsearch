@@ -193,6 +193,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return shards;
     }
 
+    public List<MutableShardRouting> shardsWithState(String index, ShardRoutingState... state) {
+        List<MutableShardRouting> shards = newArrayList();
+        for (RoutingNode routingNode : this) {
+            shards.addAll(routingNode.shardsWithState(index, state));
+        }
+        return shards;
+    }
+
     public List<RoutingNode> sortedNodesLeastToHigh() {
         return nodesToShardsSorted(new Comparator<RoutingNode>() {
             @Override public int compare(RoutingNode o1, RoutingNode o2) {

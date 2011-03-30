@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -41,6 +40,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.*;
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -205,7 +205,10 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testMultiIndexEvenDistribution() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .build());
 
         final int numberOfIndices = 50;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
@@ -313,7 +316,10 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testMultiIndexUnevenNodes() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .build());
 
         final int numberOfIndices = 10;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
@@ -400,9 +406,5 @@ public class SingleShardNoReplicasRoutingTests {
         for (RoutingNode routingNode : routingNodes) {
             assertThat(routingNode.numberOfShardsWithState(STARTED), equalTo(2));
         }
-    }
-
-    private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
     }
 }

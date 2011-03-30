@@ -49,6 +49,7 @@ public class TenShardsOneReplicaRoutingTests {
         ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 
         logger.info("Building initial routing table");

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -39,18 +38,16 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
-/**
- * @author kimchy (shay.banon)
- */
-public class RebalanceAfterActiveTests {
+@Test
+public class ConcurrentRebalanceRoutingTests {
 
-    private final ESLogger logger = Loggers.getLogger(RebalanceAfterActiveTests.class);
+    private final ESLogger logger = Loggers.getLogger(ConcurrentRebalanceRoutingTests.class);
 
-    @Test public void testRebalanceOnlyAfterAllShardsAreActive() {
+    @Test public void testClusterConcurrentRebalance() {
         ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
-                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
                 .build());
 
         logger.info("Building initial routing table");
@@ -114,7 +111,7 @@ public class RebalanceAfterActiveTests {
             assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
         }
 
-        logger.info("start the replica shards, rebalancing should start");
+        logger.info("start the replica shards, rebalancing should start, but, only 3 should be rebalancing");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
@@ -122,31 +119,40 @@ public class RebalanceAfterActiveTests {
         routingNodes = clusterState.routingNodes();
 
         // we only allow one relocation at a time
-        assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(routingTable.shardsWithState(RELOCATING).size(), equalTo(5));
-
-        logger.info("complete relocation, other half of relocation should happen");
-        routingNodes = clusterState.routingNodes();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
-
-        // we now only relocate 3, since 2 remain where they are!
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(7));
         assertThat(routingTable.shardsWithState(RELOCATING).size(), equalTo(3));
 
-        logger.info("complete relocation, thats it!");
+        logger.info("finalize this session relocation, 3 more should relocate now");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
+        // we only allow one relocation at a time
+        assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(7));
+        assertThat(routingTable.shardsWithState(RELOCATING).size(), equalTo(3));
+
+        logger.info("finalize this session relocation, 2 more should relocate now");
+        routingNodes = clusterState.routingNodes();
+        prevRoutingTable = routingTable;
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        routingNodes = clusterState.routingNodes();
+
+        // we only allow one relocation at a time
+        assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(8));
+        assertThat(routingTable.shardsWithState(RELOCATING).size(), equalTo(2));
+
+        logger.info("finalize this session relocation, no more relocation");
+        routingNodes = clusterState.routingNodes();
+        prevRoutingTable = routingTable;
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        routingNodes = clusterState.routingNodes();
+
+        // we only allow one relocation at a time
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(10));
-        // make sure we have an even relocation
-        for (RoutingNode routingNode : routingNodes) {
-            assertThat(routingNode.shards().size(), equalTo(1));
-        }
+        assertThat(routingTable.shardsWithState(RELOCATING).size(), equalTo(0));
     }
 }

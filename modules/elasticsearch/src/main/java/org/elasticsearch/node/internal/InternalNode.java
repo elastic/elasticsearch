@@ -57,6 +57,7 @@ import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
 import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.monitor.MonitorModule;
@@ -168,6 +169,7 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(IndicesService.class).start();
+        injector.getInstance(IndexingMemoryBufferController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(RiversManager.class).start();
         injector.getInstance(ClusterService.class).start();
@@ -204,6 +206,7 @@ public final class InternalNode implements Node {
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
+        injector.getInstance(IndexingMemoryBufferController.class).stop();
         injector.getInstance(IndicesService.class).stop();
         // sleep a bit to let operations finish with indices service
 //        try {
@@ -252,6 +255,7 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
+        injector.getInstance(IndexingMemoryBufferController.class).close();
         injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("routing");
         injector.getInstance(RoutingService.class).close();

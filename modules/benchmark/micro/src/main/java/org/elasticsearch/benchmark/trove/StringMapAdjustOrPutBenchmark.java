@@ -25,6 +25,7 @@ import org.elasticsearch.common.trove.StringIdentityHashingStrategy;
 import org.elasticsearch.common.trove.map.custom_hash.TObjectIntCustomHashMap;
 import org.elasticsearch.common.trove.map.hash.THashMap;
 import org.elasticsearch.common.trove.map.hash.TIntIntHashMap;
+import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.trove.strategy.IdentityHashingStrategy;
 import org.elasticsearch.common.unit.SizeValue;
@@ -36,7 +37,7 @@ public class StringMapAdjustOrPutBenchmark {
 
     public static void main(String[] args) {
 
-        int NUMBER_OF_KEYS = (int) SizeValue.parseSizeValue("200k").singles();
+        int NUMBER_OF_KEYS = (int) SizeValue.parseSizeValue("20").singles();
         int STRING_SIZE = 5;
         long PUT_OPERATIONS = SizeValue.parseSizeValue("5m").singles();
         long ITERATIONS = 10;
@@ -204,6 +205,33 @@ public class StringMapAdjustOrPutBenchmark {
 
         intMap.clear();
         intMap = null;
+
+        // now test with THashMap
+        stopWatch = new StopWatch().start();
+        TIntObjectHashMap<IntEntry> tIntMap = new TIntObjectHashMap<IntEntry>();
+        for (long iter = 0; iter < ITERATIONS; iter++) {
+            if (REUSE) {
+                tIntMap.clear();
+            } else {
+                tIntMap = new TIntObjectHashMap<IntEntry>();
+            }
+            for (long i = 0; i < PUT_OPERATIONS; i++) {
+                int key = iValues[(int) (i % NUMBER_OF_KEYS)];
+                IntEntry intEntry = tIntMap.get(key);
+                if (intEntry == null) {
+                    intEntry = new IntEntry(key, 1);
+                    tIntMap.put(key, intEntry);
+                } else {
+                    intEntry.counter++;
+                }
+            }
+        }
+
+        tIntMap.clear();
+        tIntMap = null;
+
+        stopWatch.stop();
+        System.out.println("TIntObjectHashMap: " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
     }
 
 
@@ -212,6 +240,16 @@ public class StringMapAdjustOrPutBenchmark {
         int counter;
 
         StringEntry(String key, int counter) {
+            this.key = key;
+            this.counter = counter;
+        }
+    }
+
+    static class IntEntry {
+        int key;
+        int counter;
+
+        IntEntry(int key, int counter) {
             this.key = key;
             this.counter = counter;
         }

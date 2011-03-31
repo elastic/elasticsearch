@@ -36,9 +36,9 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    private double min = Double.NaN;
+    private double min = Double.MAX_VALUE;
 
-    private double max = Double.NaN;
+    private double max = Double.MIN_VALUE;
 
     private double total = 0;
 
@@ -54,10 +54,10 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     @Override protected void doCollect(int doc) throws IOException {
         script.setNextDocId(doc);
         double value = script.runAsDouble();
-        if (value < min || Double.isNaN(min)) {
+        if (value < min) {
             min = value;
         }
-        if (value > max || Double.isNaN(max)) {
+        if (value > max) {
             max = value;
         }
         sumOfSquares += value * value;
@@ -74,6 +74,12 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
+        if (min == Double.MAX_VALUE) {
+            min = Double.NaN;
+        }
+        if (max == Double.MIN_VALUE) {
+            max = Double.NaN;
+        }
         return new InternalStatisticalFacet(facetName, min, max, total, sumOfSquares, count);
     }
 }

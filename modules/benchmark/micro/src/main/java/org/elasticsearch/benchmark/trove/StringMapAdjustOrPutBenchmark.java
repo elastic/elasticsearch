@@ -21,11 +21,16 @@ package org.elasticsearch.benchmark.trove;
 
 import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.trove.StringIdentityHashingStrategy;
+import org.elasticsearch.common.trove.map.custom_hash.TObjectIntCustomHashMap;
 import org.elasticsearch.common.trove.map.hash.THashMap;
+import org.elasticsearch.common.trove.map.hash.TIntIntHashMap;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
+import org.elasticsearch.common.trove.strategy.IdentityHashingStrategy;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 
 public class StringMapAdjustOrPutBenchmark {
 
@@ -60,7 +65,42 @@ public class StringMapAdjustOrPutBenchmark {
         map.clear();
         map = null;
 
-        System.out.println("TObjectIntHashMap: TP (seconds) " + ITERATIONS / stopWatch.stop().totalTime().secondsFrac());
+        stopWatch.stop();
+        System.out.println("TObjectIntHashMap: " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
+
+        stopWatch = new StopWatch().start();
+        TObjectIntCustomHashMap<String> iMap = new TObjectIntCustomHashMap<String>(new StringIdentityHashingStrategy());
+        for (long iter = 0; iter < ITERATIONS; iter++) {
+            if (REUSE) {
+                iMap.clear();
+            } else {
+                map = new TObjectIntHashMap<String>();
+            }
+            for (long i = 0; i < PUT_OPERATIONS; i++) {
+                iMap = new TObjectIntCustomHashMap<String>(new StringIdentityHashingStrategy());
+            }
+        }
+        stopWatch.stop();
+        System.out.println("TObjectIntCustomHashMap(StringIdentity): " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
+        iMap.clear();
+        iMap = null;
+
+        stopWatch = new StopWatch().start();
+        iMap = new TObjectIntCustomHashMap<String>(new IdentityHashingStrategy<String>());
+        for (long iter = 0; iter < ITERATIONS; iter++) {
+            if (REUSE) {
+                iMap.clear();
+            } else {
+                map = new TObjectIntHashMap<String>();
+            }
+            for (long i = 0; i < PUT_OPERATIONS; i++) {
+                iMap = new TObjectIntCustomHashMap<String>(new IdentityHashingStrategy<String>());
+            }
+        }
+        stopWatch.stop();
+        System.out.println("TObjectIntCustomHashMap(PureIdentity): " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
+        iMap.clear();
+        iMap = null;
 
         // now test with THashMap
         stopWatch = new StopWatch().start();
@@ -82,10 +122,12 @@ public class StringMapAdjustOrPutBenchmark {
                 }
             }
         }
-        System.out.println("THashMap: TP (seconds) " + ITERATIONS / stopWatch.stop().totalTime().secondsFrac());
 
         tMap.clear();
         tMap = null;
+
+        stopWatch.stop();
+        System.out.println("THashMap: " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
 
         stopWatch = new StopWatch().start();
         HashMap<String, StringEntry> hMap = new HashMap<String, StringEntry>();
@@ -106,8 +148,62 @@ public class StringMapAdjustOrPutBenchmark {
                 }
             }
         }
-        System.out.println("HashMap: TP (seconds) " + ITERATIONS / stopWatch.stop().totalTime().secondsFrac());
 
+        hMap.clear();
+        hMap = null;
+
+        stopWatch.stop();
+        System.out.println("HashMap: " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
+
+
+        stopWatch = new StopWatch().start();
+        IdentityHashMap<String, StringEntry> ihMap = new IdentityHashMap<String, StringEntry>();
+        for (long iter = 0; iter < ITERATIONS; iter++) {
+            if (REUSE) {
+                ihMap.clear();
+            } else {
+                hMap = new HashMap<String, StringEntry>();
+            }
+            for (long i = 0; i < PUT_OPERATIONS; i++) {
+                String key = values[(int) (i % NUMBER_OF_KEYS)];
+                StringEntry stringEntry = ihMap.get(key);
+                if (stringEntry == null) {
+                    stringEntry = new StringEntry(key, 1);
+                    ihMap.put(key, stringEntry);
+                } else {
+                    stringEntry.counter++;
+                }
+            }
+        }
+        stopWatch.stop();
+        System.out.println("IdentityHashMap: " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
+
+        ihMap.clear();
+        ihMap = null;
+
+        int[] iValues = new int[NUMBER_OF_KEYS];
+        for (int i = 0; i < values.length; i++) {
+            iValues[i] = i;
+        }
+
+        stopWatch = new StopWatch().start();
+        TIntIntHashMap intMap = new TIntIntHashMap();
+        for (long iter = 0; iter < ITERATIONS; iter++) {
+            if (REUSE) {
+                intMap.clear();
+            } else {
+                intMap = new TIntIntHashMap();
+            }
+            for (long i = 0; i < PUT_OPERATIONS; i++) {
+                int key = iValues[(int) (i % NUMBER_OF_KEYS)];
+                intMap.adjustOrPutValue(key, 1, 1);
+            }
+        }
+        stopWatch.stop();
+        System.out.println("TIntIntHashMap: " + stopWatch.totalTime() + ", " + stopWatch.totalTime().millisFrac() / ITERATIONS + "ms");
+
+        intMap.clear();
+        intMap = null;
     }
 
 

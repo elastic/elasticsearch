@@ -29,6 +29,7 @@ import org.elasticsearch.common.trove.map.hash.TIntObjectHashMap;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.trove.strategy.IdentityHashingStrategy;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -184,7 +185,7 @@ public class StringMapAdjustOrPutBenchmark {
 
         int[] iValues = new int[NUMBER_OF_KEYS];
         for (int i = 0; i < values.length; i++) {
-            iValues[i] = i;
+            iValues[i] = ThreadLocalRandom.current().nextInt();
         }
 
         stopWatch = new StopWatch().start();

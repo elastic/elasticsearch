@@ -128,6 +128,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private final Object[] dirtyLocks;
 
+    private final Object refreshMutex = new Object();
+
     private final ApplySettings applySettings = new ApplySettings();
 
     @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
@@ -577,16 +579,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 throw new EngineClosedException(shardId);
             }
             try {
-                if (dirty || refresh.force()) {
-                    // we eagerly set dirty to false so we won't miss refresh requests
-                    dirty = false;
-                    AcquirableResource<ReaderSearcherHolder> current = nrtResource;
-                    IndexReader newReader = current.resource().reader().reopen(true);
-                    if (newReader != current.resource().reader()) {
-                        ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(newReader);
-                        indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
-                        nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
-                        current.markForClose();
+                // we need to obtain a mutex here, to make sure we don't leave dangling readers
+                // we could have used an AtomicBoolean#compareAndSet, but, then we might miss refresh requests
+                // compared to on going ones
+                synchronized (refreshMutex) {
+                    if (dirty || refresh.force()) {
+                        dirty = false;
+                        AcquirableResource<ReaderSearcherHolder> current = nrtResource;
+                        IndexReader newReader = current.resource().reader().reopen(true);
+                        if (newReader != current.resource().reader()) {
+                            ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(newReader);
+                            indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
+                            nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
+                            current.markForClose();
+                        }
                     }
                 }
             } catch (AlreadyClosedException e) {

@@ -742,39 +742,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("text").size(3))
+                .addFacet(termsFacet("facet1").field("text").size(10))
                 .execute().actionGet();
 
         TermsFacet facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(3));
         for (int i = 0; i < 3; i++) {
-            assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
-            assertThat(facet.entries().get(i).count(), equalTo(10));
-        }
-
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("text").size(2))
-                .execute().actionGet();
-
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        for (int i = 0; i < 2; i++) {
-            assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
-            assertThat(facet.entries().get(i).count(), equalTo(10));
-        }
-
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("text").size(1))
-                .execute().actionGet();
-
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        for (int i = 0; i < 1; i++) {
             assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
             assertThat(facet.entries().get(i).count(), equalTo(10));
         }

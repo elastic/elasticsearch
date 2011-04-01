@@ -47,6 +47,10 @@ public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
         return RamUsage.NUM_BYTES_INT * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
+    public final int[] values() {
+        return this.values;
+    }
+
     abstract public int value(int docId);
 
     abstract public int[] values(int docId);

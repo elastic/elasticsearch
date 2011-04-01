@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.terms.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -29,9 +30,11 @@ import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -68,7 +71,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;
 
-        this.facets = TermsStringFacetCollector.popFacets();
+        this.facets = CacheRecycler.popObjectIntMap();
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
@@ -132,17 +135,30 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
 
     @Override public Facet facet() {
         if (facets.isEmpty()) {
-            TermsStringFacetCollector.pushFacets(facets);
+            CacheRecycler.pushObjectIntMap(facets);
             return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing);
         } else {
-            // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size * numberOfShards);
-            for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
-                it.advance();
-                ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+            if (size < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.insertWithOverflow(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                }
+                InternalStringTermsFacet.StringEntry[] list = new InternalStringTermsFacet.StringEntry[ordered.size()];
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = ((InternalStringTermsFacet.StringEntry) ordered.pop());
+                }
+                CacheRecycler.pushObjectIntMap(facets);
+                return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing);
+            } else {
+                BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
+                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
+                }
+                CacheRecycler.pushObjectIntMap(facets);
+                return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing);
             }
-            TermsStringFacetCollector.pushFacets(facets);
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing);
         }
     }
 }

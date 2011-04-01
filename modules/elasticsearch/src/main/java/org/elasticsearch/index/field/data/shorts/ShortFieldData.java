@@ -47,6 +47,10 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         return RamUsage.NUM_BYTES_SHORT * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
+    public final short[] values() {
+        return this.values;
+    }
+
     abstract public short value(int docId);
 
     abstract public short[] values(int docId);

@@ -47,6 +47,10 @@ public abstract class ByteFieldData extends NumericFieldData<ByteDocFieldData> {
         return 1 * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
+    public final byte[] values() {
+        return this.values;
+    }
+
     abstract public byte value(int docId);
 
     abstract public byte[] values(int docId);

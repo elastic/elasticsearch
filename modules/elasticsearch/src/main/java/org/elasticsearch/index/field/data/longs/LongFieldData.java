@@ -57,6 +57,10 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         return RamUsage.NUM_BYTES_LONG * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
+    public final long[] values() {
+        return this.values;
+    }
+
     abstract public long value(int docId);
 
     abstract public long[] values(int docId);

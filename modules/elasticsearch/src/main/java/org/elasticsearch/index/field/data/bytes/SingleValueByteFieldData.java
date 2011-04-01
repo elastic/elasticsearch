@@ -88,6 +88,10 @@ public class SingleValueByteFieldData extends ByteFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
+    }
+
     @Override public byte value(int docId) {
         return values[ordinals[docId]];
     }

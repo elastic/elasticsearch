@@ -22,10 +22,10 @@ package org.elasticsearch.search.facet.terms.shorts;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TShortIntIterator;
 import org.elasticsearch.common.trove.map.hash.TShortIntHashMap;
 import org.elasticsearch.common.trove.set.hash.TShortHashSet;
@@ -38,11 +38,11 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,12 +50,6 @@ import java.util.Set;
  * @author kimchy (shay.banon)
  */
 public class TermsShortFacetCollector extends AbstractFacetCollector {
-
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TShortIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TShortIntHashMap>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TShortIntHashMap>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TShortIntHashMap>>(new ArrayDeque<TShortIntHashMap>());
-        }
-    };
 
     private final FieldDataCache fieldDataCache;
 
@@ -107,9 +101,9 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
         }
 
         if (this.script == null && excluded.isEmpty()) {
-            aggregator = new StaticAggregatorValueProc(popFacets());
+            aggregator = new StaticAggregatorValueProc(CacheRecycler.popShortIntMap());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, this.script);
+            aggregator = new AggregatorValueProc(CacheRecycler.popShortIntMap(), excluded, this.script);
         }
 
         if (allTerms) {
@@ -144,35 +138,30 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         TShortIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
-            pushFacets(facets);
+            CacheRecycler.pushShortIntMap(facets);
             return new InternalShortTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalShortTermsFacet.ShortEntry>of(), aggregator.missing());
         } else {
-            // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalShortTermsFacet.ShortEntry> ordered = new BoundedTreeSet<InternalShortTermsFacet.ShortEntry>(comparatorType.comparator(), size * numberOfShards);
-            for (TShortIntIterator it = facets.iterator(); it.hasNext();) {
-                it.advance();
-                ordered.add(new InternalShortTermsFacet.ShortEntry(it.key(), it.value()));
+            if (size < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                for (TShortIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.insertWithOverflow(new InternalShortTermsFacet.ShortEntry(it.key(), it.value()));
+                }
+                InternalShortTermsFacet.ShortEntry[] list = new InternalShortTermsFacet.ShortEntry[ordered.size()];
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = (InternalShortTermsFacet.ShortEntry) ordered.pop();
+                }
+                CacheRecycler.pushShortIntMap(facets);
+                return new InternalShortTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+            } else {
+                BoundedTreeSet<InternalShortTermsFacet.ShortEntry> ordered = new BoundedTreeSet<InternalShortTermsFacet.ShortEntry>(comparatorType.comparator(), size);
+                for (TShortIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.add(new InternalShortTermsFacet.ShortEntry(it.key(), it.value()));
+                }
+                CacheRecycler.pushShortIntMap(facets);
+                return new InternalShortTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
             }
-            pushFacets(facets);
-            return new InternalShortTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
-        }
-    }
-
-    static TShortIntHashMap popFacets() {
-        Deque<TShortIntHashMap> deque = cache.get().get();
-        if (deque.isEmpty()) {
-            deque.add(new TShortIntHashMap());
-        }
-        TShortIntHashMap facets = deque.pollFirst();
-        facets.clear();
-        return facets;
-    }
-
-    static void pushFacets(TShortIntHashMap facets) {
-        facets.clear();
-        Deque<TShortIntHashMap> deque = cache.get().get();
-        if (deque != null) {
-            deque.add(facets);
         }
     }
 

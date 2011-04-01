@@ -47,6 +47,10 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
         return RamUsage.NUM_BYTES_DOUBLE * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
+    public final double[] values() {
+        return this.values;
+    }
+
     abstract public double value(int docId);
 
     abstract public double[] values(int docId);

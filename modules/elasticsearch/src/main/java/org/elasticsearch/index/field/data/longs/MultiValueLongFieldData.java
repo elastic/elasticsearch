@@ -124,6 +124,12 @@ public class MultiValueLongFieldData extends LongFieldData {
         }
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            proc.onOrdinal(docId, ordinal[docId]);
+        }
+    }
+
     @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {

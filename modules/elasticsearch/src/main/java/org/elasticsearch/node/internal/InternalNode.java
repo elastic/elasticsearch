@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
@@ -302,6 +303,7 @@ public final class InternalNode implements Node {
         }
         stopWatch.stop();
 
+        CacheRecycler.clear();
         ThreadLocals.clearReferencesThreadLocals();
 
         if (logger.isTraceEnabled()) {

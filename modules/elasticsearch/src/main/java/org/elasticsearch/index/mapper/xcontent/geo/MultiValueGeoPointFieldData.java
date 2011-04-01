@@ -108,6 +108,12 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         }
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            proc.onOrdinal(docId, ordinal[docId]);
+        }
+    }
+
     @Override public GeoPoint value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];

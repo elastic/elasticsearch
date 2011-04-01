@@ -88,6 +88,10 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
+    }
+
     @Override public double[] doubleValues(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {

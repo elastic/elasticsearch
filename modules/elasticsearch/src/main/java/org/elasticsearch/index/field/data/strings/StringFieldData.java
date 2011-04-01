@@ -50,6 +50,10 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         return size;
     }
 
+    public String[] values() {
+        return this.values;
+    }
+
     abstract public String value(int docId);
 
     abstract public String[] values(int docId);

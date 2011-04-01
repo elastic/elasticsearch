@@ -122,6 +122,12 @@ public class MultiValueFloatFieldData extends FloatFieldData {
         }
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            proc.onOrdinal(docId, ordinal[docId]);
+        }
+    }
+
     @Override public double[] doubleValues(int docId) {
         int length = 0;
         for (int[] ordinal : ordinals) {

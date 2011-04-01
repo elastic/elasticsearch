@@ -22,10 +22,10 @@ package org.elasticsearch.search.facet.terms.bytes;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TByteIntIterator;
 import org.elasticsearch.common.trove.map.hash.TByteIntHashMap;
 import org.elasticsearch.common.trove.set.hash.TByteHashSet;
@@ -38,11 +38,11 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,12 +50,6 @@ import java.util.Set;
  * @author kimchy (shay.banon)
  */
 public class TermsByteFacetCollector extends AbstractFacetCollector {
-
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TByteIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TByteIntHashMap>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TByteIntHashMap>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TByteIntHashMap>>(new ArrayDeque<TByteIntHashMap>());
-        }
-    };
 
     private final FieldDataCache fieldDataCache;
 
@@ -107,9 +101,9 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
         }
 
         if (this.script == null && excluded.isEmpty()) {
-            aggregator = new StaticAggregatorValueProc(popFacets());
+            aggregator = new StaticAggregatorValueProc(CacheRecycler.popByteIntMap());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, this.script);
+            aggregator = new AggregatorValueProc(CacheRecycler.popByteIntMap(), excluded, this.script);
         }
 
         if (allTerms) {
@@ -144,35 +138,30 @@ public class TermsByteFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         TByteIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
-            pushFacets(facets);
+            CacheRecycler.pushByteIntMap(facets);
             return new InternalByteTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalByteTermsFacet.ByteEntry>of(), aggregator.missing());
         } else {
-            // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalByteTermsFacet.ByteEntry> ordered = new BoundedTreeSet<InternalByteTermsFacet.ByteEntry>(comparatorType.comparator(), size * numberOfShards);
-            for (TByteIntIterator it = facets.iterator(); it.hasNext();) {
-                it.advance();
-                ordered.add(new InternalByteTermsFacet.ByteEntry(it.key(), it.value()));
+            if (size < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                for (TByteIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.insertWithOverflow(new InternalByteTermsFacet.ByteEntry(it.key(), it.value()));
+                }
+                InternalByteTermsFacet.ByteEntry[] list = new InternalByteTermsFacet.ByteEntry[ordered.size()];
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = (InternalByteTermsFacet.ByteEntry) ordered.pop();
+                }
+                CacheRecycler.pushByteIntMap(facets);
+                return new InternalByteTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+            } else {
+                BoundedTreeSet<InternalByteTermsFacet.ByteEntry> ordered = new BoundedTreeSet<InternalByteTermsFacet.ByteEntry>(comparatorType.comparator(), size);
+                for (TByteIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.add(new InternalByteTermsFacet.ByteEntry(it.key(), it.value()));
+                }
+                CacheRecycler.pushByteIntMap(facets);
+                return new InternalByteTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
             }
-            pushFacets(facets);
-            return new InternalByteTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
-        }
-    }
-
-    static TByteIntHashMap popFacets() {
-        Deque<TByteIntHashMap> deque = cache.get().get();
-        if (deque.isEmpty()) {
-            deque.add(new TByteIntHashMap());
-        }
-        TByteIntHashMap facets = deque.pollFirst();
-        facets.clear();
-        return facets;
-    }
-
-    static void pushFacets(TByteIntHashMap facets) {
-        facets.clear();
-        Deque<TByteIntHashMap> deque = cache.get().get();
-        if (deque != null) {
-            deque.add(facets);
         }
     }
 

@@ -89,6 +89,10 @@ public class SingleValueLongFieldData extends LongFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
+    }
+
     @Override public void forEachValueInDoc(int docId, ValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {

@@ -61,17 +61,17 @@ public class TermsFacetSearchBenchmark {
 
         Client client = clientNode.client();
 
-        long COUNT = SizeValue.parseSizeValue("5m").singles();
+        long COUNT = SizeValue.parseSizeValue("2m").singles();
         int BATCH = 100;
         int QUERY_WARMUP = 20;
         int QUERY_COUNT = 200;
         int NUMBER_OF_TERMS = 200;
-        int NUMBER_OF_MULTI_VALUE_TERMS = 5;
+        int NUMBER_OF_MULTI_VALUE_TERMS = 10;
         int STRING_TERM_SIZE = 5;
 
         long[] lValues = new long[NUMBER_OF_TERMS];
         for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-            lValues[i] = i;
+            lValues[i] = ThreadLocalRandom.current().nextLong();
         }
         String[] sValues = new String[NUMBER_OF_TERMS];
         for (int i = 0; i < NUMBER_OF_TERMS; i++) {
@@ -104,6 +104,12 @@ public class TermsFacetSearchBenchmark {
                     }
                     builder.endArray();
 
+                    builder.startArray("lm_value");
+                    for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
+                        builder.value(lValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                    }
+                    builder.endArray();
+
                     builder.endObject();
 
                     request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter))
@@ -127,12 +133,14 @@ public class TermsFacetSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count();
+        System.out.println("--> Number of docs in index: " + COUNT);
 
 
         long totalQueryTime = 0;
 
         // S_VALUE
+        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
 
         System.out.println("--> Warmup (s_value) ...");
         // run just the child query, warm up first
@@ -163,6 +171,40 @@ public class TermsFacetSearchBenchmark {
         }
         System.out.println("--> Terms Facet (s_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
+
+        // S_VALUE (Map)
+        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+
+        System.out.println("--> Warmup (s_value) ...");
+        // run just the child query, warm up first
+        for (int j = 0; j < QUERY_WARMUP; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("s_value").field("s_value").executionHint("map"))
+                    .execute().actionGet();
+            if (j == 0) {
+                System.out.println("--> Loading (s_value) took: " + searchResponse.took());
+            }
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+        }
+        System.out.println("--> Warmup (s_value) DONE");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("s_value").field("s_value").executionHint("map"))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Terms Facet (map) (s_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        // L VALUE
         client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
 
         System.out.println("--> Warmup (l_value) ...");
@@ -193,6 +235,8 @@ public class TermsFacetSearchBenchmark {
             totalQueryTime += searchResponse.tookInMillis();
         }
         System.out.println("--> Terms Facet (l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        // SM VALUE
 
         client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
 
@@ -225,6 +269,75 @@ public class TermsFacetSearchBenchmark {
             totalQueryTime += searchResponse.tookInMillis();
         }
         System.out.println("--> Terms Facet (sm_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        // SM VALUE (map)
+
+        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+
+        System.out.println("--> Warmup (sm_value) ...");
+        // run just the child query, warm up first
+        for (int j = 0; j < QUERY_WARMUP; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("sm_value").field("sm_value").executionHint("map"))
+                    .execute().actionGet();
+            if (j == 0) {
+                System.out.println("--> Loading (sm_value) took: " + searchResponse.took());
+            }
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+        }
+        System.out.println("--> Warmup (sm_value) DONE");
+
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("sm_value").field("sm_value").executionHint("map"))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Terms Facet (map) (sm_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+
+        // LM VALUE
+
+        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+
+        System.out.println("--> Warmup (lm_value) ...");
+        // run just the child query, warm up first
+        for (int j = 0; j < QUERY_WARMUP; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("lm_value").field("lm_value"))
+                    .execute().actionGet();
+            if (j == 0) {
+                System.out.println("--> Loading (lm_value) took: " + searchResponse.took());
+            }
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+        }
+        System.out.println("--> Warmup (lm_value) DONE");
+
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("lm_value").field("lm_value"))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Terms Facet (lm_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         clientNode.close();
 

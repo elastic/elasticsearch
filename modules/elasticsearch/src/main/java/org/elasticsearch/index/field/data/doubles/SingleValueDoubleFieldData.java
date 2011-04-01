@@ -81,6 +81,10 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
+    }
+
     @Override public double[] doubleValues(int docId) {
         return values(docId);
     }

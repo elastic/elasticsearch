@@ -22,9 +22,9 @@ package org.elasticsearch.search.facet.terms.ip;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TLongIntIterator;
 import org.elasticsearch.common.trove.map.hash.TLongIntHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -36,24 +36,17 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class TermsIpFacetCollector extends AbstractFacetCollector {
-
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TLongIntHashMap>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>(new ArrayDeque<TLongIntHashMap>());
-        }
-    };
-
 
     private final FieldDataCache fieldDataCache;
 
@@ -105,9 +98,9 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
         }
 
         if (this.script == null) {
-            aggregator = new StaticAggregatorValueProc(popFacets());
+            aggregator = new StaticAggregatorValueProc(CacheRecycler.popLongIntMap());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), this.script);
+            aggregator = new AggregatorValueProc(CacheRecycler.popLongIntMap(), this.script);
         }
 
         if (allTerms) {
@@ -142,35 +135,30 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         TLongIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
-            pushFacets(facets);
+            CacheRecycler.pushLongIntMap(facets);
             return new InternalIpTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalIpTermsFacet.LongEntry>of(), aggregator.missing());
         } else {
-            // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalIpTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalIpTermsFacet.LongEntry>(comparatorType.comparator(), size * numberOfShards);
-            for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
-                it.advance();
-                ordered.add(new InternalIpTermsFacet.LongEntry(it.key(), it.value()));
+            if (size < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.insertWithOverflow(new InternalIpTermsFacet.LongEntry(it.key(), it.value()));
+                }
+                InternalIpTermsFacet.LongEntry[] list = new InternalIpTermsFacet.LongEntry[ordered.size()];
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = (InternalIpTermsFacet.LongEntry) ordered.pop();
+                }
+                CacheRecycler.pushLongIntMap(facets);
+                return new InternalIpTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+            } else {
+                BoundedTreeSet<InternalIpTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalIpTermsFacet.LongEntry>(comparatorType.comparator(), size);
+                for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.add(new InternalIpTermsFacet.LongEntry(it.key(), it.value()));
+                }
+                CacheRecycler.pushLongIntMap(facets);
+                return new InternalIpTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
             }
-            pushFacets(facets);
-            return new InternalIpTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
-        }
-    }
-
-    static TLongIntHashMap popFacets() {
-        Deque<TLongIntHashMap> deque = cache.get().get();
-        if (deque.isEmpty()) {
-            deque.add(new TLongIntHashMap());
-        }
-        TLongIntHashMap facets = deque.pollFirst();
-        facets.clear();
-        return facets;
-    }
-
-    static void pushFacets(TLongIntHashMap facets) {
-        facets.clear();
-        Deque<TLongIntHashMap> deque = cache.get().get();
-        if (deque != null) {
-            deque.add(facets);
         }
     }
 

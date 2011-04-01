@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms.ip;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TLongIntIterator;
 import org.elasticsearch.common.trove.map.hash.TLongIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -170,19 +170,12 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TLongIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TLongIntHashMap>>() {
-        @Override protected ThreadLocals.CleanableValue<TLongIntHashMap> initialValue() {
-            return new ThreadLocals.CleanableValue<TLongIntHashMap>(new TLongIntHashMap());
-        }
-    };
-
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
         InternalIpTermsFacet first = (InternalIpTermsFacet) facets.get(0);
-        TLongIntHashMap aggregated = aggregateCache.get().get();
+        TLongIntHashMap aggregated = CacheRecycler.popLongIntMap();
         aggregated.clear();
         long missing = 0;
 
@@ -201,6 +194,9 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
         }
         first.entries = ordered;
         first.missing = missing;
+
+        CacheRecycler.pushLongIntMap(aggregated);
+
         return first;
     }
 

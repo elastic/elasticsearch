@@ -46,6 +46,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String script;
     private String lang;
     private Map<String, Object> params;
+    String executionHint;
 
     /**
      * Construct a new term facet with the provided facet name.
@@ -164,6 +165,14 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
+     * An execution hint to how the facet is computed.
+     */
+    public TermsFacetBuilder executionHint(String executionHint) {
+        this.executionHint = executionHint;
+        return this;
+    }
+
+    /**
      * A parameter that will be passed to the script.
      *
      * @param name  The name of the script parameter.
@@ -231,6 +240,10 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
             if (this.params != null) {
                 builder.field("params", this.params);
             }
+        }
+
+        if (executionHint != null) {
+            builder.field("execution_hint", executionHint);
         }
 
         builder.endObject();

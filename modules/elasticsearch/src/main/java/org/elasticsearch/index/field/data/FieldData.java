@@ -95,6 +95,12 @@ public abstract class FieldData<Doc extends DocFieldData> {
         void onMissing(int docId);
     }
 
+    public abstract void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc);
+
+    public static interface OrdinalInDocProc {
+        void onOrdinal(int docId, int ordinal);
+    }
+
     /**
      * The type of this field data.
      */

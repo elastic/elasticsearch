@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms.floats;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TFloatIntIterator;
 import org.elasticsearch.common.trove.map.hash.TFloatIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -169,19 +169,12 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TFloatIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TFloatIntHashMap>>() {
-        @Override protected ThreadLocals.CleanableValue<TFloatIntHashMap> initialValue() {
-            return new ThreadLocals.CleanableValue<TFloatIntHashMap>(new TFloatIntHashMap());
-        }
-    };
-
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
         InternalFloatTermsFacet first = (InternalFloatTermsFacet) facets.get(0);
-        TFloatIntHashMap aggregated = aggregateCache.get().get();
+        TFloatIntHashMap aggregated = CacheRecycler.popFloatIntMap();
         aggregated.clear();
         long missing = 0;
 
@@ -200,6 +193,9 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
         }
         first.entries = ordered;
         first.missing = missing;
+
+        CacheRecycler.pushFloatIntMap(aggregated);
+
         return first;
     }
 

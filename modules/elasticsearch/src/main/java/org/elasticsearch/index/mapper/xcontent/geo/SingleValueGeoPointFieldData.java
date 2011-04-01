@@ -80,6 +80,10 @@ public class SingleValueGeoPointFieldData extends GeoPointFieldData {
         proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
+    }
+
     @Override public GeoPoint value(int docId) {
         int loc = ordinals[docId];
         if (loc == 0) {

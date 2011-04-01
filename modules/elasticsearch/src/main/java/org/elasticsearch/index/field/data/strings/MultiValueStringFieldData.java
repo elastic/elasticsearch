@@ -84,6 +84,12 @@ public class MultiValueStringFieldData extends StringFieldData {
         }
     }
 
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            proc.onOrdinal(docId, ordinal[docId]);
+        }
+    }
+
     @Override public String value(int docId) {
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];

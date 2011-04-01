@@ -195,8 +195,8 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                     return new TermsByteOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
                 }
             } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.STRING) {
-                if (script == null && pattern == null && !"map".equals(executionHint)) {
-                    return new TermsStringOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
+                if (script == null && !"map".equals(executionHint)) {
+                    return new TermsStringOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, pattern);
                 }
             }
         }

@@ -40,6 +40,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
@@ -70,8 +72,10 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final ImmutableSet<String> excluded;
 
+    private final Matcher matcher;
+
     public TermsStringOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                             ImmutableSet<String> excluded) {
+                                             ImmutableSet<String> excluded, Pattern pattern) {
         super(facetName);
         this.fieldDataCache = context.fieldDataCache();
         this.size = size;
@@ -100,6 +104,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         } else {
             this.excluded = excluded;
         }
+        this.matcher = pattern != null ? pattern.matcher("") : null;
 
         // minCount is offset by -1
         if (allTerms) {
@@ -165,10 +170,14 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                 } while (agg != null && value.equals(agg.current));
 
                 if (count > minCount) {
-                    if (excluded == null || !excluded.contains(value)) {
-                        InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
-                        ordered.insertWithOverflow(entry);
+                    if (excluded != null && excluded.contains(value)) {
+                        continue;
                     }
+                    if (matcher != null && !matcher.reset(value).matches()) {
+                        continue;
+                    }
+                    InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
+                    ordered.insertWithOverflow(entry);
                 }
             }
             InternalStringTermsFacet.StringEntry[] list = new InternalStringTermsFacet.StringEntry[ordered.size()];

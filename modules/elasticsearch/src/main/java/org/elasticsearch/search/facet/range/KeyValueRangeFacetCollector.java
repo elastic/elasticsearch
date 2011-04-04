@@ -47,7 +47,6 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
     private NumericFieldData keyFieldData;
 
     private final FieldDataType valueFieldDataType;
-    private NumericFieldData valueFieldData;
 
     private final RangeFacet.Entry[] entries;
 
@@ -117,12 +116,26 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
                     entry.count++;
                     if (valueFieldData.multiValued()) {
                         double[] valuesValues = valueFieldData.doubleValues(docId);
+                        entry.totalCount += valuesValues.length;
                         for (double valueValue : valuesValues) {
                             entry.total += valueValue;
+                            if (valueValue < entry.min) {
+                                entry.min = valueValue;
+                            }
+                            if (valueValue > entry.max) {
+                                entry.max = valueValue;
+                            }
                         }
                     } else {
                         double valueValue = valueFieldData.doubleValue(docId);
+                        entry.totalCount++;
                         entry.total += valueValue;
+                        if (valueValue < entry.min) {
+                            entry.min = valueValue;
+                        }
+                        if (valueValue > entry.max) {
+                            entry.max = valueValue;
+                        }
                     }
                 }
             }

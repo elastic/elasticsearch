@@ -100,7 +100,14 @@ public class RangeFacetCollector extends AbstractFacetCollector {
                 if (value >= entry.getFrom() && value < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
+                    entry.totalCount++;
                     entry.total += value;
+                    if (value < entry.min) {
+                        entry.min = value;
+                    }
+                    if (value > entry.max) {
+                        entry.max = value;
+                    }
                 }
             }
         }

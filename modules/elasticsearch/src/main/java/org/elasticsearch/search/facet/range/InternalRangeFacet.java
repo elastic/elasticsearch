@@ -112,7 +112,10 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
                 entry.toAsString = in.readUTF();
             }
             entry.count = in.readVLong();
+            entry.totalCount = in.readVLong();
             entry.total = in.readDouble();
+            entry.min = in.readDouble();
+            entry.max = in.readDouble();
             entries[i] = entry;
         }
     }
@@ -136,7 +139,10 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
                 out.writeUTF(entry.toAsString);
             }
             out.writeVLong(entry.count);
+            out.writeVLong(entry.totalCount);
             out.writeDouble(entry.total);
+            out.writeDouble(entry.min);
+            out.writeDouble(entry.max);
         }
     }
 
@@ -149,7 +155,10 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         static final XContentBuilderString TO_STR = new XContentBuilderString("to_str");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+        static final XContentBuilderString MIN = new XContentBuilderString("min");
+        static final XContentBuilderString MAX = new XContentBuilderString("max");
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -171,6 +180,9 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
                 builder.field(Fields.TO_STR, entry.toAsString);
             }
             builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.MIN, entry.min());
+            builder.field(Fields.MAX, entry.max());
+            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
             builder.field(Fields.TOTAL, entry.total());
             builder.field(Fields.MEAN, entry.mean());
             builder.endObject();

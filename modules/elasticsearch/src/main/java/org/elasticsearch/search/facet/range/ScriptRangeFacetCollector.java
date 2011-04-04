@@ -66,7 +66,14 @@ public class ScriptRangeFacetCollector extends AbstractFacetCollector {
         for (RangeFacet.Entry entry : entries) {
             if (key >= entry.getFrom() && key < entry.getTo()) {
                 entry.count++;
+                entry.totalCount++;
                 entry.total += value;
+                if (value < entry.min) {
+                    entry.min = value;
+                }
+                if (value > entry.max) {
+                    entry.max = value;
+                }
             }
         }
     }

@@ -51,7 +51,10 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
 
         long count;
 
+        long totalCount;
         double total;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
 
         /**
          * internal field used to see if this entry was already found for a doc
@@ -61,11 +64,14 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
         Entry() {
         }
 
-        public Entry(double from, double to, long count, double total) {
+        public Entry(double from, double to, long count, long totalCount, double total, double min, double max) {
             this.from = from;
             this.to = to;
             this.count = count;
+            this.totalCount = totalCount;
             this.total = total;
+            this.min = min;
+            this.max = max;
         }
 
         public double from() {
@@ -92,6 +98,14 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
             return count();
         }
 
+        public long totalCount() {
+            return this.totalCount;
+        }
+
+        public long getTotalCount() {
+            return this.totalCount;
+        }
+
         public double total() {
             return this.total;
         }
@@ -104,7 +118,7 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
          * The mean of this facet interval.
          */
         public double mean() {
-            return total / count;
+            return total / totalCount;
         }
 
         /**
@@ -112,6 +126,22 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
          */
         public double getMean() {
             return mean();
+        }
+
+        public double min() {
+            return this.min;
+        }
+
+        public double getMin() {
+            return this.min;
+        }
+
+        public double max() {
+            return this.max;
+        }
+
+        public double getMax() {
+            return this.max;
         }
     }
 }

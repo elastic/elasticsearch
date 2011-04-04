@@ -91,11 +91,26 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                     entry.count++;
                     if (valueFieldData.multiValued()) {
                         double[] values = valueFieldData.doubleValues(docId);
+                        entry.totalCount += values.length;
                         for (double value : values) {
                             entry.total += value;
+                            if (value < entry.min) {
+                                entry.min = value;
+                            }
+                            if (value > entry.max) {
+                                entry.max = value;
+                            }
                         }
                     } else if (valueFieldData.hasValue(docId)) {
-                        entry.total += valueFieldData.doubleValue(docId);
+                        entry.totalCount++;
+                        double value = valueFieldData.doubleValue(docId);
+                        entry.total += value;
+                        if (value < entry.min) {
+                            entry.min = value;
+                        }
+                        if (value > entry.max) {
+                            entry.max = value;
+                        }
                     }
                 }
             }

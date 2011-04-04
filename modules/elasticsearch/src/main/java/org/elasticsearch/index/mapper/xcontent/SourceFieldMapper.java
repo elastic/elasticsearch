@@ -113,6 +113,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         if (!enabled) {
             return null;
         }
+        if (store == Field.Store.NO) {
+            return null;
+        }
         if (context.flyweight()) {
             return null;
         }
@@ -123,7 +126,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
                 context.source(data);
             }
         }
-        return new Field(names.indexName(), data, store);
+        return new Field(names.indexName(), data);
     }
 
     @Override public byte[] value(Document document) {

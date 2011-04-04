@@ -41,7 +41,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  *
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
+public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener {
 
     final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
     final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> weakCache;
@@ -63,13 +63,17 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
         weakCache.clear();
     }
 
+    @Override public void finished(IndexReader reader) {
+        clear(reader);
+    }
+
     @Override public void clear(IndexReader reader) {
-        ConcurrentMap<Filter, DocSet> map = cache.remove(reader.getFieldCacheKey());
+        ConcurrentMap<Filter, DocSet> map = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
             map.clear();
         }
-        map = weakCache.remove(reader.getFieldCacheKey());
+        map = weakCache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
             map.clear();
@@ -148,10 +152,11 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
+            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getCoreCacheKey());
             if (cachedFilters == null) {
                 cachedFilters = cache.buildCacheMap();
-                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                reader.addReaderFinishedListener(cache);
+                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), cachedFilters);
                 if (prev != null) {
                     cachedFilters = prev;
                 }
@@ -198,7 +203,7 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             DocSet docSet;
             // first check if its in the actual cache
-            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
+            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getCoreCacheKey());
             if (cachedFilters != null) {
                 docSet = cachedFilters.get(filter);
                 if (docSet != null) {
@@ -207,10 +212,11 @@ public abstract class AbstractDoubleConcurrentMapFilterCache extends AbstractInd
             }
 
             // now, handle it in the weak cache
-            ConcurrentMap<Filter, DocSet> weakCacheFilters = cache.weakCache.get(reader.getFieldCacheKey());
+            ConcurrentMap<Filter, DocSet> weakCacheFilters = cache.weakCache.get(reader.getCoreCacheKey());
             if (weakCacheFilters == null) {
                 weakCacheFilters = cache.buildWeakCacheMap();
-                ConcurrentMap<Filter, DocSet> prev = cache.weakCache.putIfAbsent(reader.getFieldCacheKey(), weakCacheFilters);
+                reader.addReaderFinishedListener(cache);
+                ConcurrentMap<Filter, DocSet> prev = cache.weakCache.putIfAbsent(reader.getCoreCacheKey(), weakCacheFilters);
                 if (prev != null) {
                     weakCacheFilters = prev;
                 }

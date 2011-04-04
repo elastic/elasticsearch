@@ -36,6 +36,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.Adler32;
@@ -347,7 +348,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             delegate.clearLock(name);
         }
 
-        @Override public void setLockFactory(LockFactory lockFactory) {
+        @Override public void setLockFactory(LockFactory lockFactory) throws IOException {
             delegate.setLockFactory(lockFactory);
         }
 
@@ -357,6 +358,19 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         @Override public String getLockID() {
             return delegate.getLockID();
+        }
+
+        @Override public void sync(Collection<String> names) throws IOException {
+            if (sync) {
+                delegate.sync(names);
+            }
+            for (String name : names) {
+                // write the checksums file when we sync on the segments file (committed)
+                if (!name.equals("segments.gen") && name.startsWith("segments")) {
+                    writeChecksums();
+                    break;
+                }
+            }
         }
 
         @Override public void sync(String name) throws IOException {

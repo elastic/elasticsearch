@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
-import static org.elasticsearch.common.lucene.IndexWriters.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -40,9 +40,8 @@ public class MoreLikeThisQueryTests {
 
     @Test public void testSimple() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         indexWriter.commit();
-        assertThat("Index is empty after creation and commit", estimateRamSize(indexWriter), equalTo(0l));
 
 
         indexWriter.addDocument(doc().add(field("_id", "1")).add(field("text", "lucene")).build());

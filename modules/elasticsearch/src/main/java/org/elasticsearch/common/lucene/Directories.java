@@ -69,7 +69,7 @@ public class Directories {
             if (!copyTo.exists()) {
                 copyTo.createNewFile();
             }
-            copyFile(new File(((FSDirectory) dir).getFile(), fileName), copyTo);
+            copyFile(new File(((FSDirectory) dir).getDirectory(), fileName), copyTo);
         } else {
             copyFromDirectory(dir.openInput(fileName), new FileOutputStream(copyTo));
         }
@@ -101,7 +101,7 @@ public class Directories {
 
     public static void copyToDirectory(File copyFrom, Directory dir, String fileName, boolean nativeCopy) throws IOException {
         if (nativeCopy && (dir instanceof FSDirectory)) {
-            File destinationFile = new File(((FSDirectory) dir).getFile(), fileName);
+            File destinationFile = new File(((FSDirectory) dir).getDirectory(), fileName);
             if (!destinationFile.exists()) {
                 destinationFile.createNewFile();
             }

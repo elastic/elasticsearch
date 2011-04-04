@@ -60,12 +60,12 @@ public class NioFsStore extends FsStore {
             if (switchDirectory.v2() != null) {
                 suggestUseCompoundFile = switchDirectory.v2();
             }
-            logger.debug("using [nio_fs] store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.v1().primaryExtensions());
+            logger.debug("using [nio_fs] store with path [{}], cache [true] with extensions [{}]", fsDirectory.getDirectory(), switchDirectory.v1().primaryExtensions());
             directory = wrapDirectory(switchDirectory.v1());
         } else {
             suggestUseCompoundFile = DEFAULT_SUGGEST_USE_COMPOUND_FILE;
             directory = wrapDirectory(fsDirectory);
-            logger.debug("using [nio_fs] store with path [{}]", fsDirectory.getFile());
+            logger.debug("using [nio_fs] store with path [{}]", fsDirectory.getDirectory());
         }
         this.suggestUseCompoundFile = suggestUseCompoundFile;
     }

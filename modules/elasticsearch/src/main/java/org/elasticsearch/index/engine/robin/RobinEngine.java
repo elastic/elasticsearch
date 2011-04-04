@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.engine.robin;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
@@ -30,8 +28,8 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.IndexWriters;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.ReaderSearcherHolder;
-import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -74,8 +72,6 @@ import static org.elasticsearch.common.util.concurrent.resource.AcquirableResour
 public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile ByteSizeValue indexingBufferSize;
-
-    private final boolean compoundFormat;
 
     private volatile int termIndexInterval;
 
@@ -143,9 +139,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
 
         this.indexingBufferSize = componentSettings.getAsBytesSize("index_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB)); // not really important, as it is set by the IndexingMemory manager
-        this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
+        this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriterConfig.DEFAULT_TERM_INDEX_INTERVAL);
         this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
-        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", indexSettings.getAsBoolean("index.merge.policy.use_compound_file", store == null ? false : store.suggestUseCompoundFile()));
         this.asyncLoadBloomFilter = componentSettings.getAsBoolean("async_load_bloom", true); // Here for testing, should always be true
 
         this.indexSettingsService = indexSettingsService;
@@ -168,6 +163,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
+        ByteSizeValue preValue = this.indexingBufferSize;
         rwl.readLock().lock();
         try {
             // LUCENE MONITOR - If this restriction is removed from Lucene, remove it from here
@@ -178,10 +174,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
             IndexWriter indexWriter = this.indexWriter;
             if (indexWriter != null) {
-                indexWriter.setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());
+                indexWriter.getConfig().setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());
             }
         } finally {
             rwl.readLock().unlock();
+        }
+        // its inactive, make sure we do a full flush in this case, since the memory
+        // changes only after a "data" change has happened to the writer
+        if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
+            try {
+                flush(new Flush().full(true));
+            } catch (Exception e) {
+                logger.warn("failed to flush after setting shard to inactive", e);
+            }
         }
     }
 
@@ -544,19 +549,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return new RobinSearchResult(holder);
     }
 
-    @Override public ByteSizeValue estimateFlushableMemorySize() {
-        rwl.readLock().lock();
-        try {
-            long bytes = IndexWriters.estimateRamSize(indexWriter);
-            bytes += translog.memorySizeInBytes();
-            return new ByteSizeValue(bytes);
-        } catch (Exception e) {
-            return null;
-        } finally {
-            rwl.readLock().unlock();
-        }
-    }
-
     @Override public boolean refreshNeeded() {
         return dirty;
     }
@@ -686,16 +678,16 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             if (indexWriter == null) {
                 throw new EngineClosedException(shardId);
             }
-            if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
-                ((EnableMergePolicy) indexWriter.getMergePolicy()).enableMerge();
+            if (indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
+                ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).enableMerge();
             }
             indexWriter.maybeMerge();
         } catch (Exception e) {
             throw new OptimizeFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();
-            if (indexWriter != null && indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
-                ((EnableMergePolicy) indexWriter.getMergePolicy()).disableMerge();
+            if (indexWriter != null && indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
+                ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).disableMerge();
             }
         }
     }
@@ -707,8 +699,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 if (indexWriter == null) {
                     throw new EngineClosedException(shardId);
                 }
-                if (indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
-                    ((EnableMergePolicy) indexWriter.getMergePolicy()).enableMerge();
+                if (indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
+                    ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).enableMerge();
                 }
                 if (optimize.onlyExpungeDeletes()) {
                     indexWriter.expungeDeletes(false);
@@ -721,8 +713,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             } catch (Exception e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
-                if (indexWriter != null && indexWriter.getMergePolicy() instanceof EnableMergePolicy) {
-                    ((EnableMergePolicy) indexWriter.getMergePolicy()).disableMerge();
+                if (indexWriter != null && indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
+                    ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).disableMerge();
                 }
                 rwl.readLock().unlock();
                 optimizeMutex.set(false);
@@ -905,15 +897,23 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 IndexWriter.unlock(store.directory());
             }
             boolean create = !IndexReader.indexExists(store.directory());
-            indexWriter = new IndexWriter(store.directory(),
-                    analysisService.defaultIndexAnalyzer(), create, deletionPolicy, IndexWriter.MaxFieldLength.UNLIMITED);
-            indexWriter.setMergeScheduler(mergeScheduler.newMergeScheduler());
-            indexWriter.setMergePolicy(mergePolicyProvider.newMergePolicy(indexWriter));
-            indexWriter.setSimilarity(similarityService.defaultIndexSimilarity());
-            indexWriter.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
-            indexWriter.setTermIndexInterval(termIndexInterval);
-            indexWriter.setReaderTermsIndexDivisor(termIndexDivisor);
-            indexWriter.setUseCompoundFile(compoundFormat);
+            IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
+            config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+            config.setIndexDeletionPolicy(deletionPolicy);
+            config.setMergeScheduler(mergeScheduler.newMergeScheduler());
+            config.setMergePolicy(mergePolicyProvider.newMergePolicy());
+            config.setSimilarity(similarityService.defaultIndexSimilarity());
+            config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
+            config.setTermIndexInterval(termIndexInterval);
+            config.setReaderTermsIndexDivisor(termIndexDivisor);
+
+            indexWriter = new IndexWriter(store.directory(), config);
+
+            // we commit here on a fresh index since we want to have a commit point to support snapshotting
+            if (create) {
+                indexWriter.commit();
+            }
+
         } catch (IOException e) {
             safeClose(indexWriter);
             throw e;
@@ -925,29 +925,34 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         @Override public void onRefreshSettings(Settings settings) {
             int termIndexInterval = settings.getAsInt("index.term_index_interval", RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt("index.term_index_divisor", RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
-
+            boolean requiresFlushing = false;
             if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor) {
                 rwl.readLock().lock();
                 try {
                     if (termIndexInterval != RobinEngine.this.termIndexInterval) {
                         logger.info("updating term_index_interval from [{}] to [{}]", RobinEngine.this.termIndexInterval, termIndexInterval);
                         RobinEngine.this.termIndexInterval = termIndexInterval;
+                        indexWriter.getConfig().setTermIndexInterval(termIndexInterval);
                     }
                     if (termIndexDivisor != RobinEngine.this.termIndexDivisor) {
                         logger.info("updating term_index_divisor from [{}] to [{}]", RobinEngine.this.termIndexDivisor, termIndexDivisor);
                         RobinEngine.this.termIndexDivisor = termIndexDivisor;
+                        indexWriter.getConfig().setReaderTermsIndexDivisor(termIndexDivisor);
+                        // we want to apply this right now for readers, even "current" ones
+                        requiresFlushing = true;
                     }
                 } finally {
                     rwl.readLock().unlock();
                 }
-                // we need to do a full flush in order to have the new settings taken affect
-                flush(new Flush().full(true));
+                if (requiresFlushing) {
+                    flush(new Flush().full(true));
+                }
             }
         }
     }
 
     private AcquirableResource<ReaderSearcherHolder> buildNrtResource(IndexWriter indexWriter) throws IOException {
-        IndexReader indexReader = indexWriter.getReader();
+        IndexReader indexReader = IndexReader.open(indexWriter, true);
         ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(indexReader);
         indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
         return newAcquirableResource(new ReaderSearcherHolder(indexSearcher));

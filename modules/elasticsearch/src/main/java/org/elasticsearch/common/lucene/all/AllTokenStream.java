@@ -32,7 +32,7 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class AllTokenStream extends TokenFilter {
+public final class AllTokenStream extends TokenFilter {
 
     public static TokenStream allTokenStream(String allFieldName, AllEntries allEntries, Analyzer analyzer) throws IOException {
         return new AllTokenStream(analyzer.reusableTokenStream(allFieldName, allEntries), allEntries);
@@ -52,7 +52,7 @@ public class AllTokenStream extends TokenFilter {
         return allEntries;
     }
 
-    @Override public boolean incrementToken() throws IOException {
+    @Override public final boolean incrementToken() throws IOException {
         if (!input.incrementToken()) {
             return false;
         }

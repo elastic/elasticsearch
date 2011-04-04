@@ -20,7 +20,7 @@
 package org.apache.lucene.queryParser;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
@@ -108,7 +108,7 @@ public class MapperQueryParser extends QueryParser {
         return Queries.MATCH_ALL_QUERY;
     }
 
-    @Override public Query getFieldQuery(String field, String queryText) throws ParseException {
+    @Override public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
         FieldQueryExtension fieldQueryExtension = fieldQueryExtensions.get(field);
         if (fieldQueryExtension != null) {
             return fieldQueryExtension.query(parseContext, queryText);
@@ -124,13 +124,13 @@ public class MapperQueryParser extends QueryParser {
                         query = currentMapper.fieldQuery(queryText);
                     }
                     if (query == null) {
-                        query = super.getFieldQuery(currentMapper.names().indexName(), queryText);
+                        query = super.getFieldQuery(currentMapper.names().indexName(), queryText, quoted);
                     }
                     return wrapSmartNameQuery(query, fieldMappers, parseContext);
                 }
             }
         }
-        return super.getFieldQuery(field, queryText);
+        return super.getFieldQuery(field, queryText, quoted);
     }
 
     @Override protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
@@ -190,16 +190,15 @@ public class MapperQueryParser extends QueryParser {
         if (!analyzeWildcard) {
             return super.getPrefixQuery(field, termStr);
         }
-        // LUCENE MONITOR: TermAttribute deprecated in 3.1
         // get Analyzer from superclass and tokenize the term
-        TokenStream source = null;
+        TokenStream source;
         try {
             source = getAnalyzer().reusableTokenStream(field, new StringReader(termStr));
         } catch (IOException e) {
             return super.getPrefixQuery(field, termStr);
         }
         List<String> tlist = new ArrayList<String>();
-        TermAttribute termAtt = source.addAttribute(TermAttribute.class);
+        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
 
         while (true) {
             try {
@@ -207,7 +206,7 @@ public class MapperQueryParser extends QueryParser {
             } catch (IOException e) {
                 break;
             }
-            tlist.add(termAtt.term());
+            tlist.add(termAtt.toString());
         }
 
         try {
@@ -261,9 +260,9 @@ public class MapperQueryParser extends QueryParser {
                 if (isWithinToken) {
                     try {
                         TokenStream source = getAnalyzer().reusableTokenStream(field, new FastStringReader(tmp.toString()));
-                        TermAttribute termAtt = source.addAttribute(TermAttribute.class);
+                        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                         if (source.incrementToken()) {
-                            String term = termAtt.term();
+                            String term = termAtt.toString();
                             if (term.length() == 0) {
                                 // no tokens, just use what we have now
                                 aggStr.append(tmp);
@@ -290,9 +289,9 @@ public class MapperQueryParser extends QueryParser {
         if (isWithinToken) {
             try {
                 TokenStream source = getAnalyzer().reusableTokenStream(field, new FastStringReader(tmp.toString()));
-                TermAttribute termAtt = source.addAttribute(TermAttribute.class);
+                CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                 if (source.incrementToken()) {
-                    String term = termAtt.term();
+                    String term = termAtt.toString();
                     if (term.length() == 0) {
                         // no tokens, just use what we have now
                         aggStr.append(tmp);

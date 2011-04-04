@@ -35,7 +35,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
@@ -252,14 +251,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public IndexShardState state() {
         return state;
-    }
-
-    /**
-     * Returns the estimated flushable memory size. Returns <tt>null</tt> if not available.
-     */
-    @Override public ByteSizeValue estimateFlushableMemorySize() throws ElasticSearchException {
-        writeAllowed();
-        return engine.estimateFlushableMemorySize();
     }
 
     @Override public Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException {

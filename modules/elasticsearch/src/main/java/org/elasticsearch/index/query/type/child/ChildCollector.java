@@ -54,7 +54,7 @@ public class ChildCollector extends Collector {
         // create a specific type map lookup for faster lookup operations per doc
         this.typeCacheMap = new HashMap<Object, IdReaderTypeCache>(context.searcher().subReaders().length);
         for (IndexReader indexReader : context.searcher().subReaders()) {
-            typeCacheMap.put(indexReader.getFieldCacheKey(), context.idCache().reader(indexReader).type(parentType));
+            typeCacheMap.put(indexReader.getCoreCacheKey(), context.idCache().reader(indexReader).type(parentType));
         }
     }
 
@@ -72,12 +72,12 @@ public class ChildCollector extends Collector {
             return;
         }
         for (IndexReader indexReader : context.searcher().subReaders()) {
-            int parentDocId = typeCacheMap.get(indexReader.getFieldCacheKey()).docById(parentId);
+            int parentDocId = typeCacheMap.get(indexReader.getCoreCacheKey()).docById(parentId);
             if (parentDocId != -1 && !indexReader.isDeleted(parentDocId)) {
-                OpenBitSet docIdSet = parentDocs().get(indexReader.getFieldCacheKey());
+                OpenBitSet docIdSet = parentDocs().get(indexReader.getCoreCacheKey());
                 if (docIdSet == null) {
                     docIdSet = new OpenBitSet(indexReader.maxDoc());
-                    parentDocs.put(indexReader.getFieldCacheKey(), docIdSet);
+                    parentDocs.put(indexReader.getCoreCacheKey(), docIdSet);
                 }
                 docIdSet.fastSet(parentDocId);
                 return;
@@ -86,7 +86,7 @@ public class ChildCollector extends Collector {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        typeCache = typeCacheMap.get(reader.getFieldCacheKey());
+        typeCache = typeCacheMap.get(reader.getCoreCacheKey());
     }
 
     @Override public boolean acceptsDocsOutOfOrder() {

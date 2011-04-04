@@ -461,7 +461,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    class SmartIndexNameSearchAnalyzer extends Analyzer {
+    final class SmartIndexNameSearchAnalyzer extends Analyzer {
 
         private final Analyzer defaultAnalyzer;
 
@@ -512,7 +512,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.getOffsetGap(field);
         }
 
-        @Override public TokenStream tokenStream(String fieldName, Reader reader) {
+        @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);
@@ -533,7 +533,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.tokenStream(fieldName, reader);
         }
 
-        @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+        @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);

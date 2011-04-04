@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
@@ -41,6 +44,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
 
     private final IndexSettingsService indexSettingsService;
 
+    private volatile boolean compoundFormat;
     private volatile ByteSizeValue minMergeSize;
     private volatile ByteSizeValue maxMergeSize;
     private volatile int mergeFactor;
@@ -57,6 +61,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
 
+        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", store.suggestUseCompoundFile());
         this.minMergeSize = componentSettings.getAsBytesSize("min_merge_size", new ByteSizeValue((long) (LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024), ByteSizeUnit.BYTES));
         this.maxMergeSize = componentSettings.getAsBytesSize("max_merge_size", new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, ByteSizeUnit.MB));
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
@@ -69,18 +74,19 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         indexSettingsService.addListener(applySettings);
     }
 
-    @Override public LogByteSizeMergePolicy newMergePolicy(IndexWriter indexWriter) {
+    @Override public LogByteSizeMergePolicy newMergePolicy() {
         CustomLogByteSizeMergePolicy mergePolicy;
         if (asyncMerge) {
-            mergePolicy = new CustomLogByteSizeMergePolicy(indexWriter, this);
+            mergePolicy = new CustomLogByteSizeMergePolicy(this);
         } else {
-            mergePolicy = new CustomLogByteSizeMergePolicy(indexWriter, this);
+            mergePolicy = new CustomLogByteSizeMergePolicy(this);
         }
         mergePolicy.setMinMergeMB(minMergeSize.mbFrac());
         mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
+        mergePolicy.setUseCompoundFile(compoundFormat);
 
         policies.add(mergePolicy);
         return mergePolicy;
@@ -127,6 +133,15 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
                     policy.setMergeFactor(mergeFactor);
                 }
             }
+
+            boolean compoundFormat = settings.getAsBoolean("index.compound_format", LogByteSizeMergePolicyProvider.this.compoundFormat);
+            if (compoundFormat != LogByteSizeMergePolicyProvider.this.compoundFormat) {
+                logger.info("updating index.compound_format from [{}] to [{}]", LogByteSizeMergePolicyProvider.this.compoundFormat, compoundFormat);
+                LogByteSizeMergePolicyProvider.this.compoundFormat = compoundFormat;
+                for (CustomLogByteSizeMergePolicy policy : policies) {
+                    policy.setUseCompoundFile(compoundFormat);
+                }
+            }
         }
     }
 
@@ -134,8 +149,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
 
         private final LogByteSizeMergePolicyProvider provider;
 
-        public CustomLogByteSizeMergePolicy(IndexWriter writer, LogByteSizeMergePolicyProvider provider) {
-            super(writer);
+        public CustomLogByteSizeMergePolicy(LogByteSizeMergePolicyProvider provider) {
+            super();
             this.provider = provider;
         }
 
@@ -153,8 +168,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
             }
         };
 
-        public EnableMergeLogByteSizeMergePolicy(IndexWriter writer, LogByteSizeMergePolicyProvider provider) {
-            super(writer, provider);
+        public EnableMergeLogByteSizeMergePolicy(LogByteSizeMergePolicyProvider provider) {
+            super(provider);
         }
 
         @Override public void enableMerge() {

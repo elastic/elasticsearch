@@ -61,7 +61,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void clear(IndexReader reader) {
-        ConcurrentMap<Filter, DocSet> map = cache.remove(reader.getFieldCacheKey());
+        ConcurrentMap<Filter, DocSet> map = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
             map.clear();
@@ -141,10 +141,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
+            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getCoreCacheKey());
             if (cachedFilters == null) {
                 cachedFilters = cache.buildFilterMap();
-                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), cachedFilters);
                 if (prev != null) {
                     cachedFilters = prev;
                 }

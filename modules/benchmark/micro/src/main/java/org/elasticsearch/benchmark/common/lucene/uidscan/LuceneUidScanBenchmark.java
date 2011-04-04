@@ -20,10 +20,7 @@
 package org.elasticsearch.benchmark.common.lucene.uidscan;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermPositions;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.StopWatch;
@@ -43,7 +40,7 @@ public class LuceneUidScanBenchmark {
     public static void main(String[] args) throws Exception {
 
         FSDirectory dir = FSDirectory.open(new File("work/test"));
-        IndexWriter writer = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         final int NUMBER_OF_THREADS = 2;
         final long INDEX_COUNT = SizeValue.parseSizeValue("1m").singles();
@@ -60,7 +57,7 @@ public class LuceneUidScanBenchmark {
         }
         System.out.println("Done indexing, took " + watch.stop().lastTaskTime());
 
-        final IndexReader reader = writer.getReader();
+        final IndexReader reader = IndexReader.open(writer, true);
 
         final CountDownLatch latch = new CountDownLatch(NUMBER_OF_THREADS);
         Thread[] threads = new Thread[NUMBER_OF_THREADS];

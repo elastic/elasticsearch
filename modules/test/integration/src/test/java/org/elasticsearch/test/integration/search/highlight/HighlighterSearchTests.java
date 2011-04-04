@@ -153,7 +153,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
-        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0], equalTo("this is a <xxx>test</xxx>"));
+        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0], equalTo("this is a <xxx>test</xxx> "));
 
         logger.info("--> searching on _all, highlighting on field1");
         source = searchSource()
@@ -165,7 +166,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
-        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0], equalTo("this is a <xxx>test</xxx>"));
+        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0], equalTo("this is a <xxx>test</xxx> "));
 
         logger.info("--> searching on _all, highlighting on field2");
         source = searchSource()
@@ -177,7 +179,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
-        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog "));
 
         logger.info("--> searching on _all, highlighting on field2");
         source = searchSource()
@@ -189,7 +192,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
-        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0], equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog "));
     }
 
     @Test public void testFastVectorHighlighterManyDocs() throws Exception {
@@ -222,7 +226,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo((long) COUNT));
         assertThat(searchResponse.hits().hits().length, equalTo(COUNT));
         for (SearchHit hit : searchResponse.hits()) {
-            assertThat(hit.highlightFields().get("field1").fragments()[0], equalTo("<em>test</em> " + hit.id()));
+            // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+            assertThat(hit.highlightFields().get("field1").fragments()[0], equalTo("<em>test</em> " + hit.id() + " "));
         }
 
         logger.info("--> searching explicitly on field1 and highlighting on it, with DFS");
@@ -235,7 +240,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo((long) COUNT));
         assertThat(searchResponse.hits().hits().length, equalTo(COUNT));
         for (SearchHit hit : searchResponse.hits()) {
-            assertThat(hit.highlightFields().get("field1").fragments()[0], equalTo("<em>test</em> " + hit.id()));
+            // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+            assertThat(hit.highlightFields().get("field1").fragments()[0], equalTo("<em>test</em> " + hit.id() + " "));
         }
 
         logger.info("--> searching explicitly _all and highlighting on _all");
@@ -247,7 +253,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo((long) COUNT));
         assertThat(searchResponse.hits().hits().length, equalTo(COUNT));
         for (SearchHit hit : searchResponse.hits()) {
-            assertThat(hit.highlightFields().get("_all").fragments()[0], equalTo("<em>test</em> " + hit.id() + " "));
+            // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+            assertThat(hit.highlightFields().get("_all").fragments()[0], equalTo("<em>test</em> " + hit.id() + "  "));
         }
     }
 
@@ -287,7 +294,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.hits().totalHits(), equalTo(5l));
 
         for (SearchHit hit : search.hits()) {
-            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+            // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch "));
         }
     }
 }

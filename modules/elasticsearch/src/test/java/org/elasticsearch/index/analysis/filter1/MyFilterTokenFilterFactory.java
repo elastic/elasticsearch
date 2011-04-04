@@ -29,6 +29,7 @@ import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -41,6 +42,6 @@ public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new StopFilter(true, tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        return new StopFilter(Lucene.VERSION, tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 }

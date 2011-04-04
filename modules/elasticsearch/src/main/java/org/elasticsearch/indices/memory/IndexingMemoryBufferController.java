@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -52,7 +53,6 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
 
     private final ByteSizeValue indexingBuffer;
 
-    private final ByteSizeValue inactiveShardIndexBufferSize;
     private final ByteSizeValue minShardIndexBufferSize;
     private final ByteSizeValue maxShardIndexBufferSize;
 
@@ -91,7 +91,6 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
         }
 
         this.indexingBuffer = indexingBuffer;
-        this.inactiveShardIndexBufferSize = componentSettings.getAsBytesSize("inactive_shard_index_buffer_size", new ByteSizeValue(1, ByteSizeUnit.MB));
         this.minShardIndexBufferSize = componentSettings.getAsBytesSize("min_shard_index_buffer_size", new ByteSizeValue(4, ByteSizeUnit.MB));
         // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
         this.maxShardIndexBufferSize = componentSettings.getAsBytesSize("max_shard_index_buffer_size", new ByteSizeValue(512, ByteSizeUnit.MB));
@@ -100,7 +99,7 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(30));
 
-        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}], max_shard_index_buffer_size [{}], inactive_shard_index_buffer_size [{}], shard_inactive_time [{}]", this.indexingBuffer, this.minShardIndexBufferSize, this.maxShardIndexBufferSize, this.inactiveShardIndexBufferSize, this.inactiveTime);
+        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}], max_shard_index_buffer_size [{}], shard_inactive_time [{}]", this.indexingBuffer, this.minShardIndexBufferSize, this.maxShardIndexBufferSize, this.inactiveTime);
 
     }
 
@@ -144,8 +143,8 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                                     // inactive for this amount of time, mark it
                                     status.inactive = true;
                                     activeInactiveStatusChanges = true;
-                                    logger.debug("marking shard [{}][{}] as inactive (inactive_time[{}]), setting size to [{}]", indexShard.shardId().index().name(), indexShard.shardId().id(), inactiveTime, inactiveShardIndexBufferSize);
-                                    ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(inactiveShardIndexBufferSize);
+                                    logger.debug("marking shard [{}][{}] as inactive (inactive_time[{}]), setting size to [{}]", indexShard.shardId().index().name(), indexShard.shardId().id(), inactiveTime, Engine.INACTIVE_SHARD_INDEXING_BUFFER);
+                                    ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(Engine.INACTIVE_SHARD_INDEXING_BUFFER);
                                 }
                             }
                         } else {

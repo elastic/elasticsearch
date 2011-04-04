@@ -19,9 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.IndexReaderPurgedListener;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -114,16 +111,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         this.injector = injector;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
-
-        try {
-            FieldCache.DEFAULT.getClass().getMethod("setIndexReaderPurgedListener", IndexReaderPurgedListener.class);
-            // LUCENE MONITOR - This is a hack to eagerly clean caches based on index reader
-            FieldCache.DEFAULT.setIndexReaderPurgedListener(new CacheReaderPurgeListener(this));
-            logger.trace("eager reader based cache eviction enabled");
-        } catch (NoSuchMethodException e) {
-            // no method
-            logger.warn("lucene default FieldCache is used, not enabling eager reader based cache eviction");
-        }
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -320,21 +307,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         if (delete) {
             FileSystemUtils.deleteRecursively(nodeEnv.indexLocation(new Index(index)));
-        }
-    }
-
-    private static class CacheReaderPurgeListener implements IndexReaderPurgedListener {
-
-        private final IndicesService indicesService;
-
-        private CacheReaderPurgeListener(IndicesService indicesService) {
-            this.indicesService = indicesService;
-        }
-
-        @Override public void indexReaderPurged(IndexReader reader) {
-            for (IndexService indexService : indicesService) {
-                indexService.cache().clear(reader);
-            }
         }
     }
 }

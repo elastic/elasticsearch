@@ -127,7 +127,14 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
+                    entry.totalCount++;
                     entry.total += distance;
+                    if (distance < entry.min) {
+                        entry.min = distance;
+                    }
+                    if (distance > entry.max) {
+                        entry.max = distance;
+                    }
                 }
             }
         }

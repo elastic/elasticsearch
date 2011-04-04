@@ -90,7 +90,7 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                                 }
                             }
                         }
-                        entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0));
+                        entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE));
                     }
                 } else {
                     token = parser.nextToken();
@@ -183,8 +183,17 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                 agg = geoDistanceFacet;
             } else {
                 for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
-                    agg.entries[i].count += geoDistanceFacet.entries[i].count;
-                    agg.entries[i].total += geoDistanceFacet.entries[i].total;
+                    GeoDistanceFacet.Entry aggEntry = agg.entries[i];
+                    GeoDistanceFacet.Entry currentEntry = geoDistanceFacet.entries[i];
+                    aggEntry.count += currentEntry.count;
+                    aggEntry.totalCount += currentEntry.totalCount;
+                    aggEntry.total += currentEntry.total;
+                    if (currentEntry.min < aggEntry.min) {
+                        aggEntry.min = currentEntry.min;
+                    }
+                    if (currentEntry.max > aggEntry.max) {
+                        aggEntry.max = currentEntry.max;
+                    }
                 }
             }
         }

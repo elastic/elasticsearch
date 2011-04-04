@@ -95,7 +95,14 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
+                    entry.totalCount++;
                     entry.total += scriptValue;
+                    if (scriptValue < entry.min) {
+                        entry.min = scriptValue;
+                    }
+                    if (scriptValue > entry.max) {
+                        entry.max = scriptValue;
+                    }
                 }
             }
         }

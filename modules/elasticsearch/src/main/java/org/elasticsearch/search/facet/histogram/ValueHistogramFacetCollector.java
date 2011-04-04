@@ -39,7 +39,7 @@ import java.io.IOException;
  *
  * @author kimchy (shay.banon)
  */
-public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
+public class ValueHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String keyIndexFieldName;
 
@@ -58,7 +58,7 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
 
     private final HistogramProc histoProc;
 
-    public KeyValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.interval = interval;
         this.comparatorType = comparatorType;

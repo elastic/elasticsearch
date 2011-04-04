@@ -43,7 +43,7 @@ import java.util.Map;
  *
  * @author kimchy (shay.banon)
  */
-public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollector {
+public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
@@ -59,7 +59,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
     private final HistogramProc histoProc;
 
-    public KeyValueScriptHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueScriptHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();

@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -28,7 +29,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,6 +45,8 @@ import org.elasticsearch.index.translog.Translog;
  */
 @ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
+
+    static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
 
     /**
      * The default suggested refresh interval, -1 to disable it.
@@ -100,11 +102,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException;
 
     void recover(RecoveryHandler recoveryHandler) throws EngineException;
-
-    /**
-     * Returns the estimated flushable memory size. Returns <tt>null</tt> if not available.
-     */
-    ByteSizeValue estimateFlushableMemorySize();
 
     /**
      * Recovery allow to start the recovery process. It is built of three phases.

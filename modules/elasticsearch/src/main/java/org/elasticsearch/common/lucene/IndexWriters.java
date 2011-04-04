@@ -25,7 +25,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
 /**
  * @author kimchy (shay.banon)
@@ -34,10 +33,6 @@ public abstract class IndexWriters {
 
     private static ESLogger logger = Loggers.getLogger(IndexWriters.class);
 
-    private static Field docWriterField;
-
-    private static Method docWriterGetRAMUsed;
-
     private static Field rollbackSegmentInfosField;
 
     private static final boolean docWriterReflection;
@@ -45,12 +40,6 @@ public abstract class IndexWriters {
     static {
         boolean docWriterReflectionX = false;
         try {
-            docWriterField = IndexWriter.class.getDeclaredField("docWriter");
-            docWriterField.setAccessible(true);
-            Class docWriter = IndexWriters.class.getClassLoader().loadClass("org.apache.lucene.index.DocumentsWriter");
-            docWriterGetRAMUsed = docWriter.getDeclaredMethod("getRAMUsed");
-            docWriterGetRAMUsed.setAccessible(true);
-
             rollbackSegmentInfosField = IndexWriter.class.getDeclaredField("rollbackSegmentInfos");
             rollbackSegmentInfosField.setAccessible(true);
 
@@ -63,14 +52,6 @@ public abstract class IndexWriters {
 
     public static SegmentInfos rollbackSegmentInfos(IndexWriter writer) throws Exception {
         return (SegmentInfos) rollbackSegmentInfosField.get(writer);
-    }
-
-    public static long estimateRamSize(IndexWriter indexWriter) throws Exception {
-        if (!docWriterReflection) {
-            return -1;
-        }
-        Object docWriter = docWriterField.get(indexWriter);
-        return (Long) docWriterGetRAMUsed.invoke(docWriter);
     }
 
     private IndexWriters() {

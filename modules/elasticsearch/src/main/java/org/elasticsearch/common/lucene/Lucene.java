@@ -29,7 +29,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.list.array.TIntArrayList;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -44,7 +43,7 @@ import java.util.Map;
  */
 public class Lucene {
 
-    @SuppressWarnings({"deprecation"}) public static final Version VERSION = Version.LUCENE_CURRENT;
+    public static final Version VERSION = Version.LUCENE_31;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -68,34 +67,6 @@ public class Lucene {
             return NO_DOC;
         } finally {
             termDocs.close();
-        }
-    }
-
-    public static TIntArrayList docIds(IndexReader reader, Term term, int expectedSize) throws IOException {
-        TermDocs termDocs = reader.termDocs(term);
-        TIntArrayList list = new TIntArrayList(expectedSize);
-        try {
-            while (termDocs.next()) {
-                list.add(termDocs.doc());
-            }
-        } finally {
-            termDocs.close();
-        }
-        return list;
-    }
-
-    /**
-     * Closes the index reader, returning <tt>false</tt> if it failed to close.
-     */
-    public static boolean safeClose(IndexReader reader) {
-        if (reader == null) {
-            return true;
-        }
-        try {
-            reader.close();
-            return true;
-        } catch (IOException e) {
-            return false;
         }
     }
 
@@ -449,34 +420,6 @@ public class Lucene {
             return true;
         }
     }
-
-    public static class SingleScoreCollector extends Collector {
-
-        private Scorer scorer;
-
-        private float score;
-
-        public float score() {
-            return this.score;
-        }
-
-        @Override public void setScorer(Scorer scorer) throws IOException {
-            this.score = 0;
-            this.scorer = scorer;
-        }
-
-        @Override public void collect(int doc) throws IOException {
-            score = scorer.score();
-        }
-
-        @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        }
-
-        @Override public boolean acceptsDocsOutOfOrder() {
-            return true;
-        }
-    }
-
 
     private Lucene() {
 

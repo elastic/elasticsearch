@@ -32,10 +32,10 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('com.ibm.icu:icu4j:4.4') { transitive = false }
-    distLib('com.ibm.icu:icu4j:4.4') { transitive = false }
-    compile('org.apache.lucene:lucene-collation:3.0.3') { transitive = false }
-    distLib('org.apache.lucene:lucene-collation:3.0.3') { transitive = false }
+    compile('org.apache.lucene:lucene-icu4j:3.1.0') { transitive = false }
+    distLib('org.apache.lucene:lucene-icu4j:3.1.0') { transitive = false }
+    compile('org.apache.lucene:lucene-icu:3.1.0') { transitive = false }
+    distLib('org.apache.lucene:lucene-icu:3.1.0') { transitive = false }
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

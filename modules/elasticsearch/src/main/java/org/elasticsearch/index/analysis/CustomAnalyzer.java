@@ -27,7 +27,7 @@ import java.io.Reader;
 /**
  * @author kimchy (Shay Banon)
  */
-public class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnalyzer {
+public final class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnalyzer {
 
     private final TokenizerFactory tokenizerFactory;
 
@@ -63,11 +63,11 @@ public class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnal
         return this.positionIncrementGap;
     }
 
-    @Override public TokenStream tokenStream(String fieldName, Reader reader) {
+    @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
         return buildHolder(reader).tokenStream;
     }
 
-    @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+    @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         Holder holder = (Holder) getPreviousTokenStream();
         if (holder == null) {
             holder = buildHolder(charFilterIfNeeded(reader));

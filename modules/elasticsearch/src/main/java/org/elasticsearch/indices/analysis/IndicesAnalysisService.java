@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.*;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.cn.ChineseAnalyzer;
+import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
@@ -34,7 +35,6 @@ import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.analysis.cz.CzechAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -65,8 +65,8 @@ public class IndicesAnalysisService extends AbstractComponent {
         analyzerProviderFactories.put("standard", new PreBuiltAnalyzerProviderFactory("standard", AnalyzerScope.INDICES, standardAnalyzer));
         analyzerProviderFactories.put("keyword", new PreBuiltAnalyzerProviderFactory("keyword", AnalyzerScope.INDICES, new KeywordAnalyzer()));
         analyzerProviderFactories.put("stop", new PreBuiltAnalyzerProviderFactory("stop", AnalyzerScope.INDICES, new StopAnalyzer(Lucene.ANALYZER_VERSION)));
-        analyzerProviderFactories.put("whitespace", new PreBuiltAnalyzerProviderFactory("whitespace", AnalyzerScope.INDICES, new WhitespaceAnalyzer()));
-        analyzerProviderFactories.put("simple", new PreBuiltAnalyzerProviderFactory("simple", AnalyzerScope.INDICES, new SimpleAnalyzer()));
+        analyzerProviderFactories.put("whitespace", new PreBuiltAnalyzerProviderFactory("whitespace", AnalyzerScope.INDICES, new WhitespaceAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("simple", new PreBuiltAnalyzerProviderFactory("simple", AnalyzerScope.INDICES, new SimpleAnalyzer(Lucene.ANALYZER_VERSION)));
 
         // extended ones
         analyzerProviderFactories.put("arabic", new PreBuiltAnalyzerProviderFactory("arabic", AnalyzerScope.INDICES, new ArabicAnalyzer(Lucene.ANALYZER_VERSION)));

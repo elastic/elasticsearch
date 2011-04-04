@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.NioFsIndexStoreModule;
@@ -45,7 +46,11 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     @Override public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
-        if (OsUtils.WINDOWS) {
+        // Same logic as FSDirectory#open ...
+        if ((Constants.WINDOWS || Constants.SUN_OS)
+                && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+            indexStoreModule = MmapFsIndexStoreModule.class;
+        } else if (Constants.WINDOWS) {
             indexStoreModule = SimpleFsIndexStoreModule.class;
         }
         String storeType = settings.get("index.store.type");

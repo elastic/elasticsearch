@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +42,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
 
     private final IndexSettingsService indexSettingsService;
 
+    private volatile boolean compoundFormat;
     private volatile int minMergeDocs;
     private volatile int maxMergeDocs;
     private volatile int mergeFactor;
@@ -54,6 +58,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
 
+        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", store.suggestUseCompoundFile());
         this.minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
@@ -69,17 +74,18 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         indexSettingsService.removeListener(applySettings);
     }
 
-    @Override public LogDocMergePolicy newMergePolicy(IndexWriter indexWriter) {
+    @Override public LogDocMergePolicy newMergePolicy() {
         CustomLogDocMergePolicy mergePolicy;
         if (asyncMerge) {
-            mergePolicy = new EnableMergeLogDocMergePolicy(indexWriter, this);
+            mergePolicy = new EnableMergeLogDocMergePolicy(this);
         } else {
-            mergePolicy = new CustomLogDocMergePolicy(indexWriter, this);
+            mergePolicy = new CustomLogDocMergePolicy(this);
         }
         mergePolicy.setMinMergeDocs(minMergeDocs);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
+        mergePolicy.setUseCompoundFile(compoundFormat);
         policies.add(mergePolicy);
         return mergePolicy;
     }
@@ -112,6 +118,15 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
                     policy.setMergeFactor(mergeFactor);
                 }
             }
+
+            boolean compoundFormat = settings.getAsBoolean("index.compound_format", LogDocMergePolicyProvider.this.compoundFormat);
+            if (compoundFormat != LogDocMergePolicyProvider.this.compoundFormat) {
+                logger.info("updating index.compound_format from [{}] to [{}]", LogDocMergePolicyProvider.this.compoundFormat, compoundFormat);
+                LogDocMergePolicyProvider.this.compoundFormat = compoundFormat;
+                for (CustomLogDocMergePolicy policy : policies) {
+                    policy.setUseCompoundFile(compoundFormat);
+                }
+            }
         }
     }
 
@@ -119,8 +134,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
 
         private final LogDocMergePolicyProvider provider;
 
-        public CustomLogDocMergePolicy(IndexWriter writer, LogDocMergePolicyProvider provider) {
-            super(writer);
+        public CustomLogDocMergePolicy(LogDocMergePolicyProvider provider) {
+            super();
             this.provider = provider;
         }
 
@@ -138,8 +153,8 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
             }
         };
 
-        public EnableMergeLogDocMergePolicy(IndexWriter writer, LogDocMergePolicyProvider provider) {
-            super(writer, provider);
+        public EnableMergeLogDocMergePolicy(LogDocMergePolicyProvider provider) {
+            super(provider);
         }
 
         @Override public void enableMerge() {

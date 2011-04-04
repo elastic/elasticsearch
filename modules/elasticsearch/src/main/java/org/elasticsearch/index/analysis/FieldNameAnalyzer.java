@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * @author kimchy (Shay Banon)
  */
-public class FieldNameAnalyzer extends Analyzer {
+public final class FieldNameAnalyzer extends Analyzer {
 
     private final ImmutableMap<String, Analyzer> analyzers;
 
@@ -50,11 +50,11 @@ public class FieldNameAnalyzer extends Analyzer {
         return defaultAnalyzer;
     }
 
-    @Override public TokenStream tokenStream(String fieldName, Reader reader) {
+    @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
         return getAnalyzer(fieldName).tokenStream(fieldName, reader);
     }
 
-    @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+    @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         return getAnalyzer(fieldName).reusableTokenStream(fieldName, reader);
     }
 

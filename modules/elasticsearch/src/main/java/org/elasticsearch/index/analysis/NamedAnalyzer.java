@@ -34,7 +34,7 @@ import java.io.Reader;
  * @author kimchy (shay.banon)
  */
 @Immutable
-public class NamedAnalyzer extends Analyzer {
+public final class NamedAnalyzer extends Analyzer {
 
     private final String name;
 
@@ -73,11 +73,11 @@ public class NamedAnalyzer extends Analyzer {
         return this.analyzer;
     }
 
-    @Override public TokenStream tokenStream(String fieldName, Reader reader) {
+    @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
         return analyzer.tokenStream(fieldName, reader);
     }
 
-    @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+    @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         return analyzer.reusableTokenStream(fieldName, reader);
     }
 

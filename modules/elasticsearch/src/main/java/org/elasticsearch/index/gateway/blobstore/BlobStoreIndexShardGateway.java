@@ -49,6 +49,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -657,7 +658,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         if (fileInfo.checksum() != null) {
                             store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
                         }
-                        store.directory().sync(fileInfo.physicalName());
+                        store.directory().sync(Collections.singleton(fileInfo.physicalName()));
                     } catch (IOException e) {
                         onFailure(e);
                         return;

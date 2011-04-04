@@ -33,6 +33,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
@@ -389,13 +391,7 @@ public class SimpleSortTests extends AbstractNodesTests {
                 .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
-        assertThat(searchResponse.failedShards(), equalTo(0));
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));

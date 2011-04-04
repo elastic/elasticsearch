@@ -12,41 +12,19 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
-    <orderEntry type="module-library">
-      <library name="icu4j">
-        <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/com.ibm.icu/icu4j/jars/icu4j-4.4.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES>
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/charset/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/localespi/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/translit/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/langdata/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/collate/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/charset/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/collate/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/translit/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/core/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/core/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/regiondata/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/packaging/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/tests/framework/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/currdata/src" />
-          <root url="file://$USER_HOME$/opt/icu4j/4.4/main/classes/localespi/src" />
-        </SOURCES>
-      </library>
-    </orderEntry>
     <orderEntry type="module" module-name="test-testng" />
     <orderEntry type="library" name="testng" level="project" />
     <orderEntry type="library" name="hamcrest" level="project" />
     <orderEntry type="module-library">
-      <library name="lucene-collation">
+      <library name="lucene-icu">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-collation/jars/lucene-collation-3.0.3.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-icu4j/jars/lucene-icu4j-3.1.0.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-icu/jars/lucene-icu-3.1.0.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES />
+        <SOURCES>
+          <root url="file://$USER_HOME$/opt/lucene/3.1.0.src/contrib/icu/src/java" />
+        </SOURCES>
       </library>
     </orderEntry>
   </component>

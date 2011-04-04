@@ -58,7 +58,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     /**
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
-    public class CountEntry implements Entry {
+    public static class CountEntry implements Entry {
         private final long time;
         private final long count;
 
@@ -67,36 +67,60 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             this.count = count;
         }
 
-        public long time() {
+        @Override public long time() {
             return time;
         }
 
-        public long getTime() {
+        @Override public long getTime() {
             return time();
         }
 
-        public long count() {
+        @Override public long count() {
             return count;
         }
 
-        public long getCount() {
+        @Override public long getCount() {
             return count();
         }
 
-        public double total() {
-            return -1;
+        @Override public long totalCount() {
+            return 0;
         }
 
-        public double getTotal() {
+        @Override public long getTotalCount() {
+            return 0;
+        }
+
+        @Override public double total() {
+            return Double.NaN;
+        }
+
+        @Override public double getTotal() {
             return total();
         }
 
-        public double mean() {
-            return -1;
+        @Override public double mean() {
+            return Double.NaN;
         }
 
-        public double getMean() {
+        @Override public double getMean() {
             return mean();
+        }
+
+        @Override public double min() {
+            return Double.NaN;
+        }
+
+        @Override public double getMin() {
+            return Double.NaN;
+        }
+
+        @Override public double max() {
+            return Double.NaN;
+        }
+
+        @Override public double getMax() {
+            return Double.NaN;
         }
     }
 

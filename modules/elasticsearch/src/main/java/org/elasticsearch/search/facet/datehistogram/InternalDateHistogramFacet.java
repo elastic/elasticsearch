@@ -31,7 +31,7 @@ public abstract class InternalDateHistogramFacet implements DateHistogramFacet, 
 
     public static void registerStreams() {
         InternalCountDateHistogramFacet.registerStreams();
-        InternalCountAndTotalDateHistogramFacet.registerStreams();
+        InternalFullDateHistogramFacet.registerStreams();
     }
 
     public abstract Facet reduce(String name, List<Facet> facets);

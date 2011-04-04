@@ -51,18 +51,39 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
         TIME((byte) 0, "time", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return (o1.time() < o2.time() ? -1 : (o1.time() == o2.time() ? 0 : 1));
             }
         }),
         COUNT((byte) 1, "count", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return (o1.count() < o2.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
             }
         }),
         TOTAL((byte) 2, "total", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return (o1.total() < o2.total() ? -1 : (o1.total() == o2.total() ? 0 : 1));
             }
         });
@@ -137,6 +158,16 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
         long getCount();
 
         /**
+         * The total count of values aggregated to compute the total.
+         */
+        long totalCount();
+
+        /**
+         * The total count of values aggregated to compute the total.
+         */
+        long getTotalCount();
+
+        /**
          * The sum / total of the value field that fall within this key "interval".
          */
         double total();
@@ -155,5 +186,25 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
          * The mean of this facet interval.
          */
         double getMean();
+
+        /**
+         * The minimum value.
+         */
+        double min();
+
+        /**
+         * The minimum value.
+         */
+        double getMin();
+
+        /**
+         * The maximum value.
+         */
+        double max();
+
+        /**
+         * The maximum value.
+         */
+        double getMax();
     }
 }

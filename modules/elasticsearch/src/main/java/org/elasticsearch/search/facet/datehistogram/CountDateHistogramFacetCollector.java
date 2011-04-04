@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -93,6 +94,7 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
+        CacheRecycler.pushLongLongMap(histoProc.counts());
         return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts());
     }
 
@@ -102,7 +104,7 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
     public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
 
-        protected final TLongLongHashMap counts = new TLongLongHashMap();
+        protected final TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
         @Override public void onValue(int docId, MutableDateTime dateTime) {
             counts.adjustOrPutValue(dateTime.getMillis(), 1, 1);

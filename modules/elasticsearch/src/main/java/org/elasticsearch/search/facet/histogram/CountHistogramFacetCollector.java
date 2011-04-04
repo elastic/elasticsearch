@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -85,6 +86,7 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
+        CacheRecycler.pushLongLongMap(histoProc.counts());
         return new InternalCountHistogramFacet(facetName, comparatorType, histoProc.counts());
     }
 
@@ -96,7 +98,7 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
         private final long interval;
 
-        private final TLongLongHashMap counts = new TLongLongHashMap();
+        private final TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
         private int missing;
 

@@ -87,7 +87,7 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
         return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
-    public static class StatsProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class StatsProc implements NumericFieldData.MissingDoubleValueInDocProc {
 
         double min = Double.MAX_VALUE;
 

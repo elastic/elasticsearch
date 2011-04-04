@@ -73,6 +73,14 @@ public class SingleValueFloatFieldData extends FloatFieldData {
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
             proc.onMissing(docId);
             return;
         }

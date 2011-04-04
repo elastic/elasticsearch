@@ -95,6 +95,15 @@ public class MultiValueByteFieldData extends ByteFieldData {
     }
 
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, values[loc]);
+            }
+        }
+    }
+
+    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {
             int loc = ordinal[docId];

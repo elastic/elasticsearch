@@ -101,8 +101,6 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
 
         private final RangeFacet.Entry[] entries;
 
-        private int missing;
-
         NumericFieldData valueFieldData;
 
         public RangeProc(RangeFacet.Entry[] entries) {
@@ -128,10 +126,6 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
                     }
                 }
             }
-        }
-
-        @Override public void onMissing(int docId) {
-            missing++;
         }
     }
 }

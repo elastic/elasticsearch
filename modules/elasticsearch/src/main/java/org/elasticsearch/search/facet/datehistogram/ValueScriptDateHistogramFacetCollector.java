@@ -21,9 +21,9 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.time.MutableDateTime;
-import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
@@ -106,16 +106,15 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalDateHistogramFacet(facetName, comparatorType, histoProc.counts(), histoProc.totals());
+        CacheRecycler.pushLongObjectMap(histoProc.entries);
+        return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries.valueCollection());
     }
 
     public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
 
         protected final SearchScript valueScript;
 
-        protected final TLongLongHashMap counts = new TLongLongHashMap();
-
-        protected final TLongDoubleHashMap totals = new TLongDoubleHashMap();
+        final ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
 
         public DateHistogramProc(SearchScript valueScript) {
             this.valueScript = valueScript;
@@ -123,20 +122,24 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
         @Override public void onValue(int docId, MutableDateTime dateTime) {
             valueScript.setNextDocId(docId);
-
             long time = dateTime.getMillis();
-            counts.adjustOrPutValue(time, 1, 1);
             double scriptValue = valueScript.runAsDouble();
-            totals.adjustOrPutValue(time, scriptValue, scriptValue);
-        }
 
-
-        public TLongLongHashMap counts() {
-            return counts;
-        }
-
-        public TLongDoubleHashMap totals() {
-            return totals;
+            InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);
+            if (entry == null) {
+                entry = new InternalFullDateHistogramFacet.FullEntry(time, 1, scriptValue, scriptValue, 1, scriptValue);
+                entries.put(time, entry);
+            } else {
+                entry.count++;
+                entry.totalCount++;
+                entry.total += scriptValue;
+                if (scriptValue < entry.min) {
+                    entry.min = scriptValue;
+                }
+                if (scriptValue > entry.max) {
+                    entry.max = scriptValue;
+                }
+            }
         }
     }
 
@@ -149,14 +152,27 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
             this.interval = interval;
         }
 
-
         @Override public void onValue(int docId, MutableDateTime dateTime) {
             valueScript.setNextDocId(docId);
 
-            long bucket = CountDateHistogramFacetCollector.bucket(dateTime.getMillis(), interval);
-            counts.adjustOrPutValue(bucket, 1, 1);
+            long time = CountDateHistogramFacetCollector.bucket(dateTime.getMillis(), interval);
             double scriptValue = valueScript.runAsDouble();
-            totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
+
+            InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);
+            if (entry == null) {
+                entry = new InternalFullDateHistogramFacet.FullEntry(time, 1, scriptValue, scriptValue, 1, scriptValue);
+                entries.put(time, entry);
+            } else {
+                entry.count++;
+                entry.totalCount++;
+                entry.total += scriptValue;
+                if (scriptValue < entry.min) {
+                    entry.min = scriptValue;
+                }
+                if (scriptValue > entry.max) {
+                    entry.max = scriptValue;
+                }
+            }
         }
     }
 }

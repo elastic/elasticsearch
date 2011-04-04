@@ -57,7 +57,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     /**
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
-    public class CountEntry implements Entry {
+    public static class CountEntry implements Entry {
         private final long key;
         private final long count;
 

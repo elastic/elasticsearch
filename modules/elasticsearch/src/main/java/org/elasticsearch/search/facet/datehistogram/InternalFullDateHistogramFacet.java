@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.histogram;
+package org.elasticsearch.search.facet.datehistogram;
 
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
+import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
+import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.histogram.HistogramFacet;
 
 import java.io.IOException;
 import java.util.*;
@@ -34,9 +37,9 @@ import java.util.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalFullHistogramFacet extends InternalHistogramFacet {
+public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
 
-    private static final String STREAM_TYPE = "fHistogram";
+    private static final String STREAM_TYPE = "fdHistogram";
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -57,15 +60,15 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
     public static class FullEntry implements Entry {
-        long key;
+        private final long time;
         long count;
         long totalCount;
         double total;
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
 
-        public FullEntry(long key, long count, double min, double max, long totalCount, double total) {
-            this.key = key;
+        public FullEntry(long time, long count, double min, double max, long totalCount, double total) {
+            this.time = time;
             this.count = count;
             this.min = min;
             this.max = max;
@@ -73,12 +76,12 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             this.total = total;
         }
 
-        @Override public long key() {
-            return key;
+        @Override public long time() {
+            return time;
         }
 
-        @Override public long getKey() {
-            return key();
+        @Override public long getTime() {
+            return time();
         }
 
         @Override public long count() {
@@ -136,10 +139,10 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     Collection<FullEntry> entries = ImmutableList.of();
 
-    private InternalFullHistogramFacet() {
+    private InternalFullDateHistogramFacet() {
     }
 
-    public InternalFullHistogramFacet(String name, ComparatorType comparatorType, Collection<FullEntry> entries) {
+    public InternalFullDateHistogramFacet(String name, ComparatorType comparatorType, Collection<FullEntry> entries) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.entries = entries;
@@ -179,7 +182,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             // we need to sort it
-            InternalFullHistogramFacet internalFacet = (InternalFullHistogramFacet) facets.get(0);
+            InternalFullDateHistogramFacet internalFacet = (InternalFullDateHistogramFacet) facets.get(0);
             if (!internalFacet.entries.isEmpty()) {
                 List<FullEntry> entries = internalFacet.entries();
                 Collections.sort(entries, comparatorType.comparator());
@@ -190,10 +193,10 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         ExtTLongObjectHashMap<FullEntry> map = CacheRecycler.popLongObjectMap2();
 
         for (Facet facet : facets) {
-            InternalFullHistogramFacet histoFacet = (InternalFullHistogramFacet) facet;
+            InternalFullDateHistogramFacet histoFacet = (InternalFullDateHistogramFacet) facet;
             for (Entry entry : histoFacet) {
                 FullEntry fullEntry = (FullEntry) entry;
-                FullEntry current = map.get(fullEntry.key);
+                FullEntry current = map.get(fullEntry.time);
                 if (current != null) {
                     current.count += fullEntry.count;
                     current.total += fullEntry.total;
@@ -205,7 +208,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
                         current.max = fullEntry.max;
                     }
                 } else {
-                    map.put(fullEntry.key, fullEntry);
+                    map.put(fullEntry.time, fullEntry);
                 }
             }
         }
@@ -224,13 +227,13 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
         CacheRecycler.pushLongObjectMap2(map);
 
-        return new InternalFullHistogramFacet(name, comparatorType, ordered);
+        return new InternalFullDateHistogramFacet(name, comparatorType, ordered);
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString ENTRIES = new XContentBuilderString("entries");
-        static final XContentBuilderString KEY = new XContentBuilderString("key");
+        static final XContentBuilderString TIME = new XContentBuilderString("time");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
@@ -243,9 +246,9 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.startArray(Fields.ENTRIES);
-        for (Entry entry : entries) {
+        for (Entry entry : entries()) {
             builder.startObject();
-            builder.field(Fields.KEY, entry.key());
+            builder.field(Fields.TIME, entry.time());
             builder.field(Fields.COUNT, entry.count());
             builder.field(Fields.MIN, entry.min());
             builder.field(Fields.MAX, entry.max());
@@ -259,8 +262,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         return builder;
     }
 
-    public static InternalFullHistogramFacet readHistogramFacet(StreamInput in) throws IOException {
-        InternalFullHistogramFacet facet = new InternalFullHistogramFacet();
+    public static InternalFullDateHistogramFacet readHistogramFacet(StreamInput in) throws IOException {
+        InternalFullDateHistogramFacet facet = new InternalFullDateHistogramFacet();
         facet.readFrom(in);
         return facet;
     }
@@ -281,7 +284,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.size());
         for (FullEntry entry : entries) {
-            out.writeLong(entry.key);
+            out.writeLong(entry.time);
             out.writeVLong(entry.count);
             out.writeDouble(entry.min);
             out.writeDouble(entry.max);
@@ -289,4 +292,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             out.writeDouble(entry.total);
         }
     }
+
+    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
+    static final TLongDoubleHashMap EMPTY_LONG_DOUBLE_MAP = new TLongDoubleHashMap();
 }

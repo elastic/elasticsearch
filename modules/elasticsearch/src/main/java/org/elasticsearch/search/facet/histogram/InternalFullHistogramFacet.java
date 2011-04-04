@@ -61,10 +61,14 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         long count;
         long totalCount;
         double total;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
 
-        public FullEntry(long key, long count, long totalCount, double total) {
+        public FullEntry(long key, long count, double min, double max, long totalCount, double total) {
             this.key = key;
             this.count = count;
+            this.min = min;
+            this.max = max;
             this.totalCount = totalCount;
             this.total = total;
         }
@@ -107,6 +111,22 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
         @Override public double getMean() {
             return total / totalCount;
+        }
+
+        @Override public double min() {
+            return this.min;
+        }
+
+        @Override public double getMin() {
+            return this.min;
+        }
+
+        @Override public double max() {
+            return this.max;
+        }
+
+        @Override public double getMax() {
+            return this.max;
         }
     }
 
@@ -178,6 +198,12 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
                     current.count += fullEntry.count;
                     current.total += fullEntry.total;
                     current.totalCount += fullEntry.totalCount;
+                    if (fullEntry.min < current.min) {
+                        current.min = fullEntry.min;
+                    }
+                    if (fullEntry.max > current.max) {
+                        current.max = fullEntry.max;
+                    }
                 } else {
                     map.put(fullEntry.key, fullEntry);
                 }
@@ -209,6 +235,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+        static final XContentBuilderString MIN = new XContentBuilderString("min");
+        static final XContentBuilderString MAX = new XContentBuilderString("max");
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -219,6 +247,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             builder.startObject();
             builder.field(Fields.KEY, entry.key());
             builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.MIN, entry.min());
+            builder.field(Fields.MAX, entry.max());
             builder.field(Fields.TOTAL, entry.total());
             builder.field(Fields.TOTAL_COUNT, entry.totalCount());
             builder.field(Fields.MEAN, entry.mean());
@@ -242,7 +272,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         int size = in.readVInt();
         entries = new ArrayList<FullEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new FullEntry(in.readLong(), in.readVLong(), in.readVLong(), in.readDouble()));
+            entries.add(new FullEntry(in.readLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble()));
         }
     }
 
@@ -254,6 +284,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         for (FullEntry entry : entries) {
             out.writeLong(entry.key);
             out.writeVLong(entry.count);
+            out.writeDouble(entry.min);
+            out.writeDouble(entry.max);
             out.writeVLong(entry.totalCount);
             out.writeDouble(entry.total);
         }

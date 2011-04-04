@@ -126,12 +126,18 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
             if (entry == null) {
-                entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, scriptValue);
+                entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, scriptValue, scriptValue, 1, scriptValue);
                 entries.put(bucket, entry);
             } else {
                 entry.count++;
                 entry.totalCount++;
                 entry.total += scriptValue;
+                if (scriptValue < entry.min) {
+                    entry.min = scriptValue;
+                }
+                if (scriptValue > entry.max) {
+                    entry.max = scriptValue;
+                }
             }
         }
     }

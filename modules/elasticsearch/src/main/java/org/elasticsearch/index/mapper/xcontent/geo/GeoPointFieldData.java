@@ -142,6 +142,12 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
         void onValue(double lat, double lon);
     }
 
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, double lat, double lon);
+    }
+
     public static GeoPointFieldData load(IndexReader reader, String field) throws IOException {
         return FieldDataLoader.load(reader, field, new StringTypeLoader());
     }

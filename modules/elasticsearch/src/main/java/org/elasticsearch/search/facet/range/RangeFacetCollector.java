@@ -74,6 +74,9 @@ public class RangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doCollect(int doc) throws IOException {
+        for (RangeFacet.Entry entry : entries) {
+            entry.foundInDoc = false;
+        }
         fieldData.forEachValueInDoc(doc, rangeProc);
     }
 
@@ -93,7 +96,11 @@ public class RangeFacetCollector extends AbstractFacetCollector {
 
         @Override public void onValue(int docId, double value) {
             for (RangeFacet.Entry entry : entries) {
+                if (entry.foundInDoc) {
+                    continue;
+                }
                 if (value >= entry.getFrom() && value < entry.getTo()) {
+                    entry.foundInDoc = true;
                     entry.count++;
                     entry.total += value;
                 }

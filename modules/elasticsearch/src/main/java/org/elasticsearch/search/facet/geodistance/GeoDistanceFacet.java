@@ -53,6 +53,11 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
 
         double total;
 
+        /**
+         * internal field used to see if this entry was already found for a doc
+         */
+        boolean foundInDoc = false;
+
         Entry() {
         }
 

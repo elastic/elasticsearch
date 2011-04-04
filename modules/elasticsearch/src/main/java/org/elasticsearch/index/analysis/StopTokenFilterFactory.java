@@ -37,27 +37,20 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Set<?> stopWords;
 
-    private final boolean enablePositionIncrements;
-
     private final boolean ignoreCase;
 
     @Inject public StopTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         this.stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new StopFilter(enablePositionIncrements, tokenStream, stopWords, ignoreCase);
+        return new StopFilter(version, tokenStream, stopWords, ignoreCase);
     }
 
     public Set<?> stopWords() {
         return stopWords;
-    }
-
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
     }
 
     public boolean ignoreCase() {

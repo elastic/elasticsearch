@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -41,7 +40,7 @@ public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAn
     private final DutchAnalyzer analyzer;
 
     @Inject public DutchAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         Set<?> stopWords = Analysis.parseStopWords(settings, DutchAnalyzer.getDefaultStopSet());
 
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
@@ -50,7 +49,7 @@ public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAn
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new DutchAnalyzer(Lucene.VERSION, stopWords, this.stemExclusion);
+        analyzer = new DutchAnalyzer(version, stopWords, this.stemExclusion);
     }
 
     @Override public DutchAnalyzer get() {

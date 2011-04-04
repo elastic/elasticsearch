@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -41,7 +40,7 @@ public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<French
     private final FrenchAnalyzer analyzer;
 
     @Inject public FrenchAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         Set<?> stopWords = Analysis.parseStopWords(settings, FrenchAnalyzer.getDefaultStopSet());
 
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
@@ -50,7 +49,7 @@ public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<French
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new FrenchAnalyzer(Lucene.ANALYZER_VERSION, stopWords, this.stemExclusion);
+        analyzer = new FrenchAnalyzer(version, stopWords, this.stemExclusion);
     }
 
     @Override public FrenchAnalyzer get() {

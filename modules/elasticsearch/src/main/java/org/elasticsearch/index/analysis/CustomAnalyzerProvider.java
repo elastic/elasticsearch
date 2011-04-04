@@ -53,7 +53,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                                           Map<String, TokenFilterFactoryFactory> tokenFilterFactories,
                                           @IndexSettings Settings indexSettings,
                                           @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         String tokenizerName = settings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");

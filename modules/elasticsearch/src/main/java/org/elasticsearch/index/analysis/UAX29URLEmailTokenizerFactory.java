@@ -19,32 +19,32 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.LengthFilter;
-import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.io.Reader;
+
 /**
- * @author kimchy (Shay Banon)
+ *
  */
-public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
+public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
 
-    private final int min;
-    private final int max;
-    private final boolean enablePositionIncrements;
+    private final int maxTokenLength;
 
-    @Inject public LengthTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public UAX29URLEmailTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        min = settings.getAsInt("min", 0);
-        max = settings.getAsInt("max", Integer.MAX_VALUE);
-        enablePositionIncrements = settings.getAsBoolean("enabled_position_increments", false);
+        maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
-        return new LengthFilter(enablePositionIncrements, tokenStream, min, max);
+    @Override public Tokenizer create(Reader reader) {
+        UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer(reader);
+        tokenizer.setMaxTokenLength(maxTokenLength);
+        return tokenizer;
     }
 }
-

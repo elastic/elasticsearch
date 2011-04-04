@@ -53,7 +53,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Collator collator;
 
     @Inject public IcuCollationTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment environment, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
 
         Collator collator;
         String rules = settings.get("rules");

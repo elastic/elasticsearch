@@ -35,10 +35,10 @@ import java.io.Reader;
 public class LetterTokenizerFactory extends AbstractTokenizerFactory {
 
     @Inject public LetterTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
     }
 
     @Override public Tokenizer create(Reader reader) {
-        return new LetterTokenizer(reader);
+        return new LetterTokenizer(version, reader);
     }
 }

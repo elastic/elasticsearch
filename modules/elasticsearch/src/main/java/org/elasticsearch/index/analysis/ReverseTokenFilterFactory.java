@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.LengthFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -30,21 +30,13 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  * @author kimchy (Shay Banon)
  */
-public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
+public class ReverseTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final int min;
-    private final int max;
-    private final boolean enablePositionIncrements;
-
-    @Inject public LengthTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public ReverseTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        min = settings.getAsInt("min", 0);
-        max = settings.getAsInt("max", Integer.MAX_VALUE);
-        enablePositionIncrements = settings.getAsBoolean("enabled_position_increments", false);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new LengthFilter(enablePositionIncrements, tokenStream, min, max);
+        return new ReverseStringFilter(version, tokenStream);
     }
 }
-

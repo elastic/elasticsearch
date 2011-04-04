@@ -35,10 +35,10 @@ import java.io.Reader;
 public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory {
 
     @Inject public LowerCaseTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
     }
 
     @Override public Tokenizer create(Reader reader) {
-        return new LowerCaseTokenizer(reader);
+        return new LowerCaseTokenizer(version, reader);
     }
 }

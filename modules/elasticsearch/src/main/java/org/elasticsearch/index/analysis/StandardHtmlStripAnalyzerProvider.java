@@ -33,7 +33,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
     private final CustomAnalyzer analyzer;
 
     @Inject public StandardHtmlStripAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         analyzer = new CustomAnalyzer(new StandardTokenizerFactory(index, indexSettings, name, settings),
                 new CharFilterFactory[]{new HtmlStripCharFilterFactory(index, indexSettings, name, settings)},
                 new TokenFilterFactory[]{

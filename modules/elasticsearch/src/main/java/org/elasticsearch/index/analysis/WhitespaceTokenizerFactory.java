@@ -35,10 +35,10 @@ import java.io.Reader;
 public class WhitespaceTokenizerFactory extends AbstractTokenizerFactory {
 
     @Inject public WhitespaceTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
     }
 
     @Override public Tokenizer create(Reader reader) {
-        return new WhitespaceTokenizer(reader);
+        return new WhitespaceTokenizer(version, reader);
     }
 }

@@ -302,6 +302,7 @@ public class AnalysisModule extends AbstractModule {
 
         @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
             tokenFiltersBindings.processTokenFilter("stop", StopTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("reverse", ReverseTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("asciifolding", ASCIIFoldingTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("length", LengthTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("lowercase", LowerCaseTokenFilterFactory.class);
@@ -322,6 +323,10 @@ public class AnalysisModule extends AbstractModule {
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
             tokenizersBindings.processTokenizer("standard", StandardTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("uax_url_email", UAX29URLEmailTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("uaUrlEmail", UAX29URLEmailTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("path_hierarchy", PathHierarchyTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("pathHierarchy", PathHierarchyTokenizerFactory.class);
             tokenizersBindings.processTokenizer("keyword", KeywordTokenizerFactory.class);
             tokenizersBindings.processTokenizer("letter", LetterTokenizerFactory.class);
             tokenizersBindings.processTokenizer("lowercase", LowerCaseTokenizerFactory.class);

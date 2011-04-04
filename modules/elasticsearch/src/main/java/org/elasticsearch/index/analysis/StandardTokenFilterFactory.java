@@ -34,10 +34,10 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class StandardTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public StandardTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new StandardFilter(tokenStream);
+        return new StandardFilter(version, tokenStream);
     }
 }

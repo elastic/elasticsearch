@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -41,7 +40,7 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
     private final GermanAnalyzer analyzer;
 
     @Inject public GermanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         Set<?> stopWords = Analysis.parseStopWords(settings, GermanAnalyzer.getDefaultStopSet());
 
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
@@ -50,7 +49,7 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new GermanAnalyzer(Lucene.ANALYZER_VERSION, stopWords, this.stemExclusion);
+        analyzer = new GermanAnalyzer(version, stopWords, this.stemExclusion);
     }
 
     @Override public GermanAnalyzer get() {

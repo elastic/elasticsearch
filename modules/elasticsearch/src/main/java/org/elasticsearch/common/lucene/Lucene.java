@@ -27,8 +27,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -51,6 +53,20 @@ public class Lucene {
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
 
     public static final int NO_DOC = -1;
+
+    public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
+        if (version == null) {
+            return defaultVersion;
+        }
+        if ("3.1".equals(version)) {
+            return Version.LUCENE_31;
+        }
+        if ("3.0".equals(version)) {
+            return Version.LUCENE_30;
+        }
+        logger.warn("no version match {}, default to {}", version, defaultVersion);
+        return defaultVersion;
+    }
 
     public static long count(IndexSearcher searcher, Query query, float minScore) throws IOException {
         CountCollector countCollector = new CountCollector(minScore);

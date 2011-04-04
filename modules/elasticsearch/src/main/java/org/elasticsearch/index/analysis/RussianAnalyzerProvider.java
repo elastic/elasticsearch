@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -38,15 +37,15 @@ public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Russi
     private final RussianAnalyzer analyzer;
 
     @Inject public RussianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         if (Analysis.isNoStopwords(settings)) {
-            analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION, ImmutableSet.of());
+            analyzer = new RussianAnalyzer(version, ImmutableSet.of());
         } else {
             Set<?> stopWords = Analysis.parseStopWords(settings, ImmutableSet.of());
             if (!stopWords.isEmpty()) {
-                analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION, stopWords);
+                analyzer = new RussianAnalyzer(version, stopWords);
             } else {
-                analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION);
+                analyzer = new RussianAnalyzer(version);
             }
         }
     }

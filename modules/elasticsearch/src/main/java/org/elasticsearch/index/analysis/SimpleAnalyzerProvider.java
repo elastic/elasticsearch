@@ -34,8 +34,8 @@ public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider<Simple
     private final SimpleAnalyzer simpleAnalyzer;
 
     @Inject public SimpleAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        this.simpleAnalyzer = new SimpleAnalyzer();
+        super(index, indexSettings, name, settings);
+        this.simpleAnalyzer = new SimpleAnalyzer(version);
     }
 
     @Override public SimpleAnalyzer get() {

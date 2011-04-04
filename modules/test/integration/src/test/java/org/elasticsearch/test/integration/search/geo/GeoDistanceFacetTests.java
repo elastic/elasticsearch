@@ -29,6 +29,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.*;
@@ -216,5 +218,63 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
         assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
         assertThat(facet.entries().get(3).count(), equalTo(5l));
         assertThat(facet.entries().get(3).total(), closeTo(24, 0.00001));
+    }
+
+    @Test public void multiLocationGeoDistanceTest() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("num", 1)
+                .startArray("location")
+                        // to NY: 0
+                .startObject().field("lat", 40.7143528).field("lon", -74.0059731).endObject()
+                        // to NY: 5.286 km
+                .startObject().field("lat", 40.759011).field("lon", -73.9844722).endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("num", 3)
+                .startArray("location")
+                        // to NY: 0.4621 km
+                .startObject().field("lat", 40.718266).field("lon", -74.007819).endObject()
+                        // to NY: 1.055 km
+                .startObject().field("lat", 40.7051157).field("lon", -74.0088305).endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch() // from NY
+                .setQuery(matchAllQuery())
+                .addFacet(geoDistanceFacet("geo1").field("location").point(40.7143528, -74.0059731).unit(DistanceUnit.KILOMETERS)
+                        .addRange(0, 2)
+                        .addRange(2, 10)
+                )
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
+        assertThat(facet.entries().size(), equalTo(2));
+
+        assertThat(facet.entries().get(0).from(), closeTo(0, 0.000001));
+        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+
+        assertThat(facet.entries().get(1).from(), closeTo(2, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(10, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
     }
 }

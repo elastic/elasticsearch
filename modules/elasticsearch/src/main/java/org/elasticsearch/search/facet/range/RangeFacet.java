@@ -57,6 +57,11 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
 
         double total;
 
+        /**
+         * Internal field used in facet collection
+         */
+        boolean foundInDoc;
+
         Entry() {
         }
 

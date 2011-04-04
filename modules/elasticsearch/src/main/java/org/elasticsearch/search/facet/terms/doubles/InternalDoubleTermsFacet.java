@@ -175,7 +175,6 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         }
         InternalDoubleTermsFacet first = (InternalDoubleTermsFacet) facets.get(0);
         TDoubleIntHashMap aggregated = CacheRecycler.popDoubleIntMap();
-        aggregated.clear();
         long missing = 0;
         for (Facet facet : facets) {
             InternalDoubleTermsFacet mFacet = (InternalDoubleTermsFacet) facet;

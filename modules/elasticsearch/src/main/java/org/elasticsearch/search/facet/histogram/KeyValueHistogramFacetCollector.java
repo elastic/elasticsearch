@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -55,10 +55,8 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
     private NumericFieldData keyFieldData;
 
     private final FieldDataType valueFieldDataType;
-    private NumericFieldData valueFieldData;
 
-    private final TLongLongHashMap counts = new TLongLongHashMap();
-    private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
+    private final HistogramProc histoProc;
 
     public KeyValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
@@ -85,52 +83,66 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
         }
         valueIndexFieldName = mapper.names().indexName();
         valueFieldDataType = mapper.fieldDataType();
+
+        histoProc = new HistogramProc(interval);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        if (keyFieldData.multiValued()) {
-            if (valueFieldData.multiValued()) {
-                // both multi valued, intersect based on the minimum size
-                double[] keys = keyFieldData.doubleValues(doc);
-                double[] values = valueFieldData.doubleValues(doc);
-                int size = Math.min(keys.length, values.length);
-                for (int i = 0; i < size; i++) {
-                    long bucket = CountAndTotalHistogramFacetCollector.bucket(keys[i], interval);
-                    counts.adjustOrPutValue(bucket, 1, 1);
-                    totals.adjustOrPutValue(bucket, values[i], values[i]);
-                }
-            } else {
-                // key multi valued, value is a single value
-                double value = valueFieldData.doubleValue(doc);
-                for (double key : keyFieldData.doubleValues(doc)) {
-                    long bucket = CountAndTotalHistogramFacetCollector.bucket(key, interval);
-                    counts.adjustOrPutValue(bucket, 1, 1);
-                    totals.adjustOrPutValue(bucket, value, value);
-                }
-            }
-        } else {
-            // single key value, compute the bucket once
-            long bucket = CountAndTotalHistogramFacetCollector.bucket(keyFieldData.doubleValue(doc), interval);
-            if (valueFieldData.multiValued()) {
-                for (double value : valueFieldData.doubleValues(doc)) {
-                    counts.adjustOrPutValue(bucket, 1, 1);
-                    totals.adjustOrPutValue(bucket, value, value);
-                }
-            } else {
-                // both key and value are not multi valued
-                double value = valueFieldData.doubleValue(doc);
-                counts.adjustOrPutValue(bucket, 1, 1);
-                totals.adjustOrPutValue(bucket, value, value);
-            }
-        }
+        keyFieldData.forEachValueInDoc(doc, histoProc);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
-        valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
+        histoProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, counts, totals);
+        CacheRecycler.pushLongObjectMap(histoProc.entries);
+        return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries.valueCollection());
+    }
+
+    public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
+
+        final long interval;
+
+        final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
+
+        NumericFieldData valueFieldData;
+
+        public HistogramProc(long interval) {
+            this.interval = interval;
+        }
+
+        @Override public void onValue(int docId, double value) {
+            long bucket = FullHistogramFacetCollector.bucket(value, interval);
+            InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
+            if (entry == null) {
+                if (valueFieldData.multiValued()) {
+                    double[] valuesValues = valueFieldData.doubleValues(docId);
+                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, valuesValues.length, 0);
+                    for (double valueValue : valuesValues) {
+                        entry.total += valueValue;
+                    }
+                    entries.put(bucket, entry);
+                } else {
+                    double valueValue = valueFieldData.doubleValue(docId);
+                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, valueValue);
+                    entries.put(bucket, entry);
+                }
+            } else {
+                entry.count++;
+                if (valueFieldData.multiValued()) {
+                    double[] valuesValues = valueFieldData.doubleValues(docId);
+                    entry.totalCount += valuesValues.length;
+                    for (double valueValue : valuesValues) {
+                        entry.total += valueValue;
+                    }
+                } else {
+                    entry.totalCount++;
+                    double valueValue = valueFieldData.doubleValue(docId);
+                    entry.total += valueValue;
+                }
+            }
+        }
     }
 }

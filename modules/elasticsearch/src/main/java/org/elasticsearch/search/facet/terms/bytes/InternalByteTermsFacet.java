@@ -173,7 +173,6 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         }
         InternalByteTermsFacet first = (InternalByteTermsFacet) facets.get(0);
         TByteIntHashMap aggregated = CacheRecycler.popByteIntMap();
-        aggregated.clear();
 
         long missing = 0;
         for (Facet facet : facets) {

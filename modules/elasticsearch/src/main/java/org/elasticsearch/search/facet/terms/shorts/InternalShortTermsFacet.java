@@ -172,7 +172,6 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         }
         InternalShortTermsFacet first = (InternalShortTermsFacet) facets.get(0);
         TShortIntHashMap aggregated = CacheRecycler.popShortIntMap();
-        aggregated.clear();
         long missing = 0;
         for (Facet facet : facets) {
             InternalShortTermsFacet mFacet = (InternalShortTermsFacet) facet;

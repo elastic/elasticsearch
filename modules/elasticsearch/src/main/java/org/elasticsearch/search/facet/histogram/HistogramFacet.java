@@ -51,18 +51,39 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
         KEY((byte) 0, "key", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return (o1.key() < o2.key() ? -1 : (o1.key() == o2.key() ? 0 : 1));
             }
         }),
         COUNT((byte) 1, "count", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return (o1.count() < o2.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
             }
         }),
         TOTAL((byte) 2, "total", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
+                // push nulls to the end
+                if (o1 == null) {
+                    return 1;
+                }
+                if (o2 == null) {
+                    return -1;
+                }
                 return (o1.total() < o2.total() ? -1 : (o1.total() == o2.total() ? 0 : 1));
             }
         });
@@ -135,6 +156,16 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
          * The number of hits that fall within that key "range" or "interval".
          */
         long getCount();
+
+        /**
+         * The total count of values aggregated to compute the total.
+         */
+        long totalCount();
+
+        /**
+         * The total count of values aggregated to compute the total.
+         */
+        long getTotalCount();
 
         /**
          * The sum / total of the value field that fall within this key "interval".

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,25 +19,24 @@
 
 package org.elasticsearch.search.facet.histogram;
 
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.iterator.TLongLongIterator;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalCountHistogramFacet extends InternalHistogramFacet {
+public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
-    private static final String STREAM_TYPE = "cHistogram";
+    private static final String STREAM_TYPE = "fHistogram";
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -57,13 +56,17 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     /**
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
-    public class CountEntry implements Entry {
-        private final long key;
-        private final long count;
+    public static class FullEntry implements Entry {
+        long key;
+        long count;
+        long totalCount;
+        double total;
 
-        public CountEntry(long key, long count) {
+        public FullEntry(long key, long count, long totalCount, double total) {
             this.key = key;
             this.count = count;
+            this.totalCount = totalCount;
+            this.total = total;
         }
 
         @Override public long key() {
@@ -83,7 +86,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         }
 
         @Override public double total() {
-            return Double.NaN;
+            return total;
         }
 
         @Override public double getTotal() {
@@ -91,37 +94,35 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         }
 
         @Override public long totalCount() {
-            return 0;
+            return totalCount;
         }
 
         @Override public long getTotalCount() {
-            return 0;
+            return this.totalCount;
         }
 
         @Override public double mean() {
-            return Double.NaN;
+            return total / totalCount;
         }
 
         @Override public double getMean() {
-            return mean();
+            return total / totalCount;
         }
     }
 
     private String name;
 
-    ComparatorType comparatorType;
+    private ComparatorType comparatorType;
 
-    TLongLongHashMap counts;
+    Collection<FullEntry> entries = ImmutableList.of();
 
-    CountEntry[] entries = null;
-
-    private InternalCountHistogramFacet() {
+    private InternalFullHistogramFacet() {
     }
 
-    public InternalCountHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts) {
+    public InternalFullHistogramFacet(String name, ComparatorType comparatorType, Collection<FullEntry> entries) {
         this.name = name;
         this.comparatorType = comparatorType;
-        this.counts = counts;
+        this.entries = entries;
     }
 
     @Override public String name() {
@@ -140,11 +141,14 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         return type();
     }
 
-    @Override public List<CountEntry> entries() {
-        return Arrays.asList(computeEntries());
+    @Override public List<FullEntry> entries() {
+        if (!(entries instanceof List)) {
+            entries = new ArrayList<FullEntry>(entries);
+        }
+        return (List<FullEntry>) entries;
     }
 
-    @Override public List<CountEntry> getEntries() {
+    @Override public List<FullEntry> getEntries() {
         return entries();
     }
 
@@ -152,46 +156,49 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         return (Iterator) entries().iterator();
     }
 
-    private CountEntry[] computeEntries() {
-        if (entries != null) {
-            return entries;
-        }
-        entries = new CountEntry[counts.size()];
-        int i = 0;
-        for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
-            it.advance();
-            entries[i++] = new CountEntry(it.key(), it.value());
-        }
-        Arrays.sort(entries, comparatorType.comparator());
-        return entries;
-    }
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
-            return facets.get(0);
+            // we need to sort it
+            InternalFullHistogramFacet internalFacet = (InternalFullHistogramFacet) facets.get(0);
+            if (!internalFacet.entries.isEmpty()) {
+                List<FullEntry> entries = internalFacet.entries();
+                Collections.sort(entries, comparatorType.comparator());
+            }
+            return internalFacet;
         }
-        TLongLongHashMap counts = null;
 
-        InternalCountHistogramFacet firstHistoFacet = (InternalCountHistogramFacet) facets.get(0);
+        ExtTLongObjectHashMap<FullEntry> map = CacheRecycler.popLongObjectMap2();
+
         for (Facet facet : facets) {
-            InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
+            InternalFullHistogramFacet histoFacet = (InternalFullHistogramFacet) facet;
+            for (Entry entry : histoFacet) {
+                FullEntry fullEntry = (FullEntry) entry;
+                FullEntry current = map.get(fullEntry.key);
+                if (current != null) {
+                    current.count += fullEntry.count;
+                    current.total += fullEntry.total;
+                    current.totalCount += fullEntry.totalCount;
                 } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
+                    map.put(fullEntry.key, fullEntry);
                 }
             }
         }
-        if (counts == null) {
-            counts = InternalCountHistogramFacet.EMPTY_LONG_LONG_MAP;
-        }
-        firstHistoFacet.counts = counts;
 
-        return firstHistoFacet;
+        // sort
+        Object[] values = map.internalValues();
+        Arrays.sort(values, (Comparator) comparatorType.comparator());
+        List<FullEntry> ordered = new ArrayList<FullEntry>(map.size());
+        for (int i = 0; i < map.size(); i++) {
+            FullEntry value = (FullEntry) values[i];
+            if (value == null) {
+                break;
+            }
+            ordered.add(value);
+        }
+
+        CacheRecycler.pushLongObjectMap2(map);
+
+        return new InternalFullHistogramFacet(name, comparatorType, ordered);
     }
 
     static final class Fields {
@@ -199,16 +206,22 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         static final XContentBuilderString ENTRIES = new XContentBuilderString("entries");
         static final XContentBuilderString KEY = new XContentBuilderString("key");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
+        static final XContentBuilderString MEAN = new XContentBuilderString("mean");
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.startArray(Fields.ENTRIES);
-        for (Entry entry : computeEntries()) {
+        for (Entry entry : entries) {
             builder.startObject();
             builder.field(Fields.KEY, entry.key());
             builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TOTAL, entry.total());
+            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
+            builder.field(Fields.MEAN, entry.mean());
             builder.endObject();
         }
         builder.endArray();
@@ -216,8 +229,8 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         return builder;
     }
 
-    public static InternalCountHistogramFacet readHistogramFacet(StreamInput in) throws IOException {
-        InternalCountHistogramFacet facet = new InternalCountHistogramFacet();
+    public static InternalFullHistogramFacet readHistogramFacet(StreamInput in) throws IOException {
+        InternalFullHistogramFacet facet = new InternalFullHistogramFacet();
         facet.readFrom(in);
         return facet;
     }
@@ -227,14 +240,9 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
-        if (size == 0) {
-            counts = EMPTY_LONG_LONG_MAP;
-        } else {
-            counts = new TLongLongHashMap(size);
-            for (int i = 0; i < size; i++) {
-                long key = in.readLong();
-                counts.put(key, in.readVLong());
-            }
+        entries = new ArrayList<FullEntry>(size);
+        for (int i = 0; i < size; i++) {
+            entries.add(new FullEntry(in.readLong(), in.readVLong(), in.readVLong(), in.readDouble()));
         }
     }
 
@@ -242,13 +250,12 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         out.writeUTF(name);
         out.writeByte(comparatorType.id());
         // optimize the write, since we know we have the same buckets as keys
-        out.writeVInt(counts.size());
-        for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
-            it.advance();
-            out.writeLong(it.key());
-            out.writeVLong(it.value());
+        out.writeVInt(entries.size());
+        for (FullEntry entry : entries) {
+            out.writeLong(entry.key);
+            out.writeVLong(entry.count);
+            out.writeVLong(entry.totalCount);
+            out.writeDouble(entry.total);
         }
     }
-
-    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
 }

@@ -21,8 +21,8 @@ package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -98,7 +98,8 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, histoProc.counts(), histoProc.totals());
+        CacheRecycler.pushLongObjectMap(histoProc.entries);
+        return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries.valueCollection());
     }
 
     public static long bucket(double value, long interval) {
@@ -111,9 +112,7 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
         private final SearchScript valueScript;
 
-        private final TLongLongHashMap counts = new TLongLongHashMap();
-
-        private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
+        final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
 
         public HistogramProc(long interval, SearchScript valueScript) {
             this.interval = interval;
@@ -122,19 +121,18 @@ public class KeyValueScriptHistogramFacetCollector extends AbstractFacetCollecto
 
         @Override public void onValue(int docId, double value) {
             valueScript.setNextDocId(docId);
-
             long bucket = bucket(value, interval);
-            counts.adjustOrPutValue(bucket, 1, 1);
             double scriptValue = valueScript.runAsDouble();
-            totals.adjustOrPutValue(bucket, scriptValue, scriptValue);
-        }
 
-        public TLongLongHashMap counts() {
-            return counts;
-        }
-
-        public TLongDoubleHashMap totals() {
-            return totals;
+            InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
+            if (entry == null) {
+                entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, scriptValue);
+                entries.put(bucket, entry);
+            } else {
+                entry.count++;
+                entry.totalCount++;
+                entry.total += scriptValue;
+            }
         }
     }
 }

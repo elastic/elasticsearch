@@ -106,7 +106,7 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
         } else if (valueField == null) {
             return new CountHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else if (keyField.equals(valueField)) {
-            return new CountAndTotalHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
+            return new FullHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else {
             // we have a value field, and its different than the key
             return new KeyValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);

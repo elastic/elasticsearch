@@ -21,8 +21,8 @@ package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -44,9 +44,7 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     private final HistogramFacet.ComparatorType comparatorType;
 
-    private final TLongLongHashMap counts = new TLongLongHashMap();
-
-    private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
+    final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
 
     public ScriptHistogramFacetCollector(String facetName, String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
@@ -66,8 +64,16 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
             bucket = bucket(keyScript.runAsDouble(), interval);
         }
         double value = valueScript.runAsDouble();
-        counts.adjustOrPutValue(bucket, 1, 1);
-        totals.adjustOrPutValue(bucket, value, value);
+
+        InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
+        if (entry == null) {
+            entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, value);
+            entries.put(bucket, entry);
+        } else {
+            entry.count++;
+            entry.totalCount++;
+            entry.total += value;
+        }
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
@@ -81,7 +87,8 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, counts, totals);
+        CacheRecycler.pushLongObjectMap(entries);
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries.valueCollection());
     }
 
     public static long bucket(double value, long interval) {

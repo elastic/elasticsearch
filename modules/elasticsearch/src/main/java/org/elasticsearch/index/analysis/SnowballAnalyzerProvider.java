@@ -29,7 +29,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -63,13 +62,13 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
     private final SnowballAnalyzer analyzer;
 
     @Inject public SnowballAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
 
         String language = settings.get("language", settings.get("name", "English"));
         Set<?> defaultStopwords = defaultLanguageStopwords.containsKey(language) ? defaultLanguageStopwords.get(language) : ImmutableSet.<Set<?>>of();
         Set<?> stopWords = Analysis.parseStopWords(settings, defaultStopwords);
 
-        analyzer = new SnowballAnalyzer(Lucene.VERSION, language, stopWords);
+        analyzer = new SnowballAnalyzer(version, language, stopWords);
     }
 
     @Override public SnowballAnalyzer get() {

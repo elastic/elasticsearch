@@ -40,7 +40,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final String name;
 
     @Inject public IcuNormalizerTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         this.name = settings.get("name", "nfkc_cf");
     }
 

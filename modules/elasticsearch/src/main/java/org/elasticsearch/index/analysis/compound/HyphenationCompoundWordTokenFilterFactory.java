@@ -65,7 +65,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new HyphenationCompoundWordTokenFilter(tokenStream,
+        return new HyphenationCompoundWordTokenFilter(version, tokenStream,
                 hyphenationTree, wordList,
                 minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
     }

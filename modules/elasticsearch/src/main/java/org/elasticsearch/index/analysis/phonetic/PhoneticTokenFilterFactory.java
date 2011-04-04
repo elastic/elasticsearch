@@ -42,7 +42,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean inject;
 
     @Inject public PhoneticTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         this.inject = settings.getAsBoolean("replace", true);
         String encoder = settings.get("encoder");
         if (encoder == null) {

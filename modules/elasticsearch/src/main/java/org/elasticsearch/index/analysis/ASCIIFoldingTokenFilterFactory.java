@@ -33,7 +33,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public ASCIIFoldingTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

@@ -948,10 +948,12 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(0).total(), equalTo(2120d));
         assertThat(facet.entries().get(0).mean(), equalTo(1060d));
         assertThat(facet.entries().get(1).key(), equalTo(1100l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
 
@@ -960,14 +962,17 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).key(), equalTo(10l));
         assertThat(facet.entries().get(0).count(), equalTo(3l));
+        assertThat(facet.entries().get(0).totalCount(), equalTo(3l));
         assertThat(facet.entries().get(0).total(), equalTo(45d));
         assertThat(facet.entries().get(0).mean(), equalTo(15d));
         assertThat(facet.entries().get(1).key(), equalTo(20l));
         assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(1).total(), equalTo(48d));
         assertThat(facet.entries().get(1).mean(), equalTo(24d));
         assertThat(facet.entries().get(2).key(), equalTo(30l));
         assertThat(facet.entries().get(2).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).totalCount(), equalTo(1l));
         assertThat(facet.entries().get(2).total(), equalTo(31d));
         assertThat(facet.entries().get(2).mean(), equalTo(31d));
 
@@ -975,11 +980,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.name(), equalTo("stats3"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(4l));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).totalCount(), equalTo(4l));
         assertThat(facet.entries().get(0).total(), equalTo(82d));
         assertThat(facet.entries().get(0).mean(), equalTo(20.5d));
         assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(1).total(), equalTo(42d));
         assertThat(facet.entries().get(1).mean(), equalTo(21d));
 
@@ -988,10 +995,12 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(0l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(0).total(), equalTo(2120d));
         assertThat(facet.entries().get(0).mean(), equalTo(1060d));
         assertThat(facet.entries().get(1).key(), equalTo(2l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
 
@@ -1008,10 +1017,12 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(0).total(), equalTo(2120d));
         assertThat(facet.entries().get(0).mean(), equalTo(1060d));
         assertThat(facet.entries().get(1).key(), equalTo(1100l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
 
@@ -1020,22 +1031,20 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(-1d));
-        assertThat(facet.entries().get(0).mean(), equalTo(-1d));
         assertThat(facet.entries().get(1).key(), equalTo(1100l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(-1d));
-        assertThat(facet.entries().get(1).mean(), equalTo(-1d));
 
         facet = searchResponse.facets().facet("stats8");
         assertThat(facet.name(), equalTo("stats8"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(0).total(), equalTo(2d));
         assertThat(facet.entries().get(0).mean(), equalTo(1d));
         assertThat(facet.entries().get(1).key(), equalTo(1100l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1d));
         assertThat(facet.entries().get(1).mean(), equalTo(1d));
     }

@@ -175,7 +175,6 @@ public class InternalFloatTermsFacet extends InternalTermsFacet {
         }
         InternalFloatTermsFacet first = (InternalFloatTermsFacet) facets.get(0);
         TFloatIntHashMap aggregated = CacheRecycler.popFloatIntMap();
-        aggregated.clear();
         long missing = 0;
 
         for (Facet facet : facets) {

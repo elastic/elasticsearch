@@ -176,7 +176,6 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
         }
         InternalIpTermsFacet first = (InternalIpTermsFacet) facets.get(0);
         TLongIntHashMap aggregated = CacheRecycler.popLongIntMap();
-        aggregated.clear();
         long missing = 0;
 
         for (Facet facet : facets) {

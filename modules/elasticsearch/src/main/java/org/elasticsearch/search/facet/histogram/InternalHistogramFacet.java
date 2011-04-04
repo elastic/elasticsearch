@@ -30,7 +30,7 @@ import java.util.List;
 public abstract class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     public static void registerStreams() {
-        InternalCountAndTotalHistogramFacet.registerStreams();
+        InternalFullHistogramFacet.registerStreams();
         InternalCountHistogramFacet.registerStreams();
     }
 

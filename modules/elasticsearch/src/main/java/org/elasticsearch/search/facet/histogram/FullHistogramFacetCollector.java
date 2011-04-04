@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -40,7 +40,7 @@ import java.io.IOException;
  *
  * @author kimchy (shay.banon)
  */
-public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector {
+public class FullHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
@@ -54,7 +54,7 @@ public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector
 
     private final HistogramProc histoProc;
 
-    public CountAndTotalHistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public FullHistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
@@ -86,7 +86,8 @@ public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalHistogramFacet(facetName, comparatorType, histoProc.counts(), histoProc.totals());
+        CacheRecycler.pushLongObjectMap(histoProc.entries);
+        return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries.valueCollection());
     }
 
     public static long bucket(double value, long interval) {
@@ -95,11 +96,9 @@ public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector
 
     public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
 
-        private final long interval;
+        final long interval;
 
-        private final TLongLongHashMap counts = new TLongLongHashMap();
-
-        private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
+        final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
 
         public HistogramProc(long interval) {
             this.interval = interval;
@@ -107,16 +106,15 @@ public class CountAndTotalHistogramFacetCollector extends AbstractFacetCollector
 
         @Override public void onValue(int docId, double value) {
             long bucket = bucket(value, interval);
-            counts.adjustOrPutValue(bucket, 1, 1);
-            totals.adjustOrPutValue(bucket, value, value);
-        }
-
-        public TLongLongHashMap counts() {
-            return counts;
-        }
-
-        public TLongDoubleHashMap totals() {
-            return totals;
+            InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
+            if (entry == null) {
+                entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, value);
+                entries.put(bucket, entry);
+            } else {
+                entry.count++;
+                entry.totalCount++;
+                entry.total += value;
+            }
         }
     }
 }

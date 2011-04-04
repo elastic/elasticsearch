@@ -186,5 +186,25 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
          * The mean of this facet interval.
          */
         double getMean();
+
+        /**
+         * The minimum value.
+         */
+        double min();
+
+        /**
+         * The minimum value.
+         */
+        double getMin();
+
+        /**
+         * The maximum value.
+         */
+        double max();
+
+        /**
+         * The maximum value.
+         */
+        double getMax();
     }
 }

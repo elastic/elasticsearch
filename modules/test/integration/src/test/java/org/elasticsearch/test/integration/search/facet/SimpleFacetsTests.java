@@ -948,11 +948,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
+        assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
         assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
         assertThat(facet.entries().get(0).total(), equalTo(2120d));
         assertThat(facet.entries().get(0).mean(), equalTo(1060d));
         assertThat(facet.entries().get(1).key(), equalTo(1100l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
+        assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
         assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));

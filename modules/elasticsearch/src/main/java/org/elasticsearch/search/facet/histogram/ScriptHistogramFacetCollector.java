@@ -67,12 +67,18 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
         InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
         if (entry == null) {
-            entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, value);
+            entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, value, value, 1, value);
             entries.put(bucket, entry);
         } else {
             entry.count++;
             entry.totalCount++;
             entry.total += value;
+            if (value < entry.min) {
+                entry.min = value;
+            }
+            if (value > entry.max) {
+                entry.max = value;
+            }
         }
     }
 

@@ -119,14 +119,20 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
             if (entry == null) {
                 if (valueFieldData.multiValued()) {
                     double[] valuesValues = valueFieldData.doubleValues(docId);
-                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, valuesValues.length, 0);
+                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, Double.MAX_VALUE, Double.MIN_VALUE, valuesValues.length, 0);
                     for (double valueValue : valuesValues) {
                         entry.total += valueValue;
+                        if (valueValue < entry.min) {
+                            entry.min = valueValue;
+                        }
+                        if (valueValue > entry.max) {
+                            entry.max = valueValue;
+                        }
                     }
                     entries.put(bucket, entry);
                 } else {
                     double valueValue = valueFieldData.doubleValue(docId);
-                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, 1, valueValue);
+                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, valueValue, valueValue, 1, valueValue);
                     entries.put(bucket, entry);
                 }
             } else {
@@ -136,11 +142,23 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
                     entry.totalCount += valuesValues.length;
                     for (double valueValue : valuesValues) {
                         entry.total += valueValue;
+                        if (valueValue < entry.min) {
+                            entry.min = valueValue;
+                        }
+                        if (valueValue > entry.max) {
+                            entry.max = valueValue;
+                        }
                     }
                 } else {
                     entry.totalCount++;
                     double valueValue = valueFieldData.doubleValue(docId);
                     entry.total += valueValue;
+                    if (valueValue < entry.min) {
+                        entry.min = valueValue;
+                    }
+                    if (valueValue > entry.max) {
+                        entry.max = valueValue;
+                    }
                 }
             }
         }

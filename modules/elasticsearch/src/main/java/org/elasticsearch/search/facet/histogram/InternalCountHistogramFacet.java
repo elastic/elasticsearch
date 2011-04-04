@@ -105,6 +105,22 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         @Override public double getMean() {
             return mean();
         }
+
+        @Override public double min() {
+            return Double.NaN;
+        }
+
+        @Override public double getMin() {
+            return Double.NaN;
+        }
+
+        @Override public double max() {
+            return Double.NaN;
+        }
+
+        @Override public double getMax() {
+            return Double.NaN;
+        }
     }
 
     private String name;

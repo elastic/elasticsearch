@@ -61,7 +61,7 @@ public class HistogramFacetSearchBenchmark {
 
         Client client = clientNode.client();
 
-        long COUNT = SizeValue.parseSizeValue("1m").singles();
+        long COUNT = SizeValue.parseSizeValue("5m").singles();
         int BATCH = 500;
         int QUERY_WARMUP = 20;
         int QUERY_COUNT = 200;
@@ -112,7 +112,8 @@ public class HistogramFacetSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count();
+        System.out.println("--> Number of docs in index: " + COUNT);
 
         System.out.println("--> Warmup...");
         // run just the child query, warm up first

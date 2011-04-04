@@ -38,6 +38,36 @@ public class CacheRecycler {
         intArray.remove();
     }
 
+    // ----- TLongLongHashMap ----
+
+    private static ThreadLocal<SoftReference<Deque<TLongLongHashMap>>> longLongHashMap = new ThreadLocal<SoftReference<Deque<TLongLongHashMap>>>();
+
+
+    public static TLongLongHashMap popLongLongMap() {
+        SoftReference<Deque<TLongLongHashMap>> ref = longLongHashMap.get();
+        Deque<TLongLongHashMap> deque = ref == null ? null : ref.get();
+        if (deque == null) {
+            deque = new ArrayDeque<TLongLongHashMap>();
+            longLongHashMap.set(new SoftReference<Deque<TLongLongHashMap>>(deque));
+        }
+        if (deque.isEmpty()) {
+            return new TLongLongHashMap();
+        }
+        TLongLongHashMap map = deque.pollFirst();
+        map.clear();
+        return map;
+    }
+
+    public static void pushLongLongMap(TLongLongHashMap map) {
+        SoftReference<Deque<TLongLongHashMap>> ref = longLongHashMap.get();
+        Deque<TLongLongHashMap> deque = ref == null ? null : ref.get();
+        if (deque == null) {
+            deque = new ArrayDeque<TLongLongHashMap>();
+            longLongHashMap.set(new SoftReference<Deque<TLongLongHashMap>>(deque));
+        }
+        deque.add(map);
+    }
+
     // ----- TIntIntHashMap ----
 
     private static ThreadLocal<SoftReference<Deque<TIntIntHashMap>>> intIntHashMap = new ThreadLocal<SoftReference<Deque<TIntIntHashMap>>>();

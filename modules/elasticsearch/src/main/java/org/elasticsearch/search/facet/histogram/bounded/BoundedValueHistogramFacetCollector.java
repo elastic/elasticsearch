@@ -82,8 +82,13 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
         valueIndexFieldName = mapper.names().indexName();
         valueFieldDataType = mapper.fieldDataType();
 
-        long offset = -from;
-        int size = (int) ((to - from) / interval);
+        long normalizedFrom = (((long) ((double) from / interval)) * interval);
+        long normalizedTo = (((long) ((double) to / interval)) * interval);
+        if ((to % interval) != 0) {
+            normalizedTo += interval;
+        }
+        long offset = -normalizedFrom;
+        int size = (int) ((normalizedTo - normalizedFrom) / interval);
 
         histoProc = new HistogramProc(from, to, interval, offset, size);
     }

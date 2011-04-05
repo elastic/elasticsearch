@@ -103,6 +103,15 @@ public class MultiValueShortFieldData extends ShortFieldData {
         }
     }
 
+    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, values[loc]);
+            }
+        }
+    }
+
     @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {

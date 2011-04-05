@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.histogram;
+package org.elasticsearch.search.facet.histogram.unbounded;
 
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -27,6 +27,8 @@ import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.histogram.HistogramFacet;
+import org.elasticsearch.search.facet.histogram.InternalHistogramFacet;
 
 import java.io.IOException;
 import java.util.*;

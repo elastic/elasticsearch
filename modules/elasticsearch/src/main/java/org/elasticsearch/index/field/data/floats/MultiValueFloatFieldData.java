@@ -103,6 +103,15 @@ public class MultiValueFloatFieldData extends FloatFieldData {
         }
     }
 
+    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+        for (int[] ordinal : ordinals) {
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                proc.onValue(docId, (long) values[loc]);
+            }
+        }
+    }
+
     @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         boolean found = false;
         for (int[] ordinal : ordinals) {

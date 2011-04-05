@@ -88,8 +88,7 @@ public class BoundedCountHistogramFacetCollector extends AbstractFacetCollector 
     }
 
     @Override public Facet facet() {
-        CacheRecycler.pushIntArray(histoProc.counts);
-        return new InternalBoundedCountHistogramFacet(facetName, comparatorType, histoProc.interval, -histoProc.offset, histoProc.size, histoProc.counts);
+        return new InternalBoundedCountHistogramFacet(facetName, comparatorType, histoProc.interval, -histoProc.offset, histoProc.size, histoProc.counts, true);
     }
 
     public static class HistogramProc implements NumericFieldData.LongValueInDocProc {

@@ -103,8 +103,7 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
     }
 
     @Override public Facet facet() {
-        CacheRecycler.pushObjectArray(histoProc.entries);
-        return new InternalBoundedFullHistogramFacet(facetName, comparatorType, histoProc.interval, -histoProc.offset, histoProc.size, histoProc.entries);
+        return new InternalBoundedFullHistogramFacet(facetName, comparatorType, histoProc.interval, -histoProc.offset, histoProc.size, histoProc.entries, true);
     }
 
     public static long bucket(double value, long interval) {

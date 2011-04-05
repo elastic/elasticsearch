@@ -64,13 +64,22 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @BeforeClass public void createNodes() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards()).put("index.number_of_replicas", 0).build();
-        startNode("server1", settings);
-        startNode("server2", settings);
+        for (int i = 0; i < numberOfNodes(); i++) {
+            startNode("node" + i, settings);
+        }
         client = getClient();
     }
 
     protected int numberOfShards() {
         return 1;
+    }
+
+    protected int numberOfNodes() {
+        return 1;
+    }
+
+    protected int numberOfRuns() {
+        return 5;
     }
 
     @AfterClass public void closeNodes() {
@@ -79,10 +88,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     }
 
     protected Client getClient() {
-        return client("server1");
+        return client("node0");
     }
 
-    @Test public void testBinaryFacet() throws Exception {
+    @Test
+    public void testBinaryFacet() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -104,26 +114,28 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setSearchType(SearchType.COUNT)
-                .setFacets(XContentFactory.jsonBuilder().startObject()
-                        .startObject("facet1")
-                        .startObject("terms")
-                        .field("field", "tag")
-                        .endObject()
-                        .endObject()
-                        .endObject().copiedBytes())
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setSearchType(SearchType.COUNT)
+                    .setFacets(XContentFactory.jsonBuilder().startObject()
+                            .startObject("facet1")
+                            .startObject("terms")
+                            .field("field", "tag")
+                            .endObject()
+                            .endObject()
+                            .endObject().copiedBytes())
+                    .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
-        assertThat(searchResponse.hits().hits().length, equalTo(0));
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+            assertThat(searchResponse.hits().hits().length, equalTo(0));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+        }
     }
 
     @Test public void testSearchFilter() throws Exception {
@@ -148,34 +160,36 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10))
+                    .execute().actionGet();
 
-        assertThat(searchResponse.hits().hits().length, equalTo(2));
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(searchResponse.hits().hits().length, equalTo(2));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .setFilter(termFilter("tag", "blue"))
-                .addFacet(termsFacet("facet1").field("tag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .setFilter(termFilter("tag", "blue"))
+                    .addFacet(termsFacet("facet1").field("tag").size(10))
+                    .execute().actionGet();
 
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(searchResponse.hits().hits().length, equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), anyOf(equalTo("green"), equalTo("blue")));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("green"), equalTo("blue")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+        }
     }
 
     @Test public void testFacetsWithSize0() throws Exception {
@@ -206,35 +220,37 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setSize(0)
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("stag").size(10))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setSize(0)
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("stag").size(10))
+                    .execute().actionGet();
 
-        assertThat(searchResponse.hits().hits().length, equalTo(0));
+            assertThat(searchResponse.hits().hits().length, equalTo(0));
 
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        searchResponse = client.prepareSearch()
-                .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setSize(0)
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("stag").size(10))
-                .addFacet(termsFacet("facet2").field("tag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setSearchType(SearchType.QUERY_AND_FETCH)
+                    .setSize(0)
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("stag").size(10))
+                    .addFacet(termsFacet("facet2").field("tag").size(10))
+                    .execute().actionGet();
 
-        assertThat(searchResponse.hits().hits().length, equalTo(0));
+            assertThat(searchResponse.hits().hits().length, equalTo(0));
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+        }
     }
 
     @Test public void testTermsIndexFacet() throws Exception {
@@ -263,20 +279,22 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setSize(0)
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("_index").size(10))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setSize(0)
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("_index").size(10))
+                    .execute().actionGet();
 
 
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("test1"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), equalTo("test2"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("test1"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), equalTo("test2"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+        }
 
         try {
             client.admin().indices().prepareDelete("test1").execute().actionGet();
@@ -308,16 +326,18 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(filterFacet("facet1").filter(termFilter("stag", "111")))
-                .addFacet(filterFacet("facet2").filter(termFilter("tag", "xxx")))
-                .addFacet(filterFacet("facet3").filter(termFilter("tag", "yyy")))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(filterFacet("facet1").filter(termFilter("stag", "111")))
+                    .addFacet(filterFacet("facet2").filter(termFilter("tag", "xxx")))
+                    .addFacet(filterFacet("facet3").filter(termFilter("tag", "yyy")))
+                    .execute().actionGet();
 
-        FilterFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.count(), equalTo(2l));
+            FilterFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.count(), equalTo(2l));
+        }
     }
 
     @Test public void testTermsFacetsMissing() throws Exception {
@@ -352,13 +372,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("stag").size(10))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("stag").size(10))
+                    .execute().actionGet();
 
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.missingCount(), equalTo(1l));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.missingCount(), equalTo(1l));
+        }
     }
 
     @Test public void testTermsFacets() throws Exception {
@@ -408,306 +430,308 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("stag").size(10))
-                .addFacet(termsFacet("facet2").field("tag").size(10))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("stag").size(10))
+                    .addFacet(termsFacet("facet2").field("tag").size(10))
+                    .execute().actionGet();
 
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        facet = searchResponse.facets().facet("facet2");
-        assertThat(facet.name(), equalTo("facet2"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet2");
+            assertThat(facet.name(), equalTo("facet2"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        // Numeric
+            // Numeric
 
-        searchResponse = client.prepareSearch()
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("lstag").size(10))
-                .addFacet(termsFacet("facet2").field("ltag").size(10))
-                .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("lstag").size(10))
+                    .addFacet(termsFacet("facet2").field("ltag").size(10))
+                    .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet, instanceOf(InternalLongTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet, instanceOf(InternalLongTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        facet = searchResponse.facets().facet("facet2");
-        assertThat(facet, instanceOf(InternalLongTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet2"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("2000"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("1000"), equalTo("3000")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000"), equalTo("3000")));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet2");
+            assertThat(facet, instanceOf(InternalLongTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet2"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("2000"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("1000"), equalTo("3000")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000"), equalTo("3000")));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
 
-        facet = searchResponse.facets().facet("facet3");
-        assertThat(facet, instanceOf(InternalLongTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet3"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("2000"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), equalTo("1000"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet3");
+            assertThat(facet, instanceOf(InternalLongTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet3"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("2000"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), equalTo("1000"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("dstag").size(10))
-                .addFacet(termsFacet("facet2").field("dtag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("dstag").size(10))
+                    .addFacet(termsFacet("facet2").field("dtag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111.1"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111.1"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        facet = searchResponse.facets().facet("facet2");
-        assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet2"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("2000.1"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet2");
+            assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet2"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("2000.1"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(2).term(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("bstag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("bstag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet, instanceOf(InternalByteTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet, instanceOf(InternalByteTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("istag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("istag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet, instanceOf(InternalIntTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet, instanceOf(InternalIntTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(termQuery("stag", "111"))
-                .addFacet(termsFacet("facet1").field("shstag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("stag", "111"))
+                    .addFacet(termsFacet("facet1").field("shstag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet, instanceOf(InternalShortTermsFacet.class));
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet, instanceOf(InternalShortTermsFacet.class));
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        // Test Facet Filter
+            // Test Facet Filter
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
 
-        // Test Facet Filter (with a type)
+            // Test Facet Filter (with a type)
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(2).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(2).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
 
-        // Bounded Size
+            // Bounded Size
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(2))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(2))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
 
-        // Test Exclude
+            // Test Exclude
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy"))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy"))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
 
-        // Test Order
+            // Test Order
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(2).term(), equalTo("zzz"));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(2).term(), equalTo("zzz"));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(2).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("zzz"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(2).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("zzz"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
 
-        // Script
+            // Script
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10).script("term + param1").param("param1", "a").order(TermsFacet.ComparatorType.TERM))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term + param1").param("param1", "a").order(TermsFacet.ComparatorType.TERM))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("xxxa"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(1).term(), equalTo("yyya"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(2).term(), equalTo("zzza"));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("xxxa"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(1).term(), equalTo("yyya"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(2).term(), equalTo("zzza"));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), equalTo("zzz"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), equalTo("zzz"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
 
-        // Fields Facets
+            // Fields Facets
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").fields("stag", "tag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").fields("stag", "tag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(4));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("111"), equalTo("yyy")));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("111"), equalTo("yyy")));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(2).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
-        assertThat(facet.entries().get(2).count(), equalTo(1));
-        assertThat(facet.entries().get(3).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
-        assertThat(facet.entries().get(3).count(), equalTo(1));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(4));
+            assertThat(facet.entries().get(0).term(), anyOf(equalTo("111"), equalTo("yyy")));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("111"), equalTo("yyy")));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(2).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
+            assertThat(facet.entries().get(2).count(), equalTo(1));
+            assertThat(facet.entries().get(3).term(), anyOf(equalTo("zzz"), equalTo("xxx")));
+            assertThat(facet.entries().get(3).count(), equalTo(1));
 
-        searchResponse = client.prepareSearch()
-                .setQuery(termQuery("xxx", "yyy")) // don't match anything
-                .addFacet(termsFacet("facet1").field("tag").size(10).allTerms(true))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(termQuery("xxx", "yyy")) // don't match anything
+                    .addFacet(termsFacet("facet1").field("tag").size(10).allTerms(true))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
-        assertThat(facet.entries().get(0).count(), equalTo(0));
-        assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
-        assertThat(facet.entries().get(1).count(), equalTo(0));
-        assertThat(facet.entries().get(2).term(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
-        assertThat(facet.entries().get(2).count(), equalTo(0));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
+            assertThat(facet.entries().get(0).count(), equalTo(0));
+            assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
+            assertThat(facet.entries().get(1).count(), equalTo(0));
+            assertThat(facet.entries().get(2).term(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
+            assertThat(facet.entries().get(2).count(), equalTo(0));
 
-        // Script Field
+            // Script Field
 
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").scriptField("_source.stag").size(10))
-                .addFacet(termsFacet("facet2").scriptField("_source.tag").size(10))
-                .execute().actionGet();
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").scriptField("_source.stag").size(10))
+                    .addFacet(termsFacet("facet2").scriptField("_source.tag").size(10))
+                    .execute().actionGet();
 
-        facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(1));
-        assertThat(facet.entries().get(0).term(), equalTo("111"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        facet = searchResponse.facets().facet("facet2");
-        assertThat(facet.name(), equalTo("facet2"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
+            facet = searchResponse.facets().facet("facet2");
+            assertThat(facet.name(), equalTo("facet2"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+        }
     }
 
     @Test public void testTermFacetWithEqualTermDistribution() throws Exception {
@@ -740,17 +764,19 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("text").size(10))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("text").size(10))
+                    .execute().actionGet();
 
-        TermsFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        for (int i = 0; i < 3; i++) {
-            assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
-            assertThat(facet.entries().get(i).count(), equalTo(10));
+            TermsFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            for (int j = 0; j < 3; j++) {
+                assertThat(facet.entries().get(j).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
+                assertThat(facet.entries().get(j).count(), equalTo(10));
+            }
         }
     }
 
@@ -775,79 +801,81 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(statisticalFacet("stats1").field("num"))
-                .addFacet(statisticalFacet("stats2").field("multi_num"))
-                .addFacet(statisticalScriptFacet("stats3").script("doc['num'].value * 2"))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(statisticalFacet("stats1").field("num"))
+                    .addFacet(statisticalFacet("stats2").field("multi_num"))
+                    .addFacet(statisticalScriptFacet("stats3").script("doc['num'].value * 2"))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            StatisticalFacet facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.name(), equalTo(facet.name()));
+            assertThat(facet.count(), equalTo(2l));
+            assertThat(facet.total(), equalTo(3d));
+            assertThat(facet.min(), equalTo(1d));
+            assertThat(facet.max(), equalTo(2d));
+            assertThat(facet.mean(), equalTo(1.5d));
+            assertThat(facet.sumOfSquares(), equalTo(5d));
+
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.name(), equalTo(facet.name()));
+            assertThat(facet.count(), equalTo(4l));
+            assertThat(facet.total(), equalTo(10d));
+            assertThat(facet.min(), equalTo(1d));
+            assertThat(facet.max(), equalTo(4d));
+            assertThat(facet.mean(), equalTo(2.5d));
+
+            facet = searchResponse.facets().facet("stats3");
+            assertThat(facet.name(), equalTo(facet.name()));
+            assertThat(facet.count(), equalTo(2l));
+            assertThat(facet.total(), equalTo(6d));
+            assertThat(facet.min(), equalTo(2d));
+            assertThat(facet.max(), equalTo(4d));
+            assertThat(facet.mean(), equalTo(3d));
+            assertThat(facet.sumOfSquares(), equalTo(20d));
+
+            // test multi field facet
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(statisticalFacet("stats").fields("num", "multi_num"))
+                    .execute().actionGet();
+
+
+            facet = searchResponse.facets().facet("stats");
+            assertThat(facet.name(), equalTo(facet.name()));
+            assertThat(facet.count(), equalTo(6l));
+            assertThat(facet.total(), equalTo(13d));
+            assertThat(facet.min(), equalTo(1d));
+            assertThat(facet.max(), equalTo(4d));
+            assertThat(facet.mean(), equalTo(13d / 6d));
+            assertThat(facet.sumOfSquares(), equalTo(35d));
+
+            // test cross field facet using the same facet name...
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(statisticalFacet("stats").field("num"))
+                    .addFacet(statisticalFacet("stats").field("multi_num"))
+                    .execute().actionGet();
+
+
+            facet = searchResponse.facets().facet("stats");
+            assertThat(facet.name(), equalTo(facet.name()));
+            assertThat(facet.count(), equalTo(6l));
+            assertThat(facet.total(), equalTo(13d));
+            assertThat(facet.min(), equalTo(1d));
+            assertThat(facet.max(), equalTo(4d));
+            assertThat(facet.mean(), equalTo(13d / 6d));
+            assertThat(facet.sumOfSquares(), equalTo(35d));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-
-        StatisticalFacet facet = searchResponse.facets().facet("stats1");
-        assertThat(facet.name(), equalTo(facet.name()));
-        assertThat(facet.count(), equalTo(2l));
-        assertThat(facet.total(), equalTo(3d));
-        assertThat(facet.min(), equalTo(1d));
-        assertThat(facet.max(), equalTo(2d));
-        assertThat(facet.mean(), equalTo(1.5d));
-        assertThat(facet.sumOfSquares(), equalTo(5d));
-
-        facet = searchResponse.facets().facet("stats2");
-        assertThat(facet.name(), equalTo(facet.name()));
-        assertThat(facet.count(), equalTo(4l));
-        assertThat(facet.total(), equalTo(10d));
-        assertThat(facet.min(), equalTo(1d));
-        assertThat(facet.max(), equalTo(4d));
-        assertThat(facet.mean(), equalTo(2.5d));
-
-        facet = searchResponse.facets().facet("stats3");
-        assertThat(facet.name(), equalTo(facet.name()));
-        assertThat(facet.count(), equalTo(2l));
-        assertThat(facet.total(), equalTo(6d));
-        assertThat(facet.min(), equalTo(2d));
-        assertThat(facet.max(), equalTo(4d));
-        assertThat(facet.mean(), equalTo(3d));
-        assertThat(facet.sumOfSquares(), equalTo(20d));
-
-        // test multi field facet
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(statisticalFacet("stats").fields("num", "multi_num"))
-                .execute().actionGet();
-
-
-        facet = searchResponse.facets().facet("stats");
-        assertThat(facet.name(), equalTo(facet.name()));
-        assertThat(facet.count(), equalTo(6l));
-        assertThat(facet.total(), equalTo(13d));
-        assertThat(facet.min(), equalTo(1d));
-        assertThat(facet.max(), equalTo(4d));
-        assertThat(facet.mean(), equalTo(13d / 6d));
-        assertThat(facet.sumOfSquares(), equalTo(35d));
-
-        // test cross field facet using the same facet name...
-        searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(statisticalFacet("stats").field("num"))
-                .addFacet(statisticalFacet("stats").field("multi_num"))
-                .execute().actionGet();
-
-
-        facet = searchResponse.facets().facet("stats");
-        assertThat(facet.name(), equalTo(facet.name()));
-        assertThat(facet.count(), equalTo(6l));
-        assertThat(facet.total(), equalTo(13d));
-        assertThat(facet.min(), equalTo(1d));
-        assertThat(facet.max(), equalTo(4d));
-        assertThat(facet.mean(), equalTo(13d / 6d));
-        assertThat(facet.sumOfSquares(), equalTo(35d));
     }
 
     @Test public void testHistoFacetEdge() throws Exception {
@@ -869,28 +897,30 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(histogramFacet("facet1").field("num").valueField("num").interval(100))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("facet1").field("num").valueField("num").interval(100))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
-        }
-        assertThat(searchResponse.failedShards(), equalTo(0));
+            assertThat(searchResponse.failedShards(), equalTo(0));
 
-        HistogramFacet facet = searchResponse.facets().facet("facet1");
-        assertThat(facet.name(), equalTo("facet1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).key(), equalTo(100l));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).key(), equalTo(200l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).key(), equalTo(300l));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
+            HistogramFacet facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).key(), equalTo(100l));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).key(), equalTo(200l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).key(), equalTo(300l));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+        }
     }
 
     @Test public void testHistoFacets() throws Exception {
@@ -923,218 +953,220 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(histogramFacet("stats1").field("num").valueField("num").interval(100))
-                .addFacet(histogramFacet("stats2").field("multi_num").valueField("multi_num").interval(10))
-                .addFacet(histogramFacet("stats3").keyField("num").valueField("multi_num").interval(100))
-                .addFacet(histogramScriptFacet("stats4").keyScript("doc['date'].date.minuteOfHour").valueScript("doc['num'].value"))
-                .addFacet(histogramFacet("stats5").field("date").interval(1, TimeUnit.MINUTES))
-                .addFacet(histogramScriptFacet("stats6").keyField("num").valueScript("doc['num'].value").interval(100))
-                .addFacet(histogramFacet("stats7").field("num").interval(100))
-                .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("doc.score").interval(100))
-                .addFacet(histogramFacet("stats9").field("num").bounds(1000, 1200).interval(100))
-                .addFacet(histogramFacet("stats10").field("num").bounds(1000, 1300).interval(100)) // for bounded, we also get 0s
-                .addFacet(histogramFacet("stats11").field("num").valueField("num").bounds(1000, 1300).interval(100)) // for bounded, we also get 0s
-                .addFacet(histogramScriptFacet("stats12").keyField("num").valueScript("doc['num'].value").bounds(1000, 1300).interval(100))  // for bounded, we also get 0s
-                .addFacet(histogramFacet("stats13").field("num").bounds(1056, 1176).interval(100))
-                .addFacet(histogramFacet("stats14").field("num").valueField("num").bounds(1056, 1176).interval(100))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("stats1").field("num").valueField("num").interval(100))
+                    .addFacet(histogramFacet("stats2").field("multi_num").valueField("multi_num").interval(10))
+                    .addFacet(histogramFacet("stats3").keyField("num").valueField("multi_num").interval(100))
+                    .addFacet(histogramScriptFacet("stats4").keyScript("doc['date'].date.minuteOfHour").valueScript("doc['num'].value"))
+                    .addFacet(histogramFacet("stats5").field("date").interval(1, TimeUnit.MINUTES))
+                    .addFacet(histogramScriptFacet("stats6").keyField("num").valueScript("doc['num'].value").interval(100))
+                    .addFacet(histogramFacet("stats7").field("num").interval(100))
+                    .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("doc.score").interval(100))
+                    .addFacet(histogramFacet("stats9").field("num").bounds(1000, 1200).interval(100))
+                    .addFacet(histogramFacet("stats10").field("num").bounds(1000, 1300).interval(100)) // for bounded, we also get 0s
+                    .addFacet(histogramFacet("stats11").field("num").valueField("num").bounds(1000, 1300).interval(100)) // for bounded, we also get 0s
+                    .addFacet(histogramScriptFacet("stats12").keyField("num").valueScript("doc['num'].value").bounds(1000, 1300).interval(100))  // for bounded, we also get 0s
+                    .addFacet(histogramFacet("stats13").field("num").bounds(1056, 1176).interval(100))
+                    .addFacet(histogramFacet("stats14").field("num").valueField("num").bounds(1056, 1176).interval(100))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            HistogramFacet facet;
+
+            facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.name(), equalTo("stats1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
+            assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(2120d));
+            assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
+            assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1175d));
+            assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.name(), equalTo("stats2"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).key(), equalTo(10l));
+            assertThat(facet.entries().get(0).count(), equalTo(3l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(3l));
+            assertThat(facet.entries().get(0).total(), equalTo(45d));
+            assertThat(facet.entries().get(0).mean(), equalTo(15d));
+            assertThat(facet.entries().get(1).key(), equalTo(20l));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), equalTo(48d));
+            assertThat(facet.entries().get(1).mean(), equalTo(24d));
+            assertThat(facet.entries().get(2).key(), equalTo(30l));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(2).total(), equalTo(31d));
+            assertThat(facet.entries().get(2).mean(), equalTo(31d));
+
+            facet = searchResponse.facets().facet("stats3");
+            assertThat(facet.name(), equalTo("stats3"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(4l));
+            assertThat(facet.entries().get(0).total(), equalTo(82d));
+            assertThat(facet.entries().get(0).mean(), equalTo(20.5d));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), equalTo(42d));
+            assertThat(facet.entries().get(1).mean(), equalTo(21d));
+
+            facet = searchResponse.facets().facet("stats4");
+            assertThat(facet.name(), equalTo("stats4"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(0l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(2120d));
+            assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+            assertThat(facet.entries().get(1).key(), equalTo(2l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1175d));
+            assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+
+            facet = searchResponse.facets().facet("stats5");
+            assertThat(facet.name(), equalTo("stats5"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(0l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).key(), equalTo(TimeValue.timeValueMinutes(2).millis()));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+            facet = searchResponse.facets().facet("stats6");
+            assertThat(facet.name(), equalTo("stats6"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(2120d));
+            assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1175d));
+            assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+
+            facet = searchResponse.facets().facet("stats7");
+            assertThat(facet.name(), equalTo("stats7"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+            facet = searchResponse.facets().facet("stats8");
+            assertThat(facet.name(), equalTo("stats8"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(2d));
+            assertThat(facet.entries().get(0).mean(), equalTo(1d));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1d));
+            assertThat(facet.entries().get(1).mean(), equalTo(1d));
+
+            facet = searchResponse.facets().facet("stats9");
+            assertThat(facet.name(), equalTo("stats9"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+            facet = searchResponse.facets().facet("stats10");
+            assertThat(facet.name(), equalTo("stats10"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).key(), equalTo(1200l));
+            assertThat(facet.entries().get(2).count(), equalTo(0l));
+
+            facet = searchResponse.facets().facet("stats11");
+            assertThat(facet.name(), equalTo("stats11"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
+            assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(2120d));
+            assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
+            assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1175d));
+            assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+            assertThat(facet.entries().get(2).key(), equalTo(1200l));
+            assertThat(facet.entries().get(2).count(), equalTo(0l));
+            assertThat(facet.entries().get(2).totalCount(), equalTo(0l));
+
+            facet = searchResponse.facets().facet("stats12");
+            assertThat(facet.name(), equalTo("stats12"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
+            assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), equalTo(2120d));
+            assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
+            assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(1).total(), equalTo(1175d));
+            assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+            assertThat(facet.entries().get(2).key(), equalTo(1200l));
+            assertThat(facet.entries().get(2).count(), equalTo(0l));
+            assertThat(facet.entries().get(2).totalCount(), equalTo(0l));
+
+            facet = searchResponse.facets().facet("stats13");
+            assertThat(facet.name(), equalTo("stats13"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+            facet = searchResponse.facets().facet("stats14");
+            assertThat(facet.name(), equalTo("stats14"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).key(), equalTo(1000l));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).key(), equalTo(1100l));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-
-        HistogramFacet facet;
-
-        facet = searchResponse.facets().facet("stats1");
-        assertThat(facet.name(), equalTo("stats1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
-        assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(2120d));
-        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
-        assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(1175d));
-        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
-
-        facet = searchResponse.facets().facet("stats2");
-        assertThat(facet.name(), equalTo("stats2"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).key(), equalTo(10l));
-        assertThat(facet.entries().get(0).count(), equalTo(3l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(3l));
-        assertThat(facet.entries().get(0).total(), equalTo(45d));
-        assertThat(facet.entries().get(0).mean(), equalTo(15d));
-        assertThat(facet.entries().get(1).key(), equalTo(20l));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), equalTo(48d));
-        assertThat(facet.entries().get(1).mean(), equalTo(24d));
-        assertThat(facet.entries().get(2).key(), equalTo(30l));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(2).total(), equalTo(31d));
-        assertThat(facet.entries().get(2).mean(), equalTo(31d));
-
-        facet = searchResponse.facets().facet("stats3");
-        assertThat(facet.name(), equalTo("stats3"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(4l));
-        assertThat(facet.entries().get(0).total(), equalTo(82d));
-        assertThat(facet.entries().get(0).mean(), equalTo(20.5d));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), equalTo(42d));
-        assertThat(facet.entries().get(1).mean(), equalTo(21d));
-
-        facet = searchResponse.facets().facet("stats4");
-        assertThat(facet.name(), equalTo("stats4"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(0l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(2120d));
-        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
-        assertThat(facet.entries().get(1).key(), equalTo(2l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(1175d));
-        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
-
-        facet = searchResponse.facets().facet("stats5");
-        assertThat(facet.name(), equalTo("stats5"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(0l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).key(), equalTo(TimeValue.timeValueMinutes(2).millis()));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-
-        facet = searchResponse.facets().facet("stats6");
-        assertThat(facet.name(), equalTo("stats6"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(2120d));
-        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(1175d));
-        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
-
-        facet = searchResponse.facets().facet("stats7");
-        assertThat(facet.name(), equalTo("stats7"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-
-        facet = searchResponse.facets().facet("stats8");
-        assertThat(facet.name(), equalTo("stats8"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(2d));
-        assertThat(facet.entries().get(0).mean(), equalTo(1d));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(1d));
-        assertThat(facet.entries().get(1).mean(), equalTo(1d));
-
-        facet = searchResponse.facets().facet("stats9");
-        assertThat(facet.name(), equalTo("stats9"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-
-        facet = searchResponse.facets().facet("stats10");
-        assertThat(facet.name(), equalTo("stats10"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).key(), equalTo(1200l));
-        assertThat(facet.entries().get(2).count(), equalTo(0l));
-
-        facet = searchResponse.facets().facet("stats11");
-        assertThat(facet.name(), equalTo("stats11"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
-        assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(2120d));
-        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
-        assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(1175d));
-        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
-        assertThat(facet.entries().get(2).key(), equalTo(1200l));
-        assertThat(facet.entries().get(2).count(), equalTo(0l));
-        assertThat(facet.entries().get(2).totalCount(), equalTo(0l));
-
-        facet = searchResponse.facets().facet("stats12");
-        assertThat(facet.name(), equalTo("stats12"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).min(), closeTo(1055d, 0.000001));
-        assertThat(facet.entries().get(0).max(), closeTo(1065d, 0.000001));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), equalTo(2120d));
-        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).min(), closeTo(1175d, 0.000001));
-        assertThat(facet.entries().get(1).max(), closeTo(1175d, 0.000001));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(1).total(), equalTo(1175d));
-        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
-        assertThat(facet.entries().get(2).key(), equalTo(1200l));
-        assertThat(facet.entries().get(2).count(), equalTo(0l));
-        assertThat(facet.entries().get(2).totalCount(), equalTo(0l));
-
-        facet = searchResponse.facets().facet("stats13");
-        assertThat(facet.name(), equalTo("stats13"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-
-        facet = searchResponse.facets().facet("stats14");
-        assertThat(facet.name(), equalTo("stats14"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).key(), equalTo(1000l));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).key(), equalTo(1100l));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
     }
 
     @Test public void testRangeFacets() throws Exception {
@@ -1173,125 +1205,127 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(rangeFacet("range1").field("num").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
-                .addFacet(rangeFacet("range2").keyField("num").valueField("value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
-                .addFacet(rangeFacet("range3").keyField("num").valueField("multi_value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
-                .addFacet(rangeFacet("range4").keyField("multi_num").valueField("value").addUnboundedFrom(16).addRange(10, 26).addUnboundedTo(20))
-                .addFacet(rangeScriptFacet("range5").keyScript("doc['num'].value").valueScript("doc['value'].value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
-                .addFacet(rangeFacet("range6").field("date").addUnboundedFrom("1970-01-01T00:00:26").addRange("1970-01-01T00:00:15", "1970-01-01T00:00:53").addUnboundedTo("1970-01-01T00:00:26"))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(rangeFacet("range1").field("num").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                    .addFacet(rangeFacet("range2").keyField("num").valueField("value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                    .addFacet(rangeFacet("range3").keyField("num").valueField("multi_value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                    .addFacet(rangeFacet("range4").keyField("multi_num").valueField("value").addUnboundedFrom(16).addRange(10, 26).addUnboundedTo(20))
+                    .addFacet(rangeScriptFacet("range5").keyScript("doc['num'].value").valueScript("doc['value'].value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                    .addFacet(rangeFacet("range6").field("date").addUnboundedFrom("1970-01-01T00:00:26").addRange("1970-01-01T00:00:15", "1970-01-01T00:00:53").addUnboundedTo("1970-01-01T00:00:26"))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            RangeFacet facet = searchResponse.facets().facet("range1");
+            assertThat(facet.name(), equalTo("range1"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+            assertThat(Double.parseDouble(facet.entries().get(0).toAsString()), closeTo(1056, 0.000001));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(0).total(), closeTo(1055, 0.000001));
+            assertThat(facet.entries().get(0).min(), closeTo(1055, 0.000001));
+            assertThat(facet.entries().get(0).max(), closeTo(1055, 0.000001));
+            assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+            assertThat(Double.parseDouble(facet.entries().get(1).fromAsString()), closeTo(1000, 0.000001));
+            assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+            assertThat(Double.parseDouble(facet.entries().get(1).toAsString()), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), closeTo(1055 + 1065, 0.000001));
+            assertThat(facet.entries().get(1).min(), closeTo(1055, 0.000001));
+            assertThat(facet.entries().get(1).max(), closeTo(1065, 0.000001));
+            assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).totalCount(), equalTo(1l));
+            assertThat(facet.entries().get(2).total(), closeTo(1175, 0.000001));
+            assertThat(facet.entries().get(2).min(), closeTo(1175, 0.000001));
+            assertThat(facet.entries().get(2).max(), closeTo(1175, 0.000001));
+
+            facet = searchResponse.facets().facet("range2");
+            assertThat(facet.name(), equalTo("range2"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).total(), closeTo(1, 0.000001));
+            assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+            assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), closeTo(3, 0.000001));
+            assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
+
+            facet = searchResponse.facets().facet("range3");
+            assertThat(facet.name(), equalTo("range3"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), closeTo(10 + 11, 0.000001));
+            assertThat(facet.entries().get(0).min(), closeTo(10, 0.000001));
+            assertThat(facet.entries().get(0).max(), closeTo(11, 0.000001));
+            assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+            assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).totalCount(), equalTo(4l));
+            assertThat(facet.entries().get(1).total(), closeTo(62, 0.000001));
+            assertThat(facet.entries().get(1).min(), closeTo(10, 0.000001));
+            assertThat(facet.entries().get(1).max(), closeTo(21, 0.000001));
+            assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).totalCount(), equalTo(2l));
+            assertThat(facet.entries().get(2).total(), closeTo(61, 0.000001));
+            assertThat(facet.entries().get(2).min(), closeTo(30, 0.000001));
+            assertThat(facet.entries().get(2).max(), closeTo(31, 0.000001));
+
+            facet = searchResponse.facets().facet("range4");
+            assertThat(facet.name(), equalTo("range4"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).to(), closeTo(16, 0.000001));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).total(), closeTo(3, 0.000001));
+            assertThat(facet.entries().get(1).from(), closeTo(10, 0.000001));
+            assertThat(facet.entries().get(1).to(), closeTo(26, 0.000001));
+            assertThat(facet.entries().get(1).count(), equalTo(3l));
+            assertThat(facet.entries().get(1).total(), closeTo(1 + 2 + 3, 0.000001));
+            assertThat(facet.entries().get(2).from(), closeTo(20, 0.000001));
+            assertThat(facet.entries().get(2).count(), equalTo(3l));
+            assertThat(facet.entries().get(2).total(), closeTo(1 + 2 + 3, 0.000001));
+
+            facet = searchResponse.facets().facet("range5");
+            assertThat(facet.name(), equalTo("range5"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).total(), closeTo(1, 0.000001));
+            assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+            assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), closeTo(3, 0.000001));
+            assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
+
+            facet = searchResponse.facets().facet("range6");
+            assertThat(facet.name(), equalTo("range6"));
+            assertThat(facet.entries().size(), equalTo(3));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(0).toAsString(), equalTo("1970-01-01T00:00:26"));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).fromAsString(), equalTo("1970-01-01T00:00:15"));
+            assertThat(facet.entries().get(1).toAsString(), equalTo("1970-01-01T00:00:53"));
+            assertThat(facet.entries().get(2).count(), equalTo(1l));
+            assertThat(facet.entries().get(2).fromAsString(), equalTo("1970-01-01T00:00:26"));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-
-        RangeFacet facet = searchResponse.facets().facet("range1");
-        assertThat(facet.name(), equalTo("range1"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
-        assertThat(Double.parseDouble(facet.entries().get(0).toAsString()), closeTo(1056, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(0).total(), closeTo(1055, 0.000001));
-        assertThat(facet.entries().get(0).min(), closeTo(1055, 0.000001));
-        assertThat(facet.entries().get(0).max(), closeTo(1055, 0.000001));
-        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
-        assertThat(Double.parseDouble(facet.entries().get(1).fromAsString()), closeTo(1000, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
-        assertThat(Double.parseDouble(facet.entries().get(1).toAsString()), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), closeTo(1055 + 1065, 0.000001));
-        assertThat(facet.entries().get(1).min(), closeTo(1055, 0.000001));
-        assertThat(facet.entries().get(1).max(), closeTo(1065, 0.000001));
-        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).totalCount(), equalTo(1l));
-        assertThat(facet.entries().get(2).total(), closeTo(1175, 0.000001));
-        assertThat(facet.entries().get(2).min(), closeTo(1175, 0.000001));
-        assertThat(facet.entries().get(2).max(), closeTo(1175, 0.000001));
-
-        facet = searchResponse.facets().facet("range2");
-        assertThat(facet.name(), equalTo("range2"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(0).total(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), closeTo(3, 0.000001));
-        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
-
-        facet = searchResponse.facets().facet("range3");
-        assertThat(facet.name(), equalTo("range3"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(0).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), closeTo(10 + 11, 0.000001));
-        assertThat(facet.entries().get(0).min(), closeTo(10, 0.000001));
-        assertThat(facet.entries().get(0).max(), closeTo(11, 0.000001));
-        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).totalCount(), equalTo(4l));
-        assertThat(facet.entries().get(1).total(), closeTo(62, 0.000001));
-        assertThat(facet.entries().get(1).min(), closeTo(10, 0.000001));
-        assertThat(facet.entries().get(1).max(), closeTo(21, 0.000001));
-        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).totalCount(), equalTo(2l));
-        assertThat(facet.entries().get(2).total(), closeTo(61, 0.000001));
-        assertThat(facet.entries().get(2).min(), closeTo(30, 0.000001));
-        assertThat(facet.entries().get(2).max(), closeTo(31, 0.000001));
-
-        facet = searchResponse.facets().facet("range4");
-        assertThat(facet.name(), equalTo("range4"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).to(), closeTo(16, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).total(), closeTo(3, 0.000001));
-        assertThat(facet.entries().get(1).from(), closeTo(10, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(26, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(3l));
-        assertThat(facet.entries().get(1).total(), closeTo(1 + 2 + 3, 0.000001));
-        assertThat(facet.entries().get(2).from(), closeTo(20, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(3l));
-        assertThat(facet.entries().get(2).total(), closeTo(1 + 2 + 3, 0.000001));
-
-        facet = searchResponse.facets().facet("range5");
-        assertThat(facet.name(), equalTo("range5"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(0).total(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), closeTo(3, 0.000001));
-        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
-
-        facet = searchResponse.facets().facet("range6");
-        assertThat(facet.name(), equalTo("range6"));
-        assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(0).toAsString(), equalTo("1970-01-01T00:00:26"));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).fromAsString(), equalTo("1970-01-01T00:00:15"));
-        assertThat(facet.entries().get(1).toAsString(), equalTo("1970-01-01T00:00:53"));
-        assertThat(facet.entries().get(2).count(), equalTo(1l));
-        assertThat(facet.entries().get(2).fromAsString(), equalTo("1970-01-01T00:00:26"));
     }
 
     @Test public void testDateHistoFacets() throws Exception {
@@ -1322,69 +1356,71 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(dateHistogramFacet("stats1").field("date").interval("day"))
-                .addFacet(dateHistogramFacet("stats2").field("date").interval("day").zone("-02:00"))
-                .addFacet(dateHistogramFacet("stats3").field("date").valueField("num").interval("day").zone("-02:00"))
-                .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").zone("-02:00"))
-                .addFacet(dateHistogramFacet("stats5").field("date").interval("24h"))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(dateHistogramFacet("stats1").field("date").interval("day"))
+                    .addFacet(dateHistogramFacet("stats2").field("date").interval("day").zone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats3").field("date").valueField("num").interval("day").zone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats4").field("date").valueScript("doc['num'].value * 2").interval("day").zone("-02:00"))
+                    .addFacet(dateHistogramFacet("stats5").field("date").interval("24h"))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            DateHistogramFacet facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.name(), equalTo("stats1"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+            // time zone causes the dates to shift by 2
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.name(), equalTo("stats2"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+
+            // time zone causes the dates to shift by 2
+            facet = searchResponse.facets().facet("stats3");
+            assertThat(facet.name(), equalTo("stats3"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).total(), equalTo(1d));
+            assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), equalTo(5d));
+
+            // time zone causes the dates to shift by 2
+            facet = searchResponse.facets().facet("stats4");
+            assertThat(facet.name(), equalTo("stats4"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(0).count(), equalTo(1l));
+            assertThat(facet.entries().get(0).total(), equalTo(2d));
+            assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
+            assertThat(facet.entries().get(1).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).total(), equalTo(10d));
+
+            facet = searchResponse.facets().facet("stats5");
+            assertThat(facet.name(), equalTo("stats5"));
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
+            assertThat(facet.entries().get(0).count(), equalTo(2l));
+            assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
+            assertThat(facet.entries().get(1).count(), equalTo(1l));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-
-        DateHistogramFacet facet = searchResponse.facets().facet("stats1");
-        assertThat(facet.name(), equalTo("stats1"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
-
-        // time zone causes the dates to shift by 2
-        facet = searchResponse.facets().facet("stats2");
-        assertThat(facet.name(), equalTo("stats2"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-
-        // time zone causes the dates to shift by 2
-        facet = searchResponse.facets().facet("stats3");
-        assertThat(facet.name(), equalTo("stats3"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(0).total(), equalTo(1d));
-        assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), equalTo(5d));
-
-        // time zone causes the dates to shift by 2
-        facet = searchResponse.facets().facet("stats4");
-        assertThat(facet.name(), equalTo("stats4"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).time(), equalTo(timeInMillis("2009-03-04", DateTimeZone.forOffsetHours(-2))));
-        assertThat(facet.entries().get(0).count(), equalTo(1l));
-        assertThat(facet.entries().get(0).total(), equalTo(2d));
-        assertThat(facet.entries().get(1).time(), equalTo(timeInMillis("2009-03-05", DateTimeZone.forOffsetHours(-2))));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), equalTo(10d));
-
-        facet = searchResponse.facets().facet("stats5");
-        assertThat(facet.name(), equalTo("stats5"));
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).time(), equalTo(utcTimeInMillis("2009-03-05")));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).time(), equalTo(utcTimeInMillis("2009-03-06")));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
     }
 
     @Test public void testTermsStatsFacets() throws Exception {
@@ -1413,157 +1449,159 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsStats("stats1").keyField("field").valueField("num"))
-                .addFacet(termsStats("stats2").keyField("field").valueField("multi_num"))
-                .addFacet(termsStats("stats3").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT))
-                .addFacet(termsStats("stats4").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT))
-                .addFacet(termsStats("stats5").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL))
-                .addFacet(termsStats("stats6").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL))
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsStats("stats1").keyField("field").valueField("num"))
+                    .addFacet(termsStats("stats2").keyField("field").valueField("multi_num"))
+                    .addFacet(termsStats("stats3").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStats("stats4").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStats("stats5").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL))
+                    .addFacet(termsStats("stats6").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL))
 
-                .addFacet(termsStats("stats7").keyField("field").valueField("num").allTerms())
-                .addFacet(termsStats("stats8").keyField("field").valueField("multi_num").allTerms())
-                .addFacet(termsStats("stats9").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
-                .addFacet(termsStats("stats10").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
-                .addFacet(termsStats("stats11").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
-                .addFacet(termsStats("stats12").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
+                    .addFacet(termsStats("stats7").keyField("field").valueField("num").allTerms())
+                    .addFacet(termsStats("stats8").keyField("field").valueField("multi_num").allTerms())
+                    .addFacet(termsStats("stats9").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
+                    .addFacet(termsStats("stats10").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
+                    .addFacet(termsStats("stats11").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
+                    .addFacet(termsStats("stats12").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
 
-                .addFacet(termsStats("stats13").keyField("field").valueScript("doc['num'].value * 2"))
-                .execute().actionGet();
+                    .addFacet(termsStats("stats13").keyField("field").valueScript("doc['num'].value * 2"))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            TermsStatsFacet facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
+            assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
+            assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).min(), closeTo(1d, 0.00001d));
+            assertThat(facet.entries().get(0).max(), closeTo(3d, 0.00001d));
+            assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).min(), closeTo(5d, 0.00001d));
+            assertThat(facet.entries().get(1).max(), closeTo(6d, 0.00001d));
+            assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats3");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats4");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats5");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(0).total(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(1).total(), closeTo(300d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats6");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(0).total(), closeTo(11d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(1).total(), closeTo(8d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats7");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats8");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats9");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats10");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats11");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(0).total(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(1).total(), closeTo(300d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats12");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+            assertThat(facet.entries().get(0).total(), closeTo(11d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(1).count(), equalTo(2));
+            assertThat(facet.entries().get(1).total(), closeTo(8d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats13");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("xxx"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).total(), closeTo(600d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("yyy"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).total(), closeTo(1000d, 0.00001d));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-
-        TermsStatsFacet facet = searchResponse.facets().facet("stats1");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
-        assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
-        assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats2");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).min(), closeTo(1d, 0.00001d));
-        assertThat(facet.entries().get(0).max(), closeTo(3d, 0.00001d));
-        assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).min(), closeTo(5d, 0.00001d));
-        assertThat(facet.entries().get(1).max(), closeTo(6d, 0.00001d));
-        assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats3");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats4");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats5");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(0).total(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(1).total(), closeTo(300d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats6");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(0).total(), closeTo(11d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(1).total(), closeTo(8d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats7");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats8");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats9");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats10");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(8d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(11d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats11");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(0).total(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(1).total(), closeTo(300d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats12");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(0).count(), equalTo(1));
-        assertThat(facet.entries().get(0).total(), closeTo(11d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(1).count(), equalTo(2));
-        assertThat(facet.entries().get(1).total(), closeTo(8d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats13");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("xxx"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).total(), closeTo(600d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("yyy"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).total(), closeTo(1000d, 0.00001d));
     }
 
     @Test public void testNumericTermsStatsFacets() throws Exception {
@@ -1595,45 +1633,47 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsStats("stats1").keyField("lField").valueField("num"))
-                .addFacet(termsStats("stats2").keyField("dField").valueField("num"))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsStats("stats1").keyField("lField").valueField("num"))
+                    .addFacet(termsStats("stats2").keyField("dField").valueField("num"))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
+            assertThat(searchResponse.failedShards(), equalTo(0));
+
+            TermsStatsFacet facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("100"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
+            assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
+            assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("200"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
+
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.entries().size(), equalTo(2));
+            assertThat(facet.entries().get(0).term(), equalTo("100.1"));
+            assertThat(facet.entries().get(0).count(), equalTo(2));
+            assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
+            assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
+            assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
+            assertThat(facet.entries().get(1).term(), equalTo("200.2"));
+            assertThat(facet.entries().get(1).count(), equalTo(1));
+            assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
+            assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-
-        TermsStatsFacet facet = searchResponse.facets().facet("stats1");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("100"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
-        assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
-        assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("200"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
-
-        facet = searchResponse.facets().facet("stats2");
-        assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).term(), equalTo("100.1"));
-        assertThat(facet.entries().get(0).count(), equalTo(2));
-        assertThat(facet.entries().get(0).min(), closeTo(100d, 0.00001d));
-        assertThat(facet.entries().get(0).max(), closeTo(200d, 0.00001d));
-        assertThat(facet.entries().get(0).total(), closeTo(300d, 0.00001d));
-        assertThat(facet.entries().get(1).term(), equalTo("200.2"));
-        assertThat(facet.entries().get(1).count(), equalTo(1));
-        assertThat(facet.entries().get(1).min(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).max(), closeTo(500d, 0.00001d));
-        assertThat(facet.entries().get(1).total(), closeTo(500d, 0.00001d));
     }
 
     @Test public void testTermsStatsFacets2() throws Exception {
@@ -1650,24 +1690,26 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(matchAllQuery())
-                .addFacet(termsStats("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
-                .addFacet(termsStats("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
-                .execute().actionGet();
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsStats("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStats("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
+                    .execute().actionGet();
 
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+            if (searchResponse.failedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
             }
-        }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-        TermsStatsFacet facet = searchResponse.facets().facet("stats1");
-        assertThat(facet.entries().size(), equalTo(10));
+            assertThat(searchResponse.failedShards(), equalTo(0));
+            TermsStatsFacet facet = searchResponse.facets().facet("stats1");
+            assertThat(facet.entries().size(), equalTo(10));
 
-        facet = searchResponse.facets().facet("stats2");
-        assertThat(facet.entries().size(), equalTo(10));
+            facet = searchResponse.facets().facet("stats2");
+            assertThat(facet.entries().size(), equalTo(10));
+        }
     }
 
     private long utcTimeInMillis(String time) {

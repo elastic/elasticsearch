@@ -100,8 +100,7 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        CacheRecycler.pushLongObjectMap(histoProc.entries);
-        return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries.valueCollection());
+        return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
     public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {

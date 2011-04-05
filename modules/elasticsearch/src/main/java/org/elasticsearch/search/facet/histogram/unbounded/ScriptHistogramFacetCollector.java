@@ -94,8 +94,7 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        CacheRecycler.pushLongObjectMap(entries);
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries.valueCollection());
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries, true);
     }
 
     public static long bucket(double value, long interval) {

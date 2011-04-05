@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.histogram;
+package org.elasticsearch.search.facet.histogram.unbounded;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

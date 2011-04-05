@@ -78,6 +78,14 @@ public class SingleValueIntFieldData extends IntFieldData {
         proc.onValue(docId, values[loc]);
     }
 
+    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
     @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {

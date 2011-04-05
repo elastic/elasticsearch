@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facet.histogram;
+package org.elasticsearch.search.facet.histogram.bounded;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.iterator.TLongLongIterator;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.histogram.HistogramFacet;
+import org.elasticsearch.search.facet.histogram.InternalHistogramFacet;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,9 +35,9 @@ import java.util.List;
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalCountHistogramFacet extends InternalHistogramFacet {
+public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
 
-    private static final String STREAM_TYPE = "cHistogram";
+    private static final String STREAM_TYPE = "cBdHistogram";
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -127,17 +127,23 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
 
     ComparatorType comparatorType;
 
-    TLongLongHashMap counts;
+    int[] counts;
+    int size;
+    long interval;
+    long offset;
 
     CountEntry[] entries = null;
 
-    private InternalCountHistogramFacet() {
+    private InternalBoundedCountHistogramFacet() {
     }
 
-    public InternalCountHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts) {
+    public InternalBoundedCountHistogramFacet(String name, ComparatorType comparatorType, long interval, long offset, int size, int[] counts) {
         this.name = name;
         this.comparatorType = comparatorType;
+        this.interval = interval;
+        this.offset = offset;
         this.counts = counts;
+        this.size = size;
     }
 
     @Override public String name() {
@@ -172,13 +178,13 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         if (entries != null) {
             return entries;
         }
-        entries = new CountEntry[counts.size()];
-        int i = 0;
-        for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
-            it.advance();
-            entries[i++] = new CountEntry(it.key(), it.value());
+        entries = new CountEntry[size];
+        for (int i = 0; i < size; i++) {
+            entries[i] = new CountEntry((i * interval) + offset, counts[i]);
         }
-        Arrays.sort(entries, comparatorType.comparator());
+        if (comparatorType != ComparatorType.KEY) {
+            Arrays.sort(entries, comparatorType.comparator());
+        }
         return entries;
     }
 
@@ -186,26 +192,13 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        TLongLongHashMap counts = null;
-
-        InternalCountHistogramFacet firstHistoFacet = (InternalCountHistogramFacet) facets.get(0);
-        for (Facet facet : facets) {
-            InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
-                } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
+        InternalBoundedCountHistogramFacet firstHistoFacet = (InternalBoundedCountHistogramFacet) facets.get(0);
+        for (int i = 1; i < facets.size(); i++) {
+            InternalBoundedCountHistogramFacet histoFacet = (InternalBoundedCountHistogramFacet) facets.get(i);
+            for (int j = 0; j < firstHistoFacet.size; j++) {
+                firstHistoFacet.counts[j] += histoFacet.counts[j];
             }
         }
-        if (counts == null) {
-            counts = InternalCountHistogramFacet.EMPTY_LONG_LONG_MAP;
-        }
-        firstHistoFacet.counts = counts;
 
         return firstHistoFacet;
     }
@@ -221,10 +214,10 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, HistogramFacet.TYPE);
         builder.startArray(Fields.ENTRIES);
-        for (Entry entry : computeEntries()) {
+        for (int i = 0; i < size; i++) {
             builder.startObject();
-            builder.field(Fields.KEY, entry.key());
-            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.KEY, (i * interval) + offset);
+            builder.field(Fields.COUNT, counts[i]);
             builder.endObject();
         }
         builder.endArray();
@@ -232,8 +225,8 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         return builder;
     }
 
-    public static InternalCountHistogramFacet readHistogramFacet(StreamInput in) throws IOException {
-        InternalCountHistogramFacet facet = new InternalCountHistogramFacet();
+    public static InternalBoundedCountHistogramFacet readHistogramFacet(StreamInput in) throws IOException {
+        InternalBoundedCountHistogramFacet facet = new InternalBoundedCountHistogramFacet();
         facet.readFrom(in);
         return facet;
     }
@@ -241,30 +234,23 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
-
-        int size = in.readVInt();
-        if (size == 0) {
-            counts = EMPTY_LONG_LONG_MAP;
-        } else {
-            counts = new TLongLongHashMap(size);
-            for (int i = 0; i < size; i++) {
-                long key = in.readLong();
-                counts.put(key, in.readVLong());
-            }
+        offset = in.readLong();
+        interval = in.readVLong();
+        size = in.readVInt();
+        counts = new int[size];
+        for (int i = 0; i < counts.length; i++) {
+            counts[i] = in.readVInt();
         }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         out.writeByte(comparatorType.id());
-        // optimize the write, since we know we have the same buckets as keys
-        out.writeVInt(counts.size());
-        for (TLongLongIterator it = counts.iterator(); it.hasNext();) {
-            it.advance();
-            out.writeLong(it.key());
-            out.writeVLong(it.value());
+        out.writeLong(offset);
+        out.writeVLong(interval);
+        out.writeVInt(size);
+        for (int i = 0; i < size; i++) {
+            out.writeVInt(counts[i]);
         }
     }
-
-    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
 }

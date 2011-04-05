@@ -149,6 +149,19 @@ public class HistogramFacetSearchBenchmark {
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("l_value").field("l_value").bounds(0, NUMBER_OF_TERMS + 1).interval(4))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Histogram Facet + bounds (l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
                     .addFacet(histogramFacet("l_value").field("l_value").valueField("l_value").interval(4))
                     .execute().actionGet();
             if (searchResponse.hits().totalHits() != COUNT) {
@@ -157,6 +170,19 @@ public class HistogramFacetSearchBenchmark {
             totalQueryTime += searchResponse.tookInMillis();
         }
         System.out.println("--> Histogram Facet (l_value/l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("l_value").field("l_value").valueField("l_value").bounds(0, NUMBER_OF_TERMS + 1).interval(4))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Histogram Facet + bounds (l_value/l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {

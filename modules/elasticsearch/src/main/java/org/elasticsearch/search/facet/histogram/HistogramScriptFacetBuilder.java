@@ -39,6 +39,8 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
     private Map<String, Object> params;
     private long interval = -1;
     private HistogramFacet.ComparatorType comparatorType;
+    private Object from;
+    private Object to;
 
     public HistogramScriptFacetBuilder(String name) {
         super(name);
@@ -101,6 +103,16 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Sets the bounds from and to for the facet. Both performs bounds check and includes only
+     * values within the bounds, and improves performance.
+     */
+    public HistogramScriptFacetBuilder bounds(Object from, Object to) {
+        this.from = from;
+        this.to = to;
+        return this;
+    }
+
     public HistogramScriptFacetBuilder facetFilter(XContentFilterBuilder filter) {
         this.facetFilter = filter;
         return this;
@@ -122,6 +134,12 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
             builder.field("key_script", keyScript);
         }
         builder.field("value_script", valueScript);
+
+        if (from != null && to != null) {
+            builder.field("from", from);
+            builder.field("to", to);
+        }
+
         if (lang != null) {
             builder.field("lang", lang);
         }

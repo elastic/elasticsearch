@@ -347,6 +347,38 @@ public class CacheRecycler {
 
     // ----- int[] -----
 
+    private static ThreadLocal<SoftReference<Deque<Object[]>>> objectArray = new ThreadLocal<SoftReference<Deque<Object[]>>>();
+
+    public static Object[] popObjectArray(int size) {
+        size = size < 100 ? 100 : size;
+        SoftReference<Deque<Object[]>> ref = objectArray.get();
+        Deque<Object[]> deque = ref == null ? null : ref.get();
+        if (deque == null) {
+            deque = new ArrayDeque<Object[]>();
+            objectArray.set(new SoftReference<Deque<Object[]>>(deque));
+        }
+        if (deque.isEmpty()) {
+            return new Object[size];
+        }
+        Object[] objects = deque.pollFirst();
+        if (objects.length < size) {
+            return new Object[size];
+        }
+        Arrays.fill(objects, null);
+        return objects;
+    }
+
+    public static void pushObjectArray(Object[] objects) {
+        SoftReference<Deque<Object[]>> ref = objectArray.get();
+        Deque<Object[]> deque = ref == null ? null : ref.get();
+        if (deque == null) {
+            deque = new ArrayDeque<Object[]>();
+            objectArray.set(new SoftReference<Deque<Object[]>>(deque));
+        }
+        deque.add(objects);
+    }
+
+
     private static ThreadLocal<SoftReference<Deque<int[]>>> intArray = new ThreadLocal<SoftReference<Deque<int[]>>>();
 
     public static int[] popIntArray(int size) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.iterator.TLongLongIterator;
@@ -129,16 +130,18 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     private ComparatorType comparatorType;
 
     TLongLongHashMap counts;
+    boolean cachedCounts;
 
     CountEntry[] entries = null;
 
     private InternalCountDateHistogramFacet() {
     }
 
-    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts) {
+    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, boolean cachedCounts) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.counts = counts;
+        this.cachedCounts = cachedCounts;
     }
 
     @Override public String name() {
@@ -169,6 +172,14 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         return (Iterator) entries().iterator();
     }
 
+    void releaseCache() {
+        if (cachedCounts) {
+            CacheRecycler.pushLongLongMap(counts);
+            cachedCounts = false;
+            counts = null;
+        }
+    }
+
     private CountEntry[] computeEntries() {
         if (entries != null) {
             return entries;
@@ -179,6 +190,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             it.advance();
             entries[i++] = new CountEntry(it.key(), it.value());
         }
+        releaseCache();
         Arrays.sort(entries, comparatorType.comparator());
         return entries;
     }
@@ -187,28 +199,19 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        TLongLongHashMap counts = null;
+        TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
-        InternalCountDateHistogramFacet firstHistoFacet = (InternalCountDateHistogramFacet) facets.get(0);
         for (Facet facet : facets) {
             InternalCountDateHistogramFacet histoFacet = (InternalCountDateHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
-                } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
+            for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
+                it.advance();
+                counts.adjustOrPutValue(it.key(), it.value(), it.value());
             }
-        }
-        if (counts == null) {
-            counts = InternalCountDateHistogramFacet.EMPTY_LONG_LONG_MAP;
-        }
-        firstHistoFacet.counts = counts;
+            histoFacet.releaseCache();
 
-        return firstHistoFacet;
+        }
+
+        return new InternalCountDateHistogramFacet(name, comparatorType, counts, true);
     }
 
     static final class Fields {
@@ -244,14 +247,11 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
-        if (size == 0) {
-            counts = EMPTY_LONG_LONG_MAP;
-        } else {
-            counts = new TLongLongHashMap(size);
-            for (int i = 0; i < size; i++) {
-                long key = in.readLong();
-                counts.put(key, in.readVLong());
-            }
+        counts = CacheRecycler.popLongLongMap();
+        cachedCounts = true;
+        for (int i = 0; i < size; i++) {
+            long key = in.readLong();
+            counts.put(key, in.readVLong());
         }
     }
 
@@ -264,7 +264,6 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             out.writeLong(it.key());
             out.writeVLong(it.value());
         }
+        releaseCache();
     }
-
-    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
 }

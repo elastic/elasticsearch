@@ -99,8 +99,7 @@ public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        CacheRecycler.pushLongObjectMap(histoProc.entries);
-        return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries.valueCollection());
+        return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
     public static long bucket(double value, long interval) {

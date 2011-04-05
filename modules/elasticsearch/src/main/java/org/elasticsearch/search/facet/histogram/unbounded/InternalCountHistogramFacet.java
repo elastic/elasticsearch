@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.iterator.TLongLongIterator;
@@ -130,16 +131,18 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     ComparatorType comparatorType;
 
     TLongLongHashMap counts;
+    boolean cachedCounts;
 
     CountEntry[] entries = null;
 
     private InternalCountHistogramFacet() {
     }
 
-    public InternalCountHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts) {
+    public InternalCountHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, boolean cachedCounts) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.counts = counts;
+        this.cachedCounts = cachedCounts;
     }
 
     @Override public String name() {
@@ -180,36 +183,35 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
             it.advance();
             entries[i++] = new CountEntry(it.key(), it.value());
         }
+        releaseCache();
         Arrays.sort(entries, comparatorType.comparator());
         return entries;
+    }
+
+    void releaseCache() {
+        if (cachedCounts) {
+            CacheRecycler.pushLongLongMap(counts);
+            cachedCounts = false;
+            counts = null;
+        }
     }
 
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        TLongLongHashMap counts = null;
+        TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
-        InternalCountHistogramFacet firstHistoFacet = (InternalCountHistogramFacet) facets.get(0);
         for (Facet facet : facets) {
             InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
-                } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
+            for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
+                it.advance();
+                counts.adjustOrPutValue(it.key(), it.value(), it.value());
             }
+            histoFacet.releaseCache();
         }
-        if (counts == null) {
-            counts = InternalCountHistogramFacet.EMPTY_LONG_LONG_MAP;
-        }
-        firstHistoFacet.counts = counts;
 
-        return firstHistoFacet;
+        return new InternalCountHistogramFacet(name, comparatorType, counts, true);
     }
 
     static final class Fields {
@@ -245,14 +247,11 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
-        if (size == 0) {
-            counts = EMPTY_LONG_LONG_MAP;
-        } else {
-            counts = new TLongLongHashMap(size);
-            for (int i = 0; i < size; i++) {
-                long key = in.readLong();
-                counts.put(key, in.readVLong());
-            }
+        counts = CacheRecycler.popLongLongMap();
+        cachedCounts = true;
+        for (int i = 0; i < size; i++) {
+            long key = in.readLong();
+            counts.put(key, in.readVLong());
         }
     }
 
@@ -266,7 +265,6 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
             out.writeLong(it.key());
             out.writeVLong(it.value());
         }
+        releaseCache();
     }
-
-    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
 }

@@ -94,8 +94,7 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        CacheRecycler.pushLongLongMap(histoProc.counts());
-        return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts());
+        return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts(), true);
     }
 
     public static long bucket(long value, long interval) {

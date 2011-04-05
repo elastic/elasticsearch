@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram.bounded;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -127,6 +128,7 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
 
     ComparatorType comparatorType;
 
+    boolean cachedCounts;
     int[] counts;
     int size;
     long interval;
@@ -137,13 +139,14 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
     private InternalBoundedCountHistogramFacet() {
     }
 
-    public InternalBoundedCountHistogramFacet(String name, ComparatorType comparatorType, long interval, long offset, int size, int[] counts) {
+    public InternalBoundedCountHistogramFacet(String name, ComparatorType comparatorType, long interval, long offset, int size, int[] counts, boolean cachedCounts) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.interval = interval;
         this.offset = offset;
         this.counts = counts;
         this.size = size;
+        this.cachedCounts = cachedCounts;
     }
 
     @Override public String name() {
@@ -182,7 +185,16 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
         for (int i = 0; i < size; i++) {
             entries[i] = new CountEntry((i * interval) + offset, counts[i]);
         }
+        releaseCache();
         return entries;
+    }
+
+    void releaseCache() {
+        if (cachedCounts) {
+            cachedCounts = false;
+            CacheRecycler.pushIntArray(counts);
+            counts = null;
+        }
     }
 
     @Override public Facet reduce(String name, List<Facet> facets) {
@@ -199,6 +211,7 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
             for (int j = 0; j < firstHistoFacet.size; j++) {
                 firstHistoFacet.counts[j] += histoFacet.counts[j];
             }
+            histoFacet.releaseCache();
         }
         if (comparatorType != ComparatorType.KEY) {
             Arrays.sort(firstHistoFacet.entries, comparatorType.comparator());
@@ -226,6 +239,7 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
         }
         builder.endArray();
         builder.endObject();
+        releaseCache();
         return builder;
     }
 
@@ -241,8 +255,9 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
         offset = in.readLong();
         interval = in.readVLong();
         size = in.readVInt();
-        counts = new int[size];
-        for (int i = 0; i < counts.length; i++) {
+        counts = CacheRecycler.popIntArray(size);
+        cachedCounts = true;
+        for (int i = 0; i < size; i++) {
             counts[i] = in.readVInt();
         }
     }
@@ -256,5 +271,6 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
         for (int i = 0; i < size; i++) {
             out.writeVInt(counts[i]);
         }
+        releaseCache();
     }
 }

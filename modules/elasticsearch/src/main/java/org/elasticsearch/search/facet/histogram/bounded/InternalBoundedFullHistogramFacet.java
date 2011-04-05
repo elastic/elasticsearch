@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.facet.histogram.bounded;
 
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.collect.BoundedArrayList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -137,7 +139,7 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
     private ComparatorType comparatorType;
 
     Object[] entries;
-    transient boolean entriesSafe;
+    boolean cachedEntries;
     int size;
     long interval;
     long offset;
@@ -146,14 +148,14 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
     private InternalBoundedFullHistogramFacet() {
     }
 
-    public InternalBoundedFullHistogramFacet(String name, ComparatorType comparatorType, long interval, long offset, int size, Object[] entries) {
+    public InternalBoundedFullHistogramFacet(String name, ComparatorType comparatorType, long interval, long offset, int size, Object[] entries, boolean cachedEntries) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.interval = interval;
         this.offset = offset;
         this.size = size;
         this.entries = entries;
-        this.entriesSafe = false;
+        this.cachedEntries = cachedEntries;
     }
 
     @Override public String name() {
@@ -174,7 +176,8 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
 
     @Override public List<FullEntry> entries() {
         normalize();
-        return (List) Arrays.asList(entries);
+        releaseCache(); // we release here, and assume it is going to be used on teh same thread and then discarded
+        return (List) new BoundedArrayList(entries, size);
     }
 
     @Override public List<FullEntry> getEntries() {
@@ -185,44 +188,32 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
         return (Iterator) entries().iterator();
     }
 
+    private void releaseCache() {
+        if (cachedEntries) {
+            cachedEntries = false;
+            CacheRecycler.pushObjectArray(entries);
+        }
+    }
+
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             // we need to sort it
             InternalBoundedFullHistogramFacet internalFacet = (InternalBoundedFullHistogramFacet) facets.get(0);
-            if (!internalFacet.entriesSafe) {
-                FullEntry[] newEntries = new FullEntry[size];
-                System.arraycopy(internalFacet.entries, 0, newEntries, 0, size);
-                internalFacet.entries = newEntries;
-                internalFacet.entriesSafe = true;
-            }
             if (comparatorType != ComparatorType.KEY) {
                 Arrays.sort(internalFacet.entries, (Comparator) comparatorType.comparator());
             }
             return internalFacet;
         }
 
-        Object[] agg = null;
-        for (Facet facet : facets) {
-            InternalBoundedFullHistogramFacet internalFacet = (InternalBoundedFullHistogramFacet) facet;
-            if (internalFacet.entriesSafe) {
-                agg = internalFacet.entries;
-                break;
-            }
-        }
-        if (agg == null) {
-            agg = new FullEntry[size];
-        }
+        InternalBoundedFullHistogramFacet first = (InternalBoundedFullHistogramFacet) facets.get(0);
 
-        for (Facet facet : facets) {
-            InternalBoundedFullHistogramFacet internalFacet = (InternalBoundedFullHistogramFacet) facet;
-            if (agg == internalFacet.entries) { // this is the one we copied
-                continue;
-            }
+        for (int f = 1; f < facets.size(); f++) {
+            InternalBoundedFullHistogramFacet internalFacet = (InternalBoundedFullHistogramFacet) facets.get(f);
             for (int i = 0; i < size; i++) {
-                FullEntry aggEntry = (FullEntry) agg[i];
+                FullEntry aggEntry = (FullEntry) first.entries[i];
                 FullEntry entry = (FullEntry) internalFacet.entries[i];
                 if (aggEntry == null) {
-                    agg[i] = entry;
+                    first.entries[i] = entry;
                 } else if (entry != null) {
                     aggEntry.count += entry.count;
                     aggEntry.totalCount += entry.totalCount;
@@ -235,17 +226,14 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
                     }
                 }
             }
+            internalFacet.releaseCache();
         }
 
         if (comparatorType != ComparatorType.KEY) {
-            Arrays.sort(agg, (Comparator) comparatorType.comparator());
+            Arrays.sort(first.entries, (Comparator) comparatorType.comparator());
         }
 
-        InternalBoundedFullHistogramFacet internalFacet = (InternalBoundedFullHistogramFacet) facets.get(0);
-        internalFacet.entries = agg;
-        internalFacet.entriesSafe = true;
-
-        return internalFacet;
+        return first;
     }
 
     private void normalize() {
@@ -303,6 +291,7 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
         }
         builder.endArray();
         builder.endObject();
+        releaseCache();
         return builder;
     }
 
@@ -319,8 +308,8 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
         offset = in.readLong();
         interval = in.readVLong();
         size = in.readVInt();
-        entriesSafe = true;
-        entries = new FullEntry[size];
+        entries = CacheRecycler.popObjectArray(size);
+        cachedEntries = true;
         for (int i = 0; i < size; i++) {
             if (in.readBoolean()) {
                 entries[i] = new FullEntry(i, in.readVLong(), in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble());
@@ -348,5 +337,6 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
                 out.writeDouble(entry.total);
             }
         }
+        releaseCache();
     }
 }

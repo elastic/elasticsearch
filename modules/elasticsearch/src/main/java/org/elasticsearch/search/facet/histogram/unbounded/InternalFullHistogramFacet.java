@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facet.histogram.unbounded;
 
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -136,15 +135,19 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     private ComparatorType comparatorType;
 
-    Collection<FullEntry> entries = ImmutableList.of();
+    ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> tEntries;
+    boolean cachedEntries;
+    Collection<FullEntry> entries;
 
     private InternalFullHistogramFacet() {
     }
 
-    public InternalFullHistogramFacet(String name, ComparatorType comparatorType, Collection<FullEntry> entries) {
+    public InternalFullHistogramFacet(String name, ComparatorType comparatorType, ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries, boolean cachedEntries) {
         this.name = name;
         this.comparatorType = comparatorType;
-        this.entries = entries;
+        this.tEntries = entries;
+        this.cachedEntries = cachedEntries;
+        this.entries = entries.valueCollection();
     }
 
     @Override public String name() {
@@ -178,23 +181,29 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         return (Iterator) entries().iterator();
     }
 
+    void releaseCache() {
+        if (cachedEntries) {
+            CacheRecycler.pushLongObjectMap(tEntries);
+            cachedEntries = false;
+            tEntries = null;
+        }
+    }
+
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             // we need to sort it
             InternalFullHistogramFacet internalFacet = (InternalFullHistogramFacet) facets.get(0);
-            if (!internalFacet.entries.isEmpty()) {
-                List<FullEntry> entries = internalFacet.entries();
-                Collections.sort(entries, comparatorType.comparator());
-            }
+            List<FullEntry> entries = internalFacet.entries();
+            Collections.sort(entries, comparatorType.comparator());
+            internalFacet.releaseCache();
             return internalFacet;
         }
 
-        ExtTLongObjectHashMap<FullEntry> map = CacheRecycler.popLongObjectMap2();
+        ExtTLongObjectHashMap<FullEntry> map = CacheRecycler.popLongObjectMap();
 
         for (Facet facet : facets) {
             InternalFullHistogramFacet histoFacet = (InternalFullHistogramFacet) facet;
-            for (Entry entry : histoFacet) {
-                FullEntry fullEntry = (FullEntry) entry;
+            for (FullEntry fullEntry : histoFacet.entries) {
                 FullEntry current = map.get(fullEntry.key);
                 if (current != null) {
                     current.count += fullEntry.count;
@@ -210,6 +219,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
                     map.put(fullEntry.key, fullEntry);
                 }
             }
+            histoFacet.releaseCache();
         }
 
         // sort
@@ -224,9 +234,14 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             ordered.add(value);
         }
 
-        CacheRecycler.pushLongObjectMap2(map);
+        CacheRecycler.pushLongObjectMap(map);
 
-        return new InternalFullHistogramFacet(name, comparatorType, ordered);
+        // just initialize it as already ordered facet
+        InternalFullHistogramFacet ret = new InternalFullHistogramFacet();
+        ret.name = name;
+        ret.comparatorType = comparatorType;
+        ret.entries = ordered;
+        return ret;
     }
 
     static final class Fields {
@@ -271,6 +286,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         name = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
 
+        cachedEntries = false;
         int size = in.readVInt();
         entries = new ArrayList<FullEntry>(size);
         for (int i = 0; i < size; i++) {
@@ -290,5 +306,6 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             out.writeVLong(entry.totalCount);
             out.writeDouble(entry.total);
         }
+        releaseCache();
     }
 }

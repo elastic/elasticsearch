@@ -324,7 +324,7 @@ public class AnalysisModule extends AbstractModule {
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
             tokenizersBindings.processTokenizer("standard", StandardTokenizerFactory.class);
             tokenizersBindings.processTokenizer("uax_url_email", UAX29URLEmailTokenizerFactory.class);
-            tokenizersBindings.processTokenizer("uaUrlEmail", UAX29URLEmailTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("uaxUrlEmail", UAX29URLEmailTokenizerFactory.class);
             tokenizersBindings.processTokenizer("path_hierarchy", PathHierarchyTokenizerFactory.class);
             tokenizersBindings.processTokenizer("pathHierarchy", PathHierarchyTokenizerFactory.class);
             tokenizersBindings.processTokenizer("keyword", KeywordTokenizerFactory.class);

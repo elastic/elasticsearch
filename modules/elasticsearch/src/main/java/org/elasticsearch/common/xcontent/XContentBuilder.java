@@ -577,6 +577,10 @@ public final class XContentBuilder {
             field(name, ((Integer) value).intValue());
         } else if (type == Long.class) {
             field(name, ((Long) value).longValue());
+        } else if (type == Short.class) {
+            field(name, ((Short) value).shortValue());
+        } else if (type == Byte.class) {
+            field(name, ((Byte) value).byteValue());
         } else if (type == Boolean.class) {
             field(name, ((Boolean) value).booleanValue());
         } else if (type == Date.class) {
@@ -624,6 +628,10 @@ public final class XContentBuilder {
             field(name, ((Integer) value).intValue());
         } else if (type == Long.class) {
             field(name, ((Long) value).longValue());
+        } else if (type == Short.class) {
+            field(name, ((Short) value).shortValue());
+        } else if (type == Byte.class) {
+            field(name, ((Byte) value).byteValue());
         } else if (type == Boolean.class) {
             field(name, ((Boolean) value).booleanValue());
         } else if (type == Date.class) {
@@ -668,6 +676,10 @@ public final class XContentBuilder {
             value(((Integer) value).intValue());
         } else if (type == Long.class) {
             value(((Long) value).longValue());
+        } else if (type == Short.class) {
+            value(((Short) value).shortValue());
+        } else if (type == Byte.class) {
+            value(((Byte) value).byteValue());
         } else if (type == Boolean.class) {
             value((Boolean) value);
         } else if (type == byte[].class) {

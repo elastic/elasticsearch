@@ -189,6 +189,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.hits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + (9 - i)), (char) (97 + (9 - i))})));
         }
 
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         // BYTE
 
         searchResponse = client.prepareSearch()
@@ -216,6 +218,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).byteValue(), equalTo((byte) (9 - i)));
         }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
 
         // SHORT
 
@@ -245,6 +249,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).shortValue(), equalTo((short) (9 - i)));
         }
 
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         // INTEGER
 
         searchResponse = client.prepareSearch()
@@ -260,6 +266,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).intValue(), equalTo((int) i));
         }
 
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
@@ -272,6 +280,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).intValue(), equalTo((int) (9 - i)));
         }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
 
         // LONG
 
@@ -288,6 +298,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).longValue(), equalTo((long) i));
         }
 
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
@@ -300,6 +312,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).longValue(), equalTo((long) (9 - i)));
         }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
 
         // FLOAT
 
@@ -316,6 +330,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * i, 0.000001d));
         }
 
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
@@ -328,6 +344,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
         }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
 
         // DOUBLE
 
@@ -344,6 +362,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * i, 0.000001d));
         }
 
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
@@ -356,6 +376,8 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.hits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.hits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
         }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
     }
 
     @Test public void testDocumentsWithNullValue() throws Exception {

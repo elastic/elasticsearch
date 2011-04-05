@@ -354,6 +354,7 @@ public class CacheRecycler {
     }
 
     public static int[] popIntArray(int size, int sentinal) {
+        size = size < 100 ? 100 : size;
         SoftReference<Deque<int[]>> ref = intArray.get();
         Deque<int[]> deque = ref == null ? null : ref.get();
         if (deque == null) {
@@ -361,11 +362,19 @@ public class CacheRecycler {
             intArray.set(new SoftReference<Deque<int[]>>(deque));
         }
         if (deque.isEmpty()) {
-            return new int[size];
+            int[] ints = new int[size];
+            if (sentinal != 0) {
+                Arrays.fill(ints, sentinal);
+            }
+            return ints;
         }
         int[] ints = deque.pollFirst();
         if (ints.length < size) {
-            return new int[size];
+            ints = new int[size];
+            if (sentinal != 0) {
+                Arrays.fill(ints, sentinal);
+            }
+            return ints;
         }
         Arrays.fill(ints, sentinal);
         return ints;

@@ -182,14 +182,15 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
         for (int i = 0; i < size; i++) {
             entries[i] = new CountEntry((i * interval) + offset, counts[i]);
         }
-        if (comparatorType != ComparatorType.KEY) {
-            Arrays.sort(entries, comparatorType.comparator());
-        }
         return entries;
     }
 
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
+            InternalBoundedCountHistogramFacet firstHistoFacet = (InternalBoundedCountHistogramFacet) facets.get(0);
+            if (comparatorType != ComparatorType.KEY) {
+                Arrays.sort(firstHistoFacet.entries, comparatorType.comparator());
+            }
             return facets.get(0);
         }
         InternalBoundedCountHistogramFacet firstHistoFacet = (InternalBoundedCountHistogramFacet) facets.get(0);
@@ -198,6 +199,9 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
             for (int j = 0; j < firstHistoFacet.size; j++) {
                 firstHistoFacet.counts[j] += histoFacet.counts[j];
             }
+        }
+        if (comparatorType != ComparatorType.KEY) {
+            Arrays.sort(firstHistoFacet.entries, comparatorType.comparator());
         }
 
         return firstHistoFacet;

@@ -236,6 +236,11 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
                 }
             }
         }
+
+        if (comparatorType != ComparatorType.KEY) {
+            Arrays.sort(agg, (Comparator) comparatorType.comparator());
+        }
+
         InternalBoundedFullHistogramFacet internalFacet = (InternalBoundedFullHistogramFacet) facets.get(0);
         internalFacet.entries = agg;
         internalFacet.entriesSafe = true;

@@ -937,6 +937,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(histogramFacet("stats10").field("num").bounds(1000, 1300).interval(100)) // for bounded, we also get 0s
                 .addFacet(histogramFacet("stats11").field("num").valueField("num").bounds(1000, 1300).interval(100)) // for bounded, we also get 0s
                 .addFacet(histogramScriptFacet("stats12").keyField("num").valueScript("doc['num'].value").bounds(1000, 1300).interval(100))  // for bounded, we also get 0s
+                .addFacet(histogramFacet("stats13").field("num").bounds(1056, 1176).interval(100))
+                .addFacet(histogramFacet("stats14").field("num").valueField("num").bounds(1056, 1176).interval(100))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -1117,6 +1119,22 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(2).key(), equalTo(1200l));
         assertThat(facet.entries().get(2).count(), equalTo(0l));
         assertThat(facet.entries().get(2).totalCount(), equalTo(0l));
+
+        facet = searchResponse.facets().facet("stats13");
+        assertThat(facet.name(), equalTo("stats13"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(1000l));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).key(), equalTo(1100l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+
+        facet = searchResponse.facets().facet("stats14");
+        assertThat(facet.name(), equalTo("stats14"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(1000l));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).key(), equalTo(1100l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
     }
 
     @Test public void testRangeFacets() throws Exception {

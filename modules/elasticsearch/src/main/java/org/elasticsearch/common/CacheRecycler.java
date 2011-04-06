@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.trove.map.hash.*;
 
@@ -30,8 +32,8 @@ import java.util.Deque;
 public class CacheRecycler {
 
     public static void clear() {
+        doubleObjectHashMap.remove();
         longObjectHashMap.remove();
-        longObjectHashMap2.remove();
         longLongHashMap.remove();
         intIntHashMap.remove();
         floatIntHashMap.remove();
@@ -42,35 +44,63 @@ public class CacheRecycler {
         intArray.remove();
     }
 
-    // ----- ExtTLongObjectHashMap ----
+    // ----- ExtTHashMap -----
 
-    private static ThreadLocal<SoftReference<Deque<ExtTLongObjectHashMap>>> longObjectHashMap2 = new ThreadLocal<SoftReference<Deque<ExtTLongObjectHashMap>>>();
+    private static ThreadLocal<SoftReference<Deque<ExtTHashMap>>> hashMap = new ThreadLocal<SoftReference<Deque<ExtTHashMap>>>();
 
-    public static <T> ExtTLongObjectHashMap<T> popLongObjectMap2() {
-        SoftReference<Deque<ExtTLongObjectHashMap>> ref = longObjectHashMap2.get();
-        Deque<ExtTLongObjectHashMap> deque = ref == null ? null : ref.get();
+    public static <K, V> ExtTHashMap<K, V> popHashMap() {
+        SoftReference<Deque<ExtTHashMap>> ref = hashMap.get();
+        Deque<ExtTHashMap> deque = ref == null ? null : ref.get();
         if (deque == null) {
-            deque = new ArrayDeque<ExtTLongObjectHashMap>();
-            longObjectHashMap2.set(new SoftReference<Deque<ExtTLongObjectHashMap>>(deque));
+            deque = new ArrayDeque<ExtTHashMap>();
+            hashMap.set(new SoftReference<Deque<ExtTHashMap>>(deque));
         }
         if (deque.isEmpty()) {
-            return new ExtTLongObjectHashMap();
+            return new ExtTHashMap();
         }
-        ExtTLongObjectHashMap map = deque.pollFirst();
+        ExtTHashMap map = deque.pollFirst();
         map.clear();
         return map;
     }
 
-    public static void pushLongObjectMap2(ExtTLongObjectHashMap map) {
-        SoftReference<Deque<ExtTLongObjectHashMap>> ref = longObjectHashMap2.get();
-        Deque<ExtTLongObjectHashMap> deque = ref == null ? null : ref.get();
+    public static void pushHashMap(ExtTHashMap map) {
+        SoftReference<Deque<ExtTHashMap>> ref = hashMap.get();
+        Deque<ExtTHashMap> deque = ref == null ? null : ref.get();
         if (deque == null) {
-            deque = new ArrayDeque<ExtTLongObjectHashMap>();
-            longObjectHashMap2.set(new SoftReference<Deque<ExtTLongObjectHashMap>>(deque));
+            deque = new ArrayDeque<ExtTHashMap>();
+            hashMap.set(new SoftReference<Deque<ExtTHashMap>>(deque));
         }
         deque.add(map);
     }
 
+    // ------ ExtTDoubleObjectHashMap -----
+
+    private static ThreadLocal<SoftReference<Deque<ExtTDoubleObjectHashMap>>> doubleObjectHashMap = new ThreadLocal<SoftReference<Deque<ExtTDoubleObjectHashMap>>>();
+
+    public static <T> ExtTDoubleObjectHashMap<T> popDoubleObjectMap() {
+        SoftReference<Deque<ExtTDoubleObjectHashMap>> ref = doubleObjectHashMap.get();
+        Deque<ExtTDoubleObjectHashMap> deque = ref == null ? null : ref.get();
+        if (deque == null) {
+            deque = new ArrayDeque<ExtTDoubleObjectHashMap>();
+            doubleObjectHashMap.set(new SoftReference<Deque<ExtTDoubleObjectHashMap>>(deque));
+        }
+        if (deque.isEmpty()) {
+            return new ExtTDoubleObjectHashMap();
+        }
+        ExtTDoubleObjectHashMap map = deque.pollFirst();
+        map.clear();
+        return map;
+    }
+
+    public static void pushDoubleObjectMap(ExtTDoubleObjectHashMap map) {
+        SoftReference<Deque<ExtTDoubleObjectHashMap>> ref = doubleObjectHashMap.get();
+        Deque<ExtTDoubleObjectHashMap> deque = ref == null ? null : ref.get();
+        if (deque == null) {
+            deque = new ArrayDeque<ExtTDoubleObjectHashMap>();
+            doubleObjectHashMap.set(new SoftReference<Deque<ExtTDoubleObjectHashMap>>(deque));
+        }
+        deque.add(map);
+    }
 
     // ----- ExtTLongObjectHashMap ----
 

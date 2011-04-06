@@ -22,9 +22,9 @@ package org.elasticsearch.search.facet.termsstats.strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
@@ -39,7 +39,10 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
@@ -61,13 +64,9 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
     private final FieldDataType valueFieldDataType;
 
-    private NumericFieldData valueFieldData;
-
     private final SearchScript script;
 
-
-    private int missing = 0;
-    private final ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> entries;
+    private final Aggregator aggregator;
 
     public TermsStatsStringFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
                                           SearchContext context, String scriptLang, String script, Map<String, Object> params) {
@@ -99,13 +98,13 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
             this.valueFieldName = fieldMapper.names().indexName();
             this.valueFieldDataType = fieldMapper.fieldDataType();
             this.script = null;
+            this.aggregator = new Aggregator();
         } else {
             this.valueFieldName = null;
             this.valueFieldDataType = null;
             this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
+            this.aggregator = new ScriptAggregator(this.script);
         }
-
-        this.entries = popFacets();
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
@@ -116,75 +115,30 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = fieldDataCache.cache(keyFieldDataType, reader, keyFieldName);
-        if (valueFieldName != null) {
-            valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueFieldName);
-        }
         if (script != null) {
             script.setNextReader(reader);
+        } else {
+            aggregator.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueFieldName);
         }
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        if (!keyFieldData.hasValue(doc)) {
-            missing++;
-            return;
-        }
-        String key = keyFieldData.stringValue(doc);
-        InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(key);
-        if (stringEntry == null) {
-            stringEntry = new InternalTermsStatsStringFacet.StringEntry(key, 1, 0, Double.NaN, Double.NaN);
-            entries.put(key, stringEntry);
-        } else {
-            stringEntry.count++;
-        }
-        if (script == null) {
-            if (valueFieldData.multiValued()) {
-                for (double value : valueFieldData.doubleValues(doc)) {
-                    if (value < stringEntry.min || Double.isNaN(stringEntry.min)) {
-                        stringEntry.min = value;
-                    }
-                    if (value > stringEntry.max || Double.isNaN(stringEntry.max)) {
-                        stringEntry.max = value;
-                    }
-                    stringEntry.total += value;
-                }
-            } else {
-                double value = valueFieldData.doubleValue(doc);
-                if (value < stringEntry.min || Double.isNaN(stringEntry.min)) {
-                    stringEntry.min = value;
-                }
-                if (value > stringEntry.max || Double.isNaN(stringEntry.max)) {
-                    stringEntry.max = value;
-                }
-                stringEntry.total += value;
-            }
-        } else {
-            script.setNextDocId(doc);
-            double value = script.runAsDouble();
-            if (value < stringEntry.min || Double.isNaN(stringEntry.min)) {
-                stringEntry.min = value;
-            }
-            if (value > stringEntry.max || Double.isNaN(stringEntry.max)) {
-                stringEntry.max = value;
-            }
-            stringEntry.total += value;
-        }
+        keyFieldData.forEachValueInDoc(doc, aggregator);
     }
 
     @Override public Facet facet() {
-        if (entries.isEmpty()) {
-            return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsStringFacet.StringEntry>of(), missing);
+        if (aggregator.entries.isEmpty()) {
+            return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsStringFacet.StringEntry>of(), aggregator.missing);
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.values(), missing);
+            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, aggregator.entries.values(), aggregator.missing);
         }
-        // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-        Object[] values = entries.internalValues();
+        Object[] values = aggregator.entries.internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         List<InternalTermsStatsStringFacet.StringEntry> ordered = Lists.newArrayList();
-        int limit = size * numberOfShards;
+        int limit = size;
         for (int i = 0; i < limit; i++) {
             InternalTermsStatsStringFacet.StringEntry value = (InternalTermsStatsStringFacet.StringEntry) values[i];
             if (value == null) {
@@ -193,34 +147,83 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
             ordered.add(value);
         }
 
-        // that's fine to push here, this thread will be released AFTER the entries have either been serialized
-        // or processed
-        pushFacets(entries);
-        return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ordered, missing);
+        CacheRecycler.pushHashMap(aggregator.entries); // fine to push here, we are done with it
+        return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ordered, aggregator.missing);
     }
 
+    public static class Aggregator implements FieldData.StringValueInDocProc {
 
-    static ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> popFacets() {
-        Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>> deque = cache.get().get();
-        if (deque.isEmpty()) {
-            deque.add(new ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>());
+        final ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> entries = CacheRecycler.popHashMap();
+
+        int missing = 0;
+
+        NumericFieldData valueFieldData;
+
+        @Override public void onValue(int docId, String value) {
+            InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
+            if (stringEntry == null) {
+                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
+                entries.put(value, stringEntry);
+            } else {
+                stringEntry.count++;
+            }
+            if (valueFieldData.multiValued()) {
+                double[] valueValues = valueFieldData.doubleValues(docId);
+                stringEntry.totalCount += valueValues.length;
+                for (double valueValue : valueValues) {
+                    if (valueValue < stringEntry.min) {
+                        stringEntry.min = valueValue;
+                    }
+                    if (valueValue > stringEntry.max) {
+                        stringEntry.max = valueValue;
+                    }
+                    stringEntry.total += valueValue;
+                }
+            } else {
+                double valueValue = valueFieldData.doubleValue(docId);
+                if (valueValue < stringEntry.min) {
+                    stringEntry.min = valueValue;
+                }
+                if (valueValue > stringEntry.max) {
+                    stringEntry.max = valueValue;
+                }
+                stringEntry.total += valueValue;
+                stringEntry.totalCount++;
+
+            }
         }
-        ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> facets = deque.pollFirst();
-        facets.clear();
-        return facets;
+
+        @Override public void onMissing(int docId) {
+            missing++;
+        }
     }
 
-    static void pushFacets(ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry> facets) {
-        facets.clear();
-        Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>> deque = cache.get().get();
-        if (deque != null) {
-            deque.add(facets);
+    public static class ScriptAggregator extends Aggregator {
+        private final SearchScript script;
+
+        public ScriptAggregator(SearchScript script) {
+            this.script = script;
+        }
+
+        @Override public void onValue(int docId, String value) {
+            InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
+            if (stringEntry == null) {
+                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
+                entries.put(value, stringEntry);
+            } else {
+                stringEntry.count++;
+            }
+
+            script.setNextDocId(docId);
+            double valueValue = script.runAsDouble();
+            if (valueValue < stringEntry.min) {
+                stringEntry.min = valueValue;
+            }
+            if (valueValue > stringEntry.max) {
+                stringEntry.max = valueValue;
+            }
+            stringEntry.total += valueValue;
+            stringEntry.totalCount++;
         }
     }
-
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>>(new ArrayDeque<ExtTHashMap<String, InternalTermsStatsStringFacet.StringEntry>>());
-        }
-    };
 }

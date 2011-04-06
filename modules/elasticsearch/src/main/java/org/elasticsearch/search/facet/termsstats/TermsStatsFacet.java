@@ -67,7 +67,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 if (o2 == null) {
                     return -1;
                 }
-                int i = o2.count() - o1.count();
+                int i = (o2.count() < o1.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
                 if (i == 0) {
                     i = o2.term().compareTo(o1.term());
                     if (i == 0) {
@@ -301,9 +301,13 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
 
         Number getTermAsNumber();
 
-        int count();
+        long count();
 
-        int getCount();
+        long getCount();
+
+        long totalCount();
+
+        long getTotalCount();
 
         double min();
 

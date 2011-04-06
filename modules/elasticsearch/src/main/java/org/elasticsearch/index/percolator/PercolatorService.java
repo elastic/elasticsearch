@@ -30,12 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldSelector;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -74,6 +69,20 @@ public class PercolatorService extends AbstractIndexComponent {
         this.shardLifecycleListener = new ShardLifecycleListener();
         this.indicesService.indicesLifecycle().addListener(shardLifecycleListener);
         this.percolator.setIndicesService(indicesService);
+
+        // if percolator is already allocated, make sure to register real time percolation
+        if (percolatorAllocated()) {
+            IndexService percolatorIndexService = percolatorIndexService();
+            if (percolatorIndexService != null) {
+                for (IndexShard indexShard : percolatorIndexService) {
+                    try {
+                        indexShard.addListener(realTimePercolatorOperationListener);
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+        }
     }
 
     public void close() {
@@ -103,6 +112,7 @@ public class PercolatorService extends AbstractIndexComponent {
     private void loadQueries(String indexName) {
         IndexService indexService = percolatorIndexService();
         IndexShard shard = indexService.shard(0);
+        shard.refresh(new Engine.Refresh(true));
         Engine.Searcher searcher = shard.searcher();
         try {
             // create a query to fetch all queries that are registered under the index name (which is the type
@@ -141,8 +151,6 @@ public class PercolatorService extends AbstractIndexComponent {
 
     class QueriesLoaderCollector extends Collector {
 
-        private FieldData fieldData;
-
         private IndexReader reader;
 
         private Map<String, Query> queries = Maps.newHashMap();
@@ -155,9 +163,9 @@ public class PercolatorService extends AbstractIndexComponent {
         }
 
         @Override public void collect(int doc) throws IOException {
-            String id = fieldData.stringValue(doc);
             // the _source is the query
-            Document document = reader.document(doc, SourceFieldSelector.INSTANCE);
+            Document document = reader.document(doc, new UidAndSourceFieldSelector());
+            String id = Uid.createUid(document.get(UidFieldMapper.NAME)).id();
             byte[] source = document.getBinaryValue(SourceFieldMapper.NAME);
             try {
                 queries.put(id, percolator.parseQuery(id, source, 0, source.length));
@@ -168,7 +176,6 @@ public class PercolatorService extends AbstractIndexComponent {
 
         @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
             this.reader = reader;
-            fieldData = percolatorIndexService().cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, IdFieldMapper.NAME);
         }
 
         @Override public boolean acceptsDocsOutOfOrder() {
@@ -198,7 +205,9 @@ public class PercolatorService extends AbstractIndexComponent {
                     for (IndexService indexService : indicesService) {
                         // only load queries for "this" index percolator service
                         if (indexService.index().equals(index())) {
+                            logger.debug("loading percolator queries for index [{}]...", indexService.index().name());
                             loadQueries(indexService.index().name());
+                            logger.trace("done loading percolator queries for index [{}]", indexService.index().name());
                         }
                     }
                     initialQueriesFetchDone = true;
@@ -225,7 +234,9 @@ public class PercolatorService extends AbstractIndexComponent {
                     return;
                 }
                 // we load queries for this index
+                logger.debug("loading percolator queries for index [{}]...", indexService.index().name());
                 loadQueries(index.name());
+                logger.trace("done loading percolator queries for index [{}]", indexService.index().name());
                 initialQueriesFetchDone = true;
             }
         }

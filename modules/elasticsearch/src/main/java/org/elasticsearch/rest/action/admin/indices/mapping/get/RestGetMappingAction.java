@@ -72,9 +72,8 @@ public class RestGetMappingAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
-                    for (IndexMetaData indexMetaData : metaData) {
-                        builder.startObject(indexMetaData.index());
-
+                    if (indices.length == 1 && types.size() == 1) {
+                        IndexMetaData indexMetaData = metaData.iterator().next();
                         for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
                             if (!types.isEmpty() && !types.contains(mappingMd.type())) {
                                 // filter this type out...
@@ -90,8 +89,28 @@ public class RestGetMappingAction extends BaseRestHandler {
                             builder.field(mappingMd.type());
                             builder.map(mapping);
                         }
+                    } else {
+                        for (IndexMetaData indexMetaData : metaData) {
+                            builder.startObject(indexMetaData.index());
 
-                        builder.endObject();
+                            for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+                                if (!types.isEmpty() && !types.contains(mappingMd.type())) {
+                                    // filter this type out...
+                                    continue;
+                                }
+                                byte[] mappingSource = mappingMd.source().uncompressed();
+                                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                                Map<String, Object> mapping = parser.map();
+                                if (mapping.size() == 1 && mapping.containsKey(mappingMd.type())) {
+                                    // the type name is the root value, reduce it
+                                    mapping = (Map<String, Object>) mapping.get(mappingMd.type());
+                                }
+                                builder.field(mappingMd.type());
+                                builder.map(mapping);
+                            }
+
+                            builder.endObject();
+                        }
                     }
 
                     builder.endObject();

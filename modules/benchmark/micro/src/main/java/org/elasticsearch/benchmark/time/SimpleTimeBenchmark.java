@@ -28,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
  */
 public class SimpleTimeBenchmark {
 
+    private static boolean USE_NANO_TIME = false;
     private static long NUMBER_OF_ITERATIONS = 1000000;
     private static int NUMBER_OF_THREADS = 100;
 
@@ -45,8 +46,14 @@ public class SimpleTimeBenchmark {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(new Runnable() {
                 @Override public void run() {
-                    for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        System.currentTimeMillis();
+                    if (USE_NANO_TIME) {
+                        for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
+                            System.nanoTime();
+                        }
+                    } else {
+                        for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
+                            System.currentTimeMillis();
+                        }
                     }
                     latch.countDown();
                 }

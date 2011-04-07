@@ -121,6 +121,8 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
 
         NumericFieldData valueFieldData;
 
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
         public HistogramProc(long from, long to, long interval, long offset, int size) {
             this.from = from;
             this.to = to;
@@ -138,18 +140,11 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
             InternalBoundedFullHistogramFacet.FullEntry entry = (InternalBoundedFullHistogramFacet.FullEntry) entries[index];
             if (entry == null) {
                 if (valueFieldData.multiValued()) {
-                    double[] valuesValues = valueFieldData.doubleValues(docId);
-                    entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 1, Double.MAX_VALUE, Double.MIN_VALUE, valuesValues.length, 0);
-                    for (double valueValue : valuesValues) {
-                        entry.total += valueValue;
-                        if (valueValue < entry.min) {
-                            entry.min = valueValue;
-                        }
-                        if (valueValue > entry.max) {
-                            entry.max = valueValue;
-                        }
-                    }
+                    entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 1, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
                     entries[index] = entry;
+
+                    valueAggregator.entry = entry;
+                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
                 } else {
                     double valueValue = valueFieldData.doubleValue(docId);
                     entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 1, valueValue, valueValue, 1, valueValue);
@@ -158,17 +153,8 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
             } else {
                 entry.count++;
                 if (valueFieldData.multiValued()) {
-                    double[] valuesValues = valueFieldData.doubleValues(docId);
-                    entry.totalCount += valuesValues.length;
-                    for (double valueValue : valuesValues) {
-                        entry.total += valueValue;
-                        if (valueValue < entry.min) {
-                            entry.min = valueValue;
-                        }
-                        if (valueValue > entry.max) {
-                            entry.max = valueValue;
-                        }
-                    }
+                    valueAggregator.entry = entry;
+                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
                 } else {
                     entry.totalCount++;
                     double valueValue = valueFieldData.doubleValue(docId);
@@ -179,6 +165,23 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
                     if (valueValue > entry.max) {
                         entry.max = valueValue;
                     }
+                }
+            }
+        }
+
+
+        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+            InternalBoundedFullHistogramFacet.FullEntry entry;
+
+            @Override public void onValue(int docId, double value) {
+                entry.totalCount++;
+                entry.total += value;
+                if (value < entry.min) {
+                    entry.min = value;
+                }
+                if (value > entry.max) {
+                    entry.max = value;
                 }
             }
         }

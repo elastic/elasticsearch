@@ -139,34 +139,12 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
             int index = ((int) ((value + offset) / interval));
             InternalBoundedFullHistogramFacet.FullEntry entry = (InternalBoundedFullHistogramFacet.FullEntry) entries[index];
             if (entry == null) {
-                if (valueFieldData.multiValued()) {
-                    entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 1, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
-                    entries[index] = entry;
-
-                    valueAggregator.entry = entry;
-                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
-                } else {
-                    double valueValue = valueFieldData.doubleValue(docId);
-                    entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 1, valueValue, valueValue, 1, valueValue);
-                    entries[index] = entry;
-                }
-            } else {
-                entry.count++;
-                if (valueFieldData.multiValued()) {
-                    valueAggregator.entry = entry;
-                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
-                } else {
-                    entry.totalCount++;
-                    double valueValue = valueFieldData.doubleValue(docId);
-                    entry.total += valueValue;
-                    if (valueValue < entry.min) {
-                        entry.min = valueValue;
-                    }
-                    if (valueValue > entry.max) {
-                        entry.max = valueValue;
-                    }
-                }
+                entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entries[index] = entry;
             }
+            entry.count++;
+            valueAggregator.entry = entry;
+            valueFieldData.forEachValueInDoc(docId, valueAggregator);
         }
 
 

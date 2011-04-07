@@ -72,6 +72,8 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
         NumericFieldData valueFieldData;
 
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
         public Aggregator(double lat, double lon, GeoDistance geoDistance, DistanceUnit unit, GeoDistanceFacet.Entry[] entries) {
             this.lat = lat;
             this.lon = lon;
@@ -89,30 +91,25 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
-                    if (valueFieldData.multiValued()) {
-                        double[] values = valueFieldData.doubleValues(docId);
-                        entry.totalCount += values.length;
-                        for (double value : values) {
-                            entry.total += value;
-                            if (value < entry.min) {
-                                entry.min = value;
-                            }
-                            if (value > entry.max) {
-                                entry.max = value;
-                            }
-                        }
-                    } else if (valueFieldData.hasValue(docId)) {
-                        entry.totalCount++;
-                        double value = valueFieldData.doubleValue(docId);
-                        entry.total += value;
-                        if (value < entry.min) {
-                            entry.min = value;
-                        }
-                        if (value > entry.max) {
-                            entry.max = value;
-                        }
-                    }
+                    valueAggregator.entry = entry;
+                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
                 }
+            }
+        }
+    }
+
+    public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+        GeoDistanceFacet.Entry entry;
+
+        @Override public void onValue(int docId, double value) {
+            entry.totalCount++;
+            entry.total += value;
+            if (value < entry.min) {
+                entry.min = value;
+            }
+            if (value > entry.max) {
+                entry.max = value;
             }
         }
     }

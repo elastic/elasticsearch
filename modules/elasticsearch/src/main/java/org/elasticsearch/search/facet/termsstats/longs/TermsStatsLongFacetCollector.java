@@ -165,25 +165,12 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
         @Override public void onValue(int docId, long value) {
             InternalTermsStatsLongFacet.LongEntry longEntry = entries.get(value);
             if (longEntry == null) {
-                longEntry = new InternalTermsStatsLongFacet.LongEntry(value, 1, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
+                longEntry = new InternalTermsStatsLongFacet.LongEntry(value, 0, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
                 entries.put(value, longEntry);
-            } else {
-                longEntry.count++;
             }
-            if (valueFieldData.multiValued()) {
-                valueAggregator.longEntry = longEntry;
-                valueFieldData.forEachValueInDoc(docId, valueAggregator);
-            } else {
-                double valueValue = valueFieldData.doubleValue(docId);
-                if (valueValue < longEntry.min) {
-                    longEntry.min = valueValue;
-                }
-                if (valueValue > longEntry.max) {
-                    longEntry.max = valueValue;
-                }
-                longEntry.totalCount++;
-                longEntry.total += valueValue;
-            }
+            longEntry.count++;
+            valueAggregator.longEntry = longEntry;
+            valueFieldData.forEachValueInDoc(docId, valueAggregator);
         }
 
         @Override public void onMissing(int docId) {

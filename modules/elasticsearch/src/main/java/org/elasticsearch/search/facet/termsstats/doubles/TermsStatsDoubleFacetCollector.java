@@ -162,26 +162,12 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
         @Override public void onValue(int docId, double value) {
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry = entries.get(value);
             if (doubleEntry == null) {
-                doubleEntry = new InternalTermsStatsDoubleFacet.DoubleEntry(value, 1, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
+                doubleEntry = new InternalTermsStatsDoubleFacet.DoubleEntry(value, 0, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
                 entries.put(value, doubleEntry);
-            } else {
-                doubleEntry.count++;
             }
-
-            if (valueFieldData.multiValued()) {
-                valueAggregator.doubleEntry = doubleEntry;
-                valueFieldData.forEachValueInDoc(docId, valueAggregator);
-            } else {
-                double valueValue = valueFieldData.doubleValue(docId);
-                if (valueValue < doubleEntry.min) {
-                    doubleEntry.min = valueValue;
-                }
-                if (valueValue > doubleEntry.max) {
-                    doubleEntry.max = valueValue;
-                }
-                doubleEntry.totalCount++;
-                doubleEntry.total += valueValue;
-            }
+            doubleEntry.count++;
+            valueAggregator.doubleEntry = doubleEntry;
+            valueFieldData.forEachValueInDoc(docId, valueAggregator);
         }
 
         @Override public void onMissing(int docId) {

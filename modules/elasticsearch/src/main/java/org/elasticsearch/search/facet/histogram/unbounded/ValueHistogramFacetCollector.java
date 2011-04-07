@@ -119,33 +119,12 @@ public class ValueHistogramFacetCollector extends AbstractFacetCollector {
             long bucket = FullHistogramFacetCollector.bucket(value, interval);
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
             if (entry == null) {
-                if (valueFieldData.multiValued()) {
-                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
-                    entries.put(bucket, entry);
-                    valueAggregator.entry = entry;
-                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
-                } else {
-                    double valueValue = valueFieldData.doubleValue(docId);
-                    entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, valueValue, valueValue, 1, valueValue);
-                    entries.put(bucket, entry);
-                }
-            } else {
-                entry.count++;
-                if (valueFieldData.multiValued()) {
-                    valueAggregator.entry = entry;
-                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
-                } else {
-                    entry.totalCount++;
-                    double valueValue = valueFieldData.doubleValue(docId);
-                    entry.total += valueValue;
-                    if (valueValue < entry.min) {
-                        entry.min = valueValue;
-                    }
-                    if (valueValue > entry.max) {
-                        entry.max = valueValue;
-                    }
-                }
+                entry = new InternalFullHistogramFacet.FullEntry(bucket, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entries.put(bucket, entry);
             }
+            entry.count++;
+            valueAggregator.entry = entry;
+            valueFieldData.forEachValueInDoc(docId, valueAggregator);
         }
 
         public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {

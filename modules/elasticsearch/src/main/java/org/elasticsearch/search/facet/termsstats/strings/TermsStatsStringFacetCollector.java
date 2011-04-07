@@ -159,6 +159,8 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
         NumericFieldData valueFieldData;
 
+        ValueAggregator valueAggregator = new ValueAggregator();
+
         @Override public void onValue(int docId, String value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
@@ -168,17 +170,8 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
                 stringEntry.count++;
             }
             if (valueFieldData.multiValued()) {
-                double[] valueValues = valueFieldData.doubleValues(docId);
-                stringEntry.totalCount += valueValues.length;
-                for (double valueValue : valueValues) {
-                    if (valueValue < stringEntry.min) {
-                        stringEntry.min = valueValue;
-                    }
-                    if (valueValue > stringEntry.max) {
-                        stringEntry.max = valueValue;
-                    }
-                    stringEntry.total += valueValue;
-                }
+                valueAggregator.stringEntry = stringEntry;
+                valueFieldData.forEachValueInDoc(docId, valueAggregator);
             } else {
                 double valueValue = valueFieldData.doubleValue(docId);
                 if (valueValue < stringEntry.min) {
@@ -195,6 +188,22 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
         @Override public void onMissing(int docId) {
             missing++;
+        }
+
+        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+            InternalTermsStatsStringFacet.StringEntry stringEntry;
+
+            @Override public void onValue(int docId, double value) {
+                if (value < stringEntry.min) {
+                    stringEntry.min = value;
+                }
+                if (value > stringEntry.max) {
+                    stringEntry.max = value;
+                }
+                stringEntry.total += value;
+                stringEntry.totalCount++;
+            }
         }
     }
 

@@ -157,6 +157,8 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
         NumericFieldData valueFieldData;
 
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
         @Override public void onValue(int docId, double value) {
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry = entries.get(value);
             if (doubleEntry == null) {
@@ -167,17 +169,8 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
             }
 
             if (valueFieldData.multiValued()) {
-                double[] valueValues = valueFieldData.doubleValues(docId);
-                doubleEntry.totalCount += valueValues.length;
-                for (double valueValue : valueValues) {
-                    if (valueValue < doubleEntry.min) {
-                        doubleEntry.min = valueValue;
-                    }
-                    if (valueValue > doubleEntry.max) {
-                        doubleEntry.max = valueValue;
-                    }
-                    doubleEntry.total += valueValue;
-                }
+                valueAggregator.doubleEntry = doubleEntry;
+                valueFieldData.forEachValueInDoc(docId, valueAggregator);
             } else {
                 double valueValue = valueFieldData.doubleValue(docId);
                 if (valueValue < doubleEntry.min) {
@@ -193,6 +186,22 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
         @Override public void onMissing(int docId) {
             missing++;
+        }
+
+        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+            InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry;
+
+            @Override public void onValue(int docId, double value) {
+                if (value < doubleEntry.min) {
+                    doubleEntry.min = value;
+                }
+                if (value > doubleEntry.max) {
+                    doubleEntry.max = value;
+                }
+                doubleEntry.total += value;
+                doubleEntry.totalCount++;
+            }
         }
     }
 

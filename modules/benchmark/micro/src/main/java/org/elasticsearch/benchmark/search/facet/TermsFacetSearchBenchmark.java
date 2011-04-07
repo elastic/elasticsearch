@@ -154,6 +154,9 @@ public class TermsFacetSearchBenchmark {
         stats.add(terms("terms_lm", "lm_value", null));
         stats.add(terms("terms_map_lm", "lm_value", "map"));
 
+        stats.add(termsStats("terms_stats_s_l", "s_value", "l_value", null));
+        stats.add(termsStats("terms_stats_s_lm", "s_value", "lm_value", null));
+
         System.out.println("------------------ SUMMARY -------------------------------");
         System.out.format("%25s%10s%10s\n", "name", "took", "millis");
         for (StatsResult stat : stats) {
@@ -214,6 +217,46 @@ public class TermsFacetSearchBenchmark {
             totalQueryTime += searchResponse.tookInMillis();
         }
         System.out.println("--> Terms Facet (" + field + "), hint(" + executionHint + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
+        return new StatsResult(name, totalQueryTime);
+    }
+
+    private static StatsResult termsStats(String name, String keyField, String valueField, String executionHint) {
+        long totalQueryTime;
+
+        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+
+        System.out.println("--> Warmup (" + name + ")...");
+        // run just the child query, warm up first
+        for (int j = 0; j < QUERY_WARMUP; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setSearchType(SearchType.COUNT)
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsStatsFacet(name).keyField(keyField).valueField(valueField))
+                    .execute().actionGet();
+            if (j == 0) {
+                System.out.println("--> Loading (" + name + "): took: " + searchResponse.took());
+            }
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+        }
+        System.out.println("--> Warmup (" + name + ") DONE");
+
+
+        System.out.println("--> Running (" + name + ")...");
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setSearchType(SearchType.COUNT)
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsStatsFacet(name).keyField(keyField).valueField(valueField))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Terms Facet (" + name + "), hint(" + executionHint + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
         return new StatsResult(name, totalQueryTime);
     }
 }

@@ -160,6 +160,8 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
 
         NumericFieldData valueFieldData;
 
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
         @Override public void onValue(int docId, long value) {
             InternalTermsStatsLongFacet.LongEntry longEntry = entries.get(value);
             if (longEntry == null) {
@@ -169,17 +171,8 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
                 longEntry.count++;
             }
             if (valueFieldData.multiValued()) {
-                double[] valueValues = valueFieldData.doubleValues(docId);
-                longEntry.totalCount += valueValues.length;
-                for (double valueValue : valueValues) {
-                    if (valueValue < longEntry.min) {
-                        longEntry.min = valueValue;
-                    }
-                    if (valueValue > longEntry.max) {
-                        longEntry.max = valueValue;
-                    }
-                    longEntry.total += valueValue;
-                }
+                valueAggregator.longEntry = longEntry;
+                valueFieldData.forEachValueInDoc(docId, valueAggregator);
             } else {
                 double valueValue = valueFieldData.doubleValue(docId);
                 if (valueValue < longEntry.min) {
@@ -195,6 +188,22 @@ public class TermsStatsLongFacetCollector extends AbstractFacetCollector {
 
         @Override public void onMissing(int docId) {
             missing++;
+        }
+
+        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+            InternalTermsStatsLongFacet.LongEntry longEntry;
+
+            @Override public void onValue(int docId, double value) {
+                if (value < longEntry.min) {
+                    longEntry.min = value;
+                }
+                if (value > longEntry.max) {
+                    longEntry.max = value;
+                }
+                longEntry.total += value;
+                longEntry.totalCount++;
+            }
         }
     }
 

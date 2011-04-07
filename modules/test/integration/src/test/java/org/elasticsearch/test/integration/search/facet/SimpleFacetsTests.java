@@ -383,7 +383,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
     }
 
-    @Test public void testTermsFacets() throws Exception {
+    @Test public void testTermsFacetsNoHint() throws Exception {
+        testTermsFacets(null);
+    }
+
+    @Test public void testTermsFacetsMapHint() throws Exception {
+        testTermsFacets("map");
+    }
+
+    private void testTermsFacets(String executionHint) throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -433,8 +441,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(termQuery("stag", "111"))
-                    .addFacet(termsFacet("facet1").field("stag").size(10))
-                    .addFacet(termsFacet("facet2").field("tag").size(10))
+                    .addFacet(termsFacet("facet1").field("stag").size(10).executionHint(executionHint))
+                    .addFacet(termsFacet("facet2").field("tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             TermsFacet facet = searchResponse.facets().facet("facet1");
@@ -453,9 +461,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(termQuery("stag", "111"))
-                    .addFacet(termsFacet("facet1").field("lstag").size(10))
-                    .addFacet(termsFacet("facet2").field("ltag").size(10))
-                    .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000))
+                    .addFacet(termsFacet("facet1").field("lstag").size(10).executionHint(executionHint))
+                    .addFacet(termsFacet("facet2").field("ltag").size(10).executionHint(executionHint))
+                    .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -487,8 +495,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(termQuery("stag", "111"))
-                    .addFacet(termsFacet("facet1").field("dstag").size(10))
-                    .addFacet(termsFacet("facet2").field("dtag").size(10))
+                    .addFacet(termsFacet("facet1").field("dstag").size(10).executionHint(executionHint))
+                    .addFacet(termsFacet("facet2").field("dtag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -511,7 +519,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(termQuery("stag", "111"))
-                    .addFacet(termsFacet("facet1").field("bstag").size(10))
+                    .addFacet(termsFacet("facet1").field("bstag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -523,7 +531,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(termQuery("stag", "111"))
-                    .addFacet(termsFacet("facet1").field("istag").size(10))
+                    .addFacet(termsFacet("facet1").field("istag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -535,7 +543,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(termQuery("stag", "111"))
-                    .addFacet(termsFacet("facet1").field("shstag").size(10))
+                    .addFacet(termsFacet("facet1").field("shstag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -549,7 +557,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")))
+                    .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -562,7 +570,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")))
+                    .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -573,7 +581,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -590,7 +598,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(2))
+                    .addFacet(termsFacet("facet1").field("tag").size(2).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -605,7 +613,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy"))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy").executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -620,7 +628,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -635,7 +643,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -652,7 +660,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term + param1").param("param1", "a").order(TermsFacet.ComparatorType.TERM))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term + param1").param("param1", "a").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -667,7 +675,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -682,7 +690,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").fields("stag", "tag").size(10))
+                    .addFacet(termsFacet("facet1").fields("stag", "tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -699,7 +707,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(termQuery("xxx", "yyy")) // don't match anything
-                    .addFacet(termsFacet("facet1").field("tag").size(10).allTerms(true))
+                    .addFacet(termsFacet("facet1").field("tag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -716,8 +724,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("facet1").scriptField("_source.stag").size(10))
-                    .addFacet(termsFacet("facet2").scriptField("_source.tag").size(10))
+                    .addFacet(termsFacet("facet1").scriptField("_source.stag").size(10).executionHint(executionHint))
+                    .addFacet(termsFacet("facet2").scriptField("_source.tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");

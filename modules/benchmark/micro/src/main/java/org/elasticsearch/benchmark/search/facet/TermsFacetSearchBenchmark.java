@@ -51,7 +51,7 @@ import static org.elasticsearch.search.facet.FacetBuilders.*;
  */
 public class TermsFacetSearchBenchmark {
 
-    static long COUNT = SizeValue.parseSizeValue("100k").singles();
+    static long COUNT = SizeValue.parseSizeValue("1m").singles();
     static int BATCH = 100;
     static int QUERY_WARMUP = 20;
     static int QUERY_COUNT = 200;
@@ -156,6 +156,7 @@ public class TermsFacetSearchBenchmark {
 
         stats.add(termsStats("terms_stats_s_l", "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_s_lm", "s_value", "lm_value", null));
+        stats.add(termsStats("terms_stats_sm_l", "sm_value", "l_value", null));
 
         System.out.println("------------------ SUMMARY -------------------------------");
         System.out.format("%25s%10s%10s\n", "name", "took", "millis");

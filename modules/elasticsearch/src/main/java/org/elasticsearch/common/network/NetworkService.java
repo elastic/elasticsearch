@@ -114,6 +114,7 @@ public class NetworkService extends AbstractComponent {
         if (host == null) {
             return null;
         }
+        String origHost = host;
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
 
@@ -133,17 +134,25 @@ public class NetworkService extends AbstractComponent {
                     return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
                 }
             } else {
+                NetworkUtils.StackType stackType = NetworkUtils.getIpStackType();
+                if (host.toLowerCase().endsWith(":ipv4")) {
+                    stackType = NetworkUtils.StackType.IPv4;
+                    host = host.substring(0, host.length() - 5);
+                } else if (host.toLowerCase().endsWith(":ipv6")) {
+                    stackType = NetworkUtils.StackType.IPv6;
+                    host = host.substring(0, host.length() - 5);
+                }
                 Collection<NetworkInterface> allInterfs = NetworkUtils.getAllAvailableInterfaces();
                 for (NetworkInterface ni : allInterfs) {
                     if (!ni.isUp() || ni.isLoopback()) {
                         continue;
                     }
                     if (host.equals(ni.getName()) || host.equals(ni.getDisplayName())) {
-                        return NetworkUtils.getFirstNonLoopbackAddress(ni, NetworkUtils.getIpStackType());
+                        return NetworkUtils.getFirstNonLoopbackAddress(ni, stackType);
                     }
                 }
             }
-            throw new IOException("Failed to find network interface for [" + host + "]");
+            throw new IOException("Failed to find network interface for [" + origHost + "]");
         }
         return InetAddress.getByName(host);
     }

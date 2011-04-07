@@ -111,6 +111,8 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
         NumericFieldData valueFieldData;
 
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
         public DateHistogramProc(long interval) {
             this.interval = interval;
         }
@@ -123,48 +125,26 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
             InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);
             if (entry == null) {
-                if (valueFieldData.multiValued()) {
-                    double[] valuesValues = valueFieldData.doubleValues(docId);
-                    entry = new InternalFullDateHistogramFacet.FullEntry(time, 1, Double.MAX_VALUE, Double.MIN_VALUE, valuesValues.length, 0);
-                    for (double valueValue : valuesValues) {
-                        entry.total += valueValue;
-                        if (valueValue < entry.min) {
-                            entry.min = valueValue;
-                        }
-                        if (valueValue > entry.max) {
-                            entry.max = valueValue;
-                        }
-                    }
-                    entries.put(time, entry);
-                } else {
-                    double valueValue = valueFieldData.doubleValue(docId);
-                    entry = new InternalFullDateHistogramFacet.FullEntry(time, 1, valueValue, valueValue, 1, valueValue);
-                    entries.put(time, entry);
+                entry = new InternalFullDateHistogramFacet.FullEntry(time, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entries.put(time, entry);
+            }
+            entry.count++;
+            valueAggregator.entry = entry;
+            valueFieldData.forEachValueInDoc(docId, valueAggregator);
+        }
+
+        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+            InternalFullDateHistogramFacet.FullEntry entry;
+
+            @Override public void onValue(int docId, double value) {
+                entry.totalCount++;
+                entry.total += value;
+                if (value < entry.min) {
+                    entry.min = value;
                 }
-            } else {
-                entry.count++;
-                if (valueFieldData.multiValued()) {
-                    double[] valuesValues = valueFieldData.doubleValues(docId);
-                    entry.totalCount += valuesValues.length;
-                    for (double valueValue : valuesValues) {
-                        entry.total += valueValue;
-                        if (valueValue < entry.min) {
-                            entry.min = valueValue;
-                        }
-                        if (valueValue > entry.max) {
-                            entry.max = valueValue;
-                        }
-                    }
-                } else {
-                    entry.totalCount++;
-                    double valueValue = valueFieldData.doubleValue(docId);
-                    entry.total += valueValue;
-                    if (valueValue < entry.min) {
-                        entry.min = valueValue;
-                    }
-                    if (valueValue > entry.max) {
-                        entry.max = valueValue;
-                    }
+                if (value > entry.max) {
+                    entry.max = value;
                 }
             }
         }

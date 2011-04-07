@@ -1460,21 +1460,21 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsStats("stats1").keyField("field").valueField("num"))
-                    .addFacet(termsStats("stats2").keyField("field").valueField("multi_num"))
-                    .addFacet(termsStats("stats3").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT))
-                    .addFacet(termsStats("stats4").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT))
-                    .addFacet(termsStats("stats5").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL))
-                    .addFacet(termsStats("stats6").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL))
+                    .addFacet(termsStatsFacet("stats1").keyField("field").valueField("num"))
+                    .addFacet(termsStatsFacet("stats2").keyField("field").valueField("multi_num"))
+                    .addFacet(termsStatsFacet("stats3").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStatsFacet("stats4").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStatsFacet("stats5").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL))
+                    .addFacet(termsStatsFacet("stats6").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL))
 
-                    .addFacet(termsStats("stats7").keyField("field").valueField("num").allTerms())
-                    .addFacet(termsStats("stats8").keyField("field").valueField("multi_num").allTerms())
-                    .addFacet(termsStats("stats9").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
-                    .addFacet(termsStats("stats10").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
-                    .addFacet(termsStats("stats11").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
-                    .addFacet(termsStats("stats12").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
+                    .addFacet(termsStatsFacet("stats7").keyField("field").valueField("num").allTerms())
+                    .addFacet(termsStatsFacet("stats8").keyField("field").valueField("multi_num").allTerms())
+                    .addFacet(termsStatsFacet("stats9").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
+                    .addFacet(termsStatsFacet("stats10").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.COUNT).allTerms())
+                    .addFacet(termsStatsFacet("stats11").keyField("field").valueField("num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
+                    .addFacet(termsStatsFacet("stats12").keyField("field").valueField("multi_num").order(TermsStatsFacet.ComparatorType.TOTAL).allTerms())
 
-                    .addFacet(termsStats("stats13").keyField("field").valueScript("doc['num'].value * 2"))
+                    .addFacet(termsStatsFacet("stats13").keyField("field").valueScript("doc['num'].value * 2"))
                     .execute().actionGet();
 
             if (searchResponse.failedShards() > 0) {
@@ -1646,8 +1646,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsStats("stats1").keyField("lField").valueField("num"))
-                    .addFacet(termsStats("stats2").keyField("dField").valueField("num"))
+                    .addFacet(termsStatsFacet("stats1").keyField("lField").valueField("num"))
+                    .addFacet(termsStatsFacet("stats2").keyField("dField").valueField("num"))
                     .execute().actionGet();
 
             if (searchResponse.failedShards() > 0) {
@@ -1703,8 +1703,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsStats("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
-                    .addFacet(termsStats("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
+                    .addFacet(termsStatsFacet("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStatsFacet("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
                     .execute().actionGet();
 
             if (searchResponse.failedShards() > 0) {

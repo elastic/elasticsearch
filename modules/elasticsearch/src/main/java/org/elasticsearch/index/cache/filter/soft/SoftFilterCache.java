@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.support.AbstractDoubleConcurrentMapFilterCache;
+import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author kimchy (shay.banon)
  */
-public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
+public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
 
     private final int maxSize;
 
@@ -53,7 +53,7 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache impl
         this.expire = componentSettings.getAsTime("expire", null);
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
+    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
         MapMaker mapMaker = new MapMaker().softValues();
@@ -63,20 +63,6 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache impl
         if (expire != null) {
             mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
-        return mapMaker.makeMap();
-    }
-
-    @Override protected ConcurrentMap<Filter, DocSet> buildWeakCacheMap() {
-        // DocSet are not really stored with strong reference only when searching on them...
-        // Filter might be stored in query cache
-        MapMaker mapMaker = new MapMaker().weakValues();
-        if (maxSize != -1) {
-            mapMaker.maximumSize(maxSize);
-        }
-        if (expire != null) {
-            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
-        }
-        mapMaker.evictionListener(this);
         return mapMaker.makeMap();
     }
 

@@ -94,12 +94,8 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
             filter = new TermFilter(new Term(fieldName, value));
         }
 
-        // we weak cache the filter if not cached, since in any case it builds an OpenBitSet
-        // we might as well weak cache it...
         if (cache) {
             filter = parseContext.cacheFilter(filter);
-        } else {
-            filter = parseContext.cacheWeakFilter(filter);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

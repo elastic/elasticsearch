@@ -47,7 +47,7 @@ public class QueryFacetCollector extends AbstractFacetCollector {
         if (possibleFilter != null) {
             this.filter = possibleFilter;
         } else {
-            this.filter = filterCache.weakCache(new QueryWrapperFilter(query));
+            this.filter = new QueryWrapperFilter(query);
         }
     }
 

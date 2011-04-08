@@ -113,10 +113,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
-    @Override public Filter weakCache(Filter filterToCache) {
-        return cache(filterToCache);
-    }
-
     @Override public boolean isCached(Filter filter) {
         return filter instanceof FilterCacheFilterWrapper;
     }

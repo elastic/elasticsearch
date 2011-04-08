@@ -112,10 +112,6 @@ public class QueryParseContext {
         return indexQueryParser.indexCache.filter().cache(filter);
     }
 
-    public Filter cacheWeakFilter(Filter filter) {
-        return indexQueryParser.indexCache.filter().weakCache(filter);
-    }
-
     public void addNamedFilter(String name, Filter filter) {
         namedFilters.put(name, filter);
     }

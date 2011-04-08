@@ -78,7 +78,7 @@ public class JmxService {
         this.logger = logger;
         this.settings = settings;
 
-        this.jmxDomain = settings.get("jmx.domain", "{elasticsearch}");
+        this.jmxDomain = settings.get("jmx.domain", "org.elasticsearch");
 
         this.mBeanServer = ManagementFactory.getPlatformMBeanServer();
     }
@@ -237,13 +237,6 @@ public class JmxService {
     }
 
     private String getObjectName(String jmxDomain, String resourceName) {
-        String type;
-        if (settings.get("name") != null) {
-            type = settings.get("name") + " [" + nodeDescription + "]";
-        } else {
-            type = nodeDescription;
-        }
-        type = type.replace(':', '_').replace('/', '_').replace('.', '_').replace(',', ' ').replace('\"', ' ');
-        return jmxDomain + ":" + "type=" + type + "," + resourceName;
+        return jmxDomain + ":" + resourceName;
     }
 }

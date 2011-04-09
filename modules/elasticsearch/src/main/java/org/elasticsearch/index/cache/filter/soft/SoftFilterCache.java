@@ -63,6 +63,7 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
         if (expire != null) {
             mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
+        mapMaker.evictionListener(this);
         return mapMaker.makeMap();
     }
 

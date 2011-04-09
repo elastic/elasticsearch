@@ -59,7 +59,7 @@ public class FilterCacheGcStress {
             @Override public void run() {
                 while (!stop.get()) {
                     client.prepareSearch()
-                            .setQuery(filteredQuery(matchAllQuery(), rangeFilter("field").from(System.currentTimeMillis())))
+                            .setQuery(filteredQuery(matchAllQuery(), rangeFilter("field").from(System.currentTimeMillis() - 1000000)))
                             .execute().actionGet();
                 }
             }

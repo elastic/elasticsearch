@@ -21,10 +21,20 @@ package org.elasticsearch.index.cache.filter.support;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.OpenBitSet;
+import org.elasticsearch.common.RamUsage;
+import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
+import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.docset.OpenBitDocSet;
+import org.elasticsearch.common.lucene.docset.SlicedOpenBitSet;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -32,8 +42,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.lucene.docset.DocSets.*;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 
 /**
@@ -43,13 +53,42 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
 
-    final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
+    final ConcurrentMap<Object, ReaderValue> cache;
+
+    final boolean labEnabled;
+    final ByteSizeValue labMaxAlloc;
+    final ByteSizeValue labChunkSize;
+
+    final int labMaxAllocBytes;
+    final int labChunkSizeBytes;
 
     protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         // weak keys is fine, it will only be cleared once IndexReader references will be removed
         // (assuming clear(...) will not be called)
-        this.cache = new MapMaker().weakKeys().makeMap();
+        this.cache = buildCache();
+
+        // The LAB is stored per reader, so whole chunks will be cleared once reader is discarded.
+        // This means that with filter entry specific based eviction, like access time
+        // we might get into cases where the LAB is held by a puny filter and other filters have been released.
+        // This usually will not be that bad, compared to the GC benefit of using a LAB, but, that is why
+        // the soft filter cache is recommended.
+        this.labEnabled = componentSettings.getAsBoolean("lab", false);
+        // These values should not be too high, basically we want to cached the small readers and use the LAB for
+        // them, 1M docs on OpenBitSet is around 110kb.
+        this.labMaxAlloc = componentSettings.getAsBytesSize("lab.max_alloc", new ByteSizeValue(128, ByteSizeUnit.KB));
+        this.labChunkSize = componentSettings.getAsBytesSize("lab.chunk_size", new ByteSizeValue(1, ByteSizeUnit.MB));
+
+        this.labMaxAllocBytes = (int) (labMaxAlloc.bytes() / RamUsage.NUM_BYTES_LONG);
+        this.labChunkSizeBytes = (int) (labChunkSize.bytes() / RamUsage.NUM_BYTES_LONG);
+    }
+
+    protected ConcurrentMap<Object, ReaderValue> buildCache() {
+        return new MapMaker().weakKeys().makeMap();
+    }
+
+    protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+        return newConcurrentMap();
     }
 
     @Override public void close() {
@@ -61,17 +100,17 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void clear(IndexReader reader) {
-        ConcurrentMap<Filter, DocSet> map = cache.remove(reader.getCoreCacheKey());
+        ReaderValue readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
-        if (map != null) {
-            map.clear();
+        if (readerValue != null) {
+            readerValue.filters().clear();
         }
     }
 
     @Override public long sizeInBytes() {
         long sizeInBytes = 0;
-        for (ConcurrentMap<Filter, DocSet> map : cache.values()) {
-            for (DocSet docSet : map.values()) {
+        for (ReaderValue readerValue : cache.values()) {
+            for (DocSet docSet : readerValue.filters().values()) {
                 sizeInBytes += docSet.sizeInBytes();
             }
         }
@@ -80,8 +119,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     @Override public long count() {
         long entries = 0;
-        for (ConcurrentMap<Filter, DocSet> map : cache.values()) {
-            entries += map.size();
+        for (ReaderValue readerValue : cache.values()) {
+            entries += readerValue.filters().size();
         }
         return entries;
     }
@@ -95,10 +134,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     @Override public boolean isCached(Filter filter) {
         return filter instanceof FilterCacheFilterWrapper;
-    }
-
-    protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
-        return newConcurrentMap();
     }
 
     // LUCENE MONITOR: Check next version Lucene for CachingWrapperFilter, consider using that logic
@@ -117,21 +152,25 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getCoreCacheKey());
-            if (cachedFilters == null) {
-                cachedFilters = cache.buildFilterMap();
-                ConcurrentMap<Filter, DocSet> prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), cachedFilters);
+            ReaderValue readerValue = cache.cache.get(reader.getCoreCacheKey());
+            if (readerValue == null) {
+                LongsLAB longsLAB = null;
+                if (cache.labEnabled) {
+                    longsLAB = new LongsLAB(cache.labChunkSizeBytes, cache.labMaxAllocBytes);
+                }
+                readerValue = new ReaderValue(cache.buildFilterMap(), longsLAB);
+                ReaderValue prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), readerValue);
                 if (prev != null) {
-                    cachedFilters = prev;
+                    readerValue = prev;
                 }
             }
-            DocSet docSet = cachedFilters.get(filter);
+            DocSet docSet = readerValue.filters().get(filter);
             if (docSet != null) {
                 return docSet;
             }
             DocIdSet docIdSet = filter.getDocIdSet(reader);
-            docSet = cacheable(reader, docIdSet);
-            DocSet prev = cachedFilters.putIfAbsent(filter, docSet);
+            docSet = cacheable(reader, readerValue, docIdSet);
+            DocSet prev = readerValue.filters().putIfAbsent(filter, docSet);
             if (prev != null) {
                 docSet = prev;
             }
@@ -149,6 +188,83 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
         public int hashCode() {
             return filter.hashCode() ^ 0x1117BF25;
+        }
+
+        private DocSet cacheable(IndexReader reader, ReaderValue readerValue, DocIdSet set) throws IOException {
+            if (set == null) {
+                return DocSet.EMPTY_DOC_SET;
+            }
+            if (set == DocIdSet.EMPTY_DOCIDSET) {
+                return DocSet.EMPTY_DOC_SET;
+            }
+
+            DocIdSetIterator it = set.iterator();
+            if (it == null) {
+                return DocSet.EMPTY_DOC_SET;
+            }
+            int doc = it.nextDoc();
+            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                return DocSet.EMPTY_DOC_SET;
+            }
+
+            // we have a LAB, check if can be used...
+            if (readerValue.longsLAB() == null) {
+                return DocSets.cacheable(reader, set);
+            }
+
+            int numOfWords = OpenBitSet.bits2words(reader.maxDoc());
+            LongsLAB.Allocation allocation = readerValue.longsLAB().allocateLongs(numOfWords);
+            if (allocation == null) {
+                return DocSets.cacheable(reader, set);
+            }
+            // we have an allocation, use it to create SlicedOpenBitSet
+            if (set instanceof OpenBitSet) {
+                return new SlicedOpenBitSet(allocation.getData(), allocation.getOffset(), (OpenBitSet) set);
+            } else if (set instanceof OpenBitDocSet) {
+                return new SlicedOpenBitSet(allocation.getData(), allocation.getOffset(), ((OpenBitDocSet) set).set());
+            } else {
+                SlicedOpenBitSet slicedSet = new SlicedOpenBitSet(allocation.getData(), numOfWords, allocation.getOffset());
+                slicedSet.fastSet(doc); // we already have an open iterator, so use it, and don't forget to set the initial one
+                while ((doc = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    slicedSet.fastSet(doc);
+                }
+                return slicedSet;
+            }
+        }
+    }
+
+    public static class ReaderValue {
+        private final ConcurrentMap<Filter, DocSet> filters;
+        private final LongsLAB longsLAB;
+
+        public ReaderValue(ConcurrentMap<Filter, DocSet> filters, LongsLAB longsLAB) {
+            this.filters = filters;
+            this.longsLAB = longsLAB;
+        }
+
+        public ConcurrentMap<Filter, DocSet> filters() {
+            return filters;
+        }
+
+        public LongsLAB longsLAB() {
+            return longsLAB;
+        }
+    }
+
+    public static class CacheMapEvictionListener implements MapEvictionListener<Object, ReaderValue> {
+
+        private final AtomicLong evictions;
+
+        public CacheMapEvictionListener(AtomicLong evictions) {
+            this.evictions = evictions;
+        }
+
+        @Override public void onEviction(Object o, ReaderValue readerValue) {
+            evictions.incrementAndGet();
+            if (readerValue != null) {
+                // extra clean the map
+                readerValue.filters().clear();
+            }
         }
     }
 }

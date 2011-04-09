@@ -73,4 +73,8 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     @Override public long evictions() {
         return 0;
     }
+
+    @Override public long memEvictions() {
+        return 0;
+    }
 }

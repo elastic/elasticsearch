@@ -46,6 +46,7 @@ public class WeakFilterCache extends AbstractConcurrentMapFilterCache implements
     private final TimeValue expire;
 
     private final AtomicLong evictions = new AtomicLong();
+    private final AtomicLong memEvictions = new AtomicLong();
 
     @Inject public WeakFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -53,10 +54,15 @@ public class WeakFilterCache extends AbstractConcurrentMapFilterCache implements
         this.expire = componentSettings.getAsTime("expire", null);
     }
 
+    @Override protected ConcurrentMap<Object, ReaderValue> buildCache() {
+        // better to have weak on the whole ReaderValue, simpler on the GC to clean it
+        MapMaker mapMaker = new MapMaker().weakKeys().softValues();
+        mapMaker.evictionListener(new CacheMapEvictionListener(memEvictions));
+        return mapMaker.makeMap();
+    }
+
     @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
-        // DocSet are not really stored with strong reference only when searching on them...
-        // Filter might be stored in query cache
-        MapMaker mapMaker = new MapMaker().weakValues();
+        MapMaker mapMaker = new MapMaker();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
         }
@@ -73,6 +79,10 @@ public class WeakFilterCache extends AbstractConcurrentMapFilterCache implements
 
     @Override public long evictions() {
         return evictions.get();
+    }
+
+    @Override public long memEvictions() {
+        return memEvictions.get();
     }
 
     @Override public void onEviction(Filter filter, DocSet docSet) {

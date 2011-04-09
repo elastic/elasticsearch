@@ -44,4 +44,6 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
     long sizeInBytes();
 
     long evictions();
+
+    long memEvictions();
 }

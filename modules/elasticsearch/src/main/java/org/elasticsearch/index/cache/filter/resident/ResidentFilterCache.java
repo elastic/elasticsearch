@@ -74,6 +74,10 @@ public class ResidentFilterCache extends AbstractConcurrentMapFilterCache implem
         return evictions.get();
     }
 
+    @Override public long memEvictions() {
+        return 0;
+    }
+
     @Override public void onEviction(Filter filter, DocSet docSet) {
         evictions.incrementAndGet();
     }

@@ -36,6 +36,7 @@ public class CacheStats implements Streamable, ToXContent {
 
     long fieldEvictions;
     long filterEvictions;
+    long filterMemEvictions;
     long filterCount;
     long fieldSize = 0;
     long filterSize = 0;
@@ -44,9 +45,10 @@ public class CacheStats implements Streamable, ToXContent {
     public CacheStats() {
     }
 
-    public CacheStats(long fieldEvictions, long filterEvictions, long fieldSize, long filterSize, long filterCount, long bloomSize) {
+    public CacheStats(long fieldEvictions, long filterEvictions, long filterMemEvictions, long fieldSize, long filterSize, long filterCount, long bloomSize) {
         this.fieldEvictions = fieldEvictions;
         this.filterEvictions = filterEvictions;
+        this.filterMemEvictions = filterMemEvictions;
         this.fieldSize = fieldSize;
         this.filterSize = filterSize;
         this.filterCount = filterCount;
@@ -56,6 +58,7 @@ public class CacheStats implements Streamable, ToXContent {
     public void add(CacheStats stats) {
         this.fieldEvictions += stats.fieldEvictions;
         this.filterEvictions += stats.filterEvictions;
+        this.filterMemEvictions += stats.filterMemEvictions;
         this.fieldSize += stats.fieldSize;
         this.filterSize += stats.filterSize;
         this.filterCount += stats.filterCount;
@@ -75,6 +78,14 @@ public class CacheStats implements Streamable, ToXContent {
     }
 
     public long getFilterEvictions() {
+        return this.filterEvictions;
+    }
+
+    public long filterMemEvictions() {
+        return this.filterEvictions;
+    }
+
+    public long getFilterMemEvictions() {
         return this.filterEvictions;
     }
 
@@ -141,6 +152,7 @@ public class CacheStats implements Streamable, ToXContent {
         builder.field(Fields.FIELD_SIZE_IN_BYTES, fieldSize);
         builder.field(Fields.FILTER_COUNT, filterCount);
         builder.field(Fields.FILTER_EVICTIONS, filterEvictions);
+        builder.field(Fields.FILTER_MEM_EVICTIONS, filterMemEvictions);
         builder.field(Fields.FILTER_SIZE, filterSize().toString());
         builder.field(Fields.FILTER_SIZE_IN_BYTES, filterSize);
         builder.endObject();
@@ -153,6 +165,7 @@ public class CacheStats implements Streamable, ToXContent {
         static final XContentBuilderString FIELD_SIZE_IN_BYTES = new XContentBuilderString("field_size_in_bytes");
         static final XContentBuilderString FIELD_EVICTIONS = new XContentBuilderString("field_evictions");
         static final XContentBuilderString FILTER_EVICTIONS = new XContentBuilderString("filter_evictions");
+        static final XContentBuilderString FILTER_MEM_EVICTIONS = new XContentBuilderString("filter_mem_evictions");
         static final XContentBuilderString FILTER_COUNT = new XContentBuilderString("filter_count");
         static final XContentBuilderString FILTER_SIZE = new XContentBuilderString("filter_size");
         static final XContentBuilderString FILTER_SIZE_IN_BYTES = new XContentBuilderString("filter_size_in_bytes");
@@ -167,6 +180,7 @@ public class CacheStats implements Streamable, ToXContent {
     @Override public void readFrom(StreamInput in) throws IOException {
         fieldEvictions = in.readVLong();
         filterEvictions = in.readVLong();
+        filterMemEvictions = in.readVLong();
         fieldSize = in.readVLong();
         filterSize = in.readVLong();
         filterCount = in.readVLong();
@@ -176,6 +190,7 @@ public class CacheStats implements Streamable, ToXContent {
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(fieldEvictions);
         out.writeVLong(filterEvictions);
+        out.writeVLong(filterMemEvictions);
         out.writeVLong(fieldSize);
         out.writeVLong(filterSize);
         out.writeVLong(filterCount);

@@ -53,9 +53,6 @@ public class NonBloomCache extends AbstractIndexComponent implements BloomCache 
     @Override public void clear(IndexReader reader) {
     }
 
-    @Override public void clearUnreferenced() {
-    }
-
     @Override public long sizeInBytes() {
         return 0;
     }

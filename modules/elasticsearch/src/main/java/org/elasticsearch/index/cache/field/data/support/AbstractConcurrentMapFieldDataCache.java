@@ -70,10 +70,6 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         }
     }
 
-    @Override public void clearUnreferenced() {
-        // nothing to do here...
-    }
-
     @Override public long sizeInBytes() {
         // the overhead of the map is not really relevant...
         long sizeInBytes = 0;

@@ -90,10 +90,6 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         }
     }
 
-    @Override public void clearUnreferenced() {
-        // nothing to do here...
-    }
-
     @Override public long sizeInBytes() {
         // the overhead of the map is not really relevant...
         long sizeInBytes = 0;

@@ -75,10 +75,6 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
         idReaders.remove(reader.getCoreCacheKey());
     }
 
-    @Override public void clearUnreferenced() {
-        // nothing to do here...
-    }
-
     @Override public IdReaderCache reader(IndexReader reader) {
         return idReaders.get(reader.getCoreCacheKey());
     }

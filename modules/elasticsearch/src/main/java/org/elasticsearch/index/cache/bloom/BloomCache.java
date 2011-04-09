@@ -39,8 +39,6 @@ public interface BloomCache extends IndexComponent, CloseableComponent {
 
     void clear(IndexReader reader);
 
-    void clearUnreferenced();
-
     long sizeInBytes();
 
     long sizeInBytes(String fieldName);

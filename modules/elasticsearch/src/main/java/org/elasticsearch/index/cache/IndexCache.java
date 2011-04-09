@@ -122,13 +122,6 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         bloomCache.clear();
     }
 
-    public void clearUnreferenced() {
-        filterCache.clearUnreferenced();
-        fieldDataCache.clearUnreferenced();
-        idCache.clearUnreferenced();
-        bloomCache.clearUnreferenced();
-    }
-
     @Override public void clusterChanged(ClusterChangedEvent event) {
         // clear the query parser cache if the metadata (mappings) changed...
         if (event.metaDataChanged()) {

@@ -68,26 +68,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
     }
 
-    @Override public void clearUnreferenced() {
-        // can't do this, since we cache on cacheKey...
-//        int totalCount = cache.size();
-//        int cleaned = 0;
-//        for (Iterator<IndexReader> readerIt = cache.keySet().iterator(); readerIt.hasNext();) {
-//            IndexReader reader = readerIt.next();
-//            if (reader.getRefCount() <= 0) {
-//                readerIt.remove();
-//                cleaned++;
-//            }
-//        }
-//        if (logger.isDebugEnabled()) {
-//            if (cleaned > 0) {
-//                logger.debug("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
-//            }
-//        } else if (logger.isTraceEnabled()) {
-//            logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
-//        }
-    }
-
     @Override public long sizeInBytes() {
         long sizeInBytes = 0;
         for (ConcurrentMap<Filter, DocSet> map : cache.values()) {

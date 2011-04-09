@@ -40,8 +40,6 @@ public interface FieldDataCache extends IndexComponent, CloseableComponent {
 
     void clear(IndexReader reader);
 
-    void clearUnreferenced();
-
     long evictions();
 
     long sizeInBytes();

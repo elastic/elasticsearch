@@ -42,4 +42,13 @@ public class SlicedOpenBitSetTests {
         assertThat(iterator.nextDoc(), equalTo(100));
         assertThat(iterator.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
     }
+
+    @Test public void testCopy() throws IOException {
+        int numberOfBits = 500;
+        OpenBitSet bitSet = new OpenBitSet(numberOfBits);
+        bitSet.set(100);
+
+        SlicedOpenBitSet sBitSet = new SlicedOpenBitSet(new long[OpenBitSet.bits2words(numberOfBits) + 33], 33, bitSet);
+        assertThat(sBitSet.get(100), equalTo(true));
+    }
 }

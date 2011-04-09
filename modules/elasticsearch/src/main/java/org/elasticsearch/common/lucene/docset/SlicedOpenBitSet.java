@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.RamUsage;
 
 import java.io.IOException;
@@ -34,6 +35,13 @@ public class SlicedOpenBitSet extends DocSet {
     private final long[] bits;
     private final int wlen;   // number of words (elements) used in the array
     private final int from; // the from index in the array
+
+    public SlicedOpenBitSet(long[] bits, int from, OpenBitSet setToCopy) {
+        this.bits = bits;
+        this.from = from;
+        System.arraycopy(setToCopy.getBits(), 0, bits, from, setToCopy.getBits().length);
+        this.wlen = setToCopy.getNumWords();
+    }
 
     public SlicedOpenBitSet(long[] bits, int wlen, int from) {
         this.bits = bits;

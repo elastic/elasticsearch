@@ -23,21 +23,19 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 
-import java.util.List;
-
 /**
  * @author kimchy (shay.banon)
  */
 public class FailedRerouteAllocation extends RoutingAllocation {
 
-    private final List<? extends ShardRouting> failedShards;
+    private final ShardRouting failedShard;
 
-    public FailedRerouteAllocation(RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
+    public FailedRerouteAllocation(RoutingNodes routingNodes, DiscoveryNodes nodes, ShardRouting failedShard) {
         super(routingNodes, nodes);
-        this.failedShards = failedShards;
+        this.failedShard = failedShard;
     }
 
-    public List<? extends ShardRouting> failedShards() {
-        return failedShards;
+    public ShardRouting failedShard() {
+        return failedShard;
     }
 }

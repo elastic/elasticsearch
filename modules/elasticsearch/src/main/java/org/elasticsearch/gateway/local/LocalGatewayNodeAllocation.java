@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.*;
 import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,8 +43,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -79,82 +76,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
     }
 
     @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
-        for (ShardRouting shardRouting : allocation.failedShards()) {
-            cachedStores.remove(shardRouting.shardId());
-        }
-
-        TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = null;
-
-        for (ShardRouting failedShard : allocation.failedShards()) {
-            // this is an API allocation, ignore since we know there is no data...
-            if (!allocation.routingNodes().routingTable().index(failedShard.index()).shard(failedShard.id()).allocatedPostApi()) {
-                continue;
-            }
-
-            // we are still in the initial allocation, find another node with existing shards
-            // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
-            if (nodesState == null) {
-                Set<String> nodesIds = Sets.newHashSet();
-                nodesIds.addAll(allocation.nodes().dataNodes().keySet());
-                nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
-
-                if (nodesState.failures().length > 0) {
-                    StringBuilder sb = new StringBuilder("failures when trying to list started shards on nodes:");
-                    for (int i = 0; i < nodesState.failures().length; i++) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(nodesState.failures()[i]);
-                        if (cause instanceof ConnectTransportException) {
-                            continue;
-                        }
-                        sb.append("\n    -> ").append(nodesState.failures()[i].getDetailedMessage());
-                    }
-                    logger.warn(sb.toString());
-                }
-            }
-
-            // make a list of ShardId to Node, each one from the latest version
-            Tuple<DiscoveryNode, Long> t = null;
-            for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeState : nodesState) {
-                if (nodeState.state() == null) {
-                    continue;
-                }
-                // we don't want to reallocate to the node we failed on
-                if (nodeState.node().id().equals(failedShard.currentNodeId())) {
-                    continue;
-                }
-                // go and find
-                for (Map.Entry<ShardId, Long> entry : nodeState.state().shards().entrySet()) {
-                    if (entry.getKey().equals(failedShard.shardId())) {
-                        if (t == null || entry.getValue() > t.v2().longValue()) {
-                            t = new Tuple<DiscoveryNode, Long>(nodeState.node(), entry.getValue());
-                        }
-                    }
-                }
-            }
-            if (t != null) {
-                // we found a node to allocate to, do it
-                RoutingNode currentRoutingNode = allocation.routingNodes().nodesToShards().get(failedShard.currentNodeId());
-                if (currentRoutingNode == null) {
-                    // already failed (might be called several times for the same shard)
-                    continue;
-                }
-
-                // find the shard and cancel relocation
-                Iterator<MutableShardRouting> shards = currentRoutingNode.iterator();
-                while (shards.hasNext()) {
-                    MutableShardRouting shard = shards.next();
-                    if (shard.shardId().equals(failedShard.shardId())) {
-                        shard.deassignNode();
-                        shards.remove();
-                        break;
-                    }
-                }
-
-                RoutingNode targetNode = allocation.routingNodes().nodesToShards().get(t.v1().id());
-                targetNode.add(new MutableShardRouting(failedShard.index(), failedShard.id(),
-                        targetNode.nodeId(), failedShard.relocatingNodeId(),
-                        failedShard.primary(), INITIALIZING));
-            }
-        }
+        ShardRouting failedShard = allocation.failedShard();
+        cachedStores.remove(failedShard.shardId());
     }
 
     @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
@@ -162,6 +85,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         DiscoveryNodes nodes = allocation.nodes();
         RoutingNodes routingNodes = allocation.routingNodes();
 
+        // First, handle primaries, they must find a place to be allocated on here
         TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = null;
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
@@ -199,6 +123,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             DiscoveryNode nodeWithHighestVersion = null;
             for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeState : nodesState) {
                 if (nodeState.state() == null) {
+                    continue;
+                }
+                // since we don't check in NO allocation, we need to double check here
+                if (allocation.shouldIgnoreShardForNode(shard.shardId(), nodeState.node().id())) {
                     continue;
                 }
                 Long version = nodeState.state().shards().get(shard.shardId());
@@ -269,6 +197,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             return changed;
         }
 
+        // Now, handle replicas, try to assign them to nodes that are similar to the one the primary was allocated on
         unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();

@@ -160,6 +160,8 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
                 .addScriptField("s_arr3", "_source.arr3")
                 .execute().actionGet();
 
+        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+
         Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("_source.obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
         assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));

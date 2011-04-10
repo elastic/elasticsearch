@@ -181,7 +181,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .version(request.version())
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
-            index.refresh(request.refresh());
             doc = indexShard.index(index);
             version = index.version();
         } else {
@@ -189,9 +188,15 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .version(request.version())
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
-            create.refresh(request.refresh());
             doc = indexShard.create(create);
             version = create.version();
+        }
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
         }
         if (doc.mappersAdded()) {
             updateMappingOnMaster(request);
@@ -225,14 +230,19 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())
                     .origin(Engine.Operation.Origin.REPLICA);
-            index.refresh(request.refresh());
             indexShard.index(index);
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
                     .origin(Engine.Operation.Origin.REPLICA);
-            create.refresh(request.refresh());
             indexShard.create(create);
+        }
+        if (request.refresh()) {
+            try {
+                indexShard.refresh(new Engine.Refresh(false));
+            } catch (Exception e) {
+                // ignore
+            }
         }
     }
 

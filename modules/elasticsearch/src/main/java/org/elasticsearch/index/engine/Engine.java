@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -28,7 +29,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,6 +45,8 @@ import org.elasticsearch.index.translog.Translog;
  */
 @ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
+
+    static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
 
     /**
      * The default suggested refresh interval, -1 to disable it.
@@ -100,11 +102,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException;
 
     void recover(RecoveryHandler recoveryHandler) throws EngineException;
-
-    /**
-     * Returns the estimated flushable memory size. Returns <tt>null</tt> if not available.
-     */
-    ByteSizeValue estimateFlushableMemorySize();
 
     /**
      * Recovery allow to start the recovery process. It is built of three phases.
@@ -290,7 +287,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Create implements Operation {
         private final Term uid;
         private final ParsedDocument doc;
-        private boolean refresh;
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
@@ -367,14 +363,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.source();
         }
 
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public void refresh(boolean refresh) {
-            this.refresh = refresh;
-        }
-
         public UidField uidField() {
             return (UidField) doc().getFieldable(UidFieldMapper.NAME);
         }
@@ -383,7 +371,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Index implements Operation {
         private final Term uid;
         private final ParsedDocument doc;
-        private boolean refresh;
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
@@ -460,14 +447,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.source();
         }
 
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public void refresh(boolean refresh) {
-            this.refresh = refresh;
-        }
-
         public UidField uidField() {
             return (UidField) doc().getFieldable(UidFieldMapper.NAME);
         }
@@ -477,7 +456,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String type;
         private final String id;
         private final Term uid;
-        private boolean refresh;
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
@@ -512,14 +490,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Term uid() {
             return this.uid;
-        }
-
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public void refresh(boolean refresh) {
-            this.refresh = refresh;
         }
 
         public Delete version(long version) {

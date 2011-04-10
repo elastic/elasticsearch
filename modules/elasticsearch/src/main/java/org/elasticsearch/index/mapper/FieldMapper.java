@@ -46,6 +46,10 @@ public interface FieldMapper<T> {
 
         private final String fullName;
 
+        public Names(String name) {
+            this(name, name, name, name);
+        }
+
         public Names(String name, String indexName, String indexNameClean, String fullName) {
             this.name = name.intern();
             this.indexName = indexName.intern();

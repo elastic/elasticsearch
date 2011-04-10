@@ -29,23 +29,22 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 
 /**
- * Uses the {@link org.elasticsearch.index.analysis.ICUNormalizer2Filter} to normalize tokens.
+ * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} to normalize tokens.
  *
- * <p>The <tt>name</tt> can be used to provide the type of normalization to perofrm.
+ * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.
  *
  * @author kimchy (shay.banon)
- * @see org.elasticsearch.index.analysis.ICUNormalizer2Filter
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final String name;
 
     @Inject public IcuNormalizerTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         this.name = settings.get("name", "nfkc_cf");
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new ICUNormalizer2Filter(tokenStream, Normalizer2.getInstance(null, name, Normalizer2.Mode.COMPOSE));
+        return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, Normalizer2.getInstance(null, name, Normalizer2.Mode.COMPOSE));
     }
 }

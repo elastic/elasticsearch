@@ -85,6 +85,9 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, final ClusterState state) throws ElasticSearchException {
+        if (request.indices().length == 0) {
+            return new DeleteIndexResponse(true);
+        }
         final AtomicReference<DeleteIndexResponse> responseRef = new AtomicReference<DeleteIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(request.indices().length);

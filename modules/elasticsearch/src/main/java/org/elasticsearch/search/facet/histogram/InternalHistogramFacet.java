@@ -21,6 +21,10 @@ package org.elasticsearch.search.facet.histogram;
 
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.histogram.bounded.InternalBoundedCountHistogramFacet;
+import org.elasticsearch.search.facet.histogram.bounded.InternalBoundedFullHistogramFacet;
+import org.elasticsearch.search.facet.histogram.unbounded.InternalCountHistogramFacet;
+import org.elasticsearch.search.facet.histogram.unbounded.InternalFullHistogramFacet;
 
 import java.util.List;
 
@@ -30,8 +34,10 @@ import java.util.List;
 public abstract class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     public static void registerStreams() {
-        InternalCountAndTotalHistogramFacet.registerStreams();
+        InternalFullHistogramFacet.registerStreams();
         InternalCountHistogramFacet.registerStreams();
+        InternalBoundedCountHistogramFacet.registerStreams();
+        InternalBoundedFullHistogramFacet.registerStreams();
     }
 
     public abstract Facet reduce(String name, List<Facet> facets);

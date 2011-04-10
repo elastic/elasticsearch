@@ -39,7 +39,7 @@ public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Set<?> exclusions;
 
     @Inject public DutchStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
             this.exclusions = ImmutableSet.copyOf(Iterators.forArray(stemExclusion));

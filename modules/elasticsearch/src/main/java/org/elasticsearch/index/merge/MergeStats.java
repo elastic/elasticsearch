@@ -34,60 +34,63 @@ import java.io.IOException;
  */
 public class MergeStats implements Streamable, ToXContent {
 
-    private long totalMerges;
+    private long total;
 
-    private long currentMerges;
+    private long current;
 
-    private long totalMergeTime;
+    private long totalTimeInMillis;
 
     public MergeStats() {
 
     }
 
-    public MergeStats(long totalMerges, long currentMerges, long totalMergeTime) {
-        this.totalMerges = totalMerges;
-        this.currentMerges = currentMerges;
-        this.totalMergeTime = totalMergeTime;
+    public MergeStats(long total, long current, long totalTimeInMillis) {
+        this.total = total;
+        this.current = current;
+        this.totalTimeInMillis = totalTimeInMillis;
     }
 
     public void add(long totalMerges, long currentMerges, long totalMergeTime) {
-        this.totalMerges += totalMerges;
-        this.currentMerges += currentMerges;
-        this.totalMergeTime += totalMergeTime;
+        this.total += totalMerges;
+        this.current += currentMerges;
+        this.totalTimeInMillis += totalMergeTime;
     }
 
     public void add(MergeStats mergeStats) {
-        this.totalMerges += mergeStats.totalMerges;
-        this.currentMerges += mergeStats.currentMerges;
-        this.totalMergeTime += mergeStats.totalMergeTime;
+        if (mergeStats == null) {
+            return;
+        }
+        this.total += mergeStats.total;
+        this.current += mergeStats.current;
+        this.totalTimeInMillis += mergeStats.totalTimeInMillis;
     }
 
     /**
      * The total number of merges executed.
      */
-    public long totalMerges() {
-        return this.totalMerges;
+    public long total() {
+        return this.total;
     }
 
     /**
      * The current number of merges executing.
      */
-    public long currentMerges() {
-        return this.currentMerges;
+    public long current() {
+        return this.current;
     }
 
     /**
      * The total time merges have been executed (in milliseconds).
      */
-    public long totalMergeTimeInMillis() {
-        return this.totalMergeTime;
+    public long totalTimeInMillis() {
+        return this.totalTimeInMillis;
     }
 
     /**
      * The total time merges have been executed.
      */
-    public TimeValue totalMergeTime() {
-        return new TimeValue(totalMergeTime);
+    public TimeValue totalTime() {
+        return new TimeValue(totalTimeInMillis);
     }
 
     public static MergeStats readMergeStats(StreamInput in) throws IOException {
@@ -98,10 +101,10 @@ public class MergeStats implements Streamable, ToXContent {
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGES);
-        builder.field(Fields.CURRENT, currentMerges);
-        builder.field(Fields.TOTAL, totalMerges);
-        builder.field(Fields.TOTAL_TIME, totalMergeTime().toString());
-        builder.field(Fields.TOTAL_TIME_IN_MILLIS, totalMergeTime);
+        builder.field(Fields.CURRENT, current);
+        builder.field(Fields.TOTAL, total);
+        builder.field(Fields.TOTAL_TIME, totalTime().toString());
+        builder.field(Fields.TOTAL_TIME_IN_MILLIS, totalTimeInMillis);
         builder.endObject();
         return builder;
     }
@@ -115,14 +118,14 @@ public class MergeStats implements Streamable, ToXContent {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        totalMerges = in.readVLong();
-        currentMerges = in.readVLong();
-        totalMergeTime = in.readVLong();
+        total = in.readVLong();
+        current = in.readVLong();
+        totalTimeInMillis = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(totalMerges);
-        out.writeVLong(currentMerges);
-        out.writeVLong(totalMergeTime);
+        out.writeVLong(total);
+        out.writeVLong(current);
+        out.writeVLong(totalTimeInMillis);
     }
 }

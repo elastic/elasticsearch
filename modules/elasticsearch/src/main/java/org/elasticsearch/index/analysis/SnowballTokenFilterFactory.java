@@ -38,7 +38,7 @@ public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
     private String language;
 
     @Inject public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         this.language = settings.get("language", settings.get("name", "English"));
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.security.MessageDigest;
+import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 
 /**
@@ -34,8 +35,16 @@ public class ChecksumBenchmarkTest {
     public static final int BATCH_SIZE = 16 * 1024;
 
     public static void main(String[] args) {
-        long dataSize = ByteSizeValue.parseBytesSizeValue("1g", null).bytes();
+        System.out.println("Warning up");
+        long warmSize = ByteSizeValue.parseBytesSizeValue("1g", null).bytes();
+        crc(warmSize);
+        adler(warmSize);
+        md5(warmSize);
+
+        long dataSize = ByteSizeValue.parseBytesSizeValue("10g", null).bytes();
+        System.out.println("Running size: " + dataSize);
         crc(dataSize);
+        adler(dataSize);
         md5(dataSize);
     }
 
@@ -49,6 +58,18 @@ public class ChecksumBenchmarkTest {
         }
         crc.getValue();
         System.out.println("CRC took " + new TimeValue(System.currentTimeMillis() - start));
+    }
+
+    private static void adler(long dataSize) {
+        long start = System.currentTimeMillis();
+        Adler32 crc = new Adler32();
+        byte[] data = new byte[BATCH_SIZE];
+        long iter = dataSize / BATCH_SIZE;
+        for (long i = 0; i < iter; i++) {
+            crc.update(data);
+        }
+        crc.getValue();
+        System.out.println("Adler took " + new TimeValue(System.currentTimeMillis() - start));
     }
 
     private static void md5(long dataSize) {

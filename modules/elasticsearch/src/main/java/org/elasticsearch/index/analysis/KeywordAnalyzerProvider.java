@@ -34,7 +34,7 @@ public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<Keywo
     private final KeywordAnalyzer keywordAnalyzer;
 
     @Inject public KeywordAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         this.keywordAnalyzer = new KeywordAnalyzer();
     }
 

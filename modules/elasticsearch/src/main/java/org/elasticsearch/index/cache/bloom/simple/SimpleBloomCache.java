@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * @author kimchy (shay.banon)
  */
-public class SimpleBloomCache extends AbstractIndexComponent implements BloomCache {
+public class SimpleBloomCache extends AbstractIndexComponent implements BloomCache, IndexReader.ReaderFinishedListener {
 
     private final ThreadPool threadPool;
 
@@ -78,16 +78,16 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         cache.clear();
     }
 
+    @Override public void finished(IndexReader reader) {
+        clear(reader);
+    }
+
     @Override public void clear(IndexReader reader) {
-        ConcurrentMap<String, BloomFilterEntry> map = cache.remove(reader.getFieldCacheKey());
+        ConcurrentMap<String, BloomFilterEntry> map = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
             map.clear();
         }
-    }
-
-    @Override public void clearUnreferenced() {
-        // nothing to do here...
     }
 
     @Override public long sizeInBytes() {
@@ -117,13 +117,14 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         if (currentNumDocs == 0) {
             return BloomFilter.EMPTY;
         }
-        ConcurrentMap<String, BloomFilterEntry> fieldCache = cache.get(reader.getFieldCacheKey());
+        ConcurrentMap<String, BloomFilterEntry> fieldCache = cache.get(reader.getCoreCacheKey());
         if (fieldCache == null) {
             synchronized (creationMutex) {
-                fieldCache = cache.get(reader.getFieldCacheKey());
+                fieldCache = cache.get(reader.getCoreCacheKey());
                 if (fieldCache == null) {
+                    reader.addReaderFinishedListener(this);
                     fieldCache = ConcurrentCollections.newConcurrentMap();
-                    cache.put(reader.getFieldCacheKey(), fieldCache);
+                    cache.put(reader.getCoreCacheKey(), fieldCache);
                 }
             }
         }
@@ -195,7 +196,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                         }
                     }
                 } while (termEnum.next());
-                ConcurrentMap<String, BloomFilterEntry> fieldCache = cache.get(reader.getFieldCacheKey());
+                ConcurrentMap<String, BloomFilterEntry> fieldCache = cache.get(reader.getCoreCacheKey());
                 if (fieldCache != null) {
                     if (fieldCache.containsKey(field)) {
                         BloomFilterEntry filterEntry = new BloomFilterEntry(reader.numDocs(), filter);

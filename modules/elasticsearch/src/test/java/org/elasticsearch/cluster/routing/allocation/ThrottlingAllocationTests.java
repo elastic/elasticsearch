@@ -21,11 +21,9 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.cluster.ClusterState.*;
@@ -34,6 +32,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -46,7 +45,10 @@ public class ThrottlingAllocationTests {
     private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 
     @Test public void testPrimaryRecoveryThrottling() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 3).build());
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
+                .build());
 
         logger.info("Building initial routing table");
 
@@ -103,7 +105,10 @@ public class ThrottlingAllocationTests {
     }
 
     @Test public void testReplicaAndPrimaryRecoveryThrottling() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 3).build());
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 3)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
+                .build());
 
         logger.info("Building initial routing table");
 
@@ -166,9 +171,5 @@ public class ThrottlingAllocationTests {
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(10));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(0));
-    }
-
-    private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
     }
 }

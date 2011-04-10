@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -93,7 +94,7 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts());
+        return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts(), true);
     }
 
     public static long bucket(long value, long interval) {
@@ -102,7 +103,7 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
     public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
 
-        protected final TLongLongHashMap counts = new TLongLongHashMap();
+        protected final TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
         @Override public void onValue(int docId, MutableDateTime dateTime) {
             counts.adjustOrPutValue(dateTime.getMillis(), 1, 1);

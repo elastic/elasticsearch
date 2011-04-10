@@ -57,6 +57,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         JvmInfo info = new JvmInfo();
         info.pid = pid;
         info.startTime = runtimeMXBean.getStartTime();
+        info.version = runtimeMXBean.getSystemProperties().get("java.version");
         info.vmName = runtimeMXBean.getVmName();
         info.vmVendor = runtimeMXBean.getVmVendor();
         info.vmVersion = runtimeMXBean.getVmVersion();
@@ -79,6 +80,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     long pid = -1;
 
+    String version = "";
     String vmName = "";
     String vmVersion = "";
     String vmVendor = "";
@@ -110,6 +112,14 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
      */
     public long getPid() {
         return pid;
+    }
+
+    public String version() {
+        return this.version;
+    }
+
+    public String getVersion() {
+        return this.version;
     }
 
     public String vmName() {
@@ -187,10 +197,23 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("jvm");
         builder.field("pid", pid);
+        builder.field("version", version);
         builder.field("vm_name", vmName);
         builder.field("vm_version", vmVersion);
         builder.field("vm_vendor", vmVendor);
         builder.field("start_time", startTime);
+
+        builder.startObject("mem");
+        builder.field("heap_init", mem.heapInit().toString());
+        builder.field("heap_init_in_bytes", mem.heapInit);
+        builder.field("heap_max", mem.heapMax().toString());
+        builder.field("heap_max_in_bytes", mem.heapMax);
+        builder.field("non_heap_init", mem.nonHeapInit().toString());
+        builder.field("non_heap_init_in_bytes", mem.nonHeapInit);
+        builder.field("non_heap_max", mem.nonHeapMax().toString());
+        builder.field("non_heap_max_in_bytes", mem.nonHeapMax);
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -203,6 +226,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         pid = in.readLong();
+        version = in.readUTF();
         vmName = in.readUTF();
         vmVersion = in.readUTF();
         vmVendor = in.readUTF();
@@ -218,10 +242,13 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         for (int i = 0; i < size; i++) {
             systemProperties.put(in.readUTF(), in.readUTF());
         }
+        mem = new Mem();
+        mem.readFrom(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(pid);
+        out.writeUTF(version);
         out.writeUTF(vmName);
         out.writeUTF(vmVersion);
         out.writeUTF(vmVendor);
@@ -237,6 +264,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());
         }
+        mem.writeTo(out);
     }
 
     public static class Mem implements Streamable, Serializable {

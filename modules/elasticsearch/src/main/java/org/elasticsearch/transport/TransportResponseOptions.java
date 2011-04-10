@@ -32,8 +32,8 @@ public class TransportResponseOptions {
 
     private boolean compress;
 
-    public TransportResponseOptions withCompress() {
-        this.compress = true;
+    public TransportResponseOptions withCompress(boolean compress) {
+        this.compress = compress;
         return this;
     }
 

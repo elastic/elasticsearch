@@ -23,24 +23,24 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.status.ShardStatus.*;
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -48,8 +48,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 public class IndicesStatusResponse extends BroadcastOperationResponse implements ToXContent {
 
     protected ShardStatus[] shards;
-
-    private Map<String, Settings> indicesSettings = ImmutableMap.of();
 
     private Map<String, IndexStatus> indicesStatus;
 
@@ -59,12 +57,6 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
     IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-        indicesSettings = newHashMap();
-        for (ShardStatus shard : shards) {
-            if (!indicesSettings.containsKey(shard.shardRouting().index())) {
-                indicesSettings.put(shard.shardRouting().index(), clusterState.metaData().index(shard.shardRouting().index()).settings());
-            }
-        }
     }
 
     public ShardStatus[] shards() {
@@ -92,14 +84,20 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
             return indicesStatus;
         }
         Map<String, IndexStatus> indicesStatus = newHashMap();
-        for (String index : indicesSettings.keySet()) {
+
+        Set<String> indices = Sets.newHashSet();
+        for (ShardStatus shard : shards) {
+            indices.add(shard.index());
+        }
+
+        for (String index : indices) {
             List<ShardStatus> shards = newArrayList();
-            for (ShardStatus shard : shards()) {
+            for (ShardStatus shard : this.shards) {
                 if (shard.shardRouting().index().equals(index)) {
                     shards.add(shard);
                 }
             }
-            indicesStatus.put(index, new IndexStatus(index, indicesSettings.get(index), shards.toArray(new ShardStatus[shards.size()])));
+            indicesStatus.put(index, new IndexStatus(index, shards.toArray(new ShardStatus[shards.size()])));
         }
         this.indicesStatus = indicesStatus;
         return indicesStatus;
@@ -111,11 +109,6 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
         for (ShardStatus status : shards()) {
             status.writeTo(out);
         }
-        out.writeVInt(indicesSettings.size());
-        for (Map.Entry<String, Settings> entry : indicesSettings.entrySet()) {
-            out.writeUTF(entry.getKey());
-            writeSettingsToStream(entry.getValue(), out);
-        }
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
@@ -123,11 +116,6 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
         shards = new ShardStatus[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
             shards[i] = readIndexShardStatus(in);
-        }
-        indicesSettings = newHashMap();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            indicesSettings.put(in.readUTF(), readSettingsFromStream(in));
         }
     }
 
@@ -139,18 +127,6 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
         builder.startObject(Fields.INDICES);
         for (IndexStatus indexStatus : indices().values()) {
             builder.startObject(indexStatus.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-            builder.array(Fields.ALIASES, indexStatus.settings().getAsArray("index.aliases"));
-
-            builder.startObject(Fields.SETTINGS);
-            Settings settings = indexStatus.settings();
-            if (settingsFilter != null) {
-                settings = settingsFilter.filterSettings(settings);
-            }
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
 
             builder.startObject(Fields.INDEX);
             if (indexStatus.storeSize() != null) {
@@ -177,6 +153,10 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
             MergeStats mergeStats = indexStatus.mergeStats();
             if (mergeStats != null) {
                 mergeStats.toXContent(builder, params);
+            }
+            RefreshStats refreshStats = indexStatus.refreshStats();
+            if (refreshStats != null) {
+                refreshStats.toXContent(builder, params);
             }
 
             builder.startObject(Fields.SHARDS);
@@ -219,6 +199,11 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                     mergeStats = shardStatus.mergeStats();
                     if (mergeStats != null) {
                         mergeStats.toXContent(builder, params);
+                    }
+
+                    refreshStats = shardStatus.refreshStats();
+                    if (refreshStats != null) {
+                        refreshStats.toXContent(builder, params);
                     }
 
                     if (shardStatus.peerRecoveryStatus() != null) {
@@ -309,8 +294,6 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
 
     static final class Fields {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
-        static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString PRIMARY_SIZE = new XContentBuilderString("primary_size");
         static final XContentBuilderString PRIMARY_SIZE_IN_BYTES = new XContentBuilderString("primary_size_in_bytes");

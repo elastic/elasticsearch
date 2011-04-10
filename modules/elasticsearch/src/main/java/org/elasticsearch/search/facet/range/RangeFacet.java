@@ -54,8 +54,16 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
         String toAsString;
 
         long count;
+        long totalCount;
 
         double total;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+
+        /**
+         * Internal field used in facet collection
+         */
+        boolean foundInDoc;
 
         Entry() {
         }
@@ -106,6 +114,14 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
             return count();
         }
 
+        public long totalCount() {
+            return this.totalCount;
+        }
+
+        public long getTotalCount() {
+            return this.totalCount;
+        }
+
         public double total() {
             return this.total;
         }
@@ -118,7 +134,7 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
          * The mean of this facet interval.
          */
         public double mean() {
-            return total / count;
+            return total / totalCount;
         }
 
         /**
@@ -126,6 +142,22 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
          */
         public double getMean() {
             return mean();
+        }
+
+        public double min() {
+            return this.min;
+        }
+
+        public double getMin() {
+            return this.min;
+        }
+
+        public double max() {
+            return this.max;
+        }
+
+        public double getMax() {
+            return this.max;
         }
     }
 }

@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * @author kimchy (shay.banon)
  */
-public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
+public class SimpleIdCache extends AbstractIndexComponent implements IdCache, IndexReader.ReaderFinishedListener {
 
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
 
@@ -67,16 +67,16 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
         idReaders.clear();
     }
 
-    @Override public void clear(IndexReader reader) {
-        idReaders.remove(reader.getFieldCacheKey());
+    @Override public void finished(IndexReader reader) {
+        clear(reader);
     }
 
-    @Override public void clearUnreferenced() {
-        // nothing to do here...
+    @Override public void clear(IndexReader reader) {
+        idReaders.remove(reader.getCoreCacheKey());
     }
 
     @Override public IdReaderCache reader(IndexReader reader) {
-        return idReaders.get(reader.getFieldCacheKey());
+        return idReaders.get(reader.getCoreCacheKey());
     }
 
     @SuppressWarnings({"unchecked"}) @Override public Iterator<IdReaderCache> iterator() {
@@ -98,13 +98,14 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
 
                 // first, go over and load all the id->doc map for all types
                 for (IndexReader reader : readers) {
-                    if (idReaders.containsKey(reader.getFieldCacheKey())) {
+                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
                         // no need, continue
                         continue;
                     }
 
+                    reader.addReaderFinishedListener(this);
                     HashMap<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
-                    builders.put(reader.getFieldCacheKey(), readerBuilder);
+                    builders.put(reader.getCoreCacheKey(), readerBuilder);
 
                     String field = StringHelper.intern(UidFieldMapper.NAME);
                     TermDocs termDocs = reader.termDocs();
@@ -141,12 +142,12 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
                 // now, go and load the docId->parentId map
 
                 for (IndexReader reader : readers) {
-                    if (idReaders.containsKey(reader.getFieldCacheKey())) {
+                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
                         // no need, continue
                         continue;
                     }
 
-                    Map<String, TypeBuilder> readerBuilder = builders.get(reader.getFieldCacheKey());
+                    Map<String, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
 
                     int t = 1;  // current term number (0 indicated null value)
                     String field = StringHelper.intern(ParentFieldMapper.NAME);
@@ -229,7 +230,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache {
 
     private boolean refreshNeeded(IndexReader[] readers) {
         for (IndexReader reader : readers) {
-            if (!idReaders.containsKey(reader.getFieldCacheKey())) {
+            if (!idReaders.containsKey(reader.getCoreCacheKey())) {
                 return true;
             }
         }

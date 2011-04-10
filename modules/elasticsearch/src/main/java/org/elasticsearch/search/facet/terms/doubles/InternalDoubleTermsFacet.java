@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms.doubles;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TDoubleIntIterator;
 import org.elasticsearch.common.trove.map.hash.TDoubleIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -169,20 +169,12 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TDoubleIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TDoubleIntHashMap>>() {
-        @Override protected ThreadLocals.CleanableValue<TDoubleIntHashMap> initialValue() {
-            return new ThreadLocals.CleanableValue<TDoubleIntHashMap>(new TDoubleIntHashMap());
-        }
-    };
-
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
         InternalDoubleTermsFacet first = (InternalDoubleTermsFacet) facets.get(0);
-        TDoubleIntHashMap aggregated = aggregateCache.get().get();
-        aggregated.clear();
+        TDoubleIntHashMap aggregated = CacheRecycler.popDoubleIntMap();
         long missing = 0;
         for (Facet facet : facets) {
             InternalDoubleTermsFacet mFacet = (InternalDoubleTermsFacet) facet;
@@ -199,6 +191,9 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         }
         first.entries = ordered;
         first.missing = missing;
+
+        CacheRecycler.pushDoubleIntMap(aggregated);
+
         return first;
     }
 

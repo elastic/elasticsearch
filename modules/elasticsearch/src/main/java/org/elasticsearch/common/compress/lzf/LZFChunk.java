@@ -1,22 +1,3 @@
-/*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 /* Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
  * file except in compliance with the License. You may obtain a copy of the License at
  *
@@ -48,6 +29,12 @@ public class LZFChunk {
     // Chunk length is limited by 2-byte length indicator, to 64k
     public static final int MAX_CHUNK_LEN = 0xFFFF;
 
+    /**
+     * Header can be either 7 bytes (compressed) or 5 bytes (uncompressed)
+     * long
+     */
+    public static final int MAX_HEADER_LEN = 7;
+
     public final static byte BYTE_Z = 'Z';
     public final static byte BYTE_V = 'V';
 
@@ -55,23 +42,11 @@ public class LZFChunk {
     public final static int BLOCK_TYPE_COMPRESSED = 1;
 
 
-    final byte[] _data;
-    LZFChunk _next;
+    protected final byte[] _data;
+    protected LZFChunk _next;
 
     private LZFChunk(byte[] data) {
         _data = data;
-    }
-
-    public static int createCompressed(OutputStream os, int origLen, byte[] encData, int encPtr, int encLen) throws IOException {
-        os.write(BYTE_Z);
-        os.write(BYTE_V);
-        os.write(BLOCK_TYPE_COMPRESSED);
-        os.write(encLen >> 8);
-        os.write(encLen);
-        os.write((origLen >> 8));
-        os.write(origLen);
-        os.write(encData, encPtr, encLen);
-        return encLen + 7;
     }
 
     /**
@@ -90,14 +65,16 @@ public class LZFChunk {
         return new LZFChunk(result);
     }
 
-    public static int createNonCompressed(OutputStream os, byte[] plainData, int ptr, int len) throws IOException {
-        os.write(BYTE_Z);
-        os.write(BYTE_V);
-        os.write(BLOCK_TYPE_NON_COMPRESSED);
-        os.write(len >> 8);
-        os.write(len);
-        os.write(plainData, ptr, len);
-        return len + 5;
+    public static void writeCompressedHeader(int origLen, int encLen, OutputStream out, byte[] headerBuffer)
+            throws IOException {
+        headerBuffer[0] = BYTE_Z;
+        headerBuffer[1] = BYTE_V;
+        headerBuffer[2] = BLOCK_TYPE_COMPRESSED;
+        headerBuffer[3] = (byte) (encLen >> 8);
+        headerBuffer[4] = (byte) encLen;
+        headerBuffer[5] = (byte) (origLen >> 8);
+        headerBuffer[6] = (byte) origLen;
+        out.write(headerBuffer, 0, 7);
     }
 
     /**
@@ -112,6 +89,16 @@ public class LZFChunk {
         result[4] = (byte) len;
         System.arraycopy(plainData, ptr, result, 5, len);
         return new LZFChunk(result);
+    }
+
+    public static void writeNonCompressedHeader(int len, OutputStream out, byte[] headerBuffer)
+            throws IOException {
+        headerBuffer[0] = BYTE_Z;
+        headerBuffer[1] = BYTE_V;
+        headerBuffer[2] = BLOCK_TYPE_NON_COMPRESSED;
+        headerBuffer[3] = (byte) (len >> 8);
+        headerBuffer[4] = (byte) len;
+        out.write(headerBuffer, 0, 5);
     }
 
     public void setNext(LZFChunk next) {

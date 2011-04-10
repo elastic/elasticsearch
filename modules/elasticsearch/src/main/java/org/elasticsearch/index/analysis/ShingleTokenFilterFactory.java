@@ -37,7 +37,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean outputUnigrams;
 
     @Inject public ShingleTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
         outputUnigrams = settings.getAsBoolean("output_unigrams", true);
     }

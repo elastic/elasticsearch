@@ -17,16 +17,35 @@ package org.apache.lucene.index.memory;
  * limitations under the License.
  */
 
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Constants;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -153,7 +172,6 @@ import java.util.*;
  * href="http://java.sun.com/developer/technicalArticles/Programming/HPROF.html">
  * hprof tracing </a>).
  */
-
 // LUCENE MONITOR - Support adding same field several times
 //    -- Added pos to Info
 //    -- Use current info of existing field
@@ -187,10 +205,11 @@ public class CustomMemoryIndex implements Serializable {
      * Sorts term entries into ascending order; also works for
      * Arrays.binarySearch() and Arrays.sort()
      */
-    private static final Comparator termComparator = new Comparator() {
+    private static final Comparator<Object> termComparator = new Comparator<Object>() {
+        @SuppressWarnings("unchecked")
         public int compare(Object o1, Object o2) {
-            if (o1 instanceof Map.Entry) o1 = ((Map.Entry) o1).getKey();
-            if (o2 instanceof Map.Entry) o2 = ((Map.Entry) o2).getKey();
+            if (o1 instanceof Map.Entry<?, ?>) o1 = ((Map.Entry<?, ?>) o1).getKey();
+            if (o2 instanceof Map.Entry<?, ?>) o2 = ((Map.Entry<?, ?>) o2).getKey();
             if (o1 == o2) return 0;
             return ((String) o1).compareTo((String) o2);
         }
@@ -262,8 +281,8 @@ public class CustomMemoryIndex implements Serializable {
         return new TokenStream() {
             private Iterator<T> iter = keywords.iterator();
             private int start = 0;
-            private TermAttribute termAtt = addAttribute(TermAttribute.class);
-            private OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+            private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
             @Override
             public boolean incrementToken() {
@@ -275,8 +294,8 @@ public class CustomMemoryIndex implements Serializable {
 
                 String term = obj.toString();
                 clearAttributes();
-                termAtt.setTermBuffer(term);
-                offsetAtt.setOffset(start, start + termAtt.termLength());
+                termAtt.setEmpty().append(term);
+                offsetAtt.setOffset(start, start + termAtt.length());
                 start += term.length() + 1; // separate words by 1 (blank) character
                 return true;
             }
@@ -319,6 +338,7 @@ public class CustomMemoryIndex implements Serializable {
             int numOverlapTokens = 0;
             int pos = -1;
 
+            // CHANGE
             if (fields.get(fieldName) != null) {
                 Info info = fields.get(fieldName);
                 terms = info.terms;
@@ -329,14 +349,12 @@ public class CustomMemoryIndex implements Serializable {
                 terms = new HashMap<String, ArrayIntList>();
             }
 
-
-            TermAttribute termAtt = stream.addAttribute(TermAttribute.class);
+            CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
             PositionIncrementAttribute posIncrAttribute = stream.addAttribute(PositionIncrementAttribute.class);
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
-
             stream.reset();
             while (stream.incrementToken()) {
-                String term = termAtt.term();
+                String term = termAtt.toString();
                 if (term.length() == 0) continue; // nothing to do
 //        if (DEBUG) System.err.println("token='" + term + "'");
                 numTokens++;
@@ -499,6 +517,7 @@ public class CustomMemoryIndex implements Serializable {
      */
     private static <K, V> Map.Entry<K, V>[] sort(HashMap<K, V> map) {
         int size = map.size();
+        @SuppressWarnings("unchecked")
         Map.Entry<K, V>[] entries = new Map.Entry[size];
 
         Iterator<Map.Entry<K, V>> iter = map.entrySet().iterator();
@@ -506,7 +525,7 @@ public class CustomMemoryIndex implements Serializable {
             entries[i] = iter.next();
         }
 
-        if (size > 1) Arrays.sort(entries, termComparator);
+        if (size > 1) ArrayUtil.quickSort(entries, termComparator);
         return entries;
     }
 
@@ -747,6 +766,7 @@ public class CustomMemoryIndex implements Serializable {
 
         private MemoryIndexReader() {
             super(); // avoid as much superclass baggage as possible
+            readerFinishedListeners = Collections.synchronizedSet(new HashSet<ReaderFinishedListener>());
         }
 
         private Info getInfo(String fieldName) {
@@ -808,41 +828,41 @@ public class CustomMemoryIndex implements Serializable {
 
             return new TermEnum() {
 
-                private int i = ix; // index into info.sortedTerms
-                private int j = jx; // index into sortedFields
+                private int srtTermsIdx = ix; // index into info.sortedTerms
+                private int srtFldsIdx = jx; // index into sortedFields
 
                 @Override
                 public boolean next() {
                     if (DEBUG) System.err.println("TermEnum.next");
-                    if (j >= sortedFields.length) return false;
-                    Info info = getInfo(j);
-                    if (++i < info.sortedTerms.length) return true;
+                    if (srtFldsIdx >= sortedFields.length) return false;
+                    Info info = getInfo(srtFldsIdx);
+                    if (++srtTermsIdx < info.sortedTerms.length) return true;
 
                     // move to successor
-                    j++;
-                    i = 0;
-                    if (j >= sortedFields.length) return false;
-                    getInfo(j).sortTerms();
+                    srtFldsIdx++;
+                    srtTermsIdx = 0;
+                    if (srtFldsIdx >= sortedFields.length) return false;
+                    getInfo(srtFldsIdx).sortTerms();
                     return true;
                 }
 
                 @Override
                 public Term term() {
-                    if (DEBUG) System.err.println("TermEnum.term: " + i);
-                    if (j >= sortedFields.length) return null;
-                    Info info = getInfo(j);
-                    if (i >= info.sortedTerms.length) return null;
+                    if (DEBUG) System.err.println("TermEnum.term: " + srtTermsIdx);
+                    if (srtFldsIdx >= sortedFields.length) return null;
+                    Info info = getInfo(srtFldsIdx);
+                    if (srtTermsIdx >= info.sortedTerms.length) return null;
 //          if (DEBUG) System.err.println("TermEnum.term: " + i + ", " + info.sortedTerms[i].getKey());
-                    return createTerm(info, j, info.sortedTerms[i].getKey());
+                    return createTerm(info, srtFldsIdx, info.sortedTerms[srtTermsIdx].getKey());
                 }
 
                 @Override
                 public int docFreq() {
                     if (DEBUG) System.err.println("TermEnum.docFreq");
-                    if (j >= sortedFields.length) return 0;
-                    Info info = getInfo(j);
-                    if (i >= info.sortedTerms.length) return 0;
-                    return numPositions(info.getPositions(i));
+                    if (srtFldsIdx >= sortedFields.length) return 0;
+                    Info info = getInfo(srtFldsIdx);
+                    if (srtTermsIdx >= info.sortedTerms.length) return 0;
+                    return numPositions(info.getPositions(srtTermsIdx));
                 }
 
                 @Override
@@ -1117,7 +1137,7 @@ public class CustomMemoryIndex implements Serializable {
                 float boost = info != null ? info.getBoost() : 1.0f;
                 FieldInvertState invertState = new FieldInvertState(0, numTokens, numOverlapTokens, 0, boost);
                 float n = sim.computeNorm(fieldName, invertState);
-                byte norm = Similarity.encodeNorm(n);
+                byte norm = sim.encodeNormValue(n);
                 norms = new byte[]{norm};
 
                 // cache it for future reuse
@@ -1222,7 +1242,7 @@ public class CustomMemoryIndex implements Serializable {
     ///////////////////////////////////////////////////////////////////////////////
     private static final class VM {
 
-        public static final int PTR = is64BitVM() ? 8 : 4;
+        public static final int PTR = Constants.JRE_IS_64BIT ? 8 : 4;
 
         // bytes occupied by primitive data types
         public static final int BOOLEAN = 1;
@@ -1286,18 +1306,6 @@ public class CustomMemoryIndex implements Serializable {
 
         public static int sizeOfArrayIntList(int len) {
             return sizeOfObject(PTR + INT) + sizeOfIntArray(len);
-        }
-
-        private static boolean is64BitVM() {
-            try {
-                int bits = Integer.getInteger("sun.arch.data.model", 0).intValue();
-                if (bits != 0) return bits == 64;
-
-                // fallback if sun.arch.data.model isn't available
-                return System.getProperty("java.vm.name").toLowerCase().indexOf("64") >= 0;
-            } catch (Throwable t) {
-                return false; // better safe than sorry (applets, security managers, etc.) ...
-            }
         }
 
         /**

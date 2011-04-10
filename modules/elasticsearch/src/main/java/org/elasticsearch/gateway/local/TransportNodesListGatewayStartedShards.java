@@ -73,6 +73,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         return "/gateway/local/started-shards/node";
     }
 
+    @Override protected boolean transportCompress() {
+        return true; // this can become big...
+    }
+
     @Override protected Request newRequest() {
         return new Request();
     }

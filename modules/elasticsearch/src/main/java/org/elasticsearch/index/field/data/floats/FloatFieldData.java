@@ -47,6 +47,10 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
         return RamUsage.NUM_BYTES_FLOAT * values.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
     }
 
+    public final float[] values() {
+        return this.values;
+    }
+
     abstract public float value(int docId);
 
     abstract public float[] values(int docId);

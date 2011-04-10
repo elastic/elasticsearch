@@ -37,6 +37,8 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
     private String valueFieldName;
     private long interval = -1;
     private HistogramFacet.ComparatorType comparatorType;
+    private Object from;
+    private Object to;
 
     /**
      * Constructs a new histogram facet with the provided facet logical name.
@@ -90,6 +92,16 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
         return interval(unit.toMillis(interval));
     }
 
+    /**
+     * Sets the bounds from and to for the facet. Both performs bounds check and includes only
+     * values within the bounds, and improves performance.
+     */
+    public HistogramFacetBuilder bounds(Object from, Object to) {
+        this.from = from;
+        this.to = to;
+        return this;
+    }
+
     public HistogramFacetBuilder comparator(HistogramFacet.ComparatorType comparatorType) {
         this.comparatorType = comparatorType;
         return this;
@@ -137,6 +149,12 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
             builder.field("field", keyFieldName);
         }
         builder.field("interval", interval);
+
+        if (from != null && to != null) {
+            builder.field("from", from);
+            builder.field("to", to);
+        }
+
         if (comparatorType != null) {
             builder.field("comparator", comparatorType.description());
         }

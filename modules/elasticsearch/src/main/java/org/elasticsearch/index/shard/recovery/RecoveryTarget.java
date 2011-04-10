@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
@@ -454,7 +455,7 @@ public class RecoveryTarget extends AbstractComponent {
                         if (request.checksum() != null) {
                             shard.store().writeChecksum(request.name(), request.checksum());
                         }
-                        shard.store().directory().sync(request.name());
+                        shard.store().directory().sync(Collections.singleton(request.name()));
                         onGoingRecovery.openIndexOutputs.remove(request.name());
                     }
                 } catch (IOException e) {

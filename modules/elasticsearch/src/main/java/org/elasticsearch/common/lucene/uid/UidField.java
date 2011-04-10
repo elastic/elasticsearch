@@ -155,7 +155,7 @@ public class UidField extends AbstractField {
         }
     }
 
-    public static class UidPayloadTokenStream extends TokenFilter {
+    public static final class UidPayloadTokenStream extends TokenFilter {
 
         private final PayloadAttribute payloadAttribute;
 
@@ -167,7 +167,7 @@ public class UidField extends AbstractField {
             payloadAttribute = addAttribute(PayloadAttribute.class);
         }
 
-        @Override public boolean incrementToken() throws IOException {
+        @Override public final boolean incrementToken() throws IOException {
             if (!input.incrementToken()) {
                 return false;
             }

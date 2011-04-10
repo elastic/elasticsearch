@@ -73,7 +73,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     }
 
     public CacheStats stats() {
-        return new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterCache.sizeInBytes(), filterCache.count(), bloomCache.sizeInBytes());
+        return new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), filterCache.memEvictions(), fieldDataCache.sizeInBytes(), filterCache.sizeInBytes(), filterCache.count(), bloomCache.sizeInBytes());
     }
 
     public FilterCache filter() {
@@ -120,13 +120,6 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         idCache.clear();
         queryParserCache.clear();
         bloomCache.clear();
-    }
-
-    public void clearUnreferenced() {
-        filterCache.clearUnreferenced();
-        fieldDataCache.clearUnreferenced();
-        idCache.clearUnreferenced();
-        bloomCache.clearUnreferenced();
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {

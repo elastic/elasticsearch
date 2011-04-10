@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.termsstats.strings;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -56,14 +56,16 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
     public static class StringEntry implements Entry {
 
         String term;
-        int count;
+        long count;
+        long totalCount;
         double total;
         double min;
         double max;
 
-        public StringEntry(String term, int count, double total, double min, double max) {
+        public StringEntry(String term, long count, long totalCount, double total, double min, double max) {
             this.term = term;
             this.count = count;
+            this.totalCount = totalCount;
             this.total = total;
             this.min = min;
             this.max = max;
@@ -85,12 +87,20 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return termAsNumber();
         }
 
-        @Override public int count() {
+        @Override public long count() {
             return count;
         }
 
-        @Override public int getCount() {
+        @Override public long getCount() {
             return count();
+        }
+
+        @Override public long totalCount() {
+            return this.totalCount;
+        }
+
+        @Override public long getTotalCount() {
+            return this.totalCount;
         }
 
         @Override public double min() {
@@ -118,7 +128,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override public double mean() {
-            return total / count;
+            return total / totalCount;
         }
 
         @Override public double getMean() {
@@ -194,12 +204,6 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>>>() {
-        @Override protected ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>> initialValue() {
-            return new ThreadLocals.CleanableValue<ExtTHashMap<String, StringEntry>>(new ExtTHashMap<String, StringEntry>());
-        }
-    };
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             if (requiredSize == 0) {
@@ -213,8 +217,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<String, StringEntry> map = aggregateCache.get().get();
-        map.clear();
+        ExtTHashMap<String, StringEntry> map = CacheRecycler.popHashMap();
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
@@ -223,11 +226,12 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 StringEntry current = map.get(stringEntry.term());
                 if (current != null) {
                     current.count += stringEntry.count;
+                    current.totalCount += stringEntry.totalCount;
                     current.total += stringEntry.total;
-                    if (stringEntry.min < current.min || Double.isNaN(current.min)) {
+                    if (stringEntry.min < current.min) {
                         current.min = stringEntry.min;
                     }
-                    if (stringEntry.max > current.max || Double.isNaN(current.max)) {
+                    if (stringEntry.max > current.max) {
                         current.max = stringEntry.max;
                     }
                 } else {
@@ -240,11 +244,12 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             StringEntry[] entries1 = map.values().toArray(new StringEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
+            CacheRecycler.pushHashMap(map);
             return new InternalTermsStatsStringFacet(name, comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<StringEntry> ordered = new ArrayList<StringEntry>();
+            List<StringEntry> ordered = new ArrayList<StringEntry>(map.size());
             for (int i = 0; i < requiredSize; i++) {
                 StringEntry value = (StringEntry) values[i];
                 if (value == null) {
@@ -252,6 +257,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
+            CacheRecycler.pushHashMap(map);
             return new InternalTermsStatsStringFacet(name, comparatorType, requiredSize, ordered, missing);
         }
     }
@@ -262,6 +268,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString MIN = new XContentBuilderString("min");
         static final XContentBuilderString MAX = new XContentBuilderString("max");
@@ -277,6 +284,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             builder.startObject();
             builder.field(Fields.TERM, entry.term());
             builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
             builder.field(Fields.MIN, entry.min());
             builder.field(Fields.MAX, entry.max());
             builder.field(Fields.TOTAL, entry.total());
@@ -303,7 +311,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new StringEntry(in.readUTF(), in.readVInt(), in.readDouble(), in.readDouble(), in.readDouble()));
+            entries.add(new StringEntry(in.readUTF(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
         }
     }
 
@@ -316,7 +324,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
             out.writeUTF(entry.term());
-            out.writeVInt(entry.count());
+            out.writeVLong(entry.count());
+            out.writeVLong(entry.totalCount());
             out.writeDouble(entry.total());
             out.writeDouble(entry.min());
             out.writeDouble(entry.max());

@@ -22,7 +22,6 @@ package org.elasticsearch.index.service;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ElasticSearchInterruptedException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -118,8 +117,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private volatile boolean closed = false;
 
-    private final CleanCacheOnIndicesLifecycleListener cleanCacheOnIndicesLifecycleListener = new CleanCacheOnIndicesLifecycleListener();
-
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
                                         PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
                                         IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
@@ -140,8 +137,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
-
-        this.indicesLifecycle.addListener(cleanCacheOnIndicesLifecycleListener);
     }
 
     @Override public int numberOfShards() {
@@ -216,29 +211,25 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         synchronized (this) {
             closed = true;
         }
-        try {
-            Set<Integer> shardIds = shardIds();
-            final CountDownLatch latch = new CountDownLatch(shardIds.size());
-            for (final int shardId : shardIds) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        try {
-                            deleteShard(shardId, delete, !delete, delete, reason);
-                        } catch (Exception e) {
-                            logger.warn("failed to close shard, delete [{}]", e, delete);
-                        } finally {
-                            latch.countDown();
-                        }
+        Set<Integer> shardIds = shardIds();
+        final CountDownLatch latch = new CountDownLatch(shardIds.size());
+        for (final int shardId : shardIds) {
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        deleteShard(shardId, delete, !delete, delete, reason);
+                    } catch (Exception e) {
+                        logger.warn("failed to close shard, delete [{}]", e, delete);
+                    } finally {
+                        latch.countDown();
                     }
-                });
-            }
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new ElasticSearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
-            }
-        } finally {
-            indicesLifecycle.removeListener(cleanCacheOnIndicesLifecycleListener);
+                }
+            });
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new ElasticSearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
         }
     }
 
@@ -337,6 +328,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             // now we can close the translog service, we need to close it before the we close the shard
             shardInjector.getInstance(TranslogService.class).close();
         } catch (Exception e) {
+            logger.debug("failed to close translog service", e);
             // ignore
         }
 
@@ -351,18 +343,21 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             try {
                 ((InternalIndexShard) indexShard).close(reason);
             } catch (Exception e) {
+                logger.debug("failed to close index shard", e);
                 // ignore
             }
         }
         try {
             shardInjector.getInstance(Engine.class).close();
         } catch (Exception e) {
+            logger.debug("failed to close engine", e);
             // ignore
         }
 
         try {
             shardInjector.getInstance(MergePolicyProvider.class).close(delete);
         } catch (Exception e) {
+            logger.debug("failed to close merge policy provider", e);
             // ignore
         }
 
@@ -372,17 +367,20 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 shardInjector.getInstance(IndexShardGatewayService.class).snapshotOnClose();
             }
         } catch (Exception e) {
+            logger.debug("failed to snapshot gateway on close", e);
             // ignore
         }
         try {
             shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
         } catch (Exception e) {
+            logger.debug("failed to close index shard gateway", e);
             // ignore
         }
         try {
             // now we can close the translog
             shardInjector.getInstance(Translog.class).close(delete);
         } catch (Exception e) {
+            logger.debug("failed to close translog", e);
             // ignore
         }
 
@@ -410,17 +408,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // delete the shard location if needed
         if (delete || indexGateway.type().equals(NoneGateway.TYPE)) {
             FileSystemUtils.deleteRecursively(nodeEnv.shardLocation(sId));
-        }
-    }
-
-    class CleanCacheOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
-
-        @Override public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
-            indexCache.clearUnreferenced();
-        }
-
-        @Override public void afterIndexShardClosed(ShardId shardId, boolean delete) {
-            indexCache.clearUnreferenced();
         }
     }
 }

@@ -61,7 +61,7 @@ public class HistogramFacetSearchBenchmark {
 
         Client client = clientNode.client();
 
-        long COUNT = SizeValue.parseSizeValue("1m").singles();
+        long COUNT = SizeValue.parseSizeValue("5m").singles();
         int BATCH = 500;
         int QUERY_WARMUP = 20;
         int QUERY_COUNT = 200;
@@ -112,7 +112,8 @@ public class HistogramFacetSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count();
+        System.out.println("--> Number of docs in index: " + COUNT);
 
         System.out.println("--> Warmup...");
         // run just the child query, warm up first
@@ -148,6 +149,19 @@ public class HistogramFacetSearchBenchmark {
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("l_value").field("l_value").bounds(0, NUMBER_OF_TERMS + 1).interval(4))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Histogram Facet + bounds (l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
                     .addFacet(histogramFacet("l_value").field("l_value").valueField("l_value").interval(4))
                     .execute().actionGet();
             if (searchResponse.hits().totalHits() != COUNT) {
@@ -156,6 +170,19 @@ public class HistogramFacetSearchBenchmark {
             totalQueryTime += searchResponse.tookInMillis();
         }
         System.out.println("--> Histogram Facet (l_value/l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("l_value").field("l_value").valueField("l_value").bounds(0, NUMBER_OF_TERMS + 1).interval(4))
+                    .execute().actionGet();
+            if (searchResponse.hits().totalHits() != COUNT) {
+                System.err.println("--> mismatch on hits");
+            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> Histogram Facet + bounds (l_value/l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {

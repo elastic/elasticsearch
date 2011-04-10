@@ -26,8 +26,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A Directory instance that switches files between
@@ -139,6 +138,20 @@ public class SwitchDirectory extends Directory implements ForceSyncDirectory {
 
     @Override public IndexOutput createOutput(String name) throws IOException {
         return getDirectory(name).createOutput(name);
+    }
+
+    @Override public void sync(Collection<String> names) throws IOException {
+        List<String> primaryNames = new ArrayList<String>();
+        List<String> secondaryNames = new ArrayList<String>();
+
+        for (String name : names)
+            if (primaryExtensions.contains(getExtension(name)))
+                primaryNames.add(name);
+            else
+                secondaryNames.add(name);
+
+        primaryDir.sync(primaryNames);
+        secondaryDir.sync(secondaryNames);
     }
 
     @Override public void sync(String name) throws IOException {

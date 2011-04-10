@@ -78,7 +78,7 @@ public class JmxService {
         this.logger = logger;
         this.settings = settings;
 
-        this.jmxDomain = settings.get("jmx.domain", "{elasticsearch}");
+        this.jmxDomain = settings.get("jmx.domain", "org.elasticsearch");
 
         this.mBeanServer = ManagementFactory.getPlatformMBeanServer();
     }
@@ -222,13 +222,13 @@ public class JmxService {
                     }
                 } catch (InstanceAlreadyExistsException e) {
                     //this might happen if multiple instances are trying to concurrently register same objectName
-                    logger.warn("Could not register object with name:" + objectName + "(" + e.getMessage() + ")");
+                    logger.debug("Could not register object with name:" + objectName + "(" + e.getMessage() + ")");
                 }
             } else {
-                logger.warn("Could not register object with name: " + objectName);
+                logger.debug("Could not register object with name: " + objectName + ", already registered");
             }
         } catch (Exception e) {
-            logger.warn("Could not register object with name: " + resourceDMBean.getFullObjectName());
+            logger.warn("Could not register object with name: " + resourceDMBean.getFullObjectName() + "(" + e.getMessage() + ")");
         }
     }
 
@@ -237,13 +237,6 @@ public class JmxService {
     }
 
     private String getObjectName(String jmxDomain, String resourceName) {
-        String type;
-        if (settings.get("name") != null) {
-            type = settings.get("name") + " [" + nodeDescription + "]";
-        } else {
-            type = nodeDescription;
-        }
-        type = type.replace(':', '_').replace('/', '_').replace('.', '_').replace(',', ' ').replace('\"', ' ');
-        return jmxDomain + ":" + "type=" + type + "," + resourceName;
+        return jmxDomain + ":" + resourceName;
     }
 }

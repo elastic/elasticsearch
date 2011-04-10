@@ -30,7 +30,7 @@ import java.io.Reader;
  */
 public abstract class NumericAnalyzer<T extends NumericTokenizer> extends Analyzer {
 
-    @Override public TokenStream tokenStream(String fieldName, Reader reader) {
+    @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
         try {
             return createNumericTokenizer(reader, new char[32]);
         } catch (IOException e) {
@@ -38,7 +38,7 @@ public abstract class NumericAnalyzer<T extends NumericTokenizer> extends Analyz
         }
     }
 
-    @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+    @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         Holder holder = (Holder) getPreviousTokenStream();
         if (holder == null) {
             char[] buffer = new char[120];

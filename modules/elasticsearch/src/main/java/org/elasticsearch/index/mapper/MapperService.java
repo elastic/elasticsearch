@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -240,9 +241,28 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     /**
-     * A filter to filter based on several types.
+     * A filter to filter based on several types. Will not throw types missing failure, and will
+     * simply filter it out also.
      */
     public Filter typesFilter(String... types) {
+        if (types.length == 1) {
+            DocumentMapper docMapper = documentMapper(types[0]);
+            if (docMapper == null) {
+                return new TermFilter(new Term(types[0]));
+            }
+            return docMapper.typeFilter();
+        }
+        PublicTermsFilter termsFilter = new PublicTermsFilter();
+        for (String type : types) {
+            termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
+        }
+        return termsFilter;
+    }
+
+    /**
+     * A filter to filter based on several types.
+     */
+    public Filter typesFilterFailOnMissing(String... types) throws TypeMissingException {
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
             if (docMapper == null) {
@@ -461,7 +481,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    class SmartIndexNameSearchAnalyzer extends Analyzer {
+    final class SmartIndexNameSearchAnalyzer extends Analyzer {
 
         private final Analyzer defaultAnalyzer;
 
@@ -512,7 +532,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.getOffsetGap(field);
         }
 
-        @Override public TokenStream tokenStream(String fieldName, Reader reader) {
+        @Override public final TokenStream tokenStream(String fieldName, Reader reader) {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);
@@ -533,7 +553,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return defaultAnalyzer.tokenStream(fieldName, reader);
         }
 
-        @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
+        @Override public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
             int dotIndex = fieldName.indexOf('.');
             if (dotIndex != -1) {
                 String possibleType = fieldName.substring(0, dotIndex);

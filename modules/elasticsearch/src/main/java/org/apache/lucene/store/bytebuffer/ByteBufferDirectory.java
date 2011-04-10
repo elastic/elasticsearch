@@ -58,11 +58,11 @@ public class ByteBufferDirectory extends Directory {
     public ByteBufferDirectory() {
         this.allocator = new PlainByteBufferAllocator(false, 1024, 1024 * 10);
         this.internalAllocator = true;
-//        try {
-        setLockFactory(new SingleInstanceLockFactory());
-//        } catch (IOException e) {
-//            // will not happen
-//        }
+        try {
+            setLockFactory(new SingleInstanceLockFactory());
+        } catch (IOException e) {
+            // will not happen
+        }
     }
 
     /**
@@ -71,11 +71,11 @@ public class ByteBufferDirectory extends Directory {
     public ByteBufferDirectory(ByteBufferAllocator allocator) {
         this.allocator = allocator;
         this.internalAllocator = false;
-//        try {
-        setLockFactory(new SingleInstanceLockFactory());
-//        } catch (IOException e) {
-//            // will not happen
-//        }
+        try {
+            setLockFactory(new SingleInstanceLockFactory());
+        } catch (IOException e) {
+            // will not happen
+        }
     }
 
     public void sync(Collection<String> names) throws IOException {

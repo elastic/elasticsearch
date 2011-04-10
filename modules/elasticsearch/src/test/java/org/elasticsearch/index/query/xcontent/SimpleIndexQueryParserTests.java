@@ -362,7 +362,7 @@ public class SimpleIndexQueryParserTests {
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.getClauses().length, equalTo(2));
         assertThat(((TermQuery) bQuery.getClauses()[0].getQuery()).getTerm().field(), equalTo("name.first"));
-        assertThat(((TermQuery) bQuery.getClauses()[0].getQuery()).getTerm().text(), equalTo("12-54-23"));
+        assertThat(((TermQuery) bQuery.getClauses()[0].getQuery()).getTerm().text(), equalTo("something"));
         assertThat(((TermQuery) bQuery.getClauses()[1].getQuery()).getTerm().field(), equalTo("name.first"));
         assertThat(((TermQuery) bQuery.getClauses()[1].getQuery()).getTerm().text(), equalTo("else"));
     }

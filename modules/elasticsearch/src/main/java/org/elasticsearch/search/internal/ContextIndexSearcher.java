@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
-import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
@@ -122,10 +122,14 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     }
 
     // override from the Searcher to allow to control if scores will be tracked or not
+    // LUCENE MONITOR - We override the logic here to apply our own flags for track scores
     @Override public TopFieldDocs search(Weight weight, Filter filter, int nDocs,
                                          Sort sort, boolean fillFields) throws IOException {
-
-        nDocs = Math.min(nDocs, reader.maxDoc());
+        int limit = reader.maxDoc();
+        if (limit == 0) {
+            limit = 1;
+        }
+        nDocs = Math.min(nDocs, limit);
 
         TopFieldCollector collector = TopFieldCollector.create(sort, nDocs,
                 fillFields, searchContext.trackScores(), searchContext.trackScores(), !weight.scoresDocsOutOfOrder());

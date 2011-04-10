@@ -59,7 +59,7 @@ public class FacetBuilders {
         return new TermsFacetBuilder(facetName);
     }
 
-    public static TermsStatsFacetBuilder termsStats(String facetName) {
+    public static TermsStatsFacetBuilder termsStatsFacet(String facetName) {
         return new TermsStatsFacetBuilder(facetName);
     }
 

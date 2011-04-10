@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -56,15 +56,17 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
     public static class DoubleEntry implements Entry {
 
         double term;
-        int count;
+        long count;
+        long totalCount;
         double total;
         double min;
         double max;
 
-        public DoubleEntry(double term, int count, double total, double min, double max) {
+        public DoubleEntry(double term, long count, long totalCount, double total, double min, double max) {
             this.term = term;
             this.count = count;
             this.total = total;
+            this.totalCount = totalCount;
             this.min = min;
             this.max = max;
         }
@@ -85,12 +87,20 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             return termAsNumber();
         }
 
-        @Override public int count() {
+        @Override public long count() {
             return count;
         }
 
-        @Override public int getCount() {
+        @Override public long getCount() {
             return count();
+        }
+
+        @Override public long totalCount() {
+            return this.totalCount;
+        }
+
+        @Override public long getTotalCount() {
+            return this.totalCount;
         }
 
         @Override public double min() {
@@ -118,7 +128,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         }
 
         @Override public double mean() {
-            return total / count;
+            return total / totalCount;
         }
 
         @Override public double getMean() {
@@ -195,12 +205,6 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>>>() {
-        @Override protected ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>> initialValue() {
-            return new ThreadLocals.CleanableValue<ExtTDoubleObjectHashMap<DoubleEntry>>(new ExtTDoubleObjectHashMap<DoubleEntry>());
-        }
-    };
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             if (requiredSize == 0) {
@@ -214,7 +218,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTDoubleObjectHashMap<DoubleEntry> map = aggregateCache.get().get();
+        ExtTDoubleObjectHashMap<DoubleEntry> map = CacheRecycler.popDoubleObjectMap();
         map.clear();
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
@@ -224,11 +228,12 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                 DoubleEntry current = map.get(doubleEntry.term);
                 if (current != null) {
                     current.count += doubleEntry.count;
+                    current.totalCount += doubleEntry.totalCount;
                     current.total += doubleEntry.total;
-                    if (doubleEntry.min < current.min || Double.isNaN(current.min)) {
+                    if (doubleEntry.min < current.min) {
                         current.min = doubleEntry.min;
                     }
-                    if (doubleEntry.max > current.max || Double.isNaN(current.max)) {
+                    if (doubleEntry.max > current.max) {
                         current.max = doubleEntry.max;
                     }
                 } else {
@@ -241,11 +246,12 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             DoubleEntry[] entries1 = map.values(new DoubleEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
+            CacheRecycler.pushDoubleObjectMap(map);
             return new InternalTermsStatsDoubleFacet(name, comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>();
+            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.size());
             for (int i = 0; i < requiredSize; i++) {
                 DoubleEntry value = (DoubleEntry) values[i];
                 if (value == null) {
@@ -253,6 +259,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
+            CacheRecycler.pushDoubleObjectMap(map);
             return new InternalTermsStatsDoubleFacet(name, comparatorType, requiredSize, ordered, missing);
         }
     }
@@ -263,6 +270,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
         static final XContentBuilderString MIN = new XContentBuilderString("min");
         static final XContentBuilderString MAX = new XContentBuilderString("max");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
@@ -278,6 +286,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             builder.startObject();
             builder.field(Fields.TERM, ((DoubleEntry) entry).term);
             builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
             builder.field(Fields.MIN, entry.min());
             builder.field(Fields.MAX, entry.max());
             builder.field(Fields.TOTAL, entry.total());
@@ -304,7 +313,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         int size = in.readVInt();
         entries = new ArrayList<DoubleEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new DoubleEntry(in.readDouble(), in.readVInt(), in.readDouble(), in.readDouble(), in.readDouble()));
+            entries.add(new DoubleEntry(in.readDouble(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
         }
     }
 
@@ -317,7 +326,8 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
             out.writeDouble(((DoubleEntry) entry).term);
-            out.writeVInt(entry.count());
+            out.writeVLong(entry.count());
+            out.writeVLong(entry.totalCount());
             out.writeDouble(entry.total());
             out.writeDouble(entry.min());
             out.writeDouble(entry.max());

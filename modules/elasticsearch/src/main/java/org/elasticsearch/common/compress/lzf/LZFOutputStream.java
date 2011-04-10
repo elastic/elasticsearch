@@ -1,80 +1,86 @@
-/*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.common.compress.lzf;
 
 import java.io.IOException;
 import java.io.OutputStream;
 
+/**
+ * @author jon hartlaub
+ * @author tatu
+ */
 public class LZFOutputStream extends OutputStream {
     private static int OUTPUT_BUFFER_SIZE = LZFChunk.MAX_CHUNK_LEN;
-    private static int BYTE_MASK = 0xff;
 
-    private final OutputStream outputStream;
+    private final ChunkEncoder _encoder;
+    private final BufferRecycler _recycler;
 
-    private final byte[] outputBuffer = new byte[OUTPUT_BUFFER_SIZE];
-    private final ChunkEncoder encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE);
-    private int position = 0;
+    protected final OutputStream _outputStream;
+    protected byte[] _outputBuffer;
+    protected int _position = 0;
 
     public LZFOutputStream(final OutputStream outputStream) {
-        this.outputStream = outputStream;
+        _encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE);
+        _recycler = BufferRecycler.instance();
+        _outputStream = outputStream;
+        _outputBuffer = _recycler.allocOutputBuffer(OUTPUT_BUFFER_SIZE);
     }
 
     @Override
     public void write(final int singleByte) throws IOException {
-        if (position >= outputBuffer.length) {
+        if (_position >= _outputBuffer.length) {
             writeCompressedBlock();
         }
-        outputBuffer[position++] = (byte) (singleByte & BYTE_MASK);
+        _outputBuffer[_position++] = (byte) singleByte;
     }
 
     @Override
-    public void write(final byte[] buffer, final int offset, final int length) throws IOException {
-        int inputCursor = offset;
-        int remainingBytes = length;
-        while (remainingBytes > 0) {
-            if (position >= outputBuffer.length) {
-                writeCompressedBlock();
-            }
-            int chunkLength = (remainingBytes > (outputBuffer.length - position)) ? outputBuffer.length - position : remainingBytes;
-            System.arraycopy(buffer, inputCursor, outputBuffer, position, chunkLength);
-            position += chunkLength;
-            remainingBytes -= chunkLength;
-            inputCursor += chunkLength;
+    public void write(final byte[] buffer, int offset, int length) throws IOException {
+        final int BUFFER_LEN = _outputBuffer.length;
+
+        // simple case first: buffering only (for trivially short writes)
+        int free = BUFFER_LEN - _position;
+        if (free >= length) {
+            System.arraycopy(buffer, offset, _outputBuffer, _position, length);
+            _position += length;
+            return;
         }
+        // otherwise, copy whatever we can, flush
+        System.arraycopy(buffer, offset, _outputBuffer, _position, free);
+        offset += free;
+        length -= free;
+        _position += free;
+        writeCompressedBlock();
+
+        // then write intermediate full block, if any, without copying:
+        while (length >= BUFFER_LEN) {
+            _encoder.encodeAndWriteChunk(buffer, offset, BUFFER_LEN, _outputStream);
+            offset += BUFFER_LEN;
+            length -= BUFFER_LEN;
+        }
+
+        // and finally, copy leftovers in buffer, if any
+        if (length > 0) {
+            System.arraycopy(buffer, offset, _outputBuffer, 0, length);
+        }
+        _position = length;
     }
 
     @Override
     public void flush() throws IOException {
-        try {
+        if (_position > 0) {
             writeCompressedBlock();
-        } finally {
-            outputStream.flush();
         }
+        _outputStream.flush();
     }
 
     @Override
     public void close() throws IOException {
-        try {
-            flush();
-        } finally {
-            outputStream.close();
+        flush();
+        _outputStream.close();
+        _encoder.close();
+        byte[] buf = _outputBuffer;
+        if (buf != null) {
+            _outputBuffer = null;
+            _recycler.releaseOutputBuffer(buf);
         }
     }
 
@@ -82,9 +88,15 @@ public class LZFOutputStream extends OutputStream {
      * Compress and write the current block to the OutputStream
      */
     private void writeCompressedBlock() throws IOException {
-        if (position > 0) {
-            encoder.encodeChunk(outputStream, outputBuffer, 0, position);
-            position = 0;
-        }
+        int left = _position;
+        _position = 0;
+        int offset = 0;
+
+        do {
+            int chunkLen = Math.min(LZFChunk.MAX_CHUNK_LEN, left);
+            _encoder.encodeAndWriteChunk(_outputBuffer, 0, chunkLen, _outputStream);
+            offset += chunkLen;
+            left -= chunkLen;
+        } while (left > 0);
     }
 }

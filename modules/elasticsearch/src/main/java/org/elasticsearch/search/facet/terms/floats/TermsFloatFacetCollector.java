@@ -22,10 +22,10 @@ package org.elasticsearch.search.facet.terms.floats;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TFloatIntIterator;
 import org.elasticsearch.common.trove.map.hash.TFloatIntHashMap;
 import org.elasticsearch.common.trove.set.hash.TFloatHashSet;
@@ -38,11 +38,11 @@ import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,12 +50,6 @@ import java.util.Set;
  * @author kimchy (shay.banon)
  */
 public class TermsFloatFacetCollector extends AbstractFacetCollector {
-
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TFloatIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TFloatIntHashMap>>>() {
-        @Override protected ThreadLocals.CleanableValue<Deque<TFloatIntHashMap>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TFloatIntHashMap>>(new ArrayDeque<TFloatIntHashMap>());
-        }
-    };
 
     private final FieldDataCache fieldDataCache;
 
@@ -107,9 +101,9 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
         }
 
         if (this.script == null && excluded.isEmpty()) {
-            aggregator = new StaticAggregatorValueProc(popFacets());
+            aggregator = new StaticAggregatorValueProc(CacheRecycler.popFloatIntMap());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, this.script);
+            aggregator = new AggregatorValueProc(CacheRecycler.popFloatIntMap(), excluded, this.script);
         }
 
         if (allTerms) {
@@ -144,35 +138,30 @@ public class TermsFloatFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         TFloatIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
-            pushFacets(facets);
+            CacheRecycler.pushFloatIntMap(facets);
             return new InternalFloatTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalFloatTermsFacet.FloatEntry>of(), aggregator.missing());
         } else {
-            // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-            BoundedTreeSet<InternalFloatTermsFacet.FloatEntry> ordered = new BoundedTreeSet<InternalFloatTermsFacet.FloatEntry>(comparatorType.comparator(), size * numberOfShards);
-            for (TFloatIntIterator it = facets.iterator(); it.hasNext();) {
-                it.advance();
-                ordered.add(new InternalFloatTermsFacet.FloatEntry(it.key(), it.value()));
+            if (size < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                for (TFloatIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.insertWithOverflow(new InternalFloatTermsFacet.FloatEntry(it.key(), it.value()));
+                }
+                InternalFloatTermsFacet.FloatEntry[] list = new InternalFloatTermsFacet.FloatEntry[ordered.size()];
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = (InternalFloatTermsFacet.FloatEntry) ordered.pop();
+                }
+                CacheRecycler.pushFloatIntMap(facets);
+                return new InternalFloatTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+            } else {
+                BoundedTreeSet<InternalFloatTermsFacet.FloatEntry> ordered = new BoundedTreeSet<InternalFloatTermsFacet.FloatEntry>(comparatorType.comparator(), size);
+                for (TFloatIntIterator it = facets.iterator(); it.hasNext();) {
+                    it.advance();
+                    ordered.add(new InternalFloatTermsFacet.FloatEntry(it.key(), it.value()));
+                }
+                CacheRecycler.pushFloatIntMap(facets);
+                return new InternalFloatTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
             }
-            pushFacets(facets);
-            return new InternalFloatTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
-        }
-    }
-
-    static TFloatIntHashMap popFacets() {
-        Deque<TFloatIntHashMap> deque = cache.get().get();
-        if (deque.isEmpty()) {
-            deque.add(new TFloatIntHashMap());
-        }
-        TFloatIntHashMap facets = deque.pollFirst();
-        facets.clear();
-        return facets;
-    }
-
-    static void pushFacets(TFloatIntHashMap facets) {
-        facets.clear();
-        Deque<TFloatIntHashMap> deque = cache.get().get();
-        if (deque != null) {
-            deque.add(facets);
         }
     }
 

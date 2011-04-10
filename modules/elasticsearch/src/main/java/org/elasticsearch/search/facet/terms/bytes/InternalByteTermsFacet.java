@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms.bytes;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TByteIntIterator;
 import org.elasticsearch.common.trove.map.hash.TByteIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -167,20 +167,12 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
     }
 
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TByteIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TByteIntHashMap>>() {
-        @Override protected ThreadLocals.CleanableValue<TByteIntHashMap> initialValue() {
-            return new ThreadLocals.CleanableValue<TByteIntHashMap>(new TByteIntHashMap());
-        }
-    };
-
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
         InternalByteTermsFacet first = (InternalByteTermsFacet) facets.get(0);
-        TByteIntHashMap aggregated = aggregateCache.get().get();
-        aggregated.clear();
+        TByteIntHashMap aggregated = CacheRecycler.popByteIntMap();
 
         long missing = 0;
         for (Facet facet : facets) {
@@ -198,6 +190,9 @@ public class InternalByteTermsFacet extends InternalTermsFacet {
         }
         first.entries = ordered;
         first.missing = missing;
+
+        CacheRecycler.pushByteIntMap(aggregated);
+
         return first;
     }
 

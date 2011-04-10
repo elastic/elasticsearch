@@ -24,10 +24,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
+import org.elasticsearch.search.facet.histogram.bounded.BoundedCountHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.bounded.BoundedValueHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.bounded.BoundedValueScriptHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.unbounded.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -59,6 +64,8 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
         XContentParser.Token token;
         String fieldName = null;
+        String sFrom = null;
+        String sTo = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -75,6 +82,10 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
                     valueField = parser.text();
                 } else if ("interval".equals(fieldName)) {
                     interval = parser.longValue();
+                } else if ("from".equals(fieldName)) {
+                    sFrom = parser.text();
+                } else if ("to".equals(fieldName)) {
+                    sTo = parser.text();
                 } else if ("time_interval".equals(fieldName)) {
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
                 } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
@@ -101,15 +112,32 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
             throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
         }
 
+        if (sFrom != null && sTo != null && keyField != null) {
+            FieldMapper mapper = context.mapperService().smartNameFieldMapper(keyField);
+            if (mapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
+            }
+            long from = ((Number) mapper.valueFromString(sFrom)).longValue();
+            long to = ((Number) mapper.valueFromString(sTo)).longValue();
+
+            if (valueField != null) {
+                return new BoundedValueHistogramFacetCollector(facetName, keyField, valueField, interval, from, to, comparatorType, context);
+            } else if (valueScript != null) {
+                return new BoundedValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, from, to, comparatorType, context);
+            } else {
+                return new BoundedCountHistogramFacetCollector(facetName, keyField, interval, from, to, comparatorType, context);
+            }
+        }
+
         if (valueScript != null) {
-            return new KeyValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, comparatorType, context);
+            return new ValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, comparatorType, context);
         } else if (valueField == null) {
             return new CountHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else if (keyField.equals(valueField)) {
-            return new CountAndTotalHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
+            return new FullHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else {
             // we have a value field, and its different than the key
-            return new KeyValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);
+            return new ValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);
         }
     }
 

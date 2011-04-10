@@ -51,8 +51,8 @@ public class SingleValueStringFieldData extends StringFieldData {
         return ordinals;
     }
 
-    String[] values() {
-        return this.values;
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
     }
 
     @Override public boolean multiValued() {

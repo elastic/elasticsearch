@@ -36,15 +36,18 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.zip.CRC32;
+import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 /**
  * @author kimchy (shay.banon)
  */
 public abstract class AbstractStore extends AbstractIndexShardComponent implements Store {
+
+    static final String CHECKSUMS_PREFIX = "_checksums-";
 
     protected final IndexStore indexStore;
 
@@ -90,7 +93,24 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     }
 
     @Override public void deleteContent() throws IOException {
-        Directories.deleteFiles(directory());
+        String[] files = directory().listAll();
+        IOException lastException = null;
+        for (String file : files) {
+            if (file.startsWith(CHECKSUMS_PREFIX)) {
+                ((StoreDirectory) directory()).deleteFileChecksum(file);
+            } else {
+                try {
+                    directory().deleteFile(file);
+                } catch (FileNotFoundException e) {
+                    // ignore
+                } catch (IOException e) {
+                    lastException = e;
+                }
+            }
+        }
+        if (lastException != null) {
+            throw lastException;
+        }
     }
 
     @Override public void fullDelete() throws IOException {
@@ -104,10 +124,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     public static Map<String, String> readChecksums(Directory dir) throws IOException {
         long lastFound = -1;
         for (String name : dir.listAll()) {
-            if (!name.startsWith("_checksums-")) {
+            if (!name.startsWith(CHECKSUMS_PREFIX)) {
                 continue;
             }
-            long current = Long.parseLong(name.substring("_checksums-".length()));
+            long current = Long.parseLong(name.substring(CHECKSUMS_PREFIX.length()));
             if (current > lastFound) {
                 lastFound = current;
             }
@@ -115,10 +135,13 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         if (lastFound == -1) {
             return ImmutableMap.of();
         }
-        IndexInput indexInput = dir.openInput("_checksums-" + lastFound);
+        IndexInput indexInput = dir.openInput(CHECKSUMS_PREFIX + lastFound);
         try {
             indexInput.readInt(); // version
             return indexInput.readStringStringMap();
+        } catch (Exception e) {
+            // failed to load checksums, ignore and return an empty map
+            return new HashMap<String, String>();
         } finally {
             indexInput.close();
         }
@@ -129,7 +152,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     }
 
     private void writeChecksums(StoreDirectory dir) throws IOException {
-        String checksumName = "_checksums-" + System.currentTimeMillis();
+        String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
         ImmutableMap<String, StoreFileMetaData> files = list();
         synchronized (mutex) {
             Map<String, String> checksums = new HashMap<String, String>();
@@ -144,9 +167,9 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             output.close();
         }
         for (StoreFileMetaData metaData : files.values()) {
-            if (metaData.name().startsWith("_checksums") && !checksumName.equals(metaData.name())) {
+            if (metaData.name().startsWith(CHECKSUMS_PREFIX) && !checksumName.equals(metaData.name())) {
                 try {
-                    directory().deleteFile(metaData.name());
+                    dir.deleteFileChecksum(metaData.name());
                 } catch (Exception e) {
                     // ignore
                 }
@@ -255,7 +278,19 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             }
         }
 
+        public void deleteFileChecksum(String name) throws IOException {
+            delegate.deleteFile(name);
+            synchronized (mutex) {
+                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
+                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+            }
+        }
+
         @Override public void deleteFile(String name) throws IOException {
+            // we don't allow to delete the checksums files, only using the deleteChecksum method
+            if (name.startsWith(CHECKSUMS_PREFIX)) {
+                return;
+            }
             delegate.deleteFile(name);
             synchronized (mutex) {
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
@@ -313,7 +348,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             delegate.clearLock(name);
         }
 
-        @Override public void setLockFactory(LockFactory lockFactory) {
+        @Override public void setLockFactory(LockFactory lockFactory) throws IOException {
             delegate.setLockFactory(lockFactory);
         }
 
@@ -323,6 +358,19 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         @Override public String getLockID() {
             return delegate.getLockID();
+        }
+
+        @Override public void sync(Collection<String> names) throws IOException {
+            if (sync) {
+                delegate.sync(names);
+            }
+            for (String name : names) {
+                // write the checksums file when we sync on the segments file (committed)
+                if (!name.equals("segments.gen") && name.startsWith("segments")) {
+                    writeChecksums();
+                    break;
+                }
+            }
         }
 
         @Override public void sync(String name) throws IOException {
@@ -360,7 +408,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
                     // and since we, in any case, always recover the segments files
                     this.digest = null;
                 } else {
-                    this.digest = new CRC32();
+//                    this.digest = new CRC32();
+                    // adler is faster, and we compare on length as well, should be enough to check for difference
+                    // between files
+                    this.digest = new Adler32();
                 }
             } else {
                 this.digest = null;

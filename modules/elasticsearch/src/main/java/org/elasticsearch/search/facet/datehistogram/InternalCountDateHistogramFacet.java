@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.iterator.TLongLongIterator;
@@ -58,7 +59,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     /**
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
-    public class CountEntry implements Entry {
+    public static class CountEntry implements Entry {
         private final long time;
         private final long count;
 
@@ -67,36 +68,60 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             this.count = count;
         }
 
-        public long time() {
+        @Override public long time() {
             return time;
         }
 
-        public long getTime() {
+        @Override public long getTime() {
             return time();
         }
 
-        public long count() {
+        @Override public long count() {
             return count;
         }
 
-        public long getCount() {
+        @Override public long getCount() {
             return count();
         }
 
-        public double total() {
-            return -1;
+        @Override public long totalCount() {
+            return 0;
         }
 
-        public double getTotal() {
+        @Override public long getTotalCount() {
+            return 0;
+        }
+
+        @Override public double total() {
+            return Double.NaN;
+        }
+
+        @Override public double getTotal() {
             return total();
         }
 
-        public double mean() {
-            return -1;
+        @Override public double mean() {
+            return Double.NaN;
         }
 
-        public double getMean() {
+        @Override public double getMean() {
             return mean();
+        }
+
+        @Override public double min() {
+            return Double.NaN;
+        }
+
+        @Override public double getMin() {
+            return Double.NaN;
+        }
+
+        @Override public double max() {
+            return Double.NaN;
+        }
+
+        @Override public double getMax() {
+            return Double.NaN;
         }
     }
 
@@ -105,16 +130,18 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     private ComparatorType comparatorType;
 
     TLongLongHashMap counts;
+    boolean cachedCounts;
 
     CountEntry[] entries = null;
 
     private InternalCountDateHistogramFacet() {
     }
 
-    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts) {
+    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, boolean cachedCounts) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.counts = counts;
+        this.cachedCounts = cachedCounts;
     }
 
     @Override public String name() {
@@ -145,6 +172,14 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         return (Iterator) entries().iterator();
     }
 
+    void releaseCache() {
+        if (cachedCounts) {
+            CacheRecycler.pushLongLongMap(counts);
+            cachedCounts = false;
+            counts = null;
+        }
+    }
+
     private CountEntry[] computeEntries() {
         if (entries != null) {
             return entries;
@@ -155,6 +190,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             it.advance();
             entries[i++] = new CountEntry(it.key(), it.value());
         }
+        releaseCache();
         Arrays.sort(entries, comparatorType.comparator());
         return entries;
     }
@@ -163,28 +199,19 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        TLongLongHashMap counts = null;
+        TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
-        InternalCountDateHistogramFacet firstHistoFacet = (InternalCountDateHistogramFacet) facets.get(0);
         for (Facet facet : facets) {
             InternalCountDateHistogramFacet histoFacet = (InternalCountDateHistogramFacet) facet;
-            if (!histoFacet.counts.isEmpty()) {
-                if (counts == null) {
-                    counts = histoFacet.counts;
-                } else {
-                    for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
-                        it.advance();
-                        counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                    }
-                }
+            for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext();) {
+                it.advance();
+                counts.adjustOrPutValue(it.key(), it.value(), it.value());
             }
-        }
-        if (counts == null) {
-            counts = InternalCountDateHistogramFacet.EMPTY_LONG_LONG_MAP;
-        }
-        firstHistoFacet.counts = counts;
+            histoFacet.releaseCache();
 
-        return firstHistoFacet;
+        }
+
+        return new InternalCountDateHistogramFacet(name, comparatorType, counts, true);
     }
 
     static final class Fields {
@@ -220,14 +247,11 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
-        if (size == 0) {
-            counts = EMPTY_LONG_LONG_MAP;
-        } else {
-            counts = new TLongLongHashMap(size);
-            for (int i = 0; i < size; i++) {
-                long key = in.readLong();
-                counts.put(key, in.readVLong());
-            }
+        counts = CacheRecycler.popLongLongMap();
+        cachedCounts = true;
+        for (int i = 0; i < size; i++) {
+            long key = in.readLong();
+            counts.put(key, in.readVLong());
         }
     }
 
@@ -240,7 +264,6 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             out.writeLong(it.key());
             out.writeVLong(it.value());
         }
+        releaseCache();
     }
-
-    static final TLongLongHashMap EMPTY_LONG_LONG_MAP = new TLongLongHashMap();
 }

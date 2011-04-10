@@ -33,11 +33,11 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public LowerCaseTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new LowerCaseFilter(tokenStream);
+        return new LowerCaseFilter(version, tokenStream);
     }
 }
 

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,9 +20,9 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.time.MutableDateTime;
-import org.elasticsearch.common.trove.map.hash.TLongDoubleHashMap;
-import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
+import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -57,10 +57,8 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
     private LongFieldData keyFieldData;
 
     private final FieldDataType valueFieldDataType;
-    private NumericFieldData valueFieldData;
 
-    private final TLongLongHashMap counts = new TLongLongHashMap();
-    private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
+    private final DateHistogramProc histoProc;
 
     public ValueDateHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, MutableDateTime dateTime, long interval, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
@@ -88,34 +86,67 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
         }
         valueIndexFieldName = mapper.names().indexName();
         valueFieldDataType = mapper.fieldDataType();
+
+        this.histoProc = new DateHistogramProc(interval);
     }
 
     @Override protected void doCollect(int doc) throws IOException {
-        // single key value, compute the bucket once
-        keyFieldData.date(doc, dateTime);
-        long time = dateTime.getMillis();
-        if (interval != 1) {
-            time = CountDateHistogramFacetCollector.bucket(time, interval);
-        }
-        if (valueFieldData.multiValued()) {
-            for (double value : valueFieldData.doubleValues(doc)) {
-                counts.adjustOrPutValue(time, 1, 1);
-                totals.adjustOrPutValue(time, value, value);
-            }
-        } else {
-            // both key and value are not multi valued
-            double value = valueFieldData.doubleValue(doc);
-            counts.adjustOrPutValue(time, 1, 1);
-            totals.adjustOrPutValue(time, value, value);
-        }
+        keyFieldData.forEachValueInDoc(doc, dateTime, histoProc);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         keyFieldData = (LongFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
-        valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
+        histoProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
     }
 
     @Override public Facet facet() {
-        return new InternalCountAndTotalDateHistogramFacet(facetName, comparatorType, counts, totals);
+        return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
+    }
+
+    public static class DateHistogramProc implements LongFieldData.DateValueInDocProc {
+
+        final ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
+
+        private final long interval;
+
+        NumericFieldData valueFieldData;
+
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
+        public DateHistogramProc(long interval) {
+            this.interval = interval;
+        }
+
+        @Override public void onValue(int docId, MutableDateTime dateTime) {
+            long time = dateTime.getMillis();
+            if (interval != 1) {
+                time = CountDateHistogramFacetCollector.bucket(time, interval);
+            }
+
+            InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);
+            if (entry == null) {
+                entry = new InternalFullDateHistogramFacet.FullEntry(time, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entries.put(time, entry);
+            }
+            entry.count++;
+            valueAggregator.entry = entry;
+            valueFieldData.forEachValueInDoc(docId, valueAggregator);
+        }
+
+        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+            InternalFullDateHistogramFacet.FullEntry entry;
+
+            @Override public void onValue(int docId, double value) {
+                entry.totalCount++;
+                entry.total += value;
+                if (value < entry.min) {
+                    entry.min = value;
+                }
+                if (value > entry.max) {
+                    entry.max = value;
+                }
+            }
+        }
     }
 }

@@ -39,6 +39,22 @@ public class IndicesStatusRequestBuilder extends BaseIndicesRequestBuilder<Indic
         return this;
     }
 
+    /**
+     * Should the status include recovery information. Defaults to <tt>false</tt>.
+     */
+    public IndicesStatusRequestBuilder setRecovery(boolean recovery) {
+        request.recovery(recovery);
+        return this;
+    }
+
+    /**
+     * Should the status include recovery information. Defaults to <tt>false</tt>.
+     */
+    public IndicesStatusRequestBuilder setSnapshot(boolean snapshot) {
+        request.snapshot(snapshot);
+        return this;
+    }
+
     @Override protected void doExecute(ActionListener<IndicesStatusResponse> listener) {
         client.status(request, listener);
     }

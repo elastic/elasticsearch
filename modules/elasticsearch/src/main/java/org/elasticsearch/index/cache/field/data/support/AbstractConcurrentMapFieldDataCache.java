@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexComponent implements FieldDataCache {
+public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexComponent implements FieldDataCache, IndexReader.ReaderFinishedListener {
 
     private final ConcurrentMap<Object, ConcurrentMap<String, FieldData>> cache;
 
@@ -58,16 +58,16 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         cache.clear();
     }
 
+    @Override public void finished(IndexReader reader) {
+        clear(reader);
+    }
+
     @Override public void clear(IndexReader reader) {
-        ConcurrentMap<String, FieldData> map = cache.remove(reader.getFieldCacheKey());
+        ConcurrentMap<String, FieldData> map = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (map != null) {
             map.clear();
         }
-    }
-
-    @Override public void clearUnreferenced() {
-        // nothing to do here...
     }
 
     @Override public long sizeInBytes() {
@@ -93,13 +93,14 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     }
 
     @Override public FieldData cache(FieldDataType type, IndexReader reader, String fieldName) throws IOException {
-        ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getFieldCacheKey());
+        ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getCoreCacheKey());
         if (fieldDataCache == null) {
             synchronized (creationMutex) {
-                fieldDataCache = cache.get(reader.getFieldCacheKey());
+                fieldDataCache = cache.get(reader.getCoreCacheKey());
                 if (fieldDataCache == null) {
                     fieldDataCache = buildFieldDataMap();
-                    cache.put(reader.getFieldCacheKey(), fieldDataCache);
+                    reader.addReaderFinishedListener(this);
+                    cache.put(reader.getCoreCacheKey(), fieldDataCache);
                 }
             }
         }

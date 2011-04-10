@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
 
 /**
  * A very simple holder for a tuple of reader and searcher.

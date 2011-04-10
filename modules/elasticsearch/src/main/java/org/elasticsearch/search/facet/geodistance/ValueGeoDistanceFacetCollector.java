@@ -24,9 +24,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPoint;
+import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -41,8 +40,6 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
     private final FieldDataType valueFieldDataType;
 
-    private NumericFieldData valueFieldData;
-
     public ValueGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                           GeoDistanceFacet.Entry[] entries, SearchContext context, String valueFieldName) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
@@ -53,56 +50,67 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
         }
         this.indexValueFieldName = valueFieldName;
         this.valueFieldDataType = mapper.fieldDataType();
+        this.aggregator = new Aggregator(lat, lon, geoDistance, unit, entries);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         super.doSetNextReader(reader, docBase);
-        valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, indexValueFieldName);
+        ((Aggregator) this.aggregator).valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, indexValueFieldName);
     }
 
-    @Override protected void doCollect(int doc) throws IOException {
-        if (!fieldData.hasValue(doc)) {
-            return;
+    public static class Aggregator implements GeoPointFieldData.ValueInDocProc {
+
+        protected final double lat;
+
+        protected final double lon;
+
+        private final GeoDistance geoDistance;
+
+        private final DistanceUnit unit;
+
+        private final GeoDistanceFacet.Entry[] entries;
+
+        NumericFieldData valueFieldData;
+
+        final ValueAggregator valueAggregator = new ValueAggregator();
+
+        public Aggregator(double lat, double lon, GeoDistance geoDistance, DistanceUnit unit, GeoDistanceFacet.Entry[] entries) {
+            this.lat = lat;
+            this.lon = lon;
+            this.geoDistance = geoDistance;
+            this.unit = unit;
+            this.entries = entries;
         }
 
-        if (fieldData.multiValued()) {
-            GeoPoint[] points = fieldData.values(doc);
-            double[] values = valueFieldData.multiValued() ? valueFieldData.doubleValues(doc) : null;
-            for (int i = 0; i < points.length; i++) {
-                double distance = geoDistance.calculate(lat, lon, points[i].lat(), points[i].lon(), unit);
-                for (GeoDistanceFacet.Entry entry : entries) {
-                    if (distance >= entry.getFrom() && distance < entry.getTo()) {
-                        entry.count++;
-                        if (values != null) {
-                            if (i < values.length) {
-                                entry.total += values[i];
-                            }
-                        } else if (valueFieldData.hasValue(doc)) {
-                            entry.total += valueFieldData.doubleValue(doc);
-                        }
-                    }
-                }
-            }
-        } else {
-            GeoPoint point = fieldData.value(doc);
-            double distance = geoDistance.calculate(lat, lon, point.lat(), point.lon(), unit);
+        @Override public void onValue(int docId, double lat, double lon) {
+            double distance = geoDistance.calculate(this.lat, this.lon, lat, lon, unit);
             for (GeoDistanceFacet.Entry entry : entries) {
+                if (entry.foundInDoc) {
+                    continue;
+                }
                 if (distance >= entry.getFrom() && distance < entry.getTo()) {
+                    entry.foundInDoc = true;
                     entry.count++;
-                    if (valueFieldData.multiValued()) {
-                        double[] values = valueFieldData.doubleValues(doc);
-                        for (double value : values) {
-                            entry.total += value;
-                        }
-                    } else if (valueFieldData.hasValue(doc)) {
-                        entry.total += valueFieldData.doubleValue(doc);
-                    }
+                    valueAggregator.entry = entry;
+                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
                 }
             }
         }
     }
 
-    @Override public Facet facet() {
-        return new InternalGeoDistanceFacet(facetName, entries);
+    public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+
+        GeoDistanceFacet.Entry entry;
+
+        @Override public void onValue(int docId, double value) {
+            entry.totalCount++;
+            entry.total += value;
+            if (value < entry.min) {
+                entry.min = value;
+            }
+            if (value > entry.max) {
+                entry.max = value;
+            }
+        }
     }
 }

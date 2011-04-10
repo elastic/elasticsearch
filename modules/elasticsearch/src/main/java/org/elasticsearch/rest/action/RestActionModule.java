@@ -45,6 +45,7 @@ import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAct
 import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
 import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
 import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
+import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.settings.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.status.RestIndicesStatusAction;
 import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
@@ -70,8 +71,8 @@ import java.util.List;
 public class RestActionModule extends AbstractModule {
     private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
 
-    public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions){
-        this.restPluginsActions=restPluginsActions;
+    public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions) {
+        this.restPluginsActions = restPluginsActions;
     }
 
     @Override protected void configure() {
@@ -98,7 +99,10 @@ public class RestActionModule extends AbstractModule {
         bind(RestDeleteIndexAction.class).asEagerSingleton();
         bind(RestCloseIndexAction.class).asEagerSingleton();
         bind(RestOpenIndexAction.class).asEagerSingleton();
+
         bind(RestUpdateSettingsAction.class).asEagerSingleton();
+        bind(RestGetSettingsAction.class).asEagerSingleton();
+
         bind(RestAnalyzeAction.class).asEagerSingleton();
         bind(RestGetIndexTemplateAction.class).asEagerSingleton();
         bind(RestPutIndexTemplateAction.class).asEagerSingleton();

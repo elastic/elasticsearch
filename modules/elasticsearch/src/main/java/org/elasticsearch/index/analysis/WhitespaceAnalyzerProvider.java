@@ -34,8 +34,8 @@ public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider<Wh
     private final WhitespaceAnalyzer analyzer;
 
     @Inject public WhitespaceAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        this.analyzer = new WhitespaceAnalyzer();
+        super(index, indexSettings, name, settings);
+        this.analyzer = new WhitespaceAnalyzer(version);
     }
 
     @Override public WhitespaceAnalyzer get() {

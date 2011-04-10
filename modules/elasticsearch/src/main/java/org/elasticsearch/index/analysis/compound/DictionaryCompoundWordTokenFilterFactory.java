@@ -44,7 +44,7 @@ public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWo
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new DictionaryCompoundWordTokenFilter(tokenStream, wordList,
+        return new DictionaryCompoundWordTokenFilter(version, tokenStream, wordList,
                 minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
     }
 }

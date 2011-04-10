@@ -32,11 +32,6 @@ public interface IdCache extends IndexComponent, CloseableComponent, Iterable<Id
 
     void clear(IndexReader reader);
 
-    /**
-     * Clears unreferenced readers.
-     */
-    void clearUnreferenced();
-
     void refresh(IndexReader[] readers) throws Exception;
 
     IdReaderCache reader(IndexReader reader);

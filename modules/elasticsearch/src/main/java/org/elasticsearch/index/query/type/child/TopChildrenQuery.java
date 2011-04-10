@@ -129,10 +129,10 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
                 if (parentDocId != -1 && !indexReader.isDeleted(parentDocId)) {
                     // we found a match, add it and break
 
-                    TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getFieldCacheKey());
+                    TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
                         readerParentDocs = new TIntObjectHashMap<ParentDoc>();
-                        parentDocsPerReader.put(indexReader.getFieldCacheKey(), readerParentDocs);
+                        parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
 
                     ParentDoc parentDoc = readerParentDocs.get(parentDocId);
@@ -237,7 +237,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
         @Override
         public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            ParentDoc[] readerParentDocs = parentDocs.get(reader.getFieldCacheKey());
+            ParentDoc[] readerParentDocs = parentDocs.get(reader.getCoreCacheKey());
             if (readerParentDocs != null) {
                 return new ParentScorer(getSimilarity(searcher), readerParentDocs);
             }

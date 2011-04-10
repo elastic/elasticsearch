@@ -62,6 +62,7 @@ public class NodeEnvironment extends AbstractComponent {
             if (!dir.exists()) {
                 dir.mkdirs();
             }
+            logger.trace("obtaining node lock on {} ...", dir.getAbsolutePath());
             try {
                 NativeFSLockFactory lockFactory = new NativeFSLockFactory(dir);
                 Lock tmpLock = lockFactory.makeLock("node.lock");
@@ -70,8 +71,11 @@ public class NodeEnvironment extends AbstractComponent {
                     lock = tmpLock;
                     localNodeId = i;
                     break;
+                } else {
+                    logger.trace("failed to obtain node lock on {}", dir.getAbsolutePath());
                 }
             } catch (IOException e) {
+                logger.trace("failed to obtain node lock on {}", e, dir.getAbsolutePath());
                 lastException = e;
             }
         }

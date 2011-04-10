@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -41,7 +40,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Patte
     private final PatternAnalyzer analyzer;
 
     @Inject public PatternAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
 
         boolean lowercase = settings.getAsBoolean("lowercase", true);
 
@@ -53,7 +52,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Patte
         }
         Pattern pattern = Regex.compile(sPattern, settings.get("flags"));
 
-        analyzer = new PatternAnalyzer(Lucene.ANALYZER_VERSION, pattern, lowercase, stopWords);
+        analyzer = new PatternAnalyzer(version, pattern, lowercase, stopWords);
     }
 
     @Override public PatternAnalyzer get() {

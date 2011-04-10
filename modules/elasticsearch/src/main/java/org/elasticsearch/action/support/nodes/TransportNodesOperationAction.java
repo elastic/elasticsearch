@@ -76,6 +76,10 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     protected abstract String transportNodeAction();
 
+    protected boolean transportCompress() {
+        return false;
+    }
+
     protected abstract String executor();
 
     protected abstract Request newRequest();
@@ -135,6 +139,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             if (request.timeout() != null) {
                 transportRequestOptions.withTimeout(request.timeout());
             }
+            transportRequestOptions.withCompress(transportCompress());
             for (final String nodeId : nodesIds) {
                 final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
                 if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
@@ -220,8 +225,9 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override public void onResponse(Response response) {
+                    TransportResponseOptions options = TransportResponseOptions.options().withCompress(transportCompress());
                     try {
-                        channel.sendResponse(response);
+                        channel.sendResponse(response, options);
                     } catch (Exception e) {
                         onFailure(e);
                     }

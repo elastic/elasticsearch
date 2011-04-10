@@ -73,6 +73,31 @@ public class SingleValueShortFieldData extends ShortFieldData {
     @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
         int loc = ordinals[docId];
         if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override public void forEachValueInDoc(int docId, LongValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override public void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
+            proc.onMissing(docId);
+            return;
+        }
+        proc.onValue(docId, values[loc]);
+    }
+
+    @Override public void forEachValueInDoc(int docId, MissingLongValueInDocProc proc) {
+        int loc = ordinals[docId];
+        if (loc == 0) {
             proc.onMissing(docId);
             return;
         }
@@ -86,6 +111,10 @@ public class SingleValueShortFieldData extends ShortFieldData {
             return;
         }
         proc.onValue(docId, values[loc]);
+    }
+
+    @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        proc.onOrdinal(docId, ordinals[docId]);
     }
 
     @Override public short value(int docId) {

@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.support.AbstractDoubleConcurrentMapFilterCache;
+import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
@@ -39,13 +39,14 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author kimchy (shay.banon)
  */
-public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
+public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
 
     private final int maxSize;
 
     private final TimeValue expire;
 
     private final AtomicLong evictions = new AtomicLong();
+    private final AtomicLong memEvictions = new AtomicLong();
 
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -53,23 +54,17 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache impl
         this.expire = componentSettings.getAsTime("expire", null);
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildCacheMap() {
-        // DocSet are not really stored with strong reference only when searching on them...
-        // Filter might be stored in query cache
-        MapMaker mapMaker = new MapMaker().softValues();
-        if (maxSize != -1) {
-            mapMaker.maximumSize(maxSize);
-        }
-        if (expire != null) {
-            mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
-        }
+    @Override protected ConcurrentMap<Object, ReaderValue> buildCache() {
+        // better to have soft on the whole ReaderValue, simpler on the GC to clean it
+        MapMaker mapMaker = new MapMaker().weakKeys().softValues();
+        mapMaker.evictionListener(new CacheMapEvictionListener(memEvictions));
         return mapMaker.makeMap();
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildWeakCacheMap() {
+    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
-        MapMaker mapMaker = new MapMaker().weakValues();
+        MapMaker mapMaker = new MapMaker();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
         }
@@ -86,6 +81,10 @@ public class SoftFilterCache extends AbstractDoubleConcurrentMapFilterCache impl
 
     @Override public long evictions() {
         return evictions.get();
+    }
+
+    @Override public long memEvictions() {
+        return memEvictions.get();
     }
 
     @Override public void onEviction(Filter filter, DocSet docSet) {

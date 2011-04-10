@@ -33,17 +33,18 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int min;
-
     private final int max;
+    private final boolean enablePositionIncrements;
 
     @Inject public LengthTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+        super(index, indexSettings, name, settings);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);
+        enablePositionIncrements = settings.getAsBoolean("enabled_position_increments", false);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new LengthFilter(tokenStream, min, max);
+        return new LengthFilter(enablePositionIncrements, tokenStream, min, max);
     }
 }
 

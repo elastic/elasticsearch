@@ -102,7 +102,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         name = in.readUTF();
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
-            entries[i] = new Entry(in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble());
+            entries[i] = new Entry(in.readDouble(), in.readDouble(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble());
         }
     }
 
@@ -113,7 +113,10 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
             out.writeDouble(entry.from);
             out.writeDouble(entry.to);
             out.writeVLong(entry.count);
+            out.writeVLong(entry.totalCount);
             out.writeDouble(entry.total);
+            out.writeDouble(entry.min);
+            out.writeDouble(entry.max);
         }
     }
 
@@ -124,8 +127,11 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         static final XContentBuilderString FROM = new XContentBuilderString("from");
         static final XContentBuilderString TO = new XContentBuilderString("to");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString MEAN = new XContentBuilderString("mean");
+        static final XContentBuilderString MIN = new XContentBuilderString("min");
+        static final XContentBuilderString MAX = new XContentBuilderString("max");
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -140,7 +146,9 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
             if (!Double.isInfinite(entry.to)) {
                 builder.field(Fields.TO, entry.to);
             }
-            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.MIN, entry.min());
+            builder.field(Fields.MAX, entry.max());
+            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
             builder.field(Fields.TOTAL, entry.total());
             builder.field(Fields.MEAN, entry.mean());
             builder.endObject();

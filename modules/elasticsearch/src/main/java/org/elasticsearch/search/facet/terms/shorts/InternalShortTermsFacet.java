@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms.shorts;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TShortIntIterator;
 import org.elasticsearch.common.trove.map.hash.TShortIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -166,20 +166,12 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TShortIntHashMap>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TShortIntHashMap>>() {
-        @Override protected ThreadLocals.CleanableValue<TShortIntHashMap> initialValue() {
-            return new ThreadLocals.CleanableValue<TShortIntHashMap>(new TShortIntHashMap());
-        }
-    };
-
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
         InternalShortTermsFacet first = (InternalShortTermsFacet) facets.get(0);
-        TShortIntHashMap aggregated = aggregateCache.get().get();
-        aggregated.clear();
+        TShortIntHashMap aggregated = CacheRecycler.popShortIntMap();
         long missing = 0;
         for (Facet facet : facets) {
             InternalShortTermsFacet mFacet = (InternalShortTermsFacet) facet;
@@ -196,6 +188,9 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         }
         first.entries = ordered;
         first.missing = missing;
+
+        CacheRecycler.pushShortIntMap(aggregated);
+
         return first;
     }
 

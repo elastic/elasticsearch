@@ -94,7 +94,27 @@ public abstract class NumericFieldData<Doc extends NumericDocFieldData> extends 
 
     public abstract void forEachValueInDoc(int docId, DoubleValueInDocProc proc);
 
+    public abstract void forEachValueInDoc(int docId, MissingDoubleValueInDocProc proc);
+
+    public abstract void forEachValueInDoc(int docId, LongValueInDocProc proc);
+
+    public abstract void forEachValueInDoc(int docId, MissingLongValueInDocProc proc);
+
     public static interface DoubleValueInDocProc {
+        void onValue(int docId, double value);
+    }
+
+    public static interface LongValueInDocProc {
+        void onValue(int docId, long value);
+    }
+
+    public static interface MissingLongValueInDocProc {
+        void onValue(int docId, long value);
+
+        void onMissing(int docId);
+    }
+
+    public static interface MissingDoubleValueInDocProc {
         void onValue(int docId, double value);
 
         void onMissing(int docId);

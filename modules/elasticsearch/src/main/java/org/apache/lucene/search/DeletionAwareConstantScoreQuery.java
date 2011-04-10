@@ -20,10 +20,8 @@
 package org.apache.lucene.search;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -31,118 +29,51 @@ import java.util.Set;
 // LUCENE MONITOR: Against ConstantScoreQuery, basically added logic in the doc iterator to take deletions into account
 // So it can basically be cached safely even with a reader that changes deletions but remain with teh same cache key
 // See more: https://issues.apache.org/jira/browse/LUCENE-2468
-public class DeletionAwareConstantScoreQuery extends Query {
-    protected final Filter filter;
+public class DeletionAwareConstantScoreQuery extends ConstantScoreQuery {
 
     public DeletionAwareConstantScoreQuery(Filter filter) {
-        this.filter = filter;
-    }
-
-    /**
-     * Returns the encapsulated filter
-     */
-    public Filter getFilter() {
-        return filter;
+        super(filter);
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        return this;
+    public Weight createWeight(Searcher searcher) throws IOException {
+        return new DeletionConstantWeight(searcher);
     }
 
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        // OK to not add any terms when used for MultiSearcher,
-        // but may not be OK for highlighting
-    }
+    protected class DeletionConstantWeight extends ConstantWeight {
 
-    protected class ConstantWeight extends Weight {
-        private Similarity similarity;
-        private float queryNorm;
-        private float queryWeight;
+        private final Similarity similarity;
 
-        public ConstantWeight(Searcher searcher) {
-            this.similarity = getSimilarity(searcher);
+        public DeletionConstantWeight(Searcher searcher) throws IOException {
+            super(searcher);
+            similarity = getSimilarity(searcher);
         }
 
-        @Override
-        public Query getQuery() {
-            return DeletionAwareConstantScoreQuery.this;
-        }
-
-        @Override
-        public float getValue() {
-            return queryWeight;
-        }
-
-        @Override
-        public float sumOfSquaredWeights() throws IOException {
-            queryWeight = getBoost();
-            return queryWeight * queryWeight;
-        }
-
-        @Override
-        public void normalize(float norm) {
-            this.queryNorm = norm;
-            queryWeight *= this.queryNorm;
-        }
-
-        @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            return new ConstantScorer(similarity, reader, this);
-        }
-
-        @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
-
-            ConstantScorer cs = new ConstantScorer(similarity, reader, this);
-            boolean exists = cs._innerIter.advance(doc) == doc;
-
-            ComplexExplanation result = new ComplexExplanation();
-
-            if (exists) {
-                result.setDescription("ConstantScoreQuery(" + filter
-                        + "), product of:");
-                result.setValue(queryWeight);
-                result.setMatch(Boolean.TRUE);
-                result.addDetail(new Explanation(getBoost(), "boost"));
-                result.addDetail(new Explanation(queryNorm, "queryNorm"));
-            } else {
-                result.setDescription("ConstantScoreQuery(" + filter
-                        + ") doesn't match id " + doc);
-                result.setValue(0);
-                result.setMatch(Boolean.FALSE);
+        @Override public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
+            final DocIdSet dis = filter.getDocIdSet(reader);
+            if (dis == null)
+                return null;
+            DocIdSetIterator disi = dis.iterator();
+            if (disi == null) {
+                return null;
             }
-            return result;
+            return new DeletionConstantScorer(reader, similarity, disi, this);
         }
     }
 
-    protected class ConstantScorer extends Scorer {
-        final IndexReader reader;
-        final DocIdSetIterator _innerIter;
-        final float theScore;
+    protected class DeletionConstantScorer extends ConstantScorer {
+
+        private final IndexReader reader;
         private int doc = -1;
 
-        public ConstantScorer(Similarity similarity, IndexReader reader, Weight w) throws IOException {
-            super(similarity);
+        public DeletionConstantScorer(IndexReader reader, Similarity similarity, DocIdSetIterator docIdSetIterator, Weight w) throws IOException {
+            super(similarity, docIdSetIterator, w);
             this.reader = reader;
-            theScore = w.getValue();
-            DocIdSet docIdSet = filter.getDocIdSet(reader);
-            if (docIdSet == null) {
-                _innerIter = DocIdSet.EMPTY_DOCIDSET.iterator();
-            } else {
-                DocIdSetIterator iter = docIdSet.iterator();
-                if (iter == null) {
-                    _innerIter = DocIdSet.EMPTY_DOCIDSET.iterator();
-                } else {
-                    _innerIter = iter;
-                }
-            }
         }
 
         @Override
         public int nextDoc() throws IOException {
-            while ((doc = _innerIter.nextDoc()) != NO_MORE_DOCS) {
+            while ((doc = docIdSetIterator.nextDoc()) != NO_MORE_DOCS) {
                 if (!reader.isDeleted(doc)) {
                     return doc;
                 }
@@ -156,18 +87,13 @@ public class DeletionAwareConstantScoreQuery extends Query {
         }
 
         @Override
-        public float score() throws IOException {
-            return theScore;
-        }
-
-        @Override
         public int advance(int target) throws IOException {
-            doc = _innerIter.advance(target);
+            doc = docIdSetIterator.advance(target);
             if (doc != NO_MORE_DOCS) {
                 if (!reader.isDeleted(doc)) {
                     return doc;
                 } else {
-                    while ((doc = _innerIter.nextDoc()) != NO_MORE_DOCS) {
+                    while ((doc = docIdSetIterator.nextDoc()) != NO_MORE_DOCS) {
                         if (!reader.isDeleted(doc)) {
                             return doc;
                         }
@@ -178,40 +104,5 @@ public class DeletionAwareConstantScoreQuery extends Query {
             return doc;
         }
     }
-
-    @Override
-    public Weight createWeight(Searcher searcher) {
-        return new DeletionAwareConstantScoreQuery.ConstantWeight(searcher);
-    }
-
-    /**
-     * Prints a user-readable version of this query.
-     */
-    @Override
-    public String toString(String field) {
-        return "ConstantScore(" + filter.toString()
-                + (getBoost() == 1.0 ? ")" : "^" + getBoost());
-    }
-
-    /**
-     * Returns true if <code>o</code> is equal to this.
-     */
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof DeletionAwareConstantScoreQuery)) return false;
-        DeletionAwareConstantScoreQuery other = (DeletionAwareConstantScoreQuery) o;
-        return this.getBoost() == other.getBoost() && filter.equals(other.filter);
-    }
-
-    /**
-     * Returns a hash code value for this object.
-     */
-    @Override
-    public int hashCode() {
-        // Simple add is OK since no existing filter hashcode has a float component.
-        return filter.hashCode() + Float.floatToIntBits(getBoost());
-    }
-
 }
 

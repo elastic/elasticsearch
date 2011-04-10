@@ -92,7 +92,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         if (value == null) {
             return null;
         }
-        return new Field(names.indexName(), value, Field.Store.YES);
+        return new Field(names.indexName(), value);
     }
 
     @Override protected String contentType() {

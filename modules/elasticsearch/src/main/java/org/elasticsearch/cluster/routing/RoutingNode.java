@@ -93,6 +93,21 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return shards;
     }
 
+    public List<MutableShardRouting> shardsWithState(String index, ShardRoutingState... states) {
+        List<MutableShardRouting> shards = newArrayList();
+        for (MutableShardRouting shardEntry : this) {
+            if (!shardEntry.index().equals(index)) {
+                continue;
+            }
+            for (ShardRoutingState state : states) {
+                if (shardEntry.state() == state) {
+                    shards.add(shardEntry);
+                }
+            }
+        }
+        return shards;
+    }
+
     public int numberOfShardsNotWithState(ShardRoutingState state) {
         int count = 0;
         for (MutableShardRouting shardEntry : this) {

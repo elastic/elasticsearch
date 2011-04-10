@@ -46,13 +46,43 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         this.settings = settings;
     }
 
-    @Override public Query getFieldQuery(String field, String queryText) throws ParseException {
-        return getFieldQuery(field, queryText, 0);
+    @Override public Query getFieldQuery(String xField, String queryText, boolean quoted) throws ParseException {
+        if (xField != null) {
+            return super.getFieldQuery(xField, queryText, quoted);
+        }
+        if (settings.useDisMax()) {
+            DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+            boolean added = false;
+            for (String field : settings.fields()) {
+                Query q = super.getFieldQuery(field, queryText, quoted);
+                if (q != null) {
+                    added = true;
+                    applyBoost(field, q);
+                    disMaxQuery.add(q);
+                }
+            }
+            if (!added) {
+                return null;
+            }
+            return disMaxQuery;
+        } else {
+            List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+            for (String field : settings.fields()) {
+                Query q = super.getFieldQuery(field, queryText, true);
+                if (q != null) {
+                    applyBoost(field, q);
+                    clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                }
+            }
+            if (clauses.size() == 0)  // happens for stopwords
+                return null;
+            return getBooleanQuery(clauses, true);
+        }
     }
 
     @Override public Query getFieldQuery(String xField, String queryText, int slop) throws ParseException {
         if (xField != null) {
-            Query q = super.getFieldQuery(xField, queryText);
+            Query q = super.getFieldQuery(xField, queryText, true);
             applySlop(q, slop);
             return q;
         }
@@ -60,7 +90,7 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
             DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
             boolean added = false;
             for (String field : settings.fields()) {
-                Query q = super.getFieldQuery(field, queryText);
+                Query q = super.getFieldQuery(field, queryText, true);
                 if (q != null) {
                     added = true;
                     applyBoost(field, q);
@@ -75,7 +105,7 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
         } else {
             List<BooleanClause> clauses = new ArrayList<BooleanClause>();
             for (String field : settings.fields()) {
-                Query q = super.getFieldQuery(field, queryText);
+                Query q = super.getFieldQuery(field, queryText, true);
                 if (q != null) {
                     applyBoost(field, q);
                     applySlop(q, slop);

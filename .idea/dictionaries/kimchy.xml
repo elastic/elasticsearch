@@ -2,6 +2,7 @@
   <dictionary name="kimchy">
     <words>
       <w>addr</w>
+      <w>aggregators</w>
       <w>amazonaws</w>
       <w>apis</w>
       <w>appendable</w>
@@ -121,6 +122,7 @@
       <w>rackspace</w>
       <w>rebalance</w>
       <w>rebalancing</w>
+      <w>recycler</w>
       <w>regex</w>
       <w>reparse</w>
       <w>reparsed</w>
@@ -133,6 +135,7 @@
       <w>scriptable</w>
       <w>searchable</w>
       <w>segs</w>
+      <w>sentinal</w>
       <w>serializers</w>
       <w>sigar</w>
       <w>slurper</w>

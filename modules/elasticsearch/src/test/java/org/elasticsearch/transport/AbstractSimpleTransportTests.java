@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.testng.annotations.AfterMethod;
@@ -116,6 +117,54 @@ public abstract class AbstractSimpleTransportTests {
         serviceA.removeHandler("sayHello");
     }
 
+    @Test public void testVoidMessageCompressed() {
+        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<VoidStreamable>() {
+            @Override public VoidStreamable newInstance() {
+                return VoidStreamable.INSTANCE;
+            }
+
+            @Override public String executor() {
+                return ThreadPool.Names.CACHED;
+            }
+
+            @Override public void messageReceived(VoidStreamable request, TransportChannel channel) {
+                try {
+                    channel.sendResponse(VoidStreamable.INSTANCE, TransportResponseOptions.options().withCompress(true));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    assertThat(e.getMessage(), false, equalTo(true));
+                }
+            }
+        });
+
+        TransportFuture<VoidStreamable> res = serviceB.submitRequest(serviceANode, "sayHello",
+                VoidStreamable.INSTANCE, TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<VoidStreamable>() {
+                    @Override public VoidStreamable newInstance() {
+                        return VoidStreamable.INSTANCE;
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.CACHED;
+                    }
+
+                    @Override public void handleResponse(VoidStreamable response) {
+                    }
+
+                    @Override public void handleException(TransportException exp) {
+                        exp.printStackTrace();
+                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                    }
+                });
+
+        try {
+            VoidStreamable message = res.get();
+            assertThat(message, notNullValue());
+        } catch (Exception e) {
+            assertThat(e.getMessage(), false, equalTo(true));
+        }
+
+        serviceA.removeHandler("sayHello");
+    }
 
     @Test public void testHelloWorldCompressed() {
         serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<StringMessage>() {
@@ -130,7 +179,7 @@ public abstract class AbstractSimpleTransportTests {
             @Override public void messageReceived(StringMessage request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
-                    channel.sendResponse(new StringMessage("hello " + request.message), TransportResponseOptions.options().withCompress());
+                    channel.sendResponse(new StringMessage("hello " + request.message), TransportResponseOptions.options().withCompress(true));
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));

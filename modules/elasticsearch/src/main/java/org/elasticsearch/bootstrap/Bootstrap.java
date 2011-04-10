@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
@@ -161,6 +162,12 @@ public class Bootstrap {
         if (System.getProperty("es.max-open-files", "false").equals("true")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             logger.info("max_open_files [{}]", FileSystemUtils.maxOpenFiles(new File(tuple.v2().workFile(), "open_files")));
+        }
+
+        // warn if running using the client VM
+        if (JvmInfo.jvmInfo().vmName().toLowerCase().contains("client")) {
+            ESLogger logger = Loggers.getLogger(Bootstrap.class);
+            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
         }
 
         String stage = "Initialization";

@@ -51,6 +51,8 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     private final IndicesService indicesService;
 
+    private final Object optimizeMutex = new Object();
+
     @Inject public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                            TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
@@ -111,15 +113,17 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticSearchException {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        indexShard.optimize(new Engine.Optimize()
-                .waitForMerge(request.waitForMerge())
-                .maxNumSegments(request.maxNumSegments())
-                .onlyExpungeDeletes(request.onlyExpungeDeletes())
-                .flush(request.flush())
-                .refresh(request.refresh())
-        );
-        return new ShardOptimizeResponse(request.index(), request.shardId());
+        synchronized (optimizeMutex) {
+            IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
+            indexShard.optimize(new Engine.Optimize()
+                    .waitForMerge(request.waitForMerge())
+                    .maxNumSegments(request.maxNumSegments())
+                    .onlyExpungeDeletes(request.onlyExpungeDeletes())
+                    .flush(request.flush())
+                    .refresh(request.refresh())
+            );
+            return new ShardOptimizeResponse(request.index(), request.shardId());
+        }
     }
 
     /**

@@ -38,6 +38,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShardComponent;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 /**
@@ -54,6 +55,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     TimeValue defaultRefreshInterval();
 
     void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
+
+    void addFailedEngineListener(FailedEngineListener listener);
 
     /**
      * Starts the Engine.
@@ -102,6 +105,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException;
 
     void recover(RecoveryHandler recoveryHandler) throws EngineException;
+
+    static interface FailedEngineListener {
+        void onFailedEngine(ShardId shardId, Throwable t);
+    }
 
     /**
      * Recovery allow to start the recovery process. It is built of three phases.

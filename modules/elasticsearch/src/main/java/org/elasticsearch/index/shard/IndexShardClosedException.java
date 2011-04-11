@@ -27,4 +27,7 @@ public class IndexShardClosedException extends IllegalIndexShardStateException {
         super(shardId, IndexShardState.CLOSED, "Closed");
     }
 
+    public IndexShardClosedException(ShardId shardId, Throwable t) {
+        super(shardId, IndexShardState.CLOSED, "Closed", t);
+    }
 }

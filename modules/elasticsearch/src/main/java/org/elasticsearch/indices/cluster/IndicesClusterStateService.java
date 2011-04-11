@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.recovery.RecoveryFailedException;
 import org.elasticsearch.index.shard.recovery.RecoverySource;
 import org.elasticsearch.index.shard.recovery.RecoveryTarget;
@@ -91,6 +93,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final ConcurrentMap<Tuple<String, String>, Boolean> seenMappings = ConcurrentCollections.newConcurrentMap();
 
     private final Object mutex = new Object();
+
+    private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
 
     @Inject public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                               ThreadPool threadPool, RecoveryTarget recoveryTarget, RecoverySource recoverySource,
@@ -405,6 +409,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 InternalIndexShard indexShard = (InternalIndexShard) indexService.createShard(shardId);
                 indexShard.routingEntry(shardRouting);
+                indexShard.engine().addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
             } catch (Exception e) {
@@ -548,6 +553,44 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.warn("[{}][{}] failed to mark shard as failed after a failed start", e1, indexService.index().name(), shardRouting.id());
                 }
             }
+        }
+    }
+
+    private class FailedEngineHandler implements Engine.FailedEngineListener {
+        @Override public void onFailedEngine(final ShardId shardId, final Throwable failure) {
+            ShardRouting shardRouting = null;
+            final IndexService indexService = indicesService.indexService(shardId.index().name());
+            if (indexService != null) {
+                IndexShard indexShard = indexService.shard(shardId.id());
+                if (indexShard != null) {
+                    shardRouting = indexShard.routingEntry();
+                }
+            }
+            if (shardRouting == null) {
+                logger.warn("[{}][{}] engine failed, but can't find index shard", shardId.index().name(), shardId.id());
+                return;
+            }
+            final ShardRouting fShardRouting = shardRouting;
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    synchronized (mutex) {
+                        if (indexService.hasShard(shardId.id())) {
+                            try {
+                                indexService.cleanShard(shardId.id(), "engine failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+                            } catch (IndexShardMissingException e) {
+                                // the node got closed on us, ignore it
+                            } catch (Exception e1) {
+                                logger.warn("[{}][{}] failed to delete shard after failed engine", e1, indexService.index().name(), shardId.id());
+                            }
+                        }
+                        try {
+                            shardStateAction.shardFailed(fShardRouting, "engine failure, message [" + detailedMessage(failure) + "]");
+                        } catch (Exception e1) {
+                            logger.warn("[{}][{}] failed to mark shard as failed after a failed engine", e1, indexService.index().name(), shardId.id());
+                        }
+                    }
+                }
+            });
         }
     }
 }

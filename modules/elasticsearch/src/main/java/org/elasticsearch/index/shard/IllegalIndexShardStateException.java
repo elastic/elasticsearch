@@ -31,6 +31,11 @@ public class IllegalIndexShardStateException extends IndexShardException {
         this.currentState = currentState;
     }
 
+    public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg, Throwable ex) {
+        super(shardId, "CurrentState[" + currentState + "] ", ex);
+        this.currentState = currentState;
+    }
+
     public IndexShardState currentState() {
         return currentState;
     }

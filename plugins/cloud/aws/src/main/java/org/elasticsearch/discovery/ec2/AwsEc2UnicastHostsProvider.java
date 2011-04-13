@@ -30,9 +30,10 @@ import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.List;
@@ -51,9 +52,9 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         PUBLIC_DNS
     }
 
-    private final AmazonEC2 client;
+    private final TransportService transportService;
 
-    private final String ports;
+    private final AmazonEC2 client;
 
     private final boolean bindAnyGroup;
 
@@ -65,12 +66,12 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final HostType hostType;
 
-    @Inject public AwsEc2UnicastHostsProvider(Settings settings, AmazonEC2 client) {
+    @Inject public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AmazonEC2 client) {
         super(settings);
+        this.transportService = transportService;
         this.client = client;
 
         this.hostType = HostType.valueOf(componentSettings.get("host_type", "private_ip").toUpperCase());
-        this.ports = componentSettings.get("ports", "9300-9302");
 
         this.bindAnyGroup = componentSettings.getAsBoolean("any_group", true);
         this.groups = ImmutableSet.copyOf(componentSettings.getAsArray("groups"));
@@ -160,13 +161,19 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                             address = instance.getPublicDnsName();
                             break;
                     }
-                    for (int port : new PortsRange(ports).ports()) {
-                        if (address != null) {
-                            logger.trace("adding {}, address {}", instance.getInstanceId(), address);
-                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + port, new InetSocketTransportAddress(address, port)));
-                        } else {
-                            logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
+                    if (address != null) {
+                        try {
+                            TransportAddress[] addresses = transportService.addressesFromString(address);
+                            // we only limit to 1 addresses, makes no sense to ping 100 ports
+                            for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
+                                logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
+                                discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i]));
+                            }
+                        } catch (Exception e) {
+                            logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);
                         }
+                    } else {
+                        logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
                     }
                 }
             }

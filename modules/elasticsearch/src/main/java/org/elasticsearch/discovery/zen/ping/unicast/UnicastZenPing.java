@@ -58,6 +58,8 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.*;
  */
 public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
+    public static final int LIMIT_PORTS_COUNT = 1;
+
     private final ThreadPool threadPool;
 
     private final TransportService transportService;
@@ -96,8 +98,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         for (String host : hosts) {
             try {
                 TransportAddress[] addresses = transportService.addressesFromString(host);
-                // we only limit to 5 addresses, makes no sense to ping 100 ports
-                for (int i = 0; (i < addresses.length && i < 5); i++) {
+                // we only limit to 1 addresses, makes no sense to ping 100 ports
+                for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
                     nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i]));
                 }
             } catch (Exception e) {

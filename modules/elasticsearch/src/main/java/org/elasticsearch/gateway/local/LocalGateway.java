@@ -46,6 +46,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.*;
 import java.util.Set;
@@ -247,6 +248,12 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                             if (indexShardRoutingTable.primaryShard().active()) {
                                 builder.remove(indexShardRoutingTable.shardId());
                             }
+                        }
+                    }
+                    // remove deleted indices from the started shards
+                    for (ShardId shardId : builder.build().shards().keySet()) {
+                        if (!event.state().metaData().hasIndex(shardId.index().name())) {
+                            builder.remove(shardId);
                         }
                     }
                     // now, add all the ones that are active and on this node

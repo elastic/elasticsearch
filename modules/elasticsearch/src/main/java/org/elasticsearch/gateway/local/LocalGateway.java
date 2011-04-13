@@ -72,6 +72,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
 
     private final boolean compress;
+    private final boolean prettyPrint;
 
     private volatile LocalGatewayMetaState currentMetaState;
 
@@ -90,6 +91,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         this.listGatewayStartedShards = listGatewayStartedShards.initGateway(this);
 
         this.compress = componentSettings.getAsBoolean("compress", true);
+        this.prettyPrint = componentSettings.getAsBoolean("pretty", false);
     }
 
     @Override public String type() {
@@ -191,6 +193,9 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     try {
                         LocalGatewayMetaState stateToWrite = builder.build();
                         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+                        if (prettyPrint) {
+                            xContentBuilder.prettyPrint();
+                        }
                         xContentBuilder.startObject();
                         LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                         xContentBuilder.endObject();
@@ -258,6 +263,9 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     try {
                         LocalGatewayStartedShards stateToWrite = builder.build();
                         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+                        if (prettyPrint) {
+                            xContentBuilder.prettyPrint();
+                        }
                         xContentBuilder.startObject();
                         LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                         xContentBuilder.endObject();

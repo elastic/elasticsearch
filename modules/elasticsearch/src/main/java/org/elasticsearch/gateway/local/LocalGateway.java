@@ -25,10 +25,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.lzf.LZF;
@@ -178,10 +175,10 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             return;
         }
 
-        // we only write the local metadata if this is a possible master node, the metadata has changed, and
-        // we don't have a NO_MASTER block (in which case, the routing is cleaned, and we don't want to override what
-        // we have now, since it might be needed when later on performing full state recovery)
-        if (event.state().nodes().localNode().masterNode() && event.metaDataChanged()) {
+        // we only write the local metadata if this is a possible master node
+        // currently, we always write the metadata, since we want to keep it in sync with the latest version, but
+        // we need to think of a better way to not persist it when nothing changed
+        if (event.state().nodes().localNode().masterNode()) {
             executor.execute(new Runnable() {
                 @Override public void run() {
                     LocalGatewayMetaState.Builder builder = LocalGatewayMetaState.builder();
@@ -245,7 +242,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     // so they won't get removed (we want to keep the fact that those shards are allocated on this node if needed)
                     for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
                         for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                            if (indexShardRoutingTable.primaryShard().active()) {
+                            if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
                                 builder.remove(indexShardRoutingTable.shardId());
                             }
                         }

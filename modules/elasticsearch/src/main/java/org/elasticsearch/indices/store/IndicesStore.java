@@ -28,21 +28,28 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
+
+import java.io.File;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener {
 
+    private final NodeEnvironment nodeEnv;
+
     private final IndicesService indicesService;
 
     private final ClusterService clusterService;
 
-    @Inject public IndicesStore(Settings settings, IndicesService indicesService, ClusterService clusterService) {
+    @Inject public IndicesStore(Settings settings, NodeEnvironment nodeEnv, IndicesService indicesService, ClusterService clusterService) {
         super(settings);
+        this.nodeEnv = nodeEnv;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         clusterService.add(this);
@@ -91,6 +98,22 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     } catch (Exception e) {
                         logger.debug("[{}][{}] failed to delete unallocated shard, ignoring", e, indexShardRoutingTable.shardId().index().name(), indexShardRoutingTable.shardId().id());
                     }
+                }
+            }
+        }
+
+        // do the reverse, and delete dangling indices that might remain on that node
+        // this can happen when deleting a closed index, or when a node joins and it has deleted indices
+        if (nodeEnv.hasNodeFile()) {
+            File[] files = nodeEnv.indicesLocation().listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    // if we have the index on the metadata, don't delete it
+                    if (event.state().metaData().hasIndex(file.getName())) {
+                        continue;
+                    }
+                    logger.debug("[{}] deleting index that is no longer in the cluster meta_date", file.getName());
+                    FileSystemUtils.deleteRecursively(file);
                 }
             }
         }

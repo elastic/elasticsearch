@@ -105,8 +105,12 @@ public class NodeEnvironment extends AbstractComponent {
         return nodeFile;
     }
 
+    public File indicesLocation() {
+        return new File(nodeDataLocation(), "indices");
+    }
+
     public File indexLocation(Index index) {
-        return new File(new File(nodeDataLocation(), "indices"), index.name());
+        return new File(indicesLocation(), index.name());
     }
 
     public File shardLocation(ShardId shardId) {

@@ -46,7 +46,7 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
     private final TimeValue expire;
 
     private final AtomicLong evictions = new AtomicLong();
-    private final AtomicLong memEvictions = new AtomicLong();
+    private AtomicLong memEvictions;
 
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -55,6 +55,7 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
     }
 
     @Override protected ConcurrentMap<Object, ReaderValue> buildCache() {
+        memEvictions = new AtomicLong(); // we need to init it here, since its called from the super constructor
         // better to have soft on the whole ReaderValue, simpler on the GC to clean it
         MapMaker mapMaker = new MapMaker().weakKeys().softValues();
         mapMaker.evictionListener(new CacheMapEvictionListener(memEvictions));

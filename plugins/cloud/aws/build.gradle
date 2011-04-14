@@ -31,12 +31,12 @@ configurations {
 
 dependencies {
     compile project(':elasticsearch')
-    compile("com.amazonaws:aws-java-sdk:1.1.7") { transitive = false }
+    compile("com.amazonaws:aws-java-sdk:1.1.9") { transitive = false }
     runtime("commons-logging:commons-logging:1.1.1") { transitive = false }
     runtime("commons-codec:commons-codec:1.3") { transitive = false }
     runtime("commons-httpclient:commons-httpclient:3.0.1") { transitive = false }
 
-    distLib("com.amazonaws:aws-java-sdk:1.1.7") { transitive = false }
+    distLib("com.amazonaws:aws-java-sdk:1.1.9") { transitive = false }
     distLib("commons-codec:commons-codec:1.3") { transitive = false }
     distLib("commons-logging:commons-logging:1.1.1") { transitive = false }
     distLib("commons-httpclient:commons-httpclient:3.0.1") { transitive = false }

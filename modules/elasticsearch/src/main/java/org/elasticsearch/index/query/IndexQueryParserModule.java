@@ -258,6 +258,7 @@ public class IndexQueryParserModule extends AbstractModule {
             bindings.processXContentQueryFilter(PrefixFilterParser.NAME, PrefixFilterParser.class);
             bindings.processXContentQueryFilter(ScriptFilterParser.NAME, ScriptFilterParser.class);
             bindings.processXContentQueryFilter(GeoDistanceFilterParser.NAME, GeoDistanceFilterParser.class);
+            bindings.processXContentQueryFilter(GeoDistanceRangeFilterParser.NAME, GeoDistanceRangeFilterParser.class);
             bindings.processXContentQueryFilter(GeoBoundingBoxFilterParser.NAME, GeoBoundingBoxFilterParser.class);
             bindings.processXContentQueryFilter(GeoPolygonFilterParser.NAME, GeoPolygonFilterParser.class);
             bindings.processXContentQueryFilter(QueryFilterParser.NAME, QueryFilterParser.class);

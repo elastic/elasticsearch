@@ -74,8 +74,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             @Override public ClusterState execute(ClusterState currentState) {
                 final DeleteIndexListener listener = new DeleteIndexListener(request, userListener);
                 try {
-                    RoutingTable routingTable = currentState.routingTable();
-                    if (!routingTable.hasIndex(request.index)) {
+                    if (!currentState.metaData().hasIndex(request.index)) {
                         listener.onFailure(new IndexMissingException(new Index(request.index)));
                         return currentState;
                     }
@@ -100,13 +99,15 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                     // initialize the counter only for nodes the shards are allocated to
                     Set<String> allocatedNodes = Sets.newHashSet();
-                    for (IndexShardRoutingTable indexShardRoutingTable : currentState.routingTable().index(request.index)) {
-                        for (ShardRouting shardRouting : indexShardRoutingTable) {
-                            if (shardRouting.currentNodeId() != null) {
-                                allocatedNodes.add(shardRouting.currentNodeId());
-                            }
-                            if (shardRouting.relocatingNodeId() != null) {
-                                allocatedNodes.add(shardRouting.relocatingNodeId());
+                    if (currentState.routingTable().hasIndex(request.index)) {
+                        for (IndexShardRoutingTable indexShardRoutingTable : currentState.routingTable().index(request.index)) {
+                            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                                if (shardRouting.currentNodeId() != null) {
+                                    allocatedNodes.add(shardRouting.currentNodeId());
+                                }
+                                if (shardRouting.relocatingNodeId() != null) {
+                                    allocatedNodes.add(shardRouting.relocatingNodeId());
+                                }
                             }
                         }
                     }

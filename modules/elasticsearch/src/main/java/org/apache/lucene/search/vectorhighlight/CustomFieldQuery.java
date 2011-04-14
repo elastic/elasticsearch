@@ -75,7 +75,12 @@ public class CustomFieldQuery extends FieldQuery {
                 flatQueries.add(termQuery);
             }
         } else if (sourceQuery instanceof ConstantScoreQuery) {
-            flatten(((ConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) sourceQuery;
+            if (constantScoreQuery.getFilter() != null) {
+                flatten(constantScoreQuery.getFilter(), flatQueries);
+            } else {
+                flatten(constantScoreQuery.getQuery(), flatQueries);
+            }
         } else if (sourceQuery instanceof DeletionAwareConstantScoreQuery) {
             flatten(((DeletionAwareConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
         } else if (sourceQuery instanceof FunctionScoreQuery) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -52,6 +53,7 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
         XContentParser parser = parseContext.parser();
 
         Filter filter = null;
+        Query query = null;
         float boost = 1.0f;
         boolean cache = false;
 
@@ -63,6 +65,8 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("filter".equals(currentFieldName)) {
                     filter = parseContext.parseInnerFilter();
+                } else if ("query".equals(currentFieldName)) {
+                    query = parseContext.parseInnerQuery();
                 }
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
@@ -72,16 +76,22 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
                 }
             }
         }
-        if (filter == null) {
-            throw new QueryParsingException(index, "[constant_score] requires 'filter' element");
+        if (filter == null && query == null) {
+            throw new QueryParsingException(index, "[constant_score] requires either 'filter' or 'query' element");
         }
 
-        // cache the filter if possible needed
-        if (cache) {
-            filter = parseContext.cacheFilter(filter);
-        }
+        if (filter != null) {
+            // cache the filter if possible needed
+            if (cache) {
+                filter = parseContext.cacheFilter(filter);
+            }
 
-        Query query = new DeletionAwareConstantScoreQuery(filter);
+            Query query1 = new DeletionAwareConstantScoreQuery(filter);
+            query1.setBoost(boost);
+            return query1;
+        }
+        // Query
+        query = new ConstantScoreQuery(query);
         query.setBoost(boost);
         return query;
     }

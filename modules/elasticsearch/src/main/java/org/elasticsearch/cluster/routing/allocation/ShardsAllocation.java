@@ -102,6 +102,32 @@ public class ShardsAllocation extends AbstractComponent {
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
 
+    /**
+     * Only handles reroute but *without* any reassignment of unassigned shards or rebalancing. Does
+     * make sure to handle removed nodes, but only moved the shards to UNASSIGNED, does not reassign
+     * them.
+     */
+    public RoutingAllocation.Result rerouteWithNoReassign(ClusterState clusterState) {
+        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingAllocation allocation = new RoutingAllocation(routingNodes, clusterState.nodes());
+        Iterable<DiscoveryNode> dataNodes = allocation.nodes().dataNodes().values();
+        boolean changed = false;
+        // first, clear from the shards any node id they used to belong to that is now dead
+        changed |= deassociateDeadNodes(allocation.routingNodes(), dataNodes);
+
+        // create a sorted list of from nodes with least number of shards to the maximum ones
+        applyNewNodes(allocation.routingNodes(), dataNodes);
+
+        // elect primaries *before* allocating unassigned, so backups of primaries that failed
+        // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
+        changed |= electPrimaries(allocation.routingNodes());
+
+        if (!changed) {
+            return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
+        }
+        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
+    }
+
     private boolean reroute(RoutingAllocation allocation) {
         Iterable<DiscoveryNode> dataNodes = allocation.nodes().dataNodes().values();
 

@@ -140,6 +140,15 @@ public class GeoDistanceTests extends AbstractNodesTests {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
 
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731)))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().hits().length, equalTo(2));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
+        }
+
         // SORTING
 
         searchResponse = client.prepareSearch().setQuery(matchAllQuery())

@@ -79,10 +79,8 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
     }
 
     @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
-        for (ShardRouting shardRouting : allocation.failedShards()) {
-            cachedCommitPoints.remove(shardRouting.shardId());
-            cachedStores.remove(shardRouting.shardId());
-        }
+        cachedCommitPoints.remove(allocation.failedShard().shardId());
+        cachedStores.remove(allocation.failedShard().shardId());
     }
 
     @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {

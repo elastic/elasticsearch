@@ -22,6 +22,10 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -61,6 +65,8 @@ public class RoutingAllocation {
 
     private final AllocationExplanation explanation = new AllocationExplanation();
 
+    private Map<ShardId, String> ignoredShardToNodes = null;
+
     public RoutingAllocation(RoutingNodes routingNodes, DiscoveryNodes nodes) {
         this.routingNodes = routingNodes;
         this.nodes = nodes;
@@ -80,5 +86,16 @@ public class RoutingAllocation {
 
     public AllocationExplanation explanation() {
         return explanation;
+    }
+
+    public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
+        if (ignoredShardToNodes == null) {
+            ignoredShardToNodes = new HashMap<ShardId, String>();
+        }
+        ignoredShardToNodes.put(shardId, nodeId);
+    }
+
+    public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
+        return ignoredShardToNodes != null && nodeId.equals(ignoredShardToNodes.get(shardId));
     }
 }

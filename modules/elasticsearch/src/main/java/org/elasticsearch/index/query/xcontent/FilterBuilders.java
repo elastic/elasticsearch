@@ -271,6 +271,15 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * A filter to filter based on a specific range from a specific geo location / point.
+     *
+     * @param name The location field name.
+     */
+    public static GeoDistanceRangeFilterBuilder geoDistanceRangeFilter(String name) {
+        return new GeoDistanceRangeFilterBuilder(name);
+    }
+
+    /**
      * A filter to filter based on a bounding box defined by top left and bottom right locations / points
      *
      * @param name The location field name.

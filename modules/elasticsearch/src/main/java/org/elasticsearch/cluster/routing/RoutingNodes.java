@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
@@ -113,7 +114,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public int requiredAverageNumberOfShardsPerNode() {
-        return metaData.totalNumberOfShards() / nodesToShards.size();
+        int totalNumberOfShards = 0;
+        // we need to recompute to take closed shards into account
+        for (IndexMetaData indexMetaData : metaData.indices().values()) {
+            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                totalNumberOfShards += indexMetaData.totalNumberOfShards();
+            }
+        }
+        return totalNumberOfShards / nodesToShards.size();
     }
 
     public boolean hasUnassigned() {

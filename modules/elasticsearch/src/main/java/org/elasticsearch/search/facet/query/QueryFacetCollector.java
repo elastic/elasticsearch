@@ -77,7 +77,10 @@ public class QueryFacetCollector extends AbstractFacetCollector {
         } else if (query instanceof DeletionAwareConstantScoreQuery) {
             return ((DeletionAwareConstantScoreQuery) query).getFilter();
         } else if (query instanceof ConstantScoreQuery) {
-            return ((ConstantScoreQuery) query).getFilter();
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+            if (constantScoreQuery.getFilter() != null) {
+                return constantScoreQuery.getFilter();
+            }
         }
         return null;
     }

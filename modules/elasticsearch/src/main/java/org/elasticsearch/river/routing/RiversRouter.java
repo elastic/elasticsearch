@@ -123,9 +123,14 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                     }
                 }
                 // now, remove routings that were deleted
+                // also, apply nodes that were removed and rivers were running on
                 for (RiverRouting routing : currentState.routing()) {
                     if (!indexMetaData.mappings().containsKey(routing.riverName().name())) {
                         routingBuilder.remove(routing);
+                        dirty = true;
+                    } else if (routing.node() != null && !event.state().nodes().nodeExists(routing.node().id())) {
+                        routingBuilder.remove(routing);
+                        routingBuilder.put(new RiverRouting(routing.riverName(), null));
                         dirty = true;
                     }
                 }

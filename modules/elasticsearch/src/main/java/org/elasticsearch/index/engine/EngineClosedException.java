@@ -35,4 +35,8 @@ public class EngineClosedException extends IndexShardClosedException {
     public EngineClosedException(ShardId shardId) {
         super(shardId);
     }
+
+    public EngineClosedException(ShardId shardId, Throwable t) {
+        super(shardId, t);
+    }
 }

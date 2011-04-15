@@ -107,19 +107,15 @@ public class ShardStateAction extends AbstractComponent {
         logger.warn("received shard failed for {}, reason [{}]", shardRouting, reason);
         clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                RoutingTable routingTable = currentState.routingTable();
-                IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
-                // if there is no routing table, the index has been deleted while it was being allocated
-                // which is fine, we should just ignore this
-                if (indexRoutingTable == null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Received failed shard {}, reason [{}]", shardRouting, reason);
+                }
+                RoutingAllocation.Result routingResult = shardsAllocation.applyFailedShard(currentState, shardRouting);
+                if (!routingResult.changed()) {
                     return currentState;
                 }
                 if (logger.isDebugEnabled()) {
                     logger.debug("Applying failed shard {}, reason [{}]", shardRouting, reason);
-                }
-                RoutingAllocation.Result routingResult = shardsAllocation.applyFailedShards(currentState, newArrayList(shardRouting));
-                if (!routingResult.changed()) {
-                    return currentState;
                 }
                 return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }

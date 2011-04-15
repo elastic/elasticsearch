@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.CloseableIndexComponent;
 
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -73,4 +74,9 @@ public interface Plugin {
     Collection<Class<? extends CloseableIndexComponent>> shardServices();
 
     void processModule(Module module);
+
+    /**
+     * Additional node settings loaded by the plugin
+     */
+    Map<String, String> additionalSettings();
 }

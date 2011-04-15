@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.CloseableIndexComponent;
@@ -81,7 +82,12 @@ public class PluginsService extends AbstractComponent {
     }
 
     public Settings updatedSettings() {
-        return this.settings;
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                .put(this.settings);
+        for (Plugin plugin : plugins.values()) {
+            builder.put(plugin.additionalSettings());
+        }
+        return builder.build();
     }
 
     public Collection<Class<? extends Module>> modules() {

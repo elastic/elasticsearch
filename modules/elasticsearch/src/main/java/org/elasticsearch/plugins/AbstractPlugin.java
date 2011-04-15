@@ -25,6 +25,8 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.CloseableIndexComponent;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * A base class for a plugin.
@@ -78,4 +80,9 @@ public abstract class AbstractPlugin implements Plugin {
     @Override public void processModule(Module module) {
         // nothing to do here
     }
+
+    @Override public Map<String, String> additionalSettings() {
+        return Collections.emptyMap();
+    }
+
 }

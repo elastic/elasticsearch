@@ -22,11 +22,11 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.CloseableIndexComponent;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * A base class for a plugin.
@@ -81,8 +81,8 @@ public abstract class AbstractPlugin implements Plugin {
         // nothing to do here
     }
 
-    @Override public Map<String, String> additionalSettings() {
-        return Collections.emptyMap();
+    @Override public Settings additionalSettings() {
+        return ImmutableSettings.Builder.EMPTY_SETTINGS;
     }
 
 }

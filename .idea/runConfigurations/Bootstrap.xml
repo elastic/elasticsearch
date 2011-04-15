@@ -15,7 +15,7 @@
     <option name="ENABLE_SWING_INSPECTOR" value="false" />
     <option name="ENV_VARIABLES" />
     <option name="PASS_PARENT_ENVS" value="true" />
-    <module name="elasticsearch-root" />
+    <module name="plugin-river-mongodb" />
     <envs />
     <RunnerSettings RunnerId="Debug">
       <option name="DEBUG_PORT" value="61134" />

@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="mongo">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/gradle/cache/org.mongodb/mongo-java-driver/jars/mongo-java-driver-2.5.3.jar!/" />
+      <root url="jar://$USER_HOME$/gradle/cache/org.mongodb/bson/jars/bson-2.5.3.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

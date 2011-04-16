@@ -36,14 +36,18 @@ public class EsExecutors {
                 threadFactory);
     }
 
-    public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
+    public static String threadName(Settings settings, String namePrefix) {
         String name = settings.get("name");
         if (name == null) {
             name = "elasticsearch";
         } else {
             name = "elasticsearch[" + name + "]";
         }
-        return daemonThreadFactory(name + namePrefix);
+        return name + namePrefix;
+    }
+
+    public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
+        return daemonThreadFactory(threadName(settings, namePrefix));
     }
 
     /**

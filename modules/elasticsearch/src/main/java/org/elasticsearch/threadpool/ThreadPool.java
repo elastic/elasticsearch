@@ -60,6 +60,8 @@ public class ThreadPool extends AbstractComponent {
 
     private final ScheduledExecutorService scheduler;
 
+    private final EstimatedTimeThread estimatedTimeThread;
+
     public ThreadPool() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
@@ -80,6 +82,14 @@ public class ThreadPool extends AbstractComponent {
         executors.put(Names.SAME, MoreExecutors.sameThreadExecutor());
         this.executors = ImmutableMap.copyOf(executors);
         this.scheduler = Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "[scheduler]"));
+
+        TimeValue estimatedTimeInterval = componentSettings.getAsTime("estimated_time_interval", TimeValue.timeValueMillis(200));
+        this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
+        this.estimatedTimeThread.start();
+    }
+
+    public long estimatedTimeInMillis() {
+        return estimatedTimeThread.estimatedTimeInMillis();
     }
 
     public Executor cached() {
@@ -106,10 +116,23 @@ public class ThreadPool extends AbstractComponent {
     }
 
     public void shutdown() {
+        estimatedTimeThread.running = false;
+        estimatedTimeThread.interrupt();
         scheduler.shutdown();
         for (Executor executor : executors.values()) {
             if (executor instanceof ThreadPoolExecutor) {
                 ((ThreadPoolExecutor) executor).shutdown();
+            }
+        }
+    }
+
+    public void shutdownNow() {
+        estimatedTimeThread.running = false;
+        estimatedTimeThread.interrupt();
+        scheduler.shutdownNow();
+        for (Executor executor : executors.values()) {
+            if (executor instanceof ThreadPoolExecutor) {
+                ((ThreadPoolExecutor) executor).shutdownNow();
             }
         }
     }
@@ -122,15 +145,6 @@ public class ThreadPool extends AbstractComponent {
             }
         }
         return result;
-    }
-
-    public void shutdownNow() {
-        scheduler.shutdownNow();
-        for (Executor executor : executors.values()) {
-            if (executor instanceof ThreadPoolExecutor) {
-                ((ThreadPoolExecutor) executor).shutdownNow();
-            }
-        }
     }
 
     private Executor build(String name, String defaultType, @Nullable Settings settings, Settings defaultSettings) {
@@ -228,6 +242,37 @@ public class ThreadPool extends AbstractComponent {
 
         @Override public String toString() {
             return "[threaded] " + runnable.toString();
+        }
+    }
+
+    static class EstimatedTimeThread extends Thread {
+
+        final long interval;
+
+        volatile boolean running = true;
+
+        volatile long estimatedTimeInMillis;
+
+        EstimatedTimeThread(String name, long interval) {
+            super(name);
+            this.interval = interval;
+            setDaemon(true);
+        }
+
+        public long estimatedTimeInMillis() {
+            return this.estimatedTimeInMillis;
+        }
+
+        @Override public void run() {
+            while (running) {
+                estimatedTimeInMillis = System.currentTimeMillis();
+                try {
+                    Thread.sleep(interval);
+                } catch (InterruptedException e) {
+                    running = false;
+                    return;
+                }
+            }
         }
     }
 }

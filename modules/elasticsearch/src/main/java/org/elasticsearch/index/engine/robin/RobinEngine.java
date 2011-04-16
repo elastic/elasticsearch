@@ -80,6 +80,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile int termIndexDivisor;
 
+    private volatile int indexConcurrency;
+
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
 
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
@@ -167,8 +169,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.similarityService = similarityService;
         this.bloomCache = bloomCache;
 
-        this.versionMap = new ConcurrentHashMap<String, VersionValue>(1000);
-        this.dirtyLocks = new Object[componentSettings.getAsInt("concurrency", 10000)];
+        this.indexConcurrency = indexSettings.getAsInt("index.index_concurrency", IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
+        this.versionMap = new ConcurrentHashMap<String, VersionValue>();
+        this.dirtyLocks = new Object[indexConcurrency * 10]; // we multiply it by 10 to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
         }
@@ -992,6 +995,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
             config.setTermIndexInterval(termIndexInterval);
             config.setReaderTermsIndexDivisor(termIndexDivisor);
+            config.setMaxThreadStates(indexConcurrency);
 
             indexWriter = new IndexWriter(store.directory(), config);
 
@@ -1011,20 +1015,27 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         @Override public void onRefreshSettings(Settings settings) {
             int termIndexInterval = settings.getAsInt("index.term_index_interval", RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt("index.term_index_divisor", RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
+            int indexConcurrency = settings.getAsInt("index.index_concurrency", RobinEngine.this.indexConcurrency);
             boolean requiresFlushing = false;
             if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor) {
                 rwl.readLock().lock();
                 try {
                     if (termIndexInterval != RobinEngine.this.termIndexInterval) {
-                        logger.info("updating term_index_interval from [{}] to [{}]", RobinEngine.this.termIndexInterval, termIndexInterval);
+                        logger.info("updating index.term_index_interval from [{}] to [{}]", RobinEngine.this.termIndexInterval, termIndexInterval);
                         RobinEngine.this.termIndexInterval = termIndexInterval;
                         indexWriter.getConfig().setTermIndexInterval(termIndexInterval);
                     }
                     if (termIndexDivisor != RobinEngine.this.termIndexDivisor) {
-                        logger.info("updating term_index_divisor from [{}] to [{}]", RobinEngine.this.termIndexDivisor, termIndexDivisor);
+                        logger.info("updating index.term_index_divisor from [{}] to [{}]", RobinEngine.this.termIndexDivisor, termIndexDivisor);
                         RobinEngine.this.termIndexDivisor = termIndexDivisor;
                         indexWriter.getConfig().setReaderTermsIndexDivisor(termIndexDivisor);
                         // we want to apply this right now for readers, even "current" ones
+                        requiresFlushing = true;
+                    }
+                    if (indexConcurrency != RobinEngine.this.indexConcurrency) {
+                        logger.info("updating index.index_concurrency from [{}] to [{}]", RobinEngine.this.indexConcurrency, indexConcurrency);
+                        RobinEngine.this.indexConcurrency = indexConcurrency;
+                        // we have to flush in this case, since it only applies on a new index writer
                         requiresFlushing = true;
                     }
                 } finally {

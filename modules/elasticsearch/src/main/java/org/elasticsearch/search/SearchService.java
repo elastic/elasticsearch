@@ -65,6 +65,8 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
+    private final ThreadPool threadPool;
+
     private final ClusterService clusterService;
 
     private final IndicesService indicesService;
@@ -94,6 +96,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, ThreadPool threadPool,
                                  ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
@@ -431,7 +434,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void contextProcessedSuccessfully(SearchContext context) {
-        context.accessed(System.currentTimeMillis());
+        context.accessed(threadPool.estimatedTimeInMillis());
     }
 
     private void cleanContext(SearchContext context) {
@@ -535,7 +538,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     class Reaper implements Runnable {
         @Override public void run() {
-            long time = System.currentTimeMillis();
+            long time = threadPool.estimatedTimeInMillis();
             for (SearchContext context : activeContexts.values()) {
                 if (context.lastAccessTime() == -1) { // its being processed or timeout is disabled
                     continue;

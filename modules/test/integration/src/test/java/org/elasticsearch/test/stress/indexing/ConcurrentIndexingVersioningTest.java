@@ -80,17 +80,18 @@ public class ConcurrentIndexingVersioningTest {
         System.out.println("done indexing, verifying docs");
         client.client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < NUMBER_OF_DOCS; i++) {
+            String id = Integer.toString(i);
             for (int j = 0; j < 5; j++) {
-                SearchResponse response = client.client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", Integer.toString(i))).execute().actionGet();
+                SearchResponse response = client.client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", id)).execute().actionGet();
                 if (response.hits().totalHits() > 1) {
                     System.err.println("[" + i + "] FAIL, HITS [" + response.hits().totalHits() + "]");
                 }
             }
-            GetResponse getResponse = client.client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            GetResponse getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();
             if (getResponse.exists()) {
                 long version = getResponse.version();
                 for (int j = 0; j < 5; j++) {
-                    getResponse = client.client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+                    getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();
                     if (!getResponse.exists()) {
                         System.err.println("[" + i + "] FAIL, EXISTED, and NOT_EXISTED");
                         break;
@@ -102,7 +103,7 @@ public class ConcurrentIndexingVersioningTest {
                 }
             } else {
                 for (int j = 0; j < 5; j++) {
-                    getResponse = client.client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+                    getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();
                     if (getResponse.exists()) {
                         System.err.println("[" + i + "] FAIL, EXISTED, and NOT_EXISTED");
                         break;

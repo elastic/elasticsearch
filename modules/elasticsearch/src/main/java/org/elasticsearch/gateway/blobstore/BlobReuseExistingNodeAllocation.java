@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.*;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -54,19 +55,19 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
     private final Node node;
 
-    private final TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData;
+    private final TransportNodesListShardStoreMetaData listShardStoreMetaData;
 
     private final TimeValue listTimeout;
 
     private final ConcurrentMap<ShardId, CommitPoint> cachedCommitPoints = ConcurrentCollections.newConcurrentMap();
 
-    private final ConcurrentMap<ShardId, ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
     @Inject public BlobReuseExistingNodeAllocation(Settings settings, Node node,
                                                    TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
         this.node = node; // YACK!, we need the Gateway, but it creates crazy circular dependency
-        this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
+        this.listShardStoreMetaData = transportNodesListShardStoreMetaData;
 
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
     }
@@ -119,7 +120,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                 continue;
             }
 
-            ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = buildShardStores(nodes, shard);
+            Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = buildShardStores(nodes, shard);
 
             long lastSizeMatched = 0;
             DiscoveryNode lastDiscoNodeMatched = null;
@@ -248,12 +249,32 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         return changed;
     }
 
-    private ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
-        ConcurrentMap<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
+    private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
+        Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
+        Set<String> nodesIds;
         if (shardStores == null) {
-            shardStores = ConcurrentCollections.newConcurrentMap();
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet(), listTimeout).actionGet();
-            if (logger.isDebugEnabled()) {
+            shardStores = Maps.newHashMap();
+            cachedStores.put(shard.shardId(), shardStores);
+            nodesIds = nodes.dataNodes().keySet();
+        } else {
+            nodesIds = Sets.newHashSet();
+            // clean nodes that have failed
+            for (DiscoveryNode node : shardStores.keySet()) {
+                if (!nodes.nodeExists(node.id())) {
+                    shardStores.remove(node);
+                }
+            }
+
+            for (DiscoveryNode node : nodes.dataNodes().values()) {
+                if (!shardStores.containsKey(node)) {
+                    nodesIds.add(node.id());
+                }
+            }
+        }
+
+        if (!nodesIds.isEmpty()) {
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIds, listTimeout).actionGet();
+            if (logger.isTraceEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {
                     StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
                     for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
@@ -263,7 +284,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                         }
                         sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
                     }
-                    logger.debug(sb.toString());
+                    logger.trace(sb.toString());
                 }
             }
 
@@ -272,46 +293,8 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                     shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
                 }
             }
-            cachedStores.put(shard.shardId(), shardStores);
-        } else {
-            // clean nodes that have failed
-            for (DiscoveryNode node : shardStores.keySet()) {
-                if (!nodes.nodeExists(node.id())) {
-                    shardStores.remove(node);
-                }
-            }
-
-            // we have stored cached from before, see if the nodes changed, if they have, go fetch again
-            Set<String> fetchedNodes = Sets.newHashSet();
-            for (DiscoveryNode node : nodes.dataNodes().values()) {
-                if (!shardStores.containsKey(node)) {
-                    fetchedNodes.add(node.id());
-                }
-            }
-
-            if (!fetchedNodes.isEmpty()) {
-                TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, fetchedNodes, listTimeout).actionGet();
-                if (logger.isDebugEnabled()) {
-                    if (nodesStoreFilesMetaData.failures().length > 0) {
-                        StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
-                        for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
-                            Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
-                            if (cause instanceof ConnectTransportException) {
-                                continue;
-                            }
-                            sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
-                        }
-                        logger.debug(sb.toString());
-                    }
-                }
-
-                for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
-                    if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
-                        shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
-                    }
-                }
-            }
         }
+
         return shardStores;
     }
 }

@@ -33,11 +33,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -57,8 +59,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         return this;
     }
 
-    public ActionFuture<NodesLocalGatewayStartedShards> list(Set<String> nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(nodesIds).timeout(timeout));
+    public ActionFuture<NodesLocalGatewayStartedShards> list(ShardId shardId, Set<String> nodesIds, @Nullable TimeValue timeout) {
+        return execute(new Request(shardId, nodesIds).timeout(timeout));
     }
 
     @Override protected String executor() {
@@ -86,7 +88,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId);
+        return new NodeRequest(request.shardId(), nodeId);
     }
 
     @Override protected NodeLocalGatewayStartedShards newNodeResponse() {
@@ -109,7 +111,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticSearchException {
-        return new NodeLocalGatewayStartedShards(clusterService.localNode(), gateway.currentStartedShards());
+        for (Map.Entry<ShardId, Long> entry : gateway.currentStartedShards().shards().entrySet()) {
+            if (entry.getKey().equals(request.shardId)) {
+                assert entry.getValue() != null;
+                return new NodeLocalGatewayStartedShards(clusterService.localNode(), entry.getValue());
+            }
+        }
+        return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);
     }
 
     @Override protected boolean accumulateExceptions() {
@@ -118,11 +126,18 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     static class Request extends NodesOperationRequest {
 
+        private ShardId shardId;
+
         public Request() {
         }
 
-        public Request(Set<String> nodesIds) {
+        public Request(ShardId shardId, Set<String> nodesIds) {
             super(nodesIds.toArray(new String[nodesIds.size()]));
+            this.shardId = shardId;
+        }
+
+        public ShardId shardId() {
+            return this.shardId;
         }
 
         @Override public Request timeout(TimeValue timeout) {
@@ -132,10 +147,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+            shardId = ShardId.readShardId(in);
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            shardId.writeTo(out);
         }
     }
 
@@ -176,53 +193,55 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     static class NodeRequest extends NodeOperationRequest {
 
+        ShardId shardId;
+
         NodeRequest() {
         }
 
-        NodeRequest(String nodeId) {
+        NodeRequest(ShardId shardId, String nodeId) {
             super(nodeId);
+            this.shardId = shardId;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+            shardId = ShardId.readShardId(in);
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            shardId.writeTo(out);
         }
     }
 
     public static class NodeLocalGatewayStartedShards extends NodeOperationResponse {
 
-        private LocalGatewayStartedShards state;
+        private long version = -1;
 
         NodeLocalGatewayStartedShards() {
         }
 
-        public NodeLocalGatewayStartedShards(DiscoveryNode node, LocalGatewayStartedShards state) {
+        public NodeLocalGatewayStartedShards(DiscoveryNode node, long version) {
             super(node);
-            this.state = state;
+            this.version = version;
         }
 
-        public LocalGatewayStartedShards state() {
-            return state;
+        public boolean hasVersion() {
+            return version != -1;
+        }
+
+        public long version() {
+            return this.version;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.readBoolean()) {
-                state = LocalGatewayStartedShards.Builder.readFrom(in);
-            }
+            version = in.readLong();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (state == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                LocalGatewayStartedShards.Builder.writeTo(state, out);
-            }
+            out.writeLong(version);
         }
     }
 }

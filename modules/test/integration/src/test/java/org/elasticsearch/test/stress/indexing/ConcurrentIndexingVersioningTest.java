@@ -78,6 +78,7 @@ public class ConcurrentIndexingVersioningTest {
 
         latch.await();
         System.out.println("done indexing, verifying docs");
+        client.client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < NUMBER_OF_DOCS; i++) {
             for (int j = 0; j < 5; j++) {
                 SearchResponse response = client.client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", Integer.toString(i))).execute().actionGet();

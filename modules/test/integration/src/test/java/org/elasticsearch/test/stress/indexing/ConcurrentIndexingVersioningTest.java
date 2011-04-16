@@ -40,16 +40,16 @@ public class ConcurrentIndexingVersioningTest {
     public static void main(String[] args) throws Exception {
 
         Settings settings = settingsBuilder()
-                .put("gateway", "none")
+                .put("gateway.type", "none")
                 .build();
 
         Node node1 = nodeBuilder().settings(settings).node();
         Node node2 = nodeBuilder().settings(settings).node();
         final Node client = nodeBuilder().settings(settings).client(true).node();
 
-        final int NUMBER_OF_DOCS = 1000;
+        final int NUMBER_OF_DOCS = 10000;
         final int NUMBER_OF_THREADS = 10;
-        final long NUMBER_OF_ITERATIONS = SizeValue.parseSizeValue("100k").singles();
+        final long NUMBER_OF_ITERATIONS = SizeValue.parseSizeValue("10k").singles();
         final long DELETE_EVERY = 10;
 
         final CountDownLatch latch = new CountDownLatch(NUMBER_OF_THREADS);

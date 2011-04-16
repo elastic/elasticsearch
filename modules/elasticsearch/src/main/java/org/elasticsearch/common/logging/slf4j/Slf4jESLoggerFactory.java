@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
  */
 public class Slf4jESLoggerFactory extends ESLoggerFactory {
 
-    @Override public ESLogger newInstance(String prefix, String name) {
+    @Override protected ESLogger newInstance(String prefix, String name) {
         return new Slf4jESLogger(prefix, LoggerFactory.getLogger(name));
     }
 }

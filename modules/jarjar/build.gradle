@@ -4,10 +4,10 @@ archivesBaseName = "$project.archivesBaseName"
 
 dependencies {
     runtime 'aopalliance:aopalliance:1.0'
-    runtime 'javax.inject:javax.inject:1'
-    runtime 'com.google.inject:guice:3.0'
-    runtime 'com.google.inject.extensions:guice-assistedinject:3.0'
-    runtime 'com.google.inject.extensions:guice-multibindings:3.0'
+    // We are still using Guice 2 since it uses much less memory compared to 3
+    runtime 'com.google.inject:guice:2.0'
+    runtime 'com.google.inject.extensions:guice-assisted-inject:2.0'
+    runtime 'com.google.inject.extensions:guice-multibindings:2.0'
 
     runtime 'com.google.guava:guava:r08'
     runtime 'org.elasticsearch:es-trove:3.0.0rc1'

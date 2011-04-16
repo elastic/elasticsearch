@@ -27,7 +27,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
  */
 public class Log4jESLoggerFactory extends ESLoggerFactory {
 
-    @Override public ESLogger newInstance(String prefix, String name) {
+    @Override protected ESLogger newInstance(String prefix, String name) {
         final org.apache.log4j.Logger logger = org.apache.log4j.Logger.getLogger(name);
         return new Log4jESLogger(prefix, logger);
     }

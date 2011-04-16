@@ -57,16 +57,16 @@ public abstract class ESLoggerFactory {
 
 
     public static ESLogger getLogger(String prefix, String name) {
-        return defaultFactory.newInstance(prefix, name);
+        return defaultFactory.newInstance(prefix.intern(), name.intern());
     }
 
     public static ESLogger getLogger(String name) {
-        return defaultFactory.newInstance(name);
+        return defaultFactory.newInstance(name.intern());
     }
 
     public ESLogger newInstance(String name) {
         return newInstance(null, name);
     }
 
-    public abstract ESLogger newInstance(String prefix, String name);
+    protected abstract ESLogger newInstance(String prefix, String name);
 }

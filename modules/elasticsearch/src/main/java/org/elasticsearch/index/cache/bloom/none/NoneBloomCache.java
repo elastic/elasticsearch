@@ -33,13 +33,13 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  * @author kimchy (shay.banon)
  */
-public class NonBloomCache extends AbstractIndexComponent implements BloomCache {
+public class NoneBloomCache extends AbstractIndexComponent implements BloomCache {
 
-    public NonBloomCache(Index index) {
+    public NoneBloomCache(Index index) {
         super(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    @Inject public NonBloomCache(Index index, @IndexSettings Settings indexSettings) {
+    @Inject public NoneBloomCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 

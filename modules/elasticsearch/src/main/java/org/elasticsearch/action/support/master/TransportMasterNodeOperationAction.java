@@ -100,7 +100,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 }
                 clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                     @Override public void postAdded() {
-                        ClusterBlockException blockException = checkBlock(request, clusterState);
+                        ClusterBlockException blockException = checkBlock(request, clusterService.state());
                         if (blockException == null || !blockException.retryable()) {
                             clusterService.remove(this);
                             innerExecute(request, listener, false);

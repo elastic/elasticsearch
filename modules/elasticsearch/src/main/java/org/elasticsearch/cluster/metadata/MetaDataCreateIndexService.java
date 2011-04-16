@@ -262,6 +262,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
                     return;
                 }
+                if (!request.rerouteAfterCreation) {
+                    listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
+                    return;
+                }
                 clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
@@ -377,6 +381,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         Set<ClusterBlock> blocks = Sets.newHashSet();
 
+        boolean rerouteAfterCreation = true;
+
         public Request(Origin origin, String cause, String index) {
             this.origin = origin;
             this.cause = cause;
@@ -419,6 +425,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public Request rerouteAfterCreation(boolean rerouteAfterCreation) {
+            this.rerouteAfterCreation = rerouteAfterCreation;
             return this;
         }
     }

@@ -27,13 +27,13 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
@@ -52,25 +52,35 @@ public class SingleThreadBulkStress {
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put("index.refresh_interval", "-1")
                 .put("index.merge.async", true)
+                .put("index.translog.flush_threshold_ops", 5000)
                 .put("gateway.type", "local")
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server1")).node();
-        Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server2")).node();
+        Node[] nodes = new Node[1];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
+        }
 
         Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
 
         Client client1 = client.client();
 
         Thread.sleep(1000);
-        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+        client1.admin().indices().prepareCreate("test").setSettings(settings).addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_source").field("enabled", false).endObject()
+                .startObject("_all").field("enabled", false).endObject()
+                .startObject("properties")
+                .startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", true).endObject()
+//                .startObject("field").field("index", "analyzed").field("omit_norms", false).endObject()
+                .endObject()
+                .endObject().endObject()).execute().actionGet();
         Thread.sleep(5000);
 
         StopWatch stopWatch = new StopWatch().start();
-        long COUNT = SizeValue.parseSizeValue("5m").singles();
-        int BATCH = 100;
+        long COUNT = SizeValue.parseSizeValue("2m").singles();
+        int BATCH = 500;
         System.out.println("Indexing [" + COUNT + "] ...");
         long ITERS = COUNT / BATCH;
         long i = 1;
@@ -97,11 +107,12 @@ public class SingleThreadBulkStress {
 
         client.close();
 
-        node1.close();
-        node2.close();
+        for (Node node : nodes) {
+            node.close();
+        }
     }
 
     private static XContentBuilder source(String id, String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
+        return jsonBuilder().startObject().field("field", nameValue).endObject();
     }
 }

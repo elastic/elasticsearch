@@ -19,10 +19,12 @@
 
 package org.elasticsearch.common.inject;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.name.Names;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -219,5 +221,63 @@ public class Injectors {
 
     public static void close(Injector injector) {
 
+    }
+
+    public static void cleanCaches(Injector injector) {
+        // clean blacklist, it becomes really big, and it can always get regenerated if needed
+        try {
+            Field stateField = injector.getClass().getDeclaredField("state");
+            stateField.setAccessible(true);
+            Object state = stateField.get(injector);
+            if (state.getClass().getName().contains("InheritingState")) {
+                Field blacklistedKeysField = state.getClass().getDeclaredField("blacklistedKeys");
+                blacklistedKeysField.setAccessible(true);
+                Object blacklistedKeys = blacklistedKeysField.get(state);
+                Field backingSetField = blacklistedKeys.getClass().getDeclaredField("backingSet");
+                backingSetField.setAccessible(true);
+                ((Set) backingSetField.get(blacklistedKeys)).clear();
+            }
+        } catch (Exception e) {
+            throw new ElasticSearchIllegalStateException("Failed to clear state from injector", e);
+        }
+
+        // clean constructors cache
+        try {
+            Field constructorsField = injector.getClass().getDeclaredField("constructors");
+            constructorsField.setAccessible(true);
+            Object constructors = constructorsField.get(injector);
+
+            Field cacheField = constructors.getClass().getDeclaredField("cache");
+            cacheField.setAccessible(true);
+            Object cache = cacheField.get(constructors);
+
+            Field delegateField = cache.getClass().getSuperclass().getDeclaredField("delegate");
+            delegateField.setAccessible(true);
+            ((Map) delegateField.get(cache)).clear();
+        } catch (Exception e) {
+            throw new ElasticSearchIllegalStateException("Failed to clear constructors cache from injector", e);
+        }
+
+        // clean method cache
+        try {
+            Field membersField = injector.getClass().getDeclaredField("membersInjectorStore");
+            membersField.setAccessible(true);
+            Object members = membersField.get(injector);
+            if (members != null) {
+                Field cacheField = members.getClass().getDeclaredField("cache");
+                cacheField.setAccessible(true);
+                Object cache = cacheField.get(members);
+
+                Field delegateField = cache.getClass().getSuperclass().getDeclaredField("delegate");
+                delegateField.setAccessible(true);
+                ((Map) delegateField.get(cache)).clear();
+            }
+        } catch (Exception e) {
+            throw new ElasticSearchIllegalStateException("Failed to clear constructors cache from injector", e);
+        }
+
+        if (injector.getParent() != null) {
+            cleanCaches(injector.getParent());
+        }
     }
 }

@@ -55,11 +55,15 @@ public class ModulesBuilder implements Iterable<Module> {
 
     public Injector createInjector() {
         Modules.processModules(modules);
-        return Guice.createInjector(modules);
+        Injector injector = Guice.createInjector(modules);
+        Injectors.cleanCaches(injector);
+        return injector;
     }
 
     public Injector createChildInjector(Injector injector) {
         Modules.processModules(modules);
-        return injector.createChildInjector(modules);
+        Injector childInjector = injector.createChildInjector(modules);
+        Injectors.cleanCaches(childInjector);
+        return childInjector;
     }
 }

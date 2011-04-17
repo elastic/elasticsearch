@@ -47,7 +47,7 @@
 # Be aware that you will be entirely responsible for populating the needed
 # environment variables.
 
-
+CDPATH=""
 SCRIPT="$0"
 
 # SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.

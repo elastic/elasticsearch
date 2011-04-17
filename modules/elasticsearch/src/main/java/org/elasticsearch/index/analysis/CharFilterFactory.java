@@ -20,12 +20,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharStream;
-import org.elasticsearch.index.IndexComponent;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface CharFilterFactory extends IndexComponent {
+public interface CharFilterFactory {
 
     String name();
 

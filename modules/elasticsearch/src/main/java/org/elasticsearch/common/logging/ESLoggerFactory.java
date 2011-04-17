@@ -57,7 +57,7 @@ public abstract class ESLoggerFactory {
 
 
     public static ESLogger getLogger(String prefix, String name) {
-        return defaultFactory.newInstance(prefix.intern(), name.intern());
+        return defaultFactory.newInstance(prefix == null ? null : prefix.intern(), name.intern());
     }
 
     public static ESLogger getLogger(String name) {

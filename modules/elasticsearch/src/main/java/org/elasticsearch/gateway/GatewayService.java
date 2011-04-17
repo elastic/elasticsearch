@@ -266,7 +266,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 }
 
                 @Override public void clusterStateProcessed(ClusterState clusterState) {
-                    logger.info("recovered [{}] indices into cluster_state, allocating", clusterState.metaData().indices().size());
+                    logger.info("recovered [{}] indices into cluster_state", clusterState.metaData().indices().size());
                     latch.countDown();
                 }
             });

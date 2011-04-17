@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.*;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.compress.lzf.LZFEncoder;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 
 /**
  * @author kimchy (shay.banon)
@@ -80,6 +82,12 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
         }
     }
 
+    private ThreadLocal<ArrayDeque<Field>> fieldCache = new ThreadLocal<ArrayDeque<Field>>() {
+        @Override protected ArrayDeque<Field> initialValue() {
+            return new ArrayDeque<Field>();
+        }
+    };
+
     private final boolean enabled;
 
     private Boolean compress;
@@ -126,7 +134,19 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
                 context.source(data);
             }
         }
-        return new Field(names.indexName(), data);
+        ArrayDeque<Field> cache = fieldCache.get();
+        Field field = cache.poll();
+        if (field == null) {
+            field = new Field(names().indexName(), Bytes.EMPTY_ARRAY);
+        }
+        field.setValue(data);
+        return field;
+    }
+
+    @Override public void processFieldAfterIndex(Fieldable field) {
+        Field field1 = (Field) field;
+        field1.setValue(Bytes.EMPTY_ARRAY);
+        fieldCache.get().add(field1);
     }
 
     @Override public byte[] value(Document document) {
@@ -179,6 +199,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements or
             }
             return FieldSelectorResult.NO_LOAD;
         }
+    }
+
+    @Override public void close() {
+        fieldCache.remove();
     }
 
     @Override protected String contentType() {

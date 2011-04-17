@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -517,6 +518,16 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         }
     }
 
+    @Override public void processDocumentAfterIndex(Document doc) {
+        for (Fieldable field : doc.getFields()) {
+            FieldMappers fieldMappers = mappers().indexName(field.name());
+            FieldMapper mapper = fieldMappers.mapper();
+            if (mapper != null) {
+                mapper.processFieldAfterIndex(field);
+            }
+        }
+    }
+
     @Override public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
         XContentDocumentMapper xContentMergeWith = (XContentDocumentMapper) mergeWith;
         MergeContext mergeContext = new MergeContext(this, mergeFlags);
@@ -546,6 +557,17 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         } catch (Exception e) {
             throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
         }
+    }
+
+    @Override public void close() {
+        rootObjectMapper.close();
+        idFieldMapper.close();
+        indexFieldMapper.close();
+        typeFieldMapper.close();
+        allFieldMapper.close();
+        analyzerMapper.close();
+        sourceFieldMapper.close();
+        sizeFieldMapper.close();
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -59,6 +59,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
         }
     }
 
+    private ThreadLocal<UidField> fieldCache = new ThreadLocal<UidField>() {
+        @Override protected UidField initialValue() {
+            return new UidField(names().indexName(), "", 0);
+        }
+    };
+
     protected UidFieldMapper() {
         this(Defaults.NAME);
     }
@@ -77,7 +83,9 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
             throw new MapperParsingException("No id found while parsing the content source");
         }
         context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
-        return new UidField(names().indexName(), context.uid(), 0); // version get updated by the engine
+        UidField field = fieldCache.get();
+        field.setUid(context.uid());
+        return field; // version get updated by the engine
     }
 
     @Override public Uid value(Fieldable field) {
@@ -102,6 +110,10 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
 
     @Override public Term term(String uid) {
         return new Term(names.indexName(), uid);
+    }
+
+    @Override public void close() {
+        fieldCache.remove();
     }
 
     @Override protected String contentType() {

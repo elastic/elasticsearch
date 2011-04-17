@@ -417,4 +417,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
     }
 
     protected abstract String contentType();
+
+    @Override public void close() {
+        // nothing to do here, sub classes to override if needed
+    }
+
+    public void processFieldAfterIndex(Fieldable field) {
+
+    }
 }

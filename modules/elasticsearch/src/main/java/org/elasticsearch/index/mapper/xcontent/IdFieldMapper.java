@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 
 /**
  * @author kimchy (shay.banon)
@@ -60,6 +61,12 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements org.el
             return new IdFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
         }
     }
+
+    private final ThreadLocal<ArrayDeque<Field>> fieldCache = new ThreadLocal<ArrayDeque<Field>>() {
+        @Override protected ArrayDeque<Field> initialValue() {
+            return new ArrayDeque<Field>();
+        }
+    };
 
     protected IdFieldMapper() {
         this(Defaults.NAME, Defaults.INDEX_NAME);
@@ -105,19 +112,41 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements org.el
             }
             context.id(id);
             context.parsedId(ParseContext.ParsedIdState.PARSED);
-            return new Field(names.indexName(), context.id(), store, index);
+            ArrayDeque<Field> cache = fieldCache.get();
+            Field field = cache.poll();
+            if (field == null) {
+                field = new Field(names.indexName(), "", store, index);
+            }
+            field.setValue(context.id());
+            return field;
         } else if (context.parsedIdState() == ParseContext.ParsedIdState.EXTERNAL) {
             if (context.id() == null) {
                 throw new MapperParsingException("No id mapping with [" + names.name() + "] found in the content, and not explicitly set");
             }
-            return new Field(names.indexName(), context.id(), store, index);
+            ArrayDeque<Field> cache = fieldCache.get();
+            Field field = cache.poll();
+            if (field == null) {
+                field = new Field(names.indexName(), "", store, index);
+            }
+            field.setValue(context.id());
+            return field;
         } else {
             throw new MapperParsingException("Illegal parsed id state");
         }
     }
 
+    @Override public void processFieldAfterIndex(Fieldable field) {
+        Field field1 = (Field) field;
+        field1.setValue("");
+        fieldCache.get().add(field1);
+    }
+
     @Override protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override public void close() {
+        fieldCache.remove();
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

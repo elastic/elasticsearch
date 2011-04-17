@@ -308,6 +308,10 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             if (!field.isIndexed()) {
                 continue;
             }
+            // no need to index the UID field
+            if (field.name().equals(UidFieldMapper.NAME)) {
+                continue;
+            }
             TokenStream tokenStream = field.tokenStreamValue();
             if (tokenStream != null) {
                 memoryIndex.addField(field.name(), tokenStream, field.getBoost());

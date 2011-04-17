@@ -254,6 +254,15 @@ public class MultiFieldMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
+    @Override public void close() {
+        if (defaultMapper != null) {
+            defaultMapper.close();
+        }
+        for (XContentMapper mapper : mappers.values()) {
+            mapper.close();
+        }
+    }
+
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
         if (defaultMapper != null) {
             defaultMapper.traverse(fieldMapperListener);

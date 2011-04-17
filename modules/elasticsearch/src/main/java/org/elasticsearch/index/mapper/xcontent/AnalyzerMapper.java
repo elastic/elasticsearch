@@ -121,4 +121,8 @@ public class AnalyzerMapper implements XContentMapper {
         builder.endObject();
         return builder;
     }
+
+    @Override public void close() {
+
+    }
 }

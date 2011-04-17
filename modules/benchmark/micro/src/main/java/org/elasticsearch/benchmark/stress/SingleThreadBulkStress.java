@@ -71,6 +71,8 @@ public class SingleThreadBulkStress {
         client1.admin().indices().prepareCreate("test").setSettings(settings).addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_source").field("enabled", false).endObject()
                 .startObject("_all").field("enabled", false).endObject()
+                .startObject("_type").field("index", "no").endObject()
+                .startObject("_id").field("index", "no").endObject()
                 .startObject("properties")
                 .startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", true).endObject()
 //                .startObject("field").field("index", "analyzed").field("omit_norms", false).endObject()

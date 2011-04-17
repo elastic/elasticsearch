@@ -99,4 +99,6 @@ public interface XContentMapper extends ToXContent {
     void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException;
 
     void traverse(FieldMapperListener fieldMapperListener);
+
+    void close();
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorModule;
@@ -300,6 +301,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indexInjector.getInstance(IndexServiceManagement.class).close();
 
         indexInjector.getInstance(IndexGateway.class).close(delete);
+        indexInjector.getInstance(MapperService.class).close();
 
         Injectors.close(injector);
 

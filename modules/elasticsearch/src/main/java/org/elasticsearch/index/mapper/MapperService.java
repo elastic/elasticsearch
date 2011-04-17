@@ -123,6 +123,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         logger.debug("using dynamic[{}], default mapping: location[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingSource);
     }
 
+    public void close() {
+        for (DocumentMapper documentMapper : mappers.values()) {
+            documentMapper.close();
+        }
+    }
+
     @Override public UnmodifiableIterator<DocumentMapper> iterator() {
         return mappers.values().iterator();
     }
@@ -169,6 +175,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (docMapper == null) {
                 return;
             }
+            docMapper.close();
             mappers = newMapBuilder(mappers).remove(type).immutableMap();
 
             // we need to remove those mappers

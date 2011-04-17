@@ -256,7 +256,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Create(docMapper.uidMapper().term(doc.uid()), doc);
+        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid()), doc);
     }
 
     @Override public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
@@ -276,7 +276,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc);
+        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid()), doc);
     }
 
     @Override public ParsedDocument index(Engine.Index index) throws ElasticSearchException {

@@ -26,7 +26,6 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -83,9 +82,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected Boolean includeInAll;
 
-    private ThreadLocal<ThreadLocals.CleanableValue<NumericTokenStream>> tokenStream = new ThreadLocal<ThreadLocals.CleanableValue<NumericTokenStream>>() {
-        @Override protected ThreadLocals.CleanableValue<NumericTokenStream> initialValue() {
-            return new ThreadLocals.CleanableValue<NumericTokenStream>(new NumericTokenStream(precisionStep));
+    private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
+        @Override protected NumericTokenStream initialValue() {
+            return new NumericTokenStream(precisionStep);
         }
     };
 
@@ -168,10 +167,14 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     }
 
+    @Override public void close() {
+        tokenStream.remove();
+    }
+
     @Override public abstract FieldDataType fieldDataType();
 
     protected NumericTokenStream popCachedStream() {
-        return tokenStream.get().get();
+        return tokenStream.get();
     }
 
     // used to we can use a numeric field in a document that is then parsed twice!

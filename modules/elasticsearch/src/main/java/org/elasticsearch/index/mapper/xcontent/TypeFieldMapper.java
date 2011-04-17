@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 
 /**
  * @author kimchy (shay.banon)
@@ -60,6 +61,12 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
             return new TypeFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
         }
     }
+
+    private final ThreadLocal<ArrayDeque<Field>> fieldCache = new ThreadLocal<ArrayDeque<Field>>() {
+        @Override protected ArrayDeque<Field> initialValue() {
+            return new ArrayDeque<Field>();
+        }
+    };
 
     protected TypeFieldMapper() {
         this(Defaults.NAME, Defaults.INDEX_NAME);
@@ -102,7 +109,21 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
-        return new Field(names.indexName(), context.type(), store, index);
+        ArrayDeque<Field> cache = fieldCache.get();
+        Field field = cache.poll();
+        if (field == null) {
+            field = new Field(names.indexName(), "", store, index);
+        }
+        field.setValue(context.type());
+        return field;
+    }
+
+    @Override public void processFieldAfterIndex(Fieldable field) {
+        fieldCache.get().add((Field) field);
+    }
+
+    @Override public void close() {
+        fieldCache.remove();
     }
 
     @Override protected String contentType() {

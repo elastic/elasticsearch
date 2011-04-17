@@ -167,9 +167,9 @@ public class SimpleEngineBenchmark {
                     .add(field("content", contentItem)).build();
             ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
             if (create) {
-                engine.create(new Engine.Create(new Term("_id", sId), pDoc));
+                engine.create(new Engine.Create(null, new Term("_id", sId), pDoc));
             } else {
-                engine.index(new Engine.Index(new Term("_id", sId), pDoc));
+                engine.index(new Engine.Index(null, new Term("_id", sId), pDoc));
             }
         }
         engine.refresh(new Engine.Refresh(true));
@@ -281,9 +281,9 @@ public class SimpleEngineBenchmark {
                             .add(field("content", content(id))).build();
                     ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
                     if (create) {
-                        engine.create(new Engine.Create(new Term("_id", sId), pDoc));
+                        engine.create(new Engine.Create(null, new Term("_id", sId), pDoc));
                     } else {
-                        engine.index(new Engine.Index(new Term("_id", sId), pDoc));
+                        engine.index(new Engine.Index(null, new Term("_id", sId), pDoc));
                     }
                 }
             } catch (Exception e) {

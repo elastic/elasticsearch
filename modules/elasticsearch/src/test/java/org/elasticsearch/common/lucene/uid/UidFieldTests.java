@@ -58,11 +58,21 @@ public class UidFieldTests {
         assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(1l));
 
         doc = new Document();
-        doc.add(new UidField("_uid", "1", 2));
+        UidField uid = new UidField("_uid", "1", 2);
+        doc.add(uid);
         writer.updateDocument(new Term("_uid", "1"), doc);
         reader = reader.reopen();
         assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(2l));
         assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(2l));
+
+        // test reuse of uid field
+        doc = new Document();
+        uid.version(3);
+        doc.add(uid);
+        writer.updateDocument(new Term("_uid", "1"), doc);
+        reader = reader.reopen();
+        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(3l));
+        assertThat(UidField.loadDocIdAndVersion(reader, new Term("_uid", "1")).version, equalTo(3l));
 
         writer.deleteDocuments(new Term("_uid", "1"));
         reader = reader.reopen();

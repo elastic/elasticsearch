@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Nullable;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
  */
 @ThreadSafe
 public interface DocumentMapper {
+
+    void close();
 
     String type();
 
@@ -130,6 +133,8 @@ public interface DocumentMapper {
      * Adds a field mapper listener.
      */
     void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting);
+
+    void processDocumentAfterIndex(Document doc);
 
     /**
      * A result of a merge.

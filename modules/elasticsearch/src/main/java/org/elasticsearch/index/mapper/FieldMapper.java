@@ -168,4 +168,6 @@ public interface FieldMapper<T> {
     Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
     FieldDataType fieldDataType();
+
+    void processFieldAfterIndex(Fieldable field);
 }

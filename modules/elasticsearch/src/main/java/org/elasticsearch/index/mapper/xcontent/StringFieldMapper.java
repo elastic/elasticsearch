@@ -89,6 +89,15 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
         }
     }
 
+    static class FieldWrapper {
+        public Field field;
+    }
+
+    private ThreadLocal<FieldWrapper> fieldCache = new ThreadLocal<FieldWrapper>() {
+        @Override protected FieldWrapper initialValue() {
+            return new FieldWrapper();
+        }
+    };
 
     private String nullValue;
 
@@ -147,7 +156,28 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
             context.ignoredValue(names.indexName(), value);
             return null;
         }
-        return new Field(names.indexName(), value, store, index, termVector);
+        FieldWrapper fieldWrapper = fieldCache.get();
+        Field field = fieldWrapper.field;
+        if (field == null) {
+            field = new Field(names.indexName(), false, value, store, index, termVector);
+        } else {
+            field.setValue(value);
+            fieldWrapper.field = null;
+        }
+        return field;
+    }
+
+    @Override public void processFieldAfterIndex(Fieldable field) {
+        FieldWrapper fieldWrapper = fieldCache.get();
+        if (fieldWrapper.field == null) {
+            Field field1 = (Field) field;
+            field1.setValue("");
+            fieldWrapper.field = field1;
+        }
+    }
+
+    @Override public void close() {
+        fieldCache.remove();
     }
 
     @Override protected String contentType() {

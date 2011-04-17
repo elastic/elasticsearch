@@ -578,6 +578,12 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
 
     }
 
+    @Override public void close() {
+        for (XContentMapper mapper : mappers.values()) {
+            mapper.close();
+        }
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         toXContent(builder, params, null, XContentMapper.EMPTY_ARRAY);
         return builder;

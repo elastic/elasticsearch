@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.lucene.uid;
 
-import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
@@ -29,7 +29,6 @@ import org.apache.lucene.index.Payload;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermPositions;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
@@ -116,19 +115,26 @@ public class UidField extends AbstractField {
         }
     }
 
-    private final String uid;
+    private String uid;
 
     private long version;
+
+    private final UidPayloadTokenStream tokenStream;
 
     public UidField(String name, String uid, long version) {
         super(name, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO);
         this.uid = uid;
         this.version = version;
         this.omitTermFreqAndPositions = false;
+        this.tokenStream = new UidPayloadTokenStream(this);
     }
 
     @Override public void setOmitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
         // never allow to set this, since we want payload!
+    }
+
+    public void setUid(String uid) {
+        this.uid = uid;
     }
 
     @Override public String stringValue() {
@@ -148,30 +154,34 @@ public class UidField extends AbstractField {
     }
 
     @Override public TokenStream tokenStreamValue() {
-        try {
-            return new UidPayloadTokenStream(Lucene.KEYWORD_ANALYZER.reusableTokenStream("_uid", new FastStringReader(uid)), this);
-        } catch (IOException e) {
-            throw new RuntimeException("failed to create token stream", e);
-        }
+        return tokenStream;
     }
 
-    public static final class UidPayloadTokenStream extends TokenFilter {
+    public static final class UidPayloadTokenStream extends TokenStream {
 
-        private final PayloadAttribute payloadAttribute;
+        private final PayloadAttribute payloadAttribute = addAttribute(PayloadAttribute.class);
+        private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
         private final UidField field;
 
-        public UidPayloadTokenStream(TokenStream input, UidField field) {
-            super(input);
+        private boolean added = false;
+
+        public UidPayloadTokenStream(UidField field) {
             this.field = field;
-            payloadAttribute = addAttribute(PayloadAttribute.class);
+        }
+
+        @Override public void reset() throws IOException {
+            added = false;
         }
 
         @Override public final boolean incrementToken() throws IOException {
-            if (!input.incrementToken()) {
+            if (added) {
                 return false;
             }
+            termAtt.setLength(0);
+            termAtt.append(field.uid);
             payloadAttribute.setPayload(new Payload(Numbers.longToBytes(field.version())));
+            added = true;
             return true;
         }
     }

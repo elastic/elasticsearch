@@ -137,7 +137,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // create a document
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
         searchResult = engine.searcher();
@@ -156,7 +156,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // now do an update
         doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.index(new Engine.Index(newUid("1"), doc));
+        engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
         searchResult = engine.searcher();
@@ -195,7 +195,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // add it back
         doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
         searchResult = engine.searcher();
@@ -220,7 +220,7 @@ public abstract class AbstractSimpleEngineTests {
         // make sure we can still work with the engine
         // now do an update
         doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.index(new Engine.Index(newUid("1"), doc));
+        engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
         searchResult = engine.searcher();
@@ -248,7 +248,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // create a document
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
         searchResult = engine.searcher();
@@ -281,7 +281,7 @@ public abstract class AbstractSimpleEngineTests {
     @Test public void testSimpleSnapshot() throws Exception {
         // create a document
         ParsedDocument doc1 = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc1));
+        engine.create(new Engine.Create(null, newUid("1"), doc1));
 
         final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -297,10 +297,10 @@ public abstract class AbstractSimpleEngineTests {
                     @Override public Object call() throws Exception {
                         engine.flush(new Engine.Flush());
                         ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, doc().add(uidField("2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
-                        engine.create(new Engine.Create(newUid("2"), doc2));
+                        engine.create(new Engine.Create(null, newUid("2"), doc2));
                         engine.flush(new Engine.Flush());
                         ParsedDocument doc3 = new ParsedDocument("3", "3", "test", null, doc().add(uidField("3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
-                        engine.create(new Engine.Create(newUid("3"), doc3));
+                        engine.create(new Engine.Create(null, newUid("3"), doc3));
                         return null;
                     }
                 });
@@ -335,7 +335,7 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testSimpleRecover() throws Exception {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc));
+        engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush(new Engine.Flush());
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -376,10 +376,10 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
         ParsedDocument doc1 = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc1));
+        engine.create(new Engine.Create(null, newUid("1"), doc1));
         engine.flush(new Engine.Flush());
         ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, doc().add(uidField("2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
-        engine.create(new Engine.Create(newUid("2"), doc2));
+        engine.create(new Engine.Create(null, newUid("2"), doc2));
 
         engine.recover(new Engine.RecoveryHandler() {
             @Override public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
@@ -403,10 +403,10 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
         ParsedDocument doc1 = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(newUid("1"), doc1));
+        engine.create(new Engine.Create(null, newUid("1"), doc1));
         engine.flush(new Engine.Flush());
         ParsedDocument doc2 = new ParsedDocument("2", "2", "test", null, doc().add(uidField("2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_2, false);
-        engine.create(new Engine.Create(newUid("2"), doc2));
+        engine.create(new Engine.Create(null, newUid("2"), doc2));
 
         engine.recover(new Engine.RecoveryHandler() {
             @Override public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
@@ -420,7 +420,7 @@ public abstract class AbstractSimpleEngineTests {
 
                 // add for phase3
                 ParsedDocument doc3 = new ParsedDocument("3", "3", "test", null, doc().add(uidField("3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_3, false);
-                engine.create(new Engine.Create(newUid("3"), doc3));
+                engine.create(new Engine.Create(null, newUid("3"), doc3));
             }
 
             @Override public void phase3(Translog.Snapshot snapshot) throws EngineException {
@@ -437,59 +437,59 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningNewCreate() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Create create = new Engine.Create(newUid("1"), doc);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
-        create = new Engine.Create(newUid("1"), doc).version(create.version()).origin(REPLICA);
+        create = new Engine.Create(null, newUid("1"), doc).version(create.version()).origin(REPLICA);
         replicaEngine.create(create);
         assertThat(create.version(), equalTo(1l));
     }
 
     @Test public void testExternalVersioningNewCreate() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Create create = new Engine.Create(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
         engine.create(create);
         assertThat(create.version(), equalTo(12l));
 
-        create = new Engine.Create(newUid("1"), doc).version(create.version()).origin(REPLICA);
+        create = new Engine.Create(null, newUid("1"), doc).version(create.version()).origin(REPLICA);
         replicaEngine.create(create);
         assertThat(create.version(), equalTo(12l));
     }
 
     @Test public void testVersioningNewIndex() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(newUid("1"), doc).version(index.version()).origin(REPLICA);
+        index = new Engine.Index(null, newUid("1"), doc).version(index.version()).origin(REPLICA);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(1l));
     }
 
     @Test public void testExternalVersioningNewIndex() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
 
-        index = new Engine.Index(newUid("1"), doc).version(index.version()).origin(REPLICA);
+        index = new Engine.Index(null, newUid("1"), doc).version(index.version()).origin(REPLICA);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(12l));
     }
 
     @Test public void testVersioningIndexConflict() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(newUid("1"), doc);
+        index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
-        index = new Engine.Index(newUid("1"), doc).version(1l);
+        index = new Engine.Index(null, newUid("1"), doc).version(1l);
         try {
             engine.index(index);
             assert false;
@@ -498,7 +498,7 @@ public abstract class AbstractSimpleEngineTests {
         }
 
         // future versions should not work as well
-        index = new Engine.Index(newUid("1"), doc).version(3l);
+        index = new Engine.Index(null, newUid("1"), doc).version(3l);
         try {
             engine.index(index);
             assert false;
@@ -509,15 +509,15 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testExternalVersioningIndexConflict() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
 
-        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
+        index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
         engine.index(index);
         assertThat(index.version(), equalTo(14l));
 
-        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13l);
+        index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13l);
         try {
             engine.index(index);
             assert false;
@@ -528,17 +528,17 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningIndexConflictWithFlush() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(newUid("1"), doc);
+        index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
         engine.flush(new Engine.Flush());
 
-        index = new Engine.Index(newUid("1"), doc).version(1l);
+        index = new Engine.Index(null, newUid("1"), doc).version(1l);
         try {
             engine.index(index);
             assert false;
@@ -547,7 +547,7 @@ public abstract class AbstractSimpleEngineTests {
         }
 
         // future versions should not work as well
-        index = new Engine.Index(newUid("1"), doc).version(3l);
+        index = new Engine.Index(null, newUid("1"), doc).version(3l);
         try {
             engine.index(index);
             assert false;
@@ -558,17 +558,17 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testExternalVersioningIndexConflictWithFlush() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
 
-        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
+        index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
         engine.index(index);
         assertThat(index.version(), equalTo(14l));
 
         engine.flush(new Engine.Flush());
 
-        index = new Engine.Index(newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13);
+        index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13);
         try {
             engine.index(index);
             assert false;
@@ -579,11 +579,11 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningDeleteConflict() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(newUid("1"), doc);
+        index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
@@ -610,7 +610,7 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(delete.version(), equalTo(3l));
 
         // now check if we can index to a delete doc with version
-        index = new Engine.Index(newUid("1"), doc).version(2l);
+        index = new Engine.Index(null, newUid("1"), doc).version(2l);
         try {
             engine.index(index);
             assert false;
@@ -619,7 +619,7 @@ public abstract class AbstractSimpleEngineTests {
         }
 
         // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(newUid("1"), doc).version(2l);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc).version(2l);
         try {
             engine.create(create);
         } catch (VersionConflictEngineException e) {
@@ -629,11 +629,11 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningDeleteConflictWithFlush() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(newUid("1"), doc);
+        index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
@@ -666,7 +666,7 @@ public abstract class AbstractSimpleEngineTests {
         engine.flush(new Engine.Flush());
 
         // now check if we can index to a delete doc with version
-        index = new Engine.Index(newUid("1"), doc).version(2l);
+        index = new Engine.Index(null, newUid("1"), doc).version(2l);
         try {
             engine.index(index);
             assert false;
@@ -675,7 +675,7 @@ public abstract class AbstractSimpleEngineTests {
         }
 
         // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(newUid("1"), doc).version(2l);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc).version(2l);
         try {
             engine.create(create);
         } catch (VersionConflictEngineException e) {
@@ -685,11 +685,11 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningCreateExistsException() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Create create = new Engine.Create(newUid("1"), doc);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
-        create = new Engine.Create(newUid("1"), doc);
+        create = new Engine.Create(null, newUid("1"), doc);
         try {
             engine.create(create);
             assert false;
@@ -700,13 +700,13 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningCreateExistsExceptionWithFlush() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Create create = new Engine.Create(newUid("1"), doc);
+        Engine.Create create = new Engine.Create(null, newUid("1"), doc);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
         engine.flush(new Engine.Flush());
 
-        create = new Engine.Create(newUid("1"), doc);
+        create = new Engine.Create(null, newUid("1"), doc);
         try {
             engine.create(create);
             assert false;
@@ -717,21 +717,21 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningReplicaConflict1() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(newUid("1"), doc);
+        index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
         // apply the second index to the replica, should work fine
-        index = new Engine.Index(newUid("1"), doc).version(2l).origin(REPLICA);
+        index = new Engine.Index(null, newUid("1"), doc).version(2l).origin(REPLICA);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(2l));
 
         // now, the old one should not work
-        index = new Engine.Index(newUid("1"), doc).version(1l).origin(REPLICA);
+        index = new Engine.Index(null, newUid("1"), doc).version(1l).origin(REPLICA);
         try {
             replicaEngine.index(index);
             assert false;
@@ -741,7 +741,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // second version on replica should fail as well
         try {
-            index = new Engine.Index(newUid("1"), doc).version(2l).origin(REPLICA);
+            index = new Engine.Index(null, newUid("1"), doc).version(2l).origin(REPLICA);
             replicaEngine.index(index);
             assertThat(index.version(), equalTo(2l));
         } catch (VersionConflictEngineException e) {
@@ -751,17 +751,17 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testVersioningReplicaConflict2() {
         ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(newUid("1"), doc);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
         // apply the first index to the replica, should work fine
-        index = new Engine.Index(newUid("1"), doc).version(1l).origin(REPLICA);
+        index = new Engine.Index(null, newUid("1"), doc).version(1l).origin(REPLICA);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(1l));
 
         // index it again
-        index = new Engine.Index(newUid("1"), doc);
+        index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
@@ -786,7 +786,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // now do the second index on the replica, it should fail
         try {
-            index = new Engine.Index(newUid("1"), doc).version(2l).origin(REPLICA);
+            index = new Engine.Index(null, newUid("1"), doc).version(2l).origin(REPLICA);
             replicaEngine.index(index);
             assertThat(index.version(), equalTo(2l));
         } catch (VersionConflictEngineException e) {

@@ -105,21 +105,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
-                    if (request.origin == Request.Origin.API) {
-                        try {
-                            validate(request, currentState);
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                            return currentState;
-                        }
+                    try {
+                        validate(request, currentState);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return currentState;
                     }
 
                     List<IndexTemplateMetaData> templates = ImmutableList.of();
                     // we only find a template when its an API call (a new index)
-                    if (request.origin == Request.Origin.API) {
-                        // find templates, highest order are better matching
-                        templates = findTemplates(request, currentState);
-                    }
+                    // find templates, highest order are better matching
+                    templates = findTemplates(request, currentState);
 
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
@@ -139,20 +135,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     // now add config level mappings
-                    if (request.origin == Request.Origin.API) {
-                        File mappingsDir = new File(environment.configFile(), "mappings");
-                        if (mappingsDir.exists() && mappingsDir.isDirectory()) {
-                            // first index level
-                            File indexMappingsDir = new File(mappingsDir, request.index);
-                            if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
-                                addMappings(mappings, indexMappingsDir);
-                            }
+                    File mappingsDir = new File(environment.configFile(), "mappings");
+                    if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                        // first index level
+                        File indexMappingsDir = new File(mappingsDir, request.index);
+                        if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
+                            addMappings(mappings, indexMappingsDir);
+                        }
 
-                            // second is the _default mapping
-                            File defaultMappingsDir = new File(mappingsDir, "_default");
-                            if (defaultMappingsDir.exists() && defaultMappingsDir.isDirectory()) {
-                                addMappings(mappings, defaultMappingsDir);
-                            }
+                        // second is the _default mapping
+                        File defaultMappingsDir = new File(mappingsDir, "_default");
+                        if (defaultMappingsDir.exists() && defaultMappingsDir.isDirectory()) {
+                            addMappings(mappings, defaultMappingsDir);
                         }
                     }
 
@@ -249,7 +243,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         blocks.addIndexBlock(request.index, MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
                     }
 
-                    return newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
+                    ClusterState updatedState = newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
+
+                    if (request.state == State.OPEN) {
+                        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable());
+                        IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
+                                .initializeEmpty(updatedState.metaData().index(request.index), true);
+                        routingTableBuilder.add(indexRoutingBuilder);
+                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                        updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                    }
+
+                    return updatedState;
                 } catch (Exception e) {
                     logger.warn("[{}] failed to create", e, request.index);
                     listener.onFailure(e);
@@ -258,29 +263,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
-                if (request.state == State.CLOSE) { // no need to do shard allocated when closed...
-                    listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
-                    return;
-                }
-                if (!request.rerouteAfterCreation) {
-                    listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
-                    return;
-                }
-                clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
-                        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
-                        IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
-                                .initializeEmpty(currentState.metaData().index(request.index), request.origin == Request.Origin.API);
-                        routingTableBuilder.add(indexRoutingBuilder);
-                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
-                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
-                    }
-
-                    @Override public void clusterStateProcessed(ClusterState clusterState) {
-                        logger.info("[{}] created and added to cluster_state", request.index);
-                        listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
-                    }
-                });
+                listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
             }
         });
     }
@@ -360,13 +343,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     public static class Request {
 
-        public static enum Origin {
-            API,
-            GATEWAY
-        }
-
-        final Origin origin;
-
         final String cause;
 
         final String index;
@@ -381,10 +357,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         Set<ClusterBlock> blocks = Sets.newHashSet();
 
-        boolean rerouteAfterCreation = true;
-
-        public Request(Origin origin, String cause, String index) {
-            this.origin = origin;
+        public Request(String cause, String index) {
             this.cause = cause;
             this.index = index;
         }
@@ -425,11 +398,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request timeout(TimeValue timeout) {
             this.timeout = timeout;
-            return this;
-        }
-
-        public Request rerouteAfterCreation(boolean rerouteAfterCreation) {
-            this.rerouteAfterCreation = rerouteAfterCreation;
             return this;
         }
     }

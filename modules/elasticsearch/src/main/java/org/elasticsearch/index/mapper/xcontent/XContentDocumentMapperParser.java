@@ -221,6 +221,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         return builder;
     }
 
+    // NOTE, we also parse this in MappingMetaData
     private RoutingFieldMapper.Builder parseRoutingField(Map<String, Object> routingNode, XContentMapper.TypeParser.ParserContext parserContext) {
         RoutingFieldMapper.Builder builder = routing();
         parseField(builder, builder.name, routingNode, parserContext);

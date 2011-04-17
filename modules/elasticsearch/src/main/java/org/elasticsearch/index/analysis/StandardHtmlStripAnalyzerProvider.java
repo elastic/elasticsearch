@@ -28,22 +28,16 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  * @author kimchy (shay.banon)
  */
-public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
+public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
-    private final CustomAnalyzer analyzer;
+    private final StandardHtmlStripAnalyzer analyzer;
 
     @Inject public StandardHtmlStripAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new CustomAnalyzer(new StandardTokenizerFactory(index, indexSettings, name, settings),
-                new CharFilterFactory[]{new HtmlStripCharFilterFactory(index, indexSettings, name, settings)},
-                new TokenFilterFactory[]{
-                        new StandardTokenFilterFactory(index, indexSettings, name, settings),
-                        new LowerCaseTokenFilterFactory(index, indexSettings, name, settings),
-                        new StopTokenFilterFactory(index, indexSettings, name, settings)
-                });
+        analyzer = new StandardHtmlStripAnalyzer(version);
     }
 
-    @Override public CustomAnalyzer get() {
+    @Override public StandardHtmlStripAnalyzer get() {
         return this.analyzer;
     }
 }

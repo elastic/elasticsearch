@@ -19,14 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.common.settings.Settings;
 
-/**
- * @author kimchy (Shay Banon)
- */
-public interface TokenFilterFactory {
+public class PreBuiltTokenizerFactoryFactory implements TokenizerFactoryFactory {
 
-    String name();
+    private final TokenizerFactory tokenizerFactory;
 
-    TokenStream create(TokenStream tokenStream);
+    public PreBuiltTokenizerFactoryFactory(TokenizerFactory tokenizerFactory) {
+        this.tokenizerFactory = tokenizerFactory;
+    }
+
+    @Override public TokenizerFactory create(String name, Settings settings) {
+        return tokenizerFactory;
+    }
 }

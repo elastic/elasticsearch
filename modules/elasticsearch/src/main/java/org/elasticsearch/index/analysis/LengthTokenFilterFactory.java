@@ -40,7 +40,7 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);
-        enablePositionIncrements = settings.getAsBoolean("enabled_position_increments", false);
+        enablePositionIncrements = settings.getAsBoolean("enabled_position_increments", true);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

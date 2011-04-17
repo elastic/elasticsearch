@@ -80,15 +80,21 @@ public class AnalysisModule extends AbstractModule {
         public static class TokenizersBindings {
             private final MapBinder<String, TokenizerFactoryFactory> binder;
             private final Map<String, Settings> groupSettings;
+            private final IndicesAnalysisService indicesAnalysisService;
 
-            public TokenizersBindings(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings) {
+            public TokenizersBindings(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings, IndicesAnalysisService indicesAnalysisService) {
                 this.binder = binder;
                 this.groupSettings = groupSettings;
+                this.indicesAnalysisService = indicesAnalysisService;
             }
 
             public void processTokenizer(String name, Class<? extends TokenizerFactory> tokenizerFactory) {
                 if (!groupSettings.containsKey(name)) {
-                    binder.addBinding(name).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, tokenizerFactory)).in(Scopes.SINGLETON);
+                    if (indicesAnalysisService != null && indicesAnalysisService.hasTokenizer(name)) {
+                        binder.addBinding(name).toInstance(indicesAnalysisService.tokenizerFactoryFactory(name));
+                    } else {
+                        binder.addBinding(name).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, tokenizerFactory)).in(Scopes.SINGLETON);
+                    }
                 }
             }
         }
@@ -190,7 +196,11 @@ public class AnalysisModule extends AbstractModule {
                 continue;
             }
             // register it as default under the name
-            charFilterBinder.addBinding(charFilterName).toProvider(FactoryProvider.newFactory(CharFilterFactoryFactory.class, clazz)).in(Scopes.SINGLETON);
+            if (indicesAnalysisService != null && indicesAnalysisService.hasCharFilter(charFilterName)) {
+                charFilterBinder.addBinding(charFilterName).toInstance(indicesAnalysisService.charFilterFactoryFactory(charFilterName));
+            } else {
+                charFilterBinder.addBinding(charFilterName).toProvider(FactoryProvider.newFactory(CharFilterFactoryFactory.class, clazz)).in(Scopes.SINGLETON);
+            }
         }
 
 
@@ -237,7 +247,11 @@ public class AnalysisModule extends AbstractModule {
                 continue;
             }
             // register it as default under the name
-            tokenFilterBinder.addBinding(tokenFilterName).toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, clazz)).in(Scopes.SINGLETON);
+            if (indicesAnalysisService != null && indicesAnalysisService.hasTokenFilter(tokenFilterName)) {
+                tokenFilterBinder.addBinding(tokenFilterName).toInstance(indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName));
+            } else {
+                tokenFilterBinder.addBinding(tokenFilterName).toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, clazz)).in(Scopes.SINGLETON);
+            }
         }
 
         // TOKENIZER
@@ -257,7 +271,7 @@ public class AnalysisModule extends AbstractModule {
             tokenizerBinder.addBinding(tokenizerName).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
 
-        AnalysisBinderProcessor.TokenizersBindings tokenizersBindings = new AnalysisBinderProcessor.TokenizersBindings(tokenizerBinder, tokenizersSettings);
+        AnalysisBinderProcessor.TokenizersBindings tokenizersBindings = new AnalysisBinderProcessor.TokenizersBindings(tokenizerBinder, tokenizersSettings, indicesAnalysisService);
         for (AnalysisBinderProcessor processor : processors) {
             processor.processTokenizers(tokenizersBindings);
         }
@@ -331,8 +345,6 @@ public class AnalysisModule extends AbstractModule {
             tokenizersBindings.processTokenizer("letter", LetterTokenizerFactory.class);
             tokenizersBindings.processTokenizer("lowercase", LowerCaseTokenizerFactory.class);
             tokenizersBindings.processTokenizer("whitespace", WhitespaceTokenizerFactory.class);
-            tokenizersBindings.processTokenizer("russian_letter", RussianLetterTokenizerFactory.class);
-            tokenizersBindings.processTokenizer("russianLetter", RussianLetterTokenizerFactory.class);
 
             tokenizersBindings.processTokenizer("nGram", NGramTokenizerFactory.class);
             tokenizersBindings.processTokenizer("ngram", NGramTokenizerFactory.class);

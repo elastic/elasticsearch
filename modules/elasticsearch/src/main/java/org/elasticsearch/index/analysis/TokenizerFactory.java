@@ -20,14 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.index.IndexComponent;
 
 import java.io.Reader;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface TokenizerFactory extends IndexComponent {
+public interface TokenizerFactory {
 
     String name();
 

@@ -19,26 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ru.RussianLetterTokenizer;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
+public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactory {
 
-/**
- * @author kimchy (shay.banon)
- */
-public class RussianLetterTokenizerFactory extends AbstractTokenizerFactory {
+    private final CharFilterFactory charFilterFactory;
 
-    @Inject public RussianLetterTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PreBuiltCharFilterFactoryFactory(CharFilterFactory charFilterFactory) {
+        this.charFilterFactory = charFilterFactory;
     }
 
-    @Override public Tokenizer create(Reader reader) {
-        return new RussianLetterTokenizer(reader);
+    @Override public CharFilterFactory create(String name, Settings settings) {
+        return charFilterFactory;
     }
 }

@@ -58,7 +58,7 @@ public class UidField extends AbstractField {
         try {
             uid = reader.termPositions(term);
             if (!uid.next()) {
-                return new DocIdAndVersion(Lucene.NO_DOC, -1, reader);
+                return null; // no doc
             }
             docId = uid.doc();
             uid.nextPosition();

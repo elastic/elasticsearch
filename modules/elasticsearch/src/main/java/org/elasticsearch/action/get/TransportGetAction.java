@@ -248,8 +248,8 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 continue;
             }
             UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(reader, uid);
-            // either -2 (its there, but no version associated), or an actual version
-            if (docIdAndVersion.docId != -1) {
+            // not null if it exists
+            if (docIdAndVersion != null) {
                 return docIdAndVersion;
             }
         }

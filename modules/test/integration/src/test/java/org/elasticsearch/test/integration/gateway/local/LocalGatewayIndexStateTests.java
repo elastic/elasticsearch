@@ -146,7 +146,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+            client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
             assert false;
         } catch (ClusterBlockException e) {
             // all is well
@@ -200,7 +200,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+            client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
             assert false;
         } catch (ClusterBlockException e) {
             // all is well

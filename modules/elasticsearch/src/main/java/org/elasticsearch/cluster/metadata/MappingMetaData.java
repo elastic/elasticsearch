@@ -23,15 +23,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class MappingMetaData {
+
+    private static ESLogger logger = ESLoggerFactory.getLogger(MappingMetaData.class.getName());
 
     public static class Routing {
 
@@ -82,10 +90,30 @@ public class MappingMetaData {
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
     }
 
-    public MappingMetaData(String type, CompressedString source) {
+    public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
-        this.source = source;
-        this.routing = Routing.EMPTY;
+        this.source = new CompressedString(XContentFactory.jsonBuilder().map(mapping).string());
+        Map<String, Object> withoutType = mapping;
+        if (mapping.size() == 1 && mapping.containsKey(type)) {
+            withoutType = (Map<String, Object>) mapping.get(type);
+        }
+        if (withoutType.containsKey("_routing")) {
+            boolean required = false;
+            String path = null;
+            Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
+            for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("required")) {
+                    required = nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("path")) {
+                    path = fieldNode.toString();
+                }
+            }
+            this.routing = new Routing(required, path);
+        } else {
+            this.routing = Routing.EMPTY;
+        }
     }
 
     MappingMetaData(String type, CompressedString source, Routing routing) {

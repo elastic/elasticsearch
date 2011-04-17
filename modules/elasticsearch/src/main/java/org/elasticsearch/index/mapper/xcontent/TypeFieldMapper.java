@@ -58,7 +58,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
         }
 
         @Override public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
+            return new TypeFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
         }
     }
 
@@ -73,13 +73,13 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
     }
 
     protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
+        this(name, indexName, Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS);
     }
 
-    public TypeFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
+    public TypeFieldMapper(String name, String indexName, Field.Index index, Field.Store store, Field.TermVector termVector,
                            float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
+        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
@@ -109,6 +109,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
+        if (index == Field.Index.NO && store == Field.Store.NO) {
+            return null;
+        }
         ArrayDeque<Field> cache = fieldCache.get();
         Field field = cache.poll();
         if (field == null) {
@@ -132,12 +135,15 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (store == Defaults.STORE) {
+        if (store == Defaults.STORE && index == Defaults.INDEX) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (store != Defaults.STORE) {
             builder.field("store", store.name().toLowerCase());
+        }
+        if (index != Defaults.INDEX) {
+            builder.field("index", index.name().toLowerCase());
         }
         builder.endObject();
         return builder;

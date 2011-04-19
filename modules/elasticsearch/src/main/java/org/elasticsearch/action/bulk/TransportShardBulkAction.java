@@ -105,8 +105,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         final BulkShardRequest request = shardRequest.request;
         IndexShard indexShard = indexShard(shardRequest);
 
-        Engine.IndexingOperation[] ops = new Engine.IndexingOperation[request.items().length];
-
+        Engine.IndexingOperation[] ops = null;
 
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         for (int i = 0; i < request.items().length; i++) {
@@ -201,6 +200,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Override protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse> response) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Engine.IndexingOperation[] ops = (Engine.IndexingOperation[]) response.payload();
+        if (ops == null) {
+            return;
+        }
         for (int i = 0; i < ops.length; i++) {
             BulkItemRequest itemRequest = request.items()[i];
             BulkItemResponse itemResponse = response.response().responses()[i];
@@ -210,7 +212,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
             Engine.IndexingOperation op = ops[i];
             if (op == null) {
-                continue; // failed
+                continue; // failed / no matches requested
             }
             if (itemRequest.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) itemRequest.request();

@@ -292,6 +292,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...

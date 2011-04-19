@@ -30,7 +30,6 @@ import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -258,7 +257,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         this.indexAnalyzer = indexAnalyzer;
         this.searchAnalyzer = searchAnalyzer;
 
-        this.typeFilter = new TermFilter(typeMapper().term(type));
+        this.typeFilter = typeMapper().fieldFilter(type);
 
         rootObjectMapper.putMapper(idFieldMapper);
         if (boostFieldMapper != null) {

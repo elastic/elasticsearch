@@ -23,7 +23,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.search.PublicTermsFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -259,11 +262,37 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             return docMapper.typeFilter();
         }
-        PublicTermsFilter termsFilter = new PublicTermsFilter();
+        // see if we can use terms filter
+        boolean useTermsFilter = true;
         for (String type : types) {
-            termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
+            DocumentMapper docMapper = documentMapper(type);
+            if (docMapper == null) {
+                useTermsFilter = false;
+                break;
+            }
+            if (!docMapper.typeMapper().indexed()) {
+                useTermsFilter = false;
+                break;
+            }
         }
-        return termsFilter;
+        if (useTermsFilter) {
+            PublicTermsFilter termsFilter = new PublicTermsFilter();
+            for (String type : types) {
+                termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
+            }
+            return termsFilter;
+        } else {
+            XBooleanFilter bool = new XBooleanFilter();
+            for (String type : types) {
+                DocumentMapper docMapper = documentMapper(type);
+                if (docMapper == null) {
+                    bool.add(new FilterClause(new TermFilter(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD));
+                } else {
+                    bool.add(new FilterClause(docMapper.typeFilter(), BooleanClause.Occur.SHOULD));
+                }
+            }
+            return bool;
+        }
     }
 
     /**

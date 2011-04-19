@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
 import java.io.Reader;
 
@@ -123,7 +124,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * Numeric field level query are basically range queries with same value and included. That's the recommended
      * way to execute it.
      */
-    @Override public Query fieldQuery(String value) {
+    @Override public Query fieldQuery(String value, QueryParseContext context) {
         return rangeQuery(value, value, true, true);
     }
 

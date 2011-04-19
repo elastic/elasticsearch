@@ -27,6 +27,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -97,14 +98,69 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
-    @Test public void idsFilterTests() {
+    @Test public void typeFilterTypeIndexedTests() throws Exception {
+        typeFilterTests("not_analyzed");
+    }
+
+    @Test public void typeFilterTypeNotIndexedTests() throws Exception {
+        typeFilterTests("no");
+    }
+
+    private void typeFilterTests(String index) throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
+                        .startObject("_type").field("index", index).endObject()
+                        .endObject().endObject())
+                .addMapping("type2", jsonBuilder().startObject().startObject("type2")
+                        .startObject("_type").field("index", index).endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        client.prepareIndex("test", "type2", "1").setSource("field1", "value1").execute().actionGet();
+        client.admin().indices().prepareFlush().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
+        client.prepareIndex("test", "type2", "2").setSource("field1", "value1").execute().actionGet();
+        client.prepareIndex("test", "type2", "3").setSource("field1", "value1").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        assertThat(client.prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type1"))).execute().actionGet().count(), equalTo(2l));
+        assertThat(client.prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type2"))).execute().actionGet().count(), equalTo(3l));
+
+        assertThat(client.prepareCount().setTypes("type1").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        assertThat(client.prepareCount().setTypes("type2").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+
+        assertThat(client.prepareCount().setTypes("type1", "type2").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(5l));
+    }
+
+    @Test public void idsFilterTestsIdIndexed() throws Exception {
+        idsFilterTests("not_analyzed");
+    }
+
+    @Test public void idsFilterTestsIdNotIndexed() throws Exception {
+        idsFilterTests("no");
+    }
+
+    private void idsFilterTests(String index) throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
+                        .startObject("_id").field("index", index).endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
         client.admin().indices().prepareFlush().execute().actionGet();

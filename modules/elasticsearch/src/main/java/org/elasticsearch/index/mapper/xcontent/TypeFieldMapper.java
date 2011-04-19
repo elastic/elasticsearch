@@ -23,9 +23,17 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
 import java.io.IOException;
 
@@ -99,6 +107,21 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
 
     @Override public Term term(String value) {
         return new Term(names.indexName(), value);
+    }
+
+    @Override public Filter fieldFilter(String value) {
+        if (index == Field.Index.NO) {
+            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefix(value)));
+        }
+        return new TermFilter(new Term(names.indexName(), value));
+    }
+
+    @Override public Query fieldQuery(String value, QueryParseContext context) {
+        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value)));
+    }
+
+    @Override public boolean useFieldQueryWithQueryString() {
+        return true;
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {

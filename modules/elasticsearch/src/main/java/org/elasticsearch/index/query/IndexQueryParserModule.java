@@ -252,6 +252,7 @@ public class IndexQueryParserModule extends AbstractModule {
 
         @Override public void processXContentFilterParsers(XContentFilterParsersBindings bindings) {
             bindings.processXContentQueryFilter(HasChildFilterParser.NAME, HasChildFilterParser.class);
+            bindings.processXContentQueryFilter(TypeFilterParser.NAME, TypeFilterParser.class);
             bindings.processXContentQueryFilter(IdsFilterParser.NAME, IdsFilterParser.class);
             bindings.processXContentQueryFilter(TermFilterParser.NAME, TermFilterParser.class);
             bindings.processXContentQueryFilter(TermsFilterParser.NAME, TermsFilterParser.class);

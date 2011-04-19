@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.lucene.docset.AllDocSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.NotDocIdSet;
 import org.elasticsearch.common.lucene.docset.NotDocSet;
@@ -45,6 +46,9 @@ public class NotFilter extends Filter {
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         DocIdSet set = filter.getDocIdSet(reader);
+        if (set == null) {
+            return new AllDocSet(reader.maxDoc());
+        }
         if (set instanceof DocSet) {
             return new NotDocSet((DocSet) set, reader.maxDoc());
         }

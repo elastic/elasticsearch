@@ -53,10 +53,19 @@ public class OrFilter extends Filter {
         boolean allAreDocSet = true;
         for (Filter filter : filters) {
             DocIdSet set = filter.getDocIdSet(reader);
+            if (set == null) { // none matching for this filter, continue
+                continue;
+            }
             if (!(set instanceof DocSet)) {
                 allAreDocSet = false;
             }
             sets.add(set);
+        }
+        if (sets.size() == 0) {
+            return DocSet.EMPTY_DOC_SET;
+        }
+        if (sets.size() == 1) {
+            return (DocIdSet) sets.get(0);
         }
         if (allAreDocSet) {
             return new OrDocSet(sets);

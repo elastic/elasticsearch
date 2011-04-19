@@ -521,9 +521,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     @Override public void processDocumentAfterIndex(Document doc) {
         for (Fieldable field : doc.getFields()) {
             FieldMappers fieldMappers = mappers().indexName(field.name());
-            FieldMapper mapper = fieldMappers.mapper();
-            if (mapper != null) {
-                mapper.processFieldAfterIndex(field);
+            if (fieldMappers != null) {
+                FieldMapper mapper = fieldMappers.mapper();
+                if (mapper != null) {
+                    mapper.processFieldAfterIndex(field);
+                }
             }
         }
     }

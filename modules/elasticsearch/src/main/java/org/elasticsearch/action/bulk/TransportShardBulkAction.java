@@ -222,10 +222,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
                     PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
                     ((IndexResponse) itemResponse.response()).matches(percolate.matches());
+                    op.docMapper().processDocumentAfterIndex(op.doc());
                 } catch (Exception e) {
                     logger.warn("failed to percolate [{}]", e, itemRequest.request());
-                } finally {
-                    op.docMapper().processDocumentAfterIndex(op.doc());
                 }
             }
         }

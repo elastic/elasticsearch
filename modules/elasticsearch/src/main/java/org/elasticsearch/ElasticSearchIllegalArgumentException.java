@@ -19,6 +19,8 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.rest.RestStatus;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -34,5 +36,9 @@ public class ElasticSearchIllegalArgumentException extends ElasticSearchExceptio
 
     public ElasticSearchIllegalArgumentException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

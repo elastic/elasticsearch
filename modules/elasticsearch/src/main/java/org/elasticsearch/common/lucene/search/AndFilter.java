@@ -53,6 +53,9 @@ public class AndFilter extends Filter {
         boolean allAreDocSet = true;
         for (Filter filter : filters) {
             DocIdSet set = filter.getDocIdSet(reader);
+            if (set == null) { // none matching for this filter, we AND, so return EMPTY
+                return DocSet.EMPTY_DOC_SET;
+            }
             if (!(set instanceof DocSet)) {
                 allAreDocSet = false;
             }

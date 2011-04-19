@@ -130,7 +130,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                         };
                         nodeIndexDeletedAction.add(nodeIndexDeleteListener);
 
-                        threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
+                        listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
                             @Override public void run() {
                                 listener.onResponse(new Response(false));
                                 nodeIndexDeletedAction.remove(nodeIndexDeleteListener);

@@ -423,8 +423,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     retry(fromDiscoveryListener, shard.shardId());
                     return;
                 }
-                if (logger.isDebugEnabled()) {
-                    logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
+                if (!(e instanceof VersionConflictEngineException)) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
+                    }
                 }
                 listener.onFailure(e);
             }

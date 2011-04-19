@@ -99,7 +99,7 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
         assertThat(getResponse.source(), equalTo(buildSource(10000).copiedBytes()));
 
         for (int i = 1; i < 100; i++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.termQuery("_id", Integer.toString(i))).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(i))).execute().actionGet();
             assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
             assertThat(searchResponse.hits().getAt(0).source(), equalTo(buildSource(i).copiedBytes()));
         }

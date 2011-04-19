@@ -399,7 +399,11 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         @Override public void collect(int doc) throws IOException {
-            String id = fieldData.stringValue(doc);
+            String uid = fieldData.stringValue(doc);
+            if (uid == null) {
+                return;
+            }
+            String id = Uid.idFromUid(uid);
             Query query = queries.get(id);
             if (query == null) {
                 // log???
@@ -417,7 +421,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         }
 
         @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, IdFieldMapper.NAME);
+            // we use the UID because id might not be indexed
+            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, reader, UidFieldMapper.NAME);
         }
 
         @Override public boolean acceptsDocsOutOfOrder() {

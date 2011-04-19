@@ -70,7 +70,6 @@ public class SimpleMapperTests {
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
         assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
-        assertThat(doc.getFields(docMapper.idMapper().names().indexName()).length, equalTo(1));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
@@ -86,7 +85,6 @@ public class SimpleMapperTests {
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
         assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
-        assertThat(doc.getFields(docMapper.idMapper().names().indexName()).length, equalTo(1));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
@@ -99,7 +97,6 @@ public class SimpleMapperTests {
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
         assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
-        assertThat(doc.getFields(docMapper.idMapper().names().indexName()).length, equalTo(1));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }

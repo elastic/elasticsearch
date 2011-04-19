@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
 import java.io.IOException;
 
@@ -316,7 +317,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
         return false;
     }
 
-    @Override public Query fieldQuery(String value) {
+    @Override public Query fieldQuery(String value, QueryParseContext context) {
         return new TermQuery(new Term(names.indexName(), indexedValue(value)));
     }
 

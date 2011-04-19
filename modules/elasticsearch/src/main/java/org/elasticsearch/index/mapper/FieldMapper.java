@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
 /**
  * @author kimchy (shay.banon)
@@ -140,7 +141,7 @@ public interface FieldMapper<T> {
     String indexedValue(String value);
 
     /**
-     * Should the field query {@link #fieldQuery(String)} be used when detecting this
+     * Should the field query {@link #fieldQuery(String, org.elasticsearch.index.query.xcontent.QueryParseContext)}  be used when detecting this
      * field in query string.
      */
     boolean useFieldQueryWithQueryString();
@@ -148,7 +149,7 @@ public interface FieldMapper<T> {
     /**
      * A field query for the specified value.
      */
-    Query fieldQuery(String value);
+    Query fieldQuery(String value, QueryParseContext context);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.

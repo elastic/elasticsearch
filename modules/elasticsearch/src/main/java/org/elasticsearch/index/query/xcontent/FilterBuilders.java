@@ -43,6 +43,13 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * A filter based on doc/mapping type.
+     */
+    public static TypeFilterBuilder typeFilter(String type) {
+        return new TypeFilterBuilder(type);
+    }
+
+    /**
      * A filter for a field based on a term.
      *
      * @param name  The field name

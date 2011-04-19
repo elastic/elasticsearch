@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 
 import java.io.IOException;
 
@@ -106,7 +107,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements org.ela
         return new AllTermQuery(term);
     }
 
-    @Override public Query fieldQuery(String value) {
+    @Override public Query fieldQuery(String value, QueryParseContext context) {
         return new AllTermQuery(new Term(names.indexName(), value));
     }
 

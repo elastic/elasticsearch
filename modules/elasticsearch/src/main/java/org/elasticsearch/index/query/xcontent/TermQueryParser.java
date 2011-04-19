@@ -90,7 +90,7 @@ public class TermQueryParser extends AbstractIndexComponent implements XContentQ
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                query = smartNameFieldMappers.mapper().fieldQuery(value);
+                query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
             }
         }
         if (query == null) {

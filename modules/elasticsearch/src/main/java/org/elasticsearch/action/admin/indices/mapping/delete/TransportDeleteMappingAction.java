@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.xcontent.FilterBuilders;
 import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,7 +95,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter(TypeFieldMapper.NAME, request.type()))), new ActionListener<DeleteByQueryResponse>() {
+        deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.type()))), new ActionListener<DeleteByQueryResponse>() {
             @Override public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
                 refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                     @Override public void onResponse(RefreshResponse refreshResponse) {

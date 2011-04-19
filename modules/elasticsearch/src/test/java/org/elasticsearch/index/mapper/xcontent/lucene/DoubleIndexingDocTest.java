@@ -45,25 +45,25 @@ public class DoubleIndexingDocTest {
         IndexReader reader = writer.getReader();
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().fieldQuery("value1"), 10);
+        TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().fieldQuery("value1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field2").mapper().fieldQuery("1"), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field2").mapper().fieldQuery("1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field3").mapper().fieldQuery("1.1"), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field3").mapper().fieldQuery("1.1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field4").mapper().fieldQuery("2010-01-01"), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field4").mapper().fieldQuery("2010-01-01", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("1"), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("2"), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("2", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("3"), 10);
+        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().fieldQuery("3", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
     }
 }

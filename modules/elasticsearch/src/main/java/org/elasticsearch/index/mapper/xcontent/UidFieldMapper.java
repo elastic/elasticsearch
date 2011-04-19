@@ -83,6 +83,9 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
             throw new MapperParsingException("No id found while parsing the content source");
         }
         context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
+        // so, caching uid stream and field is fine
+        // since we don't do any mapping parsing without immediate indexing
+        // and, when percolating, we don't index the uid
         UidField field = fieldCache.get();
         field.setUid(context.uid());
         return field; // version get updated by the engine

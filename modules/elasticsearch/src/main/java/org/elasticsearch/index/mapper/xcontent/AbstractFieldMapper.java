@@ -422,7 +422,4 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
         // nothing to do here, sub classes to override if needed
     }
 
-    public void processFieldAfterIndex(Fieldable field) {
-
-    }
 }

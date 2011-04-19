@@ -27,12 +27,16 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+
+import static org.elasticsearch.cluster.ClusterState.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,9 +47,12 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    @Inject public MetaDataStateIndexService(Settings settings, ClusterService clusterService) {
+    private final ShardsAllocation shardsAllocation;
+
+    @Inject public MetaDataStateIndexService(Settings settings, ClusterService clusterService, ShardsAllocation shardsAllocation) {
         super(settings);
         this.clusterService = clusterService;
+        this.shardsAllocation = shardsAllocation;
     }
 
     public void closeIndex(final Request request, final Listener listener) {
@@ -106,15 +113,19 @@ public class MetaDataStateIndexService extends AbstractComponent {
                         .metaData(currentState.metaData())
                         .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.OPEN));
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
-                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
-                        .initializeEmpty(currentState.metaData().index(request.index), false);
-                rtBuilder.add(indexRoutingBuilder);
-
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .removeIndexBlock(request.index, INDEX_CLOSED_BLOCK);
 
-                return ClusterState.builder().state(currentState).metaData(mdBuilder).routingTable(rtBuilder).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
+
+                RoutingTable.Builder rtBuilder = RoutingTable.builder().routingTable(updatedState.routingTable());
+                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
+                        .initializeEmpty(updatedState.metaData().index(request.index), false);
+                rtBuilder.add(indexRoutingBuilder);
+
+                RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+
+                return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {

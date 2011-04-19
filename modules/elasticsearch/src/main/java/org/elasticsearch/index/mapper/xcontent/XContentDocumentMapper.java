@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -514,18 +513,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 fieldMapperListener.fieldMapper(uidFieldMapper);
                 fieldMapperListener.fieldMapper(allFieldMapper);
                 rootObjectMapper.traverse(fieldMapperListener);
-            }
-        }
-    }
-
-    @Override public void processDocumentAfterIndex(Document doc) {
-        for (Fieldable field : doc.getFields()) {
-            FieldMappers fieldMappers = mappers().indexName(field.name());
-            if (fieldMappers != null) {
-                FieldMapper mapper = fieldMappers.mapper();
-                if (mapper != null) {
-                    mapper.processFieldAfterIndex(field);
-                }
             }
         }
     }

@@ -151,8 +151,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             ops = new Engine.IndexingOperation[request.items().length];
                         }
                         ops[i] = op;
-                    } else {
-                        op.docMapper().processDocumentAfterIndex(op.doc());
                     }
 
                     // add the response
@@ -222,7 +220,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
                     PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
                     ((IndexResponse) itemResponse.response()).matches(percolate.matches());
-                    op.docMapper().processDocumentAfterIndex(op.doc());
                 } catch (Exception e) {
                     logger.warn("failed to percolate [{}]", e, itemRequest.request());
                 }
@@ -243,11 +240,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
                         Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.index(index);
-                        index.docMapper().processDocumentAfterIndex(index.doc());
                     } else {
                         Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.create(create);
-                        create.docMapper().processDocumentAfterIndex(create.doc());
                     }
                 } catch (Exception e) {
                     // ignore, we are on backup

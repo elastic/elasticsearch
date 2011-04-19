@@ -39,7 +39,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements org.el
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = "_id";
         public static final String INDEX_NAME = "_id";
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
+        public static final Field.Index INDEX = Field.Index.NO;
         public static final Field.Store STORE = Field.Store.NO;
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
@@ -62,11 +62,15 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements org.el
     }
 
     protected IdFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME);
+        this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.INDEX);
     }
 
-    protected IdFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
+    protected IdFieldMapper(Field.Index index) {
+        this(Defaults.NAME, Defaults.INDEX_NAME, index);
+    }
+
+    protected IdFieldMapper(String name, String indexName, Field.Index index) {
+        this(name, indexName, index, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS);
     }
 

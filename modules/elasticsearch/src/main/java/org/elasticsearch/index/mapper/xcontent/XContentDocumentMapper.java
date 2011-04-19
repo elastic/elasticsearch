@@ -21,7 +21,9 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -80,9 +83,15 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private XContentMapper.BuilderContext builderContext = new XContentMapper.BuilderContext(new ContentPath(1));
 
-        public Builder(String index, RootObjectMapper.Builder builder) {
+        public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder) {
             this.index = index;
             this.rootObjectMapper = builder.build(builderContext);
+            if (indexSettings != null) {
+                String idIndexed = indexSettings.get("index.mapping._id.indexed");
+                if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
+                    idFieldMapper = new IdFieldMapper(Field.Index.NOT_ANALYZED);
+                }
+            }
         }
 
         public Builder meta(ImmutableMap<String, Object> meta) {

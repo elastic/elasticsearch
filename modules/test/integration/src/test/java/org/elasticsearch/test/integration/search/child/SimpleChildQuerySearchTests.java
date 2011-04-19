@@ -82,7 +82,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         // TEST FETCHING _parent from child
         SearchResponse searchResponse = client.prepareSearch("test")
-                .setQuery(termQuery("child._id", "c1"))
+                .setQuery(idsQuery("child").ids("c1"))
                 .addFields("_parent")
                 .execute().actionGet();
         if (searchResponse.failedShards() > 0) {

@@ -34,6 +34,15 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * Creates a new ids filter with the provided doc/mapping type.
+     *
+     * @param type The type
+     */
+    public static IdsFilterBuilder idsFilter(String type) {
+        return new IdsFilterBuilder(type);
+    }
+
+    /**
      * A filter for a field based on a term.
      *
      * @param name  The field name

@@ -43,6 +43,15 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * Constructs a query that will match only specific ids within a type.
+     *
+     * @param type The mapping/doc type
+     */
+    public static IdsQueryBuilder idsQuery(String type) {
+        return new IdsQueryBuilder(type);
+    }
+
+    /**
      * A Query that matches documents containing a term.
      *
      * @param name  The name of the field

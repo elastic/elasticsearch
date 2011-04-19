@@ -97,6 +97,36 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 
+    @Test public void idsFilterTests() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        client.admin().indices().prepareFlush().execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "value3").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(constantScoreQuery(idsFilter("type1").ids("1", "3"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));
+
+        searchResponse = client.prepareSearch().setQuery(idsQuery("type1").ids("1", "3")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));
+
+        searchResponse = client.prepareSearch().setQuery(idsQuery("type1").ids("7", "10")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+    }
+
     @Test public void filterExistsMissingTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

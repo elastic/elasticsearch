@@ -51,6 +51,9 @@ public class UidFilter extends Filter {
         Arrays.sort(uids);
     }
 
+    // TODO Optimizations
+    // - If we have a single id, we can create a SingleIdDocIdSet to save on mem
+    // - We can use sorted int array DocIdSet to reserve memory compared to OpenBitSet in some cases
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
         OpenBitSet set = null;

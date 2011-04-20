@@ -50,8 +50,9 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
 
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-        this.maxSize = componentSettings.getAsInt("max_size", -1);
-        this.expire = componentSettings.getAsTime("expire", null);
+        this.maxSize = indexSettings.getAsInt("index.cache.filter.max_size", componentSettings.getAsInt("max_size", -1));
+        this.expire = indexSettings.getAsTime("index.cache.filter.expire", componentSettings.getAsTime("expire", null));
+        logger.debug("using [soft] filter cache with max_size [{}], expire [{}]", maxSize, expire);
     }
 
     @Override protected ConcurrentMap<Object, ReaderValue> buildCache() {

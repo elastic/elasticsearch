@@ -108,6 +108,8 @@ public interface XContentParser {
 
     Map<String, Object> map() throws IOException;
 
+    Map<String, Object> mapOrdered() throws IOException;
+
     Map<String, Object> mapAndClose() throws IOException;
 
     String text() throws IOException;

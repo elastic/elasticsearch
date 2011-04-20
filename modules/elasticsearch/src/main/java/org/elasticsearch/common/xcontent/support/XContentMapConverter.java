@@ -31,8 +31,32 @@ import java.util.*;
  */
 public class XContentMapConverter {
 
+    public static interface MapFactory {
+        Map<String, Object> newMap();
+    }
+
+    public static final MapFactory SIMPLE_MAP_FACTORY = new MapFactory() {
+        @Override public Map<String, Object> newMap() {
+            return new HashMap<String, Object>();
+        }
+    };
+
+    public static final MapFactory ORDERED_MAP_FACTORY = new MapFactory() {
+        @Override public Map<String, Object> newMap() {
+            return new LinkedHashMap<String, Object>();
+        }
+    };
+
     public static Map<String, Object> readMap(XContentParser parser) throws IOException {
-        Map<String, Object> map = new HashMap<String, Object>();
+        return readMap(parser, SIMPLE_MAP_FACTORY);
+    }
+
+    public static Map<String, Object> readOrderedMap(XContentParser parser) throws IOException {
+        return readMap(parser, ORDERED_MAP_FACTORY);
+    }
+
+    public static Map<String, Object> readMap(XContentParser parser, MapFactory mapFactory) throws IOException {
+        Map<String, Object> map = mapFactory.newMap();
         XContentParser.Token t = parser.currentToken();
         if (t == null) {
             t = parser.nextToken();
@@ -45,21 +69,21 @@ public class XContentMapConverter {
             String fieldName = parser.currentName();
             // And then the value...
             t = parser.nextToken();
-            Object value = readValue(parser, t);
+            Object value = readValue(parser, mapFactory, t);
             map.put(fieldName, value);
         }
         return map;
     }
 
-    private static List<Object> readList(XContentParser parser, XContentParser.Token t) throws IOException {
+    private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
         ArrayList<Object> list = new ArrayList<Object>();
         while ((t = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            list.add(readValue(parser, t));
+            list.add(readValue(parser, mapFactory, t));
         }
         return list;
     }
 
-    private static Object readValue(XContentParser parser, XContentParser.Token t) throws IOException {
+    private static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
         if (t == XContentParser.Token.VALUE_NULL) {
             return null;
         } else if (t == XContentParser.Token.VALUE_STRING) {
@@ -78,9 +102,9 @@ public class XContentMapConverter {
         } else if (t == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue();
         } else if (t == XContentParser.Token.START_OBJECT) {
-            return readMap(parser);
+            return readMap(parser, mapFactory);
         } else if (t == XContentParser.Token.START_ARRAY) {
-            return readList(parser, t);
+            return readList(parser, mapFactory, t);
         }
         return null;
     }

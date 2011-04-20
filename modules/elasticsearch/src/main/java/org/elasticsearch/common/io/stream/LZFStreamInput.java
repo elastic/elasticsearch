@@ -58,12 +58,16 @@ public class LZFStreamInput extends StreamInput {
     private int bufferLength = 0;
 
     // ES: added to support never closing just resetting
-    private final boolean neverClose;
+    private final boolean cached;
 
-    public LZFStreamInput(StreamInput in, boolean neverClose) {
+    public LZFStreamInput(StreamInput in, boolean cached) {
         super();
-        this.neverClose = neverClose;
-        _recycler = BufferRecycler.instance();
+        this.cached = cached;
+        if (cached) {
+            _recycler = new BufferRecycler();
+        } else {
+            _recycler = BufferRecycler.instance();
+        }
         inputStream = in;
 
         _inputBuffer = _recycler.allocInputBuffer(LZFChunk.MAX_CHUNK_LEN);
@@ -146,7 +150,7 @@ public class LZFStreamInput extends StreamInput {
     }
 
     @Override public void close() throws IOException {
-        if (neverClose) {
+        if (cached) {
             reset();
             return;
         }

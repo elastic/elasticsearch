@@ -539,7 +539,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         synchronized (mutex) {
             if (indexService.hasShard(shardRouting.shardId().id())) {
                 try {
-                    indexService.cleanShard(shardRouting.shardId().id(), "recovery failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+                    indexService.removeShard(shardRouting.shardId().id(), "recovery failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
                 } catch (IndexShardMissingException e) {
                     // the node got closed on us, ignore it
                 } catch (Exception e1) {
@@ -576,7 +576,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     synchronized (mutex) {
                         if (indexService.hasShard(shardId.id())) {
                             try {
-                                indexService.cleanShard(shardId.id(), "engine failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+                                indexService.removeShard(shardId.id(), "engine failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
                             } catch (IndexShardMissingException e) {
                                 // the node got closed on us, ignore it
                             } catch (Exception e1) {

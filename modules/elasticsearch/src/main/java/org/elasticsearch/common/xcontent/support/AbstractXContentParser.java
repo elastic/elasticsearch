@@ -103,6 +103,10 @@ public abstract class AbstractXContentParser implements XContentParser {
         return XContentMapConverter.readMap(this);
     }
 
+    @Override public Map<String, Object> mapOrdered() throws IOException {
+        return XContentMapConverter.readOrderedMap(this);
+    }
+
     @Override public Map<String, Object> mapAndClose() throws IOException {
         try {
             return map();

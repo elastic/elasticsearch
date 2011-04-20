@@ -281,7 +281,7 @@ public class IndexMetaData {
             for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
                 byte[] data = entry.getValue().source().uncompressed();
                 XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                Map<String, Object> mapping = parser.map();
+                Map<String, Object> mapping = parser.mapOrdered();
                 parser.close();
                 builder.map(mapping);
             }
@@ -310,7 +310,7 @@ public class IndexMetaData {
                         builder.settings(settingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            Map<String, Object> mapping = parser.map();
+                            Map<String, Object> mapping = parser.mapOrdered();
                             if (mapping.size() == 1) {
                                 String mappingType = mapping.keySet().iterator().next();
                                 builder.putMapping(new MappingMetaData(mappingType, mapping));

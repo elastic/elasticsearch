@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.SearchHitPhase;
@@ -54,11 +55,13 @@ public class MatchedFiltersSearchHitPhase implements SearchHitPhase {
         for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
             String name = entry.getKey();
             Filter filter = entry.getValue();
-            filter = context.filterCache().cache(filter);
             try {
                 DocIdSet docIdSet = filter.getDocIdSet(hitContext.reader());
-                if (docIdSet instanceof DocSet && ((DocSet) docIdSet).get(hitContext.docId())) {
-                    matchedFilters.add(name);
+                if (docIdSet != null) {
+                    DocSet docSet = DocSets.convert(hitContext.reader(), docIdSet);
+                    if (docSet.get(hitContext.docId())) {
+                        matchedFilters.add(name);
+                    }
                 }
             } catch (IOException e) {
                 // ignore

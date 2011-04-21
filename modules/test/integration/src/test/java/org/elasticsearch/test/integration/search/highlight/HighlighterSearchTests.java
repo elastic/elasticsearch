@@ -68,7 +68,60 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testSourceLookupHighlighting() throws Exception {
+    @Test public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        // we don't store title and don't use term vector, now lets see if it works...
+                        .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
+                        .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("term_vector", "no").endObject().endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource(XContentFactory.jsonBuilder().startObject()
+                            .field("title", "This is a test on the highlighting bug present in elasticsearch")
+                            .startArray("attachments").startObject().field("body", "attachment 1").endObject().startObject().field("body", "attachment 2").endObject().endArray()
+                            .endObject())
+                    .setRefresh(true).execute().actionGet();
+        }
+
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "bug"))
+                .addHighlightedField("title", -1, 0)
+                .execute().actionGet();
+
+        assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+        assertThat(search.getFailedShards(), equalTo(0));
+
+        for (SearchHit hit : search.hits()) {
+            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+        }
+
+        search = client.prepareSearch()
+                .setQuery(fieldQuery("attachments.body", "attachment"))
+                .addHighlightedField("attachments.body", -1, 0)
+                .execute().actionGet();
+
+        System.out.println(search);
+
+        assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+        assertThat(search.getFailedShards(), equalTo(0));
+
+        for (SearchHit hit : search.hits()) {
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1 <em>attachment</em> 2"));
+        }
+    }
+
+    @Test public void testSourceLookupHighlightingUsingFastVectorHighlighter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -79,7 +132,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
-                        .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("term_vector", "with_positions_offsets").endObject().endObject().endObject()
+                        .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 

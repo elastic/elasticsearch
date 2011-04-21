@@ -119,13 +119,15 @@ public class HighlightPhase implements SearchHitPhase {
                         textsToHighlight = lookup.source().getValues(mapper.names().fullName());
                     }
 
+                    // a HACK to make highlighter do highlighting, even though its using the single frag list builder
+                    int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
                     ArrayList<TextFragment> fragsList = new ArrayList<TextFragment>();
                     try {
                         for (Object textToHighlight : textsToHighlight) {
                             String text = textToHighlight.toString();
                             Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
                             TokenStream tokenStream = analyzer.reusableTokenStream(mapper.names().indexName(), new FastStringReader(text));
-                            TextFragment[] bestTextFragments = highlighter.getBestTextFragments(tokenStream, text, false, field.numberOfFragments());
+                            TextFragment[] bestTextFragments = highlighter.getBestTextFragments(tokenStream, text, false, numberOfFragments);
                             for (TextFragment bestTextFragment : bestTextFragments) {
                                 if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
                                     fragsList.add(bestTextFragment);
@@ -142,11 +144,22 @@ public class HighlightPhase implements SearchHitPhase {
                             }
                         });
                     }
-                    int numberOfFragments = fragsList.size() < field.numberOfFragments() ? fragsList.size() : field.numberOfFragments();
-                    String[] fragments = new String[numberOfFragments];
-                    for (int i = 0; i < fragments.length; i++) {
-                        fragments[i] = fragsList.get(i).toString();
+                    String[] fragments;
+                    // number_of_fragments is set to 0 but we have a multivalued field
+                    if (field.numberOfFragments() == 0 && textsToHighlight.size() > 1) {
+                        fragments = new String[1];
+                        for (int i = 0; i < fragsList.size(); i++) {
+                            fragments[0] = (fragments[0] != null ? (fragments[0]+" ") : "") + fragsList.get(i).toString();
+                        }
+                    } else {
+                        // refine numberOfFragments if needed
+                        numberOfFragments = fragsList.size() < numberOfFragments ? fragsList.size() : numberOfFragments;
+                        fragments = new String[numberOfFragments];
+                        for (int i = 0; i < fragments.length; i++) {
+                            fragments[i] = fragsList.get(i).toString();
+                        }
                     }
+
                     if (fragments.length > 0) {
                         HighlightField highlightField = new HighlightField(field.field(), fragments);
                         highlightFields.put(highlightField.name(), highlightField);

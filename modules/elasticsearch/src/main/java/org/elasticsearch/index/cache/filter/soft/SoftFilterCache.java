@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.filter.soft;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.base.Objects;
 import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -41,18 +43,29 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements MapEvictionListener<Filter, DocSet> {
 
-    private final int maxSize;
+    private final IndexSettingsService indexSettingsService;
 
-    private final TimeValue expire;
+    private volatile int maxSize;
+    private volatile TimeValue expire;
 
     private final AtomicLong evictions = new AtomicLong();
     private AtomicLong memEvictions;
 
-    @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    private final ApplySettings applySettings = new ApplySettings();
+
+    @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
         super(index, indexSettings);
+        this.indexSettingsService = indexSettingsService;
         this.maxSize = indexSettings.getAsInt("index.cache.filter.max_size", componentSettings.getAsInt("max_size", -1));
         this.expire = indexSettings.getAsTime("index.cache.filter.expire", componentSettings.getAsTime("expire", null));
         logger.debug("using [soft] filter cache with max_size [{}], expire [{}]", maxSize, expire);
+
+        indexSettingsService.addListener(applySettings);
+    }
+
+    @Override public void close() {
+        indexSettingsService.removeListener(applySettings);
+        super.close();
     }
 
     @Override protected ConcurrentMap<Object, ReaderValue> buildCache() {
@@ -70,7 +83,7 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
         }
-        if (expire != null) {
+        if (expire != null && expire.nanos() > 0) {
             mapMaker.expireAfterAccess(expire.nanos(), TimeUnit.NANOSECONDS);
         }
         mapMaker.evictionListener(this);
@@ -91,5 +104,26 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
 
     @Override public void onEviction(Filter filter, DocSet docSet) {
         evictions.incrementAndGet();
+    }
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int maxSize = settings.getAsInt("index.cache.filter.max_size", SoftFilterCache.this.maxSize);
+            TimeValue expire = settings.getAsTime("index.cache.filter.expire", SoftFilterCache.this.expire);
+            boolean changed = false;
+            if (maxSize != SoftFilterCache.this.maxSize) {
+                logger.info("updating index.cache.filter.max_size from [{}] to [{}]", SoftFilterCache.this.maxSize, maxSize);
+                changed = true;
+                SoftFilterCache.this.maxSize = maxSize;
+            }
+            if (!Objects.equal(expire, SoftFilterCache.this.expire)) {
+                logger.info("updating index.cache.filter.expire from [{}] to [{}]", SoftFilterCache.this.expire, expire);
+                changed = true;
+                SoftFilterCache.this.expire = expire;
+            }
+            if (changed) {
+                clear();
+            }
+        }
     }
 }

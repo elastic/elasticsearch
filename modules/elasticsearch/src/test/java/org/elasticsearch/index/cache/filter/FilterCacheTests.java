@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.soft.SoftFilterCache;
 import org.elasticsearch.index.cache.filter.weak.WeakFilterCache;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -51,11 +52,11 @@ public class FilterCacheTests {
     }
 
     @Test public void testSoftCache() throws Exception {
-        verifyCache(new SoftFilterCache(new Index("test"), EMPTY_SETTINGS));
+        verifyCache(new SoftFilterCache(new Index("test"), EMPTY_SETTINGS, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS)));
     }
 
     @Test public void testWeakCache() throws Exception {
-        verifyCache(new WeakFilterCache(new Index("test"), EMPTY_SETTINGS));
+        verifyCache(new WeakFilterCache(new Index("test"), EMPTY_SETTINGS, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS)));
     }
 
     private void verifyCache(FilterCache filterCache) throws Exception {

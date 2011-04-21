@@ -16,7 +16,7 @@ dependencies {
     runtime 'commons-codec:commons-codec:1.4'
 
     runtime 'joda-time:joda-time:1.6.1'
-    runtime 'org.mvel:mvel2:2.1.Beta2'
+    runtime 'org.mvel:mvel2:2.1.beta2'
 
     runtime 'org.codehaus.jackson:jackson-core-asl:1.7.6'
     runtime 'org.codehaus.jackson:jackson-smile:1.7.6'

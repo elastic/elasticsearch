@@ -196,7 +196,11 @@ We have just covered a very small portion of what ElasticSearch is all about. Fo
 
 h3. Building from Source
 
-ElasticSearch uses Gradle:http://www.gradle.org for its build system. In order to create a distribution, simply run @gradlew@, the distribution will be created under @build/distributions@.
+ElasticSearch uses "Gradle":http://www.gradle.org for its build system.
+
+In order to create a distribution, simply run the @./gradlew@ command in the cloned directory.
+
+The distribution will be created under @build/distributions@.
 
 h1. License
 

@@ -213,16 +213,11 @@ public class ImmutableSettings implements Settings {
             try {
                 return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
             } catch (ClassNotFoundException e1) {
-                fullClassName = prefixPackage + toCamelCase(sValue) + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
+                fullClassName = prefixPackage + toCamelCase(sValue).toLowerCase() + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
                 try {
                     return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
                 } catch (ClassNotFoundException e2) {
-                    fullClassName = prefixPackage + toCamelCase(sValue).toLowerCase() + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
-                    try {
-                        return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
-                    } catch (ClassNotFoundException e3) {
-                        throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
-                    }
+                    throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
                 }
             }
         }

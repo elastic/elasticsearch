@@ -72,7 +72,11 @@ public class ChildCollector extends Collector {
             return;
         }
         for (IndexReader indexReader : context.searcher().subReaders()) {
-            int parentDocId = typeCacheMap.get(indexReader.getCoreCacheKey()).docById(parentId);
+            IdReaderTypeCache idReaderTypeCache = typeCacheMap.get(indexReader.getCoreCacheKey());
+            if (idReaderTypeCache == null) { // might be if we don't have that doc with that type in this reader
+                continue;
+            }
+            int parentDocId = idReaderTypeCache.docById(parentId);
             if (parentDocId != -1 && !indexReader.isDeleted(parentDocId)) {
                 OpenBitSet docIdSet = parentDocs().get(indexReader.getCoreCacheKey());
                 if (docIdSet == null) {

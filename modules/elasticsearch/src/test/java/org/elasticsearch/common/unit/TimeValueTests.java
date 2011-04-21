@@ -56,4 +56,8 @@ public class TimeValueTests {
         assertThat(new TimeValue(65, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("1 hour and 5 minutes"));
         assertThat(new TimeValue(24 * 600 + 85, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("241 hours and 25 minutes"));
     }
+
+    @Test public void testMinusOne() {
+        assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+    }
 }

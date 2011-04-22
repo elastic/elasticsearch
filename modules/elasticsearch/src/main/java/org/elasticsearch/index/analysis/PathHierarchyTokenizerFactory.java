@@ -51,7 +51,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
 
         String replacement = settings.get("replacement");
         if (replacement == null) {
-            this.replacement = PathHierarchyTokenizer.DEFAULT_DELIMITER;
+            this.replacement = this.delimiter;
         } else if (replacement.length() > 1) {
             throw new ElasticSearchIllegalArgumentException("replacement can only be a one char value");
         } else {

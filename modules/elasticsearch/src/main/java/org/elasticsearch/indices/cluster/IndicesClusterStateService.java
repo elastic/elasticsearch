@@ -317,7 +317,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 mapperService.add(mappingType, mappingSource.string());
                 if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-                    logger.warn("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
+                    // this might happen when upgrading from 0.15 to 0.16
+                    logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                 }
                 nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
             } else {
@@ -329,7 +330,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     }
                     mapperService.add(mappingType, mappingSource.string());
                     if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-                        logger.warn("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
+                        // this might happen when upgrading from 0.15 to 0.16
+                        logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     }
                     nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                 }

@@ -19,10 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
+import org.elasticsearch.cluster.action.index.*;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -67,6 +64,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(NodeIndexCreatedAction.class).asEagerSingleton();
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingCreatedAction.class).asEagerSingleton();
+        bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
     }
 }

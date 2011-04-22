@@ -78,6 +78,7 @@ public class MetaDataMappingService extends AbstractComponent {
     public void refreshMapping(final String index, final String... types) {
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
+                boolean createdIndex = false;
                 try {
                     // first, check if it really needs to be updated
                     final IndexMetaData indexMetaData = currentState.metaData().index(index);
@@ -90,6 +91,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     if (indexService == null) {
                         // we need to create the index here, and add the current mapping to it, so we can merge
                         indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                        createdIndex = true;
                         for (String type : types) {
                             // only add the current relevant mapping (if exists)
                             if (indexMetaData.mappings().containsKey(type)) {
@@ -118,6 +120,10 @@ public class MetaDataMappingService extends AbstractComponent {
                 } catch (Exception e) {
                     logger.warn("failed to dynamically refresh the mapping in cluster_state from shard", e);
                     return currentState;
+                } finally {
+                    if (createdIndex) {
+                        indicesService.cleanIndex(index, "created for mapping processing");
+                    }
                 }
             }
         });
@@ -126,6 +132,7 @@ public class MetaDataMappingService extends AbstractComponent {
     public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
+                boolean createdIndex = false;
                 try {
                     // first, check if it really needs to be updated
                     final IndexMetaData indexMetaData = currentState.metaData().index(index);
@@ -141,6 +148,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     if (indexService == null) {
                         // we need to create the index here, and add the current mapping to it, so we can merge
                         indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                        createdIndex = true;
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(type)) {
                             indexService.mapperService().add(type, indexMetaData.mappings().get(type).source().string());
@@ -181,6 +189,10 @@ public class MetaDataMappingService extends AbstractComponent {
                     logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
                     listener.onFailure(e);
                     return currentState;
+                } finally {
+                    if (createdIndex) {
+                        indicesService.cleanIndex(index, "created for mapping processing");
+                    }
                 }
             }
 
@@ -217,6 +229,7 @@ public class MetaDataMappingService extends AbstractComponent {
     public void putMapping(final PutRequest request, final Listener listener) {
         clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
+                List<String> indicesToClose = Lists.newArrayList();
                 try {
                     if (request.indices.length == 0) {
                         throw new IndexMissingException(new Index("_all"));
@@ -234,6 +247,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
                         IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                        indicesToClose.add(indexMetaData.index());
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(request.mappingType)) {
                             indexService.mapperService().add(request.mappingType, indexMetaData.mappings().get(request.mappingType).source().string());
@@ -330,6 +344,10 @@ public class MetaDataMappingService extends AbstractComponent {
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;
+                } finally {
+                    for (String index : indicesToClose) {
+                        indicesService.cleanIndex(index, "created for mapping processing");
+                    }
                 }
             }
 

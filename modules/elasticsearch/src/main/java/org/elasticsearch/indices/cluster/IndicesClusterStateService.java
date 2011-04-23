@@ -437,11 +437,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } catch (Exception e) {
                 logger.warn("[{}][{}] failed to create shard", e, shardRouting.index(), shardRouting.id());
                 try {
-                    indexService.cleanShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
+                    indexService.removeShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
                 } catch (IndexShardMissingException e1) {
                     // ignore
                 } catch (Exception e1) {
-                    logger.warn("[{}][{}] failed to delete shard after failed creation", e1, shardRouting.index(), shardRouting.id());
+                    logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
+                }
+                shardStateAction.shardFailed(shardRouting, "Failed to create shard, message [" + detailedMessage(e) + "]");
+                return;
+            } catch (OutOfMemoryError e) {
+                logger.warn("[{}][{}] failed to create shard", e, shardRouting.index(), shardRouting.id());
+                try {
+                    indexService.removeShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
+                } catch (IndexShardMissingException e1) {
+                    // ignore
+                } catch (Exception e1) {
+                    logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
                 }
                 shardStateAction.shardFailed(shardRouting, "Failed to create shard, message [" + detailedMessage(e) + "]");
                 return;

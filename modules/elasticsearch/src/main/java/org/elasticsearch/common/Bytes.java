@@ -19,18 +19,10 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.thread.ThreadLocals;
-
 /**
  * @author kimchy (shay.banon)
  */
 public class Bytes {
-
-    public static final ThreadLocal<ThreadLocals.CleanableValue<byte[]>> cachedBytes = new ThreadLocal<ThreadLocals.CleanableValue<byte[]>>() {
-        @Override protected ThreadLocals.CleanableValue<byte[]> initialValue() {
-            return new ThreadLocals.CleanableValue<byte[]>(new byte[1024]);
-        }
-    };
 
     public static final byte[] EMPTY_ARRAY = new byte[0];
 

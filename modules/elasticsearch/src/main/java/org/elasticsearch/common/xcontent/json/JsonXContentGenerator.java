@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent.json;
 
-import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.jackson.JsonGenerator;
 import org.elasticsearch.common.xcontent.*;
@@ -214,7 +214,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeRaw(fieldName);
         generator.writeRaw("\" : ");
         flush();
-        byte[] bytes = Bytes.cachedBytes.get().get();
+        byte[] bytes = CacheRecycler.popBytes();
         Streams.copy(content, bos, bytes);
     }
 

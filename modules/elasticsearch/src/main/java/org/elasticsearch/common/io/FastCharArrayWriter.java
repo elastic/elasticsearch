@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
 import java.io.IOException;
@@ -33,27 +32,6 @@ import java.util.Arrays;
  */
 @NotThreadSafe
 public class FastCharArrayWriter extends Writer {
-
-    /**
-     * A thread local based cache of {@link FastByteArrayOutputStream}.
-     */
-    public static class Cached {
-
-        private static final ThreadLocal<ThreadLocals.CleanableValue<FastCharArrayWriter>> cache = new ThreadLocal<ThreadLocals.CleanableValue<FastCharArrayWriter>>() {
-            @Override protected ThreadLocals.CleanableValue<FastCharArrayWriter> initialValue() {
-                return new ThreadLocals.CleanableValue<FastCharArrayWriter>(new FastCharArrayWriter());
-            }
-        };
-
-        /**
-         * Returns the cached thread local byte stream, with its internal stream cleared.
-         */
-        public static FastCharArrayWriter cached() {
-            FastCharArrayWriter os = cache.get().get();
-            os.reset();
-            return os;
-        }
-    }
 
     /**
      * The buffer where data is stored.

@@ -71,6 +71,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         defaultIndexQueryParser = indexQueryParser(Defaults.DEFAULT);
     }
 
+    public void close() {
+        for (IndexQueryParser indexQueryParser : indexQueryParsers.values()) {
+            indexQueryParser.close();
+        }
+    }
+
     public IndexQueryParser indexQueryParser(String name) {
         return indexQueryParsers.get(name);
     }

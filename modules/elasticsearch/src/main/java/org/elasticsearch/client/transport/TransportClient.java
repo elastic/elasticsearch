@@ -51,6 +51,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -231,6 +232,7 @@ public class TransportClient extends AbstractClient {
         }
 
         CacheRecycler.clear();
+        CachedStreams.clear();
         ThreadLocals.clearReferencesThreadLocals();
     }
 

@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
@@ -180,9 +179,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     }
 
 
-    private ThreadLocal<ThreadLocals.CleanableValue<ParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<ParseContext>>() {
-        @Override protected ThreadLocals.CleanableValue<ParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<ParseContext>(new ParseContext(index, docMapperParser, XContentDocumentMapper.this, new ContentPath(0)));
+    private ThreadLocal<ParseContext> cache = new ThreadLocal<ParseContext>() {
+        @Override protected ParseContext initialValue() {
+            return new ParseContext(index, docMapperParser, XContentDocumentMapper.this, new ContentPath(0));
         }
     };
 
@@ -382,7 +381,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     }
 
     @Override public ParsedDocument parse(SourceToParse source, @Nullable ParseListener listener) throws MapperParsingException {
-        ParseContext context = cache.get().get();
+        ParseContext context = cache.get();
 
         if (source.type() != null && !source.type().equals(this.type)) {
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]");
@@ -557,6 +556,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     }
 
     @Override public void close() {
+        cache.remove();
         rootObjectMapper.close();
         idFieldMapper.close();
         indexFieldMapper.close();

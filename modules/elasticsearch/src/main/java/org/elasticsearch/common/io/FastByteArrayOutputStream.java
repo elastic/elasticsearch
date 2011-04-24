@@ -19,11 +19,10 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.thread.ThreadLocals;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.ref.SoftReference;
 import java.util.Arrays;
 
 /**
@@ -38,19 +37,24 @@ public class FastByteArrayOutputStream extends OutputStream {
      */
     public static class Cached {
 
-        private static final ThreadLocal<ThreadLocals.CleanableValue<FastByteArrayOutputStream>> cache = new ThreadLocal<ThreadLocals.CleanableValue<FastByteArrayOutputStream>>() {
-            @Override protected ThreadLocals.CleanableValue<FastByteArrayOutputStream> initialValue() {
-                return new ThreadLocals.CleanableValue<FastByteArrayOutputStream>(new FastByteArrayOutputStream());
-            }
-        };
+        private static final ThreadLocal<SoftReference<FastByteArrayOutputStream>> cache = new ThreadLocal<SoftReference<FastByteArrayOutputStream>>();
 
         /**
          * Returns the cached thread local byte stream, with its internal stream cleared.
          */
         public static FastByteArrayOutputStream cached() {
-            FastByteArrayOutputStream os = cache.get().get();
-            os.reset();
-            return os;
+            SoftReference<FastByteArrayOutputStream> ref = cache.get();
+            FastByteArrayOutputStream fos = ref == null ? null : ref.get();
+            if (fos == null) {
+                fos = new FastByteArrayOutputStream();
+                cache.set(new SoftReference(fos));
+            }
+            fos.reset();
+            return fos;
+        }
+
+        public static void clear() {
+            cache.remove();
         }
     }
 

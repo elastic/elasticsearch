@@ -19,9 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.thread.ThreadLocals;
-
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,28 +37,38 @@ public class CachedStreamInput {
         }
     }
 
-    private static final ThreadLocal<ThreadLocals.CleanableValue<Entry>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Entry>>() {
-        @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
+    private static final ThreadLocal<SoftReference<Entry>> cache = new ThreadLocal<SoftReference<Entry>>();
+
+    static Entry instance() {
+        SoftReference<Entry> ref = cache.get();
+        Entry entry = ref == null ? null : ref.get();
+        if (entry == null) {
             HandlesStreamInput handles = new HandlesStreamInput();
             LZFStreamInput lzf = new LZFStreamInput(null, true);
-            return new ThreadLocals.CleanableValue<Entry>(new Entry(handles, lzf));
+            entry = new Entry(handles, lzf);
+            cache.set(new SoftReference<Entry>(entry));
         }
-    };
+        return entry;
+    }
+
+    public static void clear() {
+        cache.remove();
+    }
 
     public static LZFStreamInput cachedLzf(StreamInput in) throws IOException {
-        LZFStreamInput lzf = cache.get().get().lzf;
+        LZFStreamInput lzf = instance().lzf;
         lzf.reset(in);
         return lzf;
     }
 
     public static HandlesStreamInput cachedHandles(StreamInput in) {
-        HandlesStreamInput handles = cache.get().get().handles;
+        HandlesStreamInput handles = instance().handles;
         handles.reset(in);
         return handles;
     }
 
     public static HandlesStreamInput cachedHandlesLzf(StreamInput in) throws IOException {
-        Entry entry = cache.get().get();
+        Entry entry = instance();
         entry.lzf.reset(in);
         entry.handles.reset(entry.lzf);
         return entry.handles;

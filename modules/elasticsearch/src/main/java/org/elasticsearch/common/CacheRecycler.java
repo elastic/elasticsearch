@@ -34,6 +34,7 @@ public class CacheRecycler {
 
     public static void clear() {
         BufferRecycler.clean();
+        bytes.remove();
         doubleObjectHashMap.remove();
         longObjectHashMap.remove();
         longLongHashMap.remove();
@@ -44,6 +45,27 @@ public class CacheRecycler {
         longIntHashMap.remove();
         objectIntHashMap.remove();
         intArray.remove();
+    }
+
+    // Bytes
+    private static ThreadLocal<SoftReference<byte[]>> bytes = new ThreadLocal<SoftReference<byte[]>>();
+
+    public static byte[] popBytes() {
+        SoftReference<byte[]> ref = bytes.get();
+        byte[] bb = ref == null ? null : ref.get();
+        if (bb == null) {
+            bb = new byte[1024];
+            bytes.set(new SoftReference<byte[]>(bb));
+        }
+        return bb;
+    }
+
+    public static void pushBytes(byte[] bb) {
+        SoftReference<byte[]> ref = bytes.get();
+        byte[] bb1 = ref == null ? null : ref.get();
+        if (bb1 != null && bb1.length < bb.length) {
+            bytes.set(new SoftReference<byte[]>(bb));
+        }
     }
 
     // ----- ExtTHashMap -----

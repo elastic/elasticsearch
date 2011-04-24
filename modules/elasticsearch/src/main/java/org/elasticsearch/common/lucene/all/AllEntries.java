@@ -104,7 +104,7 @@ public class AllEntries extends Reader {
 
     public String buildText() {
         reset();
-        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
+        FastCharArrayWriter writer = new FastCharArrayWriter();
         for (Entry entry : entries) {
             writer.append(entry.reader());
             writer.append(' ');

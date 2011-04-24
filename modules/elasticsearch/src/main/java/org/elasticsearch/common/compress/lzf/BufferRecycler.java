@@ -64,6 +64,10 @@ public class BufferRecycler {
         return br;
     }
 
+    public static void clean() {
+        _recyclerRef.remove();
+    }
+
     /*
     ///////////////////////////////////////////////////////////////////////
     // Buffers for encoding (output)

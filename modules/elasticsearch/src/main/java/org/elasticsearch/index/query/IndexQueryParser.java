@@ -30,6 +30,8 @@ public interface IndexQueryParser extends IndexComponent {
 
     String name();
 
+    void close();
+
     ParsedQuery parse(byte[] source) throws ElasticSearchException;
 
     ParsedQuery parse(byte[] source, int offset, int length) throws ElasticSearchException;

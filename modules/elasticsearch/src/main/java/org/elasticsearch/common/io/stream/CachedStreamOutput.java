@@ -19,9 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.thread.ThreadLocals;
-
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 
 /**
  * @author kimchy (shay.banon)
@@ -40,39 +39,49 @@ public class CachedStreamOutput {
         }
     }
 
-    private static final ThreadLocal<ThreadLocals.CleanableValue<Entry>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Entry>>() {
-        @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
+    private static final ThreadLocal<SoftReference<Entry>> cache = new ThreadLocal<SoftReference<Entry>>();
+
+    static Entry instance() {
+        SoftReference<Entry> ref = cache.get();
+        Entry entry = ref == null ? null : ref.get();
+        if (entry == null) {
             BytesStreamOutput bytes = new BytesStreamOutput();
             HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
             LZFStreamOutput lzf = new LZFStreamOutput(bytes, true);
-            return new ThreadLocals.CleanableValue<Entry>(new Entry(bytes, handles, lzf));
+            entry = new Entry(bytes, handles, lzf);
+            cache.set(new SoftReference<Entry>(entry));
         }
-    };
+        return entry;
+    }
+
+    public static void clear() {
+        cache.remove();
+    }
 
     /**
      * Returns the cached thread local byte stream, with its internal stream cleared.
      */
     public static BytesStreamOutput cachedBytes() {
-        BytesStreamOutput os = cache.get().get().bytes;
+        BytesStreamOutput os = instance().bytes;
         os.reset();
         return os;
     }
 
     public static LZFStreamOutput cachedLZFBytes() throws IOException {
-        LZFStreamOutput lzf = cache.get().get().lzf;
+        LZFStreamOutput lzf = instance().lzf;
         lzf.reset();
         return lzf;
     }
 
     public static HandlesStreamOutput cachedHandlesLzfBytes() throws IOException {
-        Entry entry = cache.get().get();
+        Entry entry = instance();
         HandlesStreamOutput os = entry.handles;
         os.reset(entry.lzf);
         return os;
     }
 
     public static HandlesStreamOutput cachedHandlesBytes() throws IOException {
-        Entry entry = cache.get().get();
+        Entry entry = instance();
         HandlesStreamOutput os = entry.handles;
         os.reset(entry.bytes);
         return os;

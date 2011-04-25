@@ -24,6 +24,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.BytesWrap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -40,7 +41,7 @@ public class ChildCollector extends Collector {
 
     private final SearchContext context;
 
-    private final Map<Object, IdReaderTypeCache> typeCacheMap;
+    private final Tuple<IndexReader, IdReaderTypeCache>[] readers;
 
     private final Map<Object, OpenBitSet> parentDocs;
 
@@ -52,9 +53,10 @@ public class ChildCollector extends Collector {
         this.parentDocs = new HashMap<Object, OpenBitSet>();
 
         // create a specific type map lookup for faster lookup operations per doc
-        this.typeCacheMap = new HashMap<Object, IdReaderTypeCache>(context.searcher().subReaders().length);
-        for (IndexReader indexReader : context.searcher().subReaders()) {
-            typeCacheMap.put(indexReader.getCoreCacheKey(), context.idCache().reader(indexReader).type(parentType));
+        this.readers = new Tuple[context.searcher().subReaders().length];
+        for (int i = 0; i < readers.length; i++) {
+            IndexReader reader = context.searcher().subReaders()[i];
+            readers[i] = new Tuple<IndexReader, IdReaderTypeCache>(reader, context.idCache().reader(reader).type(parentType));
         }
     }
 
@@ -71,8 +73,9 @@ public class ChildCollector extends Collector {
         if (parentId == null) {
             return;
         }
-        for (IndexReader indexReader : context.searcher().subReaders()) {
-            IdReaderTypeCache idReaderTypeCache = typeCacheMap.get(indexReader.getCoreCacheKey());
+        for (Tuple<IndexReader, IdReaderTypeCache> tuple : readers) {
+            IndexReader indexReader = tuple.v1();
+            IdReaderTypeCache idReaderTypeCache = tuple.v2();
             if (idReaderTypeCache == null) { // might be if we don't have that doc with that type in this reader
                 continue;
             }
@@ -90,7 +93,7 @@ public class ChildCollector extends Collector {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        typeCache = typeCacheMap.get(reader.getCoreCacheKey());
+        typeCache = context.idCache().reader(reader).type(parentType);
     }
 
     @Override public boolean acceptsDocsOutOfOrder() {

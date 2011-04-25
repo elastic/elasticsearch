@@ -81,11 +81,8 @@ public class HasChildFilter extends Filter implements ScopePhase.CollectorPhase 
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        DocIdSet docIdSet = parentDocs.get(reader.getCoreCacheKey());
-        if (docIdSet == null) {
-            return DocIdSet.EMPTY_DOCIDSET;
-        }
-        return docIdSet;
+        // ok to return null
+        return parentDocs.get(reader.getCoreCacheKey());
     }
 
     @Override public String toString() {

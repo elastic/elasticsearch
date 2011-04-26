@@ -26,6 +26,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.UnboxedMathUtils;
 import org.elasticsearch.common.mvel2.MVEL;
+import org.elasticsearch.common.mvel2.ParserConfiguration;
 import org.elasticsearch.common.mvel2.ParserContext;
 import org.elasticsearch.common.mvel2.compiler.ExecutableStatement;
 import org.elasticsearch.common.mvel2.integration.impl.MapVariableResolverFactory;
@@ -45,20 +46,20 @@ import java.util.Map;
  */
 public class MvelScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    private final ParserContext parserContext;
+    private final ParserConfiguration parserConfiguration;
 
     @Inject public MvelScriptEngineService(Settings settings) {
         super(settings);
 
-        parserContext = new ParserContext();
-        parserContext.addPackageImport("java.util");
-        parserContext.addPackageImport("org.elasticsearch.common.trove");
-        parserContext.addPackageImport("org.elasticsearch.common.joda");
-        parserContext.addImport("time", MVEL.getStaticMethod(System.class, "currentTimeMillis", new Class[0]));
+        parserConfiguration = new ParserConfiguration();
+        parserConfiguration.addPackageImport("java.util");
+        parserConfiguration.addPackageImport("org.elasticsearch.common.trove");
+        parserConfiguration.addPackageImport("org.elasticsearch.common.joda");
+        parserConfiguration.addImport("time", MVEL.getStaticMethod(System.class, "currentTimeMillis", new Class[0]));
         // unboxed version of Math, better performance since conversion from boxed to unboxed my mvel is not needed
         for (Method m : UnboxedMathUtils.class.getMethods()) {
             if ((m.getModifiers() & Modifier.STATIC) > 0) {
-                parserContext.addImport(m.getName(), m);
+                parserConfiguration.addImport(m.getName(), m);
             }
         }
     }
@@ -76,7 +77,7 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
     }
 
     @Override public Object compile(String script) {
-        return MVEL.compileExpression(script, parserContext);
+        return MVEL.compileExpression(script, new ParserContext(parserConfiguration));
     }
 
     @Override public Object execute(Object compiledScript, Map vars) {

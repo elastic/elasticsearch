@@ -32,7 +32,7 @@ ElasticSearch is a distributed RESTful search engine built for the cloud. Featur
 
 h2. Getting Started
 
-Fist of all, DON'T PANIC. It will take 5 minutes to get the gist of what ElasticSearch is all about.
+First of all, DON'T PANIC. It will take 5 minutes to get the gist of what ElasticSearch is all about.
 
 h3. Installation
 

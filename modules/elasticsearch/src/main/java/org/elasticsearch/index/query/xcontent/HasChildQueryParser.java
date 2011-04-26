@@ -73,6 +73,8 @@ public class HasChildQueryParser extends AbstractIndexComponent implements XCont
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 }
             }
         }

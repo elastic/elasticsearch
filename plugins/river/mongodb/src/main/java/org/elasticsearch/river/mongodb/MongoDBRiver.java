@@ -221,7 +221,7 @@ public class MongoDBRiver extends AbstractRiverComponent implements River {
                 if (lastId != null) {
                     try {
                         bulk.add(indexRequest(riverIndexName).type(riverName.name()).id("_last_id")
-                                .source(jsonBuilder().startObject().startObject("mongodb").field("lats_id", lastId).endObject().endObject()));
+                                .source(jsonBuilder().startObject().startObject("mongodb").field("last_id", lastId).endObject().endObject()));
                     } catch (IOException e) {
                         e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
                     }
@@ -281,7 +281,7 @@ public class MongoDBRiver extends AbstractRiverComponent implements River {
                     if (lastIdResponse.exists()) {
                         Map<String, Object> mongodbState = (Map<String, Object>) lastIdResponse.sourceAsMap().get("mongodb");
                         if (mongodbState != null) {
-                            lastId = mongodbState.get("lats_id").toString();
+                            lastId = mongodbState.get("last_id").toString();
                         }
                     }
                 } catch (Exception e) {

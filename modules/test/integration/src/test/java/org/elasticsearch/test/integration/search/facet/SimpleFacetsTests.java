@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
 import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
+import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.facet.range.RangeFacet;
 import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -558,6 +559,18 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
+                    .execute().actionGet();
+
+            facet = searchResponse.facets().facet("facet1");
+            assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.entries().size(), equalTo(1));
+            assertThat(facet.entries().get(0).term(), equalTo("111"));
+            assertThat(facet.entries().get(0).count(), equalTo(1));
+
+            // now with global
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).global(true).executionHint(executionHint))
                     .execute().actionGet();
 
             facet = searchResponse.facets().facet("facet1");
@@ -1719,6 +1732,47 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             facet = searchResponse.facets().facet("stats2");
             assertThat(facet.entries().size(), equalTo(10));
+        }
+    }
+
+    @Test public void testQueryFacet() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 0; i < 20; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(queryFacet("query").query(termQuery("num", 1)))
+                    .execute().actionGet();
+
+            QueryFacet facet = searchResponse.facets().facet("query");
+            assertThat(facet.count(), equalTo(2l));
+
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(queryFacet("query").query(termQuery("num", 1)).global(true))
+                    .execute().actionGet();
+
+            facet = searchResponse.facets().facet("query");
+            assertThat(facet.count(), equalTo(2l));
+
+            searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(queryFacet("query").query(termsQuery("num", new long[]{1, 2})).facetFilter(termFilter("num", 1)).global(true))
+                    .execute().actionGet();
+
+            facet = searchResponse.facets().facet("query");
+            assertThat(facet.count(), equalTo(2l));
         }
     }
 

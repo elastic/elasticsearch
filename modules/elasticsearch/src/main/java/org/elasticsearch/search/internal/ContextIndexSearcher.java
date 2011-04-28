@@ -77,6 +77,10 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         collectors.add(collector);
     }
 
+    public List<Collector> removeCollectors(String scope) {
+        return scopeCollectors.remove(scope);
+    }
+
     public boolean hasCollectors(String scope) {
         if (scopeCollectors == null) {
             return false;

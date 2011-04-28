@@ -20,19 +20,21 @@
 package org.elasticsearch.search.facet.filter;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.OptimizeGlobalFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FilterFacetCollector extends AbstractFacetCollector {
+public class FilterFacetCollector extends AbstractFacetCollector implements OptimizeGlobalFacetCollector {
 
     private final Filter filter;
 
@@ -43,6 +45,19 @@ public class FilterFacetCollector extends AbstractFacetCollector {
     public FilterFacetCollector(String facetName, Filter filter, FilterCache filterCache) {
         super(facetName);
         this.filter = filter;
+    }
+
+    @Override public void optimizedGlobalExecution(SearchContext searchContext) throws IOException {
+        Query query = new DeletionAwareConstantScoreQuery(filter);
+        if (super.filter != null) {
+            query = new FilteredQuery(query, super.filter);
+        }
+        if (searchContext.types().length > 0) {
+            query = new FilteredQuery(query, searchContext.filterCache().cache(searchContext.mapperService().typesFilter(searchContext.types())));
+        }
+        TotalHitCountCollector collector = new TotalHitCountCollector();
+        searchContext.searcher().search(query, collector);
+        count = collector.getTotalHits();
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

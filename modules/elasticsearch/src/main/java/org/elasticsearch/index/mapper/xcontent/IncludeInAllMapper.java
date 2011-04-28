@@ -25,4 +25,6 @@ package org.elasticsearch.index.mapper.xcontent;
 public interface IncludeInAllMapper extends XContentMapper {
 
     void includeInAll(Boolean includeInAll);
+
+    void includeInAllIfNotSet(Boolean includeInAll);
 }

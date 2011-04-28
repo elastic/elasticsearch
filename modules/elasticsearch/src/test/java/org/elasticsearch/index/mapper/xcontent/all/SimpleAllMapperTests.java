@@ -44,7 +44,8 @@ public class SimpleAllMapperTests {
         Document doc = docMapper.parse(json).doc();
         AllField field = (AllField) doc.getFieldable("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
-        assertThat(allEntries.fields().size(), equalTo(2));
+        assertThat(allEntries.fields().size(), equalTo(3));
+        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
     }
@@ -61,7 +62,8 @@ public class SimpleAllMapperTests {
 
         AllField field = (AllField) doc.getFieldable("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
-        assertThat(allEntries.fields().size(), equalTo(2));
+        assertThat(allEntries.fields().size(), equalTo(3));
+        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
     }

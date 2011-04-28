@@ -107,6 +107,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     }
 
+    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+        if (includeInAll != null && this.includeInAll == null) {
+            this.includeInAll = includeInAll;
+        }
+    }
+
     protected abstract int maxPrecisionStep();
 
     public int precisionStep() {

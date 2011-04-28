@@ -44,6 +44,10 @@ public abstract class AbstractFacetCollector extends FacetCollector {
         this.facetName = facetName;
     }
 
+    public Filter getFilter() {
+        return this.filter;
+    }
+
     @Override public void setFilter(Filter filter) {
         if (this.filter == null) {
             this.filter = filter;

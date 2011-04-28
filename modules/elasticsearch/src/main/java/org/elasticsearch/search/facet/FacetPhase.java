@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.facet;
 
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -67,22 +67,51 @@ public class FacetPhase implements SearchPhase {
             return;
         }
 
-        // run global facets ...
-        if (context.searcher().hasCollectors(ContextIndexSearcher.Scopes.GLOBAL)) {
-            Query query = Queries.MATCH_ALL_QUERY;
-            if (context.types().length > 0) {
-                query = new FilteredQuery(query, context.filterCache().cache(context.mapperService().typesFilter(context.types())));
-            }
+        // optimize global facet execution, based on filters (don't iterate over all docs), and check
+        // if we have special facets that can be optimized for all execution, do it
+        List<Collector> collectors = context.searcher().removeCollectors(ContextIndexSearcher.Scopes.GLOBAL);
 
-            context.searcher().processingScope(ContextIndexSearcher.Scopes.GLOBAL);
-            try {
-                context.searcher().search(query, NoopCollector.NOOP_COLLECTOR);
-            } catch (IOException e) {
-                throw new QueryPhaseExecutionException(context, "Failed to execute global facets", e);
-            } finally {
-                context.searcher().processedScope();
+        if (collectors != null && !collectors.isEmpty()) {
+            Map<Filter, List<Collector>> filtersByCollector = Maps.newHashMap();
+            for (Collector collector : collectors) {
+                if (collector instanceof OptimizeGlobalFacetCollector) {
+                    try {
+                        ((OptimizeGlobalFacetCollector) collector).optimizedGlobalExecution(context);
+                    } catch (IOException e) {
+                        throw new QueryPhaseExecutionException(context, "Failed to execute global facets", e);
+                    }
+                } else {
+                    Filter filter = Queries.MATCH_ALL_FILTER;
+                    if (collector instanceof AbstractFacetCollector) {
+                        AbstractFacetCollector facetCollector = (AbstractFacetCollector) collector;
+                        if (facetCollector.getFilter() != null) {
+                            filter = facetCollector.getFilter();
+                        }
+                    }
+                    List<Collector> list = filtersByCollector.get(filter);
+                    if (list == null) {
+                        list = ImmutableList.of(collector);
+                        filtersByCollector.put(filter, list);
+                    } else {
+                        list.add(collector);
+                    }
+                }
+            }
+            // now, go and execute the filters->collector ones
+            for (Map.Entry<Filter, List<Collector>> entry : filtersByCollector.entrySet()) {
+                Filter filter = entry.getKey();
+                Query query = new DeletionAwareConstantScoreQuery(filter);
+                if (context.types().length > 0) {
+                    query = new FilteredQuery(query, context.filterCache().cache(context.mapperService().typesFilter(context.types())));
+                }
+                try {
+                    context.searcher().search(query, MultiCollector.wrap(entry.getValue().toArray(new Collector[entry.getValue().size()])));
+                } catch (IOException e) {
+                    throw new QueryPhaseExecutionException(context, "Failed to execute global facets", e);
+                }
             }
         }
+
         SearchContextFacets contextFacets = context.facets();
 
         List<Facet> facets = Lists.newArrayListWithCapacity(2);

@@ -119,7 +119,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
             context.path().pathType(origPathType);
             context.path().remove();
 
-            objectMapper.includeInAll(includeInAll);
+            objectMapper.includeInAllIfNotSet(includeInAll);
 
             return (Y) objectMapper;
         }
@@ -252,9 +252,21 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
+    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+        if (this.includeInAll == null) {
+            this.includeInAll = includeInAll;
+        }
+        // when called from outside, apply this on all the inner mappers
+        for (XContentMapper mapper : mappers.values()) {
+            if (mapper instanceof IncludeInAllMapper) {
+                ((IncludeInAllMapper) mapper).includeInAllIfNotSet(includeInAll);
+            }
+        }
+    }
+
     public ObjectMapper putMapper(XContentMapper mapper) {
         if (mapper instanceof IncludeInAllMapper) {
-            ((IncludeInAllMapper) mapper).includeInAll(includeInAll);
+            ((IncludeInAllMapper) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
             mappers = newMapBuilder(mappers).put(mapper.name(), mapper).immutableMap();

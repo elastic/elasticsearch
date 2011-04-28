@@ -27,13 +27,17 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.OptimizeGlobalFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFacetCollector extends AbstractFacetCollector {
+public class QueryFacetCollector extends AbstractFacetCollector implements OptimizeGlobalFacetCollector {
+
+    private final Query query;
 
     private final Filter filter;
 
@@ -43,6 +47,7 @@ public class QueryFacetCollector extends AbstractFacetCollector {
 
     public QueryFacetCollector(String facetName, Query query, FilterCache filterCache) {
         super(facetName);
+        this.query = query;
         Filter possibleFilter = extractFilterIfApplicable(query);
         if (possibleFilter != null) {
             this.filter = possibleFilter;
@@ -59,6 +64,19 @@ public class QueryFacetCollector extends AbstractFacetCollector {
         if (docSet.get(doc)) {
             count++;
         }
+    }
+
+    @Override public void optimizedGlobalExecution(SearchContext searchContext) throws IOException {
+        Query query = this.query;
+        if (super.filter != null) {
+            query = new FilteredQuery(query, super.filter);
+        }
+        if (searchContext.types().length > 0) {
+            query = new FilteredQuery(query, searchContext.filterCache().cache(searchContext.mapperService().typesFilter(searchContext.types())));
+        }
+        TotalHitCountCollector collector = new TotalHitCountCollector();
+        searchContext.searcher().search(query, collector);
+        count = collector.getTotalHits();
     }
 
     @Override public Facet facet() {

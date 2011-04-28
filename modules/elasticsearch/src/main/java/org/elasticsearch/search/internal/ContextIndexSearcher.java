@@ -138,9 +138,10 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     }
 
     @Override public void search(Weight weight, Filter filter, Collector collector) throws IOException {
-        if (searchContext.parsedFilter() != null) {
+        if (searchContext.parsedFilter() != null && Scopes.MAIN.equals(processingScope)) {
             // this will only get applied to the actual search collector and not
-            // to any scoped collectors
+            // to any scoped collectors, also, it will only be applied to the main collector
+            // since that is where the filter should only work
             collector = new FilteredCollector(collector, searchContext.parsedFilter());
         }
         if (searchContext.timeout() != null) {

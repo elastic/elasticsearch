@@ -110,6 +110,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
         }
     }
 
+    @Override public void includeInAllIfNotSet(Boolean includeInAll) {
+        if (includeInAll != null && this.includeInAll == null) {
+            this.includeInAll = includeInAll;
+        }
+    }
+
     @Override public String value(Fieldable field) {
         return field.stringValue();
     }

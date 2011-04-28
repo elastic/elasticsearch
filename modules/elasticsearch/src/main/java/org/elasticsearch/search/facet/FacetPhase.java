@@ -21,7 +21,6 @@ package org.elasticsearch.search.facet;
 
 import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -90,11 +90,10 @@ public class FacetPhase implements SearchPhase {
                     }
                     List<Collector> list = filtersByCollector.get(filter);
                     if (list == null) {
-                        list = ImmutableList.of(collector);
+                        list = new ArrayList<Collector>();
                         filtersByCollector.put(filter, list);
-                    } else {
-                        list.add(collector);
                     }
+                    list.add(collector);
                 }
             }
             // now, go and execute the filters->collector ones

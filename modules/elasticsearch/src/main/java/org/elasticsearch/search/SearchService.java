@@ -463,7 +463,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     break;
                 }
             }
-            parser.close();
         } catch (Exception e) {
             String sSource = "_na_";
             try {

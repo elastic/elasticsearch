@@ -88,7 +88,10 @@ public class OrDocSet extends DocSet {
             _heap = new Item[sets.size()];
             _size = 0;
             for (DocIdSet set : sets) {
-                _heap[_size++] = new Item(set.iterator());
+                DocIdSetIterator iterator = set.iterator();
+                if (iterator != null) {
+                    _heap[_size++] = new Item(iterator);
+                }
             }
             if (_size == 0) _curDoc = DocIdSetIterator.NO_MORE_DOCS;
         }

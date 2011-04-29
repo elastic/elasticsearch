@@ -446,8 +446,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (source == null || length == 0) {
             return;
         }
+        XContentParser parser = null;
         try {
-            XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
+            parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -471,6 +472,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 // ignore
             }
             throw new SearchParseException(context, "Failed to parse source [" + sSource + "]", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
         }
     }
 

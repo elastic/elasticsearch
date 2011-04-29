@@ -60,12 +60,21 @@ public class AndDocIdSet extends DocIdSet {
             iterators = new DocIdSetIterator[sets.size()];
             int j = 0;
             for (DocIdSet set : sets) {
-                if (set != null) {
+                if (set == null) {
+                    lastReturn = DocIdSetIterator.NO_MORE_DOCS; // non matching
+                    break;
+                } else {
                     DocIdSetIterator dcit = set.iterator();
+                    if (dcit == null) {
+                        lastReturn = DocIdSetIterator.NO_MORE_DOCS; // non matching
+                        break;
+                    }
                     iterators[j++] = dcit;
                 }
             }
-            lastReturn = (iterators.length > 0 ? -1 : DocIdSetIterator.NO_MORE_DOCS);
+            if (lastReturn != DocIdSetIterator.NO_MORE_DOCS) {
+                lastReturn = (iterators.length > 0 ? -1 : DocIdSetIterator.NO_MORE_DOCS);
+            }
         }
 
         @Override

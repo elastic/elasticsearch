@@ -55,7 +55,6 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableSet<String> aliases;
 
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
-    private final ImmutableMap<String, ImmutableSet<String>> aliasAndIndexToIndexMap2;
 
     private MetaData(ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates) {
         this.indices = ImmutableMap.copyOf(indices);
@@ -105,12 +104,6 @@ public class MetaData implements Iterable<IndexMetaData> {
             aliasAndIndexToIndexBuilder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
         this.aliasAndIndexToIndexMap = aliasAndIndexToIndexBuilder.immutableMap();
-
-        MapBuilder<String, ImmutableSet<String>> aliasAndIndexToIndexBuilder2 = newMapBuilder();
-        for (Map.Entry<String, Set<String>> entry : tmpAliasAndIndexToIndexBuilder.map().entrySet()) {
-            aliasAndIndexToIndexBuilder2.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
-        }
-        this.aliasAndIndexToIndexMap2 = aliasAndIndexToIndexBuilder2.immutableMap();
     }
 
     public ImmutableSet<String> aliases() {
@@ -227,7 +220,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public boolean hasConcreteIndex(String index) {
-        return aliasAndIndexToIndexMap2.containsKey(index);
+        return aliasAndIndexToIndexMap.containsKey(index);
     }
 
     public IndexMetaData index(String index) {

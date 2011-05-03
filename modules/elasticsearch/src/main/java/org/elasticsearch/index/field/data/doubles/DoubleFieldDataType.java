@@ -43,14 +43,14 @@ public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
         if (missing.equals("_last")) {
             return new FieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                    return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.MIN_VALUE : Double.MAX_VALUE);
+                    return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
                 }
             };
         }
         if (missing.equals("_first")) {
             return new FieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                    return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.MAX_VALUE : Double.MIN_VALUE);
+                    return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
                 }
             };
         }

@@ -36,9 +36,9 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
 
-    private double min = Double.MAX_VALUE;
+    private double min = Double.POSITIVE_INFINITY;
 
-    private double max = Double.MIN_VALUE;
+    private double max = Double.NEGATIVE_INFINITY;
 
     private double total = 0;
 
@@ -74,12 +74,6 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        if (min == Double.MAX_VALUE) {
-            min = Double.NaN;
-        }
-        if (max == Double.MIN_VALUE) {
-            max = Double.NaN;
-        }
         return new InternalStatisticalFacet(facetName, min, max, total, sumOfSquares, count);
     }
 }

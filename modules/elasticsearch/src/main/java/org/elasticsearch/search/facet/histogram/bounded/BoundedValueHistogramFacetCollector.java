@@ -139,7 +139,7 @@ public class BoundedValueHistogramFacetCollector extends AbstractFacetCollector 
             int index = ((int) ((value + offset) / interval));
             InternalBoundedFullHistogramFacet.FullEntry entry = (InternalBoundedFullHistogramFacet.FullEntry) entries[index];
             if (entry == null) {
-                entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entry = new InternalBoundedFullHistogramFacet.FullEntry(index, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0, 0);
                 entries[index] = entry;
             }
             entry.count++;

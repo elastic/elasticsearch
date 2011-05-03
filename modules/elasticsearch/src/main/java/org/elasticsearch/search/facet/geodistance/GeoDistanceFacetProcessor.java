@@ -90,7 +90,7 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                                 }
                             }
                         }
-                        entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE));
+                        entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY));
                     }
                 } else {
                     token = parser.nextToken();

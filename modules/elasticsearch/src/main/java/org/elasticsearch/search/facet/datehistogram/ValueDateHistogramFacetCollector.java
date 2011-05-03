@@ -125,7 +125,7 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
             InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);
             if (entry == null) {
-                entry = new InternalFullDateHistogramFacet.FullEntry(time, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entry = new InternalFullDateHistogramFacet.FullEntry(time, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0, 0);
                 entries.put(time, entry);
             }
             entry.count++;

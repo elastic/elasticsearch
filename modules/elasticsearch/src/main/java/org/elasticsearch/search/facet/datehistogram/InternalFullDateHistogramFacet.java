@@ -61,8 +61,8 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
         long count;
         long totalCount;
         double total;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
 
         public FullEntry(long time, long count, double min, double max, long totalCount, double total) {
             this.time = time;

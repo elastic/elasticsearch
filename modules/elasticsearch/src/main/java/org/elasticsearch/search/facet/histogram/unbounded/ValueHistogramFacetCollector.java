@@ -119,7 +119,7 @@ public class ValueHistogramFacetCollector extends AbstractFacetCollector {
             long bucket = FullHistogramFacetCollector.bucket(value, interval);
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
             if (entry == null) {
-                entry = new InternalFullHistogramFacet.FullEntry(bucket, 0, Double.MAX_VALUE, Double.MIN_VALUE, 0, 0);
+                entry = new InternalFullHistogramFacet.FullEntry(bucket, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0, 0);
                 entries.put(bucket, entry);
             }
             entry.count++;

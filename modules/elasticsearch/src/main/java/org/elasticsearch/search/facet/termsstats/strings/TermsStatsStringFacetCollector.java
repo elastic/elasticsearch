@@ -164,7 +164,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         @Override public void onValue(int docId, String value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
-                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
+                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(value, stringEntry);
             }
             stringEntry.count++;
@@ -203,7 +203,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         @Override public void onValue(int docId, String value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
-                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.MAX_VALUE, Double.MIN_VALUE);
+                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(value, stringEntry);
             } else {
                 stringEntry.count++;

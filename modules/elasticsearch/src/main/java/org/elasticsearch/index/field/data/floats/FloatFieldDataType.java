@@ -43,14 +43,14 @@ public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
         if (missing.equals("_last")) {
             return new FieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                    return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.MIN_VALUE : Float.MAX_VALUE);
+                    return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY);
                 }
             };
         }
         if (missing.equals("_first")) {
             return new FieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                    return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.MAX_VALUE : Float.MIN_VALUE);
+                    return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
                 }
             };
         }

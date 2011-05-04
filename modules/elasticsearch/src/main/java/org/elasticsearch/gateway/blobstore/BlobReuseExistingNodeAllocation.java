@@ -259,9 +259,10 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         } else {
             nodesIds = Sets.newHashSet();
             // clean nodes that have failed
-            for (DiscoveryNode node : shardStores.keySet()) {
+            for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext();) {
+                DiscoveryNode node = it.next();
                 if (!nodes.nodeExists(node.id())) {
-                    shardStores.remove(node);
+                    it.remove();
                 }
             }
 

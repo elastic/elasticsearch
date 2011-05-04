@@ -301,9 +301,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             nodeIds = nodes.dataNodes().keySet();
         } else {
             // clean nodes that have failed
-            for (DiscoveryNode node : shardStates.keySet()) {
-                if (!nodes.nodeExists(node.id())) {
-                    shardStates.remove(node);
+            for (TObjectLongIterator<DiscoveryNode> it = shardStates.iterator(); it.hasNext();) {
+                it.advance();
+                if (!nodes.nodeExists(it.key().id())) {
+                    it.remove();
                 }
             }
             nodeIds = Sets.newHashSet();
@@ -350,9 +351,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         } else {
             nodesIds = Sets.newHashSet();
             // clean nodes that have failed
-            for (DiscoveryNode node : shardStores.keySet()) {
+            for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext();) {
+                DiscoveryNode node = it.next();
                 if (!nodes.nodeExists(node.id())) {
-                    shardStores.remove(node);
+                    it.remove();
                 }
             }
 

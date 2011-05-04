@@ -153,6 +153,12 @@ public class SimpleJodaTests {
         time.setMillis(utcTimeInMillis("2009-02-02T23:01:01"));
         assertThat(time.toString(), equalTo("2009-02-02T00:00:00.000Z"));
         assertThat(time.getMillis(), equalTo(utcTimeInMillis("2009-02-02T00:00:00.000Z")));
+
+        time = new MutableDateTime(DateTimeZone.UTC);
+        time.setRounding(time.getChronology().weekOfWeekyear(), MutableDateTime.ROUND_FLOOR);
+        time.setMillis(utcTimeInMillis("2011-05-05T01:01:01"));
+        assertThat(time.toString(), equalTo("2011-05-02T00:00:00.000Z"));
+        assertThat(time.getMillis(), equalTo(utcTimeInMillis("2011-05-02T00:00:00.000Z")));
     }
 
     @Test public void testRoundingWithTimeZone() {

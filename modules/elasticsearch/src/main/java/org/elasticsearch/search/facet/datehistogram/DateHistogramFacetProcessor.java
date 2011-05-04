@@ -61,6 +61,8 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 .put("1y", new DateFieldParser.YearOfCentury())
                 .put("month", new DateFieldParser.MonthOfYear())
                 .put("1m", new DateFieldParser.MonthOfYear())
+                .put("week", new DateFieldParser.WeekOfWeekyear())
+                .put("1w", new DateFieldParser.WeekOfWeekyear())
                 .put("day", new DateFieldParser.DayOfMonth())
                 .put("1d", new DateFieldParser.DayOfMonth())
                 .put("hour", new DateFieldParser.HourOfDay())
@@ -208,6 +210,12 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
     static interface DateFieldParser {
 
         DateTimeField parse(Chronology chronology);
+
+        static class WeekOfWeekyear implements DateFieldParser {
+            @Override public DateTimeField parse(Chronology chronology) {
+                return chronology.weekOfWeekyear();
+            }
+        }
 
         static class YearOfCentury implements DateFieldParser {
             @Override public DateTimeField parse(Chronology chronology) {

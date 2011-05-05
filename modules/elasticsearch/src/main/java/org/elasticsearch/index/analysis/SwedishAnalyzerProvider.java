@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -38,7 +37,7 @@ public class SwedishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Swedi
     @Inject public SwedishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new SwedishAnalyzer(version,
-                Analysis.parseStopWords(settings, ArabicAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(settings, SwedishAnalyzer.getDefaultStopSet()),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

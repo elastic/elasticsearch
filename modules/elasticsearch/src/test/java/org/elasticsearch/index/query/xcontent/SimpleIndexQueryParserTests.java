@@ -331,6 +331,16 @@ public class SimpleIndexQueryParserTests {
         assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
     }
 
+    @Test public void testFuzzyQueryWithFields2() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/fuzzy-with-fields2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fuzzyQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fuzzyQuery.getMin().longValue(), equalTo(7l));
+        assertThat(fuzzyQuery.getMax().longValue(), equalTo(17l));
+    }
+
     @Test public void testFieldQueryBuilder1() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes()).query();
@@ -761,6 +771,16 @@ public class SimpleIndexQueryParserTests {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/boosting-query.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BoostingQuery.class));
+    }
+
+    @Test public void testQueryStringFuzzyNumeric() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/query2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fuzzyQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fuzzyQuery.getMin().longValue(), equalTo(12l));
+        assertThat(fuzzyQuery.getMax().longValue(), equalTo(12l));
     }
 
     @Test public void testBoolQueryBuilder() throws IOException {

@@ -151,6 +151,10 @@ public interface FieldMapper<T> {
      */
     Query fieldQuery(String value, QueryParseContext context);
 
+    Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
+
+    Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
+
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
      */

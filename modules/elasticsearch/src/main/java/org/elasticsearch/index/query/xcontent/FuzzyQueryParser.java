@@ -59,7 +59,7 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
 
         String value = null;
         float boost = 1.0f;
-        float minSimilarity = FuzzyQuery.defaultMinSimilarity;
+        String minSimilarity = "0.5";
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
         token = parser.nextToken();
@@ -76,7 +76,7 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("min_similarity".equals(currentFieldName) || "minSimilarity".equals(currentFieldName)) {
-                        minSimilarity = parser.floatValue();
+                        minSimilarity = parser.text();
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         prefixLength = parser.intValue();
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
@@ -95,11 +95,18 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
             throw new QueryParsingException(index, "No value specified for fuzzy query");
         }
 
+        Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
+        if (smartNameFieldMappers != null) {
+            if (smartNameFieldMappers.hasMapper()) {
+                query = smartNameFieldMappers.mapper().fuzzyQuery(value, minSimilarity, prefixLength, maxExpansions);
+            }
+        }
+        if (query == null) {
+            query = new FuzzyQuery(new Term(fieldName, value), Float.parseFloat(minSimilarity), prefixLength, maxExpansions);
+        }
+        query.setBoost(boost);
 
-        FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(fieldName, value), minSimilarity, prefixLength, maxExpansions);
-        fuzzyQuery.setBoost(boost);
-
-        return wrapSmartNameQuery(fuzzyQuery, smartNameFieldMappers, parseContext);
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

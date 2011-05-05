@@ -22,10 +22,8 @@ package org.elasticsearch.index.mapper.xcontent.ip;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Numbers;
@@ -130,7 +128,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                             Field.Index index, Field.Store store,
                             float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                             String nullValue) {
-        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -169,6 +167,19 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override public String indexedValue(String value) {
         return NumericUtils.longToPrefixCoded(ipToLong(value));
+    }
+
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        long iValue = ipToLong(value);
+        long iSim = ipToLong(minSim);
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        return new FuzzyQuery(new Term(names.indexName(), value), (float) minSim, prefixLength, maxExpansions);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

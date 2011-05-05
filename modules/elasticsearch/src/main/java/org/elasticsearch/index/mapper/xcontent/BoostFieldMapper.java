@@ -89,7 +89,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
     protected BoostFieldMapper(String name, String indexName, int precisionStep, Field.Index index, Field.Store store,
                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                Float nullValue) {
-        super(new Names(name, indexName, indexName, name), precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(new Names(name, indexName, indexName, name), precisionStep, null, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -113,6 +113,24 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements org.el
 
     @Override public String indexedValue(String value) {
         return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
+    }
+
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        float iValue = Float.parseFloat(value);
+        float iSim = Float.parseFloat(minSim);
+        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        float iValue = Float.parseFloat(value);
+        float iSim = (float) (minSim * dFuzzyFactor);
+        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

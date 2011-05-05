@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -155,19 +156,18 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
-        String indexedNameField = field;
         currentMapper = null;
         if (parseContext.mapperService() != null) {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
             if (fieldMappers != null) {
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
-                    indexedNameField = currentMapper.names().indexName();
+                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, FuzzyQuery.defaultMaxExpansions);
+                    return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
                 }
-                return wrapSmartNameQuery(super.getFuzzyQuery(indexedNameField, termStr, minSimilarity), fieldMappers, parseContext);
             }
         }
-        return super.getFuzzyQuery(indexedNameField, termStr, minSimilarity);
+        return super.getFuzzyQuery(field, termStr, minSimilarity);
     }
 
     @Override protected Query getPrefixQuery(String field, String termStr) throws ParseException {

@@ -68,7 +68,7 @@ public class SizeFieldMapper extends IntegerFieldMapper {
     }
 
     public SizeFieldMapper(boolean enabled, Field.Store store) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.INDEX, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE);
+        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, Defaults.INDEX, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE);
         this.enabled = enabled;
     }
 

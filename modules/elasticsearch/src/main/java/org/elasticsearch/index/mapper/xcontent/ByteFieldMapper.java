@@ -72,7 +72,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
         @Override public ByteFieldMapper build(BuilderContext context) {
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -97,10 +97,10 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     private String nullValueAsString;
 
-    protected ByteFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
+    protected ByteFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                               Byte nullValue) {
-        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -126,6 +126,30 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     @Override public String indexedValue(String value) {
         return NumericUtils.intToPrefixCoded(Byte.parseByte(value));
     }
+
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        byte iValue = Byte.parseByte(value);
+        byte iSim;
+        try {
+            iSim = Byte.parseByte(minSim);
+        } catch (NumberFormatException e) {
+            iSim = (byte) Float.parseFloat(minSim);
+        }
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        byte iValue = Byte.parseByte(value);
+        byte iSim = (byte) (minSim * dFuzzyFactor);
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
@@ -220,6 +244,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
+        }
+        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
+            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

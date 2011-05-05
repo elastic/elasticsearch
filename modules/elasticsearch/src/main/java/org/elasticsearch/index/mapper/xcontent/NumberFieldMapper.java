@@ -26,6 +26,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -44,11 +45,14 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final String FUZZY_FACTOR = null;
     }
 
     public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
 
         protected int precisionStep = Defaults.PRECISION_STEP;
+
+        protected String fuzzyFactor = Defaults.FUZZY_FACTOR;
 
         public Builder(String name) {
             super(name);
@@ -77,9 +81,18 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             this.precisionStep = precisionStep;
             return builder;
         }
+
+        public T fuzzyFactor(String fuzzyFactor) {
+            this.fuzzyFactor = fuzzyFactor;
+            return builder;
+        }
     }
 
     protected int precisionStep;
+
+    protected String fuzzyFactor;
+
+    protected double dFuzzyFactor;
 
     protected Boolean includeInAll;
 
@@ -89,7 +102,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     };
 
-    protected NumberFieldMapper(Names names, int precisionStep,
+    protected NumberFieldMapper(Names names, int precisionStep, @Nullable String fuzzyFactor,
                                 Field.Index index, Field.Store store,
                                 float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                 NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
@@ -99,6 +112,15 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         } else {
             this.precisionStep = precisionStep;
         }
+        this.fuzzyFactor = fuzzyFactor;
+        this.dFuzzyFactor = parseFuzzyFactor(fuzzyFactor);
+    }
+
+    protected double parseFuzzyFactor(String fuzzyFactor) {
+        if (fuzzyFactor == null) {
+            return 1.0d;
+        }
+        return Double.parseDouble(fuzzyFactor);
     }
 
     @Override public void includeInAll(Boolean includeInAll) {
@@ -133,6 +155,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     @Override public Query fieldQuery(String value, QueryParseContext context) {
         return rangeQuery(value, value, true, true);
     }
+
+    @Override public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
+
+    @Override public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
 
     /**
      * Numeric field level filter are basically range queries with same value and included. That's the recommended

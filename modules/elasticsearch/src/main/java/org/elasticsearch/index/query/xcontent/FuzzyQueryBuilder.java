@@ -32,11 +32,11 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder {
 
     private final String name;
 
-    private final String value;
+    private final Object value;
 
     private float boost = -1;
 
-    private Float minSimilarity;
+    private String minSimilarity;
 
     private Integer prefixLength;
 
@@ -46,7 +46,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public FuzzyQueryBuilder(String name, String value) {
+    public FuzzyQueryBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
     }
@@ -61,6 +61,11 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder {
     }
 
     public FuzzyQueryBuilder minSimilarity(float defaultMinSimilarity) {
+        this.minSimilarity = Float.toString(defaultMinSimilarity);
+        return this;
+    }
+
+    public FuzzyQueryBuilder minSimilarity(String defaultMinSimilarity) {
         this.minSimilarity = defaultMinSimilarity;
         return this;
     }

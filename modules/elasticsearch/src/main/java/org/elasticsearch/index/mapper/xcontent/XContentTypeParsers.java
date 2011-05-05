@@ -42,6 +42,8 @@ public class XContentTypeParsers {
             Object propNode = entry.getValue();
             if (propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
+            } else if (propName.equals("fuzzy_factor")) {
+                builder.fuzzyFactor(propNode.toString());
             }
         }
     }

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -29,22 +28,20 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * Real work actually done here by Sebastian on the ElasticSearch mailing list
- * http://elasticsearch-users.115913.n3.nabble.com/Using-the-Snowball-stemmers-tp2126106p2127111.html
- *
- * @author harryf (Harry Fuecks)
+ * @author kimchy (shay.banon)
  */
-public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
+public class BulgarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<BulgarianAnalyzer> {
 
-    private String language;
+    private final BulgarianAnalyzer analyzer;
 
-    @Inject public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public BulgarianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.language = Strings.capitalize(settings.get("language", settings.get("name", "English")));
+        analyzer = new BulgarianAnalyzer(version,
+                Analysis.parseStopWords(settings, BulgarianAnalyzer.getDefaultStopSet()),
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
-        return new SnowballFilter(tokenStream, language);
+    @Override public BulgarianAnalyzer get() {
+        return this.analyzer;
     }
-
 }

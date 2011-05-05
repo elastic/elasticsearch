@@ -89,6 +89,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
             NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get());
             analyzers.put(analyzerFactory.name(), analyzer);
+            analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
             String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             if (strAliases != null) {
                 for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
@@ -116,6 +117,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
                 tokenizers.put(tokenizerName, tokenizerFactory);
+                tokenizers.put(Strings.toCamelCase(tokenizerName), tokenizerFactory);
             }
         }
         this.tokenizers = ImmutableMap.copyOf(tokenizers);
@@ -134,6 +136,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 CharFilterFactory tokenFilterFactory = charFilterFactoryFactory.create(charFilterName, charFilterSettings);
                 charFilters.put(charFilterName, tokenFilterFactory);
+                charFilters.put(Strings.toCamelCase(charFilterName), tokenFilterFactory);
             }
         }
         this.charFilters = ImmutableMap.copyOf(charFilters);
@@ -152,6 +155,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 TokenFilterFactory tokenFilterFactory = tokenFilterFactoryFactory.create(tokenFilterName, tokenFilterSettings);
                 tokenFilters.put(tokenFilterName, tokenFilterFactory);
+                tokenFilters.put(Strings.toCamelCase(tokenFilterName), tokenFilterFactory);
             }
         }
         this.tokenFilters = ImmutableMap.copyOf(tokenFilters);

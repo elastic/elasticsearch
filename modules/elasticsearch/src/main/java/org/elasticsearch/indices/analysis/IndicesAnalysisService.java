@@ -22,17 +22,30 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.*;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
+import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
+import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.cn.ChineseAnalyzer;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
+import org.apache.lucene.analysis.da.DanishAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.es.SpanishAnalyzer;
+import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
+import org.apache.lucene.analysis.fi.FinnishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchStemFilter;
+import org.apache.lucene.analysis.gl.GalicianAnalyzer;
+import org.apache.lucene.analysis.hi.HindiAnalyzer;
+import org.apache.lucene.analysis.hu.HungarianAnalyzer;
+import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
+import org.apache.lucene.analysis.id.IndonesianAnalyzer;
+import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
@@ -40,8 +53,11 @@ import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchStemFilter;
+import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
+import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
+import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianStemFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
@@ -51,7 +67,9 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -98,18 +116,36 @@ public class IndicesAnalysisService extends AbstractComponent {
         analyzerProviderFactories.put("pattern", new PreBuiltAnalyzerProviderFactory("pattern", AnalyzerScope.INDICES, new PatternAnalyzer(Lucene.ANALYZER_VERSION, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         analyzerProviderFactories.put("snowball", new PreBuiltAnalyzerProviderFactory("snowball", AnalyzerScope.INDICES, new SnowballAnalyzer(Lucene.ANALYZER_VERSION, "English", StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         analyzerProviderFactories.put("standard_html_strip", new PreBuiltAnalyzerProviderFactory("standard_html_strip", AnalyzerScope.INDICES, new StandardHtmlStripAnalyzer(Lucene.ANALYZER_VERSION)));
-        analyzerProviderFactories.put("standardHtmlStrip", new PreBuiltAnalyzerProviderFactory("standardHtmlStrip", AnalyzerScope.INDICES, new StandardHtmlStripAnalyzer(Lucene.ANALYZER_VERSION)));
+
         analyzerProviderFactories.put("arabic", new PreBuiltAnalyzerProviderFactory("arabic", AnalyzerScope.INDICES, new ArabicAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("armenian", new PreBuiltAnalyzerProviderFactory("armenian", AnalyzerScope.INDICES, new ArmenianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("basque", new PreBuiltAnalyzerProviderFactory("basque", AnalyzerScope.INDICES, new BasqueAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("brazilian", new PreBuiltAnalyzerProviderFactory("brazilian", AnalyzerScope.INDICES, new BrazilianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("bulgarian", new PreBuiltAnalyzerProviderFactory("bulgarian", AnalyzerScope.INDICES, new BulgarianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("catalan", new PreBuiltAnalyzerProviderFactory("catalan", AnalyzerScope.INDICES, new CatalanAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("chinese", new PreBuiltAnalyzerProviderFactory("chinese", AnalyzerScope.INDICES, new ChineseAnalyzer()));
         analyzerProviderFactories.put("cjk", new PreBuiltAnalyzerProviderFactory("cjk", AnalyzerScope.INDICES, new ChineseAnalyzer()));
         analyzerProviderFactories.put("czech", new PreBuiltAnalyzerProviderFactory("czech", AnalyzerScope.INDICES, new CzechAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("dutch", new PreBuiltAnalyzerProviderFactory("dutch", AnalyzerScope.INDICES, new DutchAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("danish", new PreBuiltAnalyzerProviderFactory("danish", AnalyzerScope.INDICES, new DanishAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("english", new PreBuiltAnalyzerProviderFactory("english", AnalyzerScope.INDICES, new EnglishAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("finnish", new PreBuiltAnalyzerProviderFactory("finnish", AnalyzerScope.INDICES, new FinnishAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("french", new PreBuiltAnalyzerProviderFactory("french", AnalyzerScope.INDICES, new FrenchAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("galician", new PreBuiltAnalyzerProviderFactory("galician", AnalyzerScope.INDICES, new GalicianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("german", new PreBuiltAnalyzerProviderFactory("german", AnalyzerScope.INDICES, new GermanAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("greek", new PreBuiltAnalyzerProviderFactory("greek", AnalyzerScope.INDICES, new GreekAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("hindi", new PreBuiltAnalyzerProviderFactory("hindi", AnalyzerScope.INDICES, new HindiAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("hungarian", new PreBuiltAnalyzerProviderFactory("hungarian", AnalyzerScope.INDICES, new HungarianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("indonesian", new PreBuiltAnalyzerProviderFactory("indonesian", AnalyzerScope.INDICES, new IndonesianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("italian", new PreBuiltAnalyzerProviderFactory("italian", AnalyzerScope.INDICES, new ItalianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("norwegian", new PreBuiltAnalyzerProviderFactory("norwegian", AnalyzerScope.INDICES, new NorwegianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("persian", new PreBuiltAnalyzerProviderFactory("persian", AnalyzerScope.INDICES, new PersianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("portuguese", new PreBuiltAnalyzerProviderFactory("portuguese", AnalyzerScope.INDICES, new PortugueseAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("romanian", new PreBuiltAnalyzerProviderFactory("romanian", AnalyzerScope.INDICES, new RomanianAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("russian", new PreBuiltAnalyzerProviderFactory("russian", AnalyzerScope.INDICES, new RussianAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("spanish", new PreBuiltAnalyzerProviderFactory("spanish", AnalyzerScope.INDICES, new SpanishAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("swedish", new PreBuiltAnalyzerProviderFactory("swedish", AnalyzerScope.INDICES, new SwedishAnalyzer(Lucene.ANALYZER_VERSION)));
+        analyzerProviderFactories.put("turkish", new PreBuiltAnalyzerProviderFactory("turkish", AnalyzerScope.INDICES, new TurkishAnalyzer(Lucene.ANALYZER_VERSION)));
         analyzerProviderFactories.put("thai", new PreBuiltAnalyzerProviderFactory("thai", AnalyzerScope.INDICES, new ThaiAnalyzer(Lucene.ANALYZER_VERSION)));
 
         // Base Tokenizers
@@ -133,29 +169,9 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
         }));
 
-        tokenizerFactories.put("uaxUrlEmail", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
-            @Override public String name() {
-                return "uaxUrlEmail";
-            }
-
-            @Override public Tokenizer create(Reader reader) {
-                return new UAX29URLEmailTokenizer(reader);
-            }
-        }));
-
         tokenizerFactories.put("path_hierarchy", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
             @Override public String name() {
                 return "path_hierarchy";
-            }
-
-            @Override public Tokenizer create(Reader reader) {
-                return new PathHierarchyTokenizer(reader);
-            }
-        }));
-
-        tokenizerFactories.put("pathHierarchy", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
-            @Override public String name() {
-                return "pathHierarchy";
             }
 
             @Override public Tokenizer create(Reader reader) {
@@ -294,16 +310,6 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
         }));
 
-        tokenFilterFactories.put("porterStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "porterStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new PorterStemFilter(tokenStream);
-            }
-        }));
-
         tokenFilterFactories.put("porter_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {
                 return "porter_stem";
@@ -384,13 +390,13 @@ public class IndicesAnalysisService extends AbstractComponent {
                 return new SnowballFilter(tokenStream, "English");
             }
         }));
-        tokenFilterFactories.put("arabicStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+        tokenFilterFactories.put("stemmer", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {
-                return "arabicStem";
+                return "stemmer";
             }
 
             @Override public TokenStream create(TokenStream tokenStream) {
-                return new ArabicStemFilter(tokenStream);
+                return new PorterStemFilter(tokenStream);
             }
         }));
         tokenFilterFactories.put("arabic_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
@@ -402,15 +408,6 @@ public class IndicesAnalysisService extends AbstractComponent {
                 return new ArabicStemFilter(tokenStream);
             }
         }));
-        tokenFilterFactories.put("brazilianStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "brazilianStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new BrazilianStemFilter(tokenStream);
-            }
-        }));
         tokenFilterFactories.put("brazilian_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {
                 return "brazilian_stem";
@@ -418,15 +415,6 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new BrazilianStemFilter(tokenStream);
-            }
-        }));
-        tokenFilterFactories.put("czechStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "czechStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new CzechStemFilter(tokenStream);
             }
         }));
         tokenFilterFactories.put("czech_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
@@ -438,15 +426,6 @@ public class IndicesAnalysisService extends AbstractComponent {
                 return new CzechStemFilter(tokenStream);
             }
         }));
-        tokenFilterFactories.put("dutchStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "dutchStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new DutchStemFilter(tokenStream);
-            }
-        }));
         tokenFilterFactories.put("dutch_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {
                 return "dutch_stem";
@@ -454,15 +433,6 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new DutchStemFilter(tokenStream);
-            }
-        }));
-        tokenFilterFactories.put("frenchStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "frenchStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new FrenchStemFilter(tokenStream);
             }
         }));
         tokenFilterFactories.put("french_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
@@ -474,15 +444,6 @@ public class IndicesAnalysisService extends AbstractComponent {
                 return new FrenchStemFilter(tokenStream);
             }
         }));
-        tokenFilterFactories.put("germanStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "germanStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new GermanStemFilter(tokenStream);
-            }
-        }));
         tokenFilterFactories.put("german_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {
                 return "german_stem";
@@ -490,15 +451,6 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new GermanStemFilter(tokenStream);
-            }
-        }));
-        tokenFilterFactories.put("russianStem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "russianStem";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new RussianStemFilter(tokenStream);
             }
         }));
         tokenFilterFactories.put("russian_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {

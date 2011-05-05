@@ -19,37 +19,26 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
 /**
  * @author kimchy (shay.banon)
  */
 public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<GermanAnalyzer> {
 
-    private final Set<?> stemExclusion;
-
     private final GermanAnalyzer analyzer;
 
     @Inject public GermanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        Set<?> stopWords = Analysis.parseStopWords(settings, GermanAnalyzer.getDefaultStopSet());
-
-        String[] stemExclusion = settings.getAsArray("stem_exclusion");
-        if (stemExclusion.length > 0) {
-            this.stemExclusion = ImmutableSet.copyOf(Iterators.forArray(stemExclusion));
-        } else {
-            this.stemExclusion = ImmutableSet.of();
-        }
-        analyzer = new GermanAnalyzer(version, stopWords, this.stemExclusion);
+        analyzer = new GermanAnalyzer(version,
+                Analysis.parseStopWords(settings, GermanAnalyzer.getDefaultStopSet()),
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 
     @Override public GermanAnalyzer get() {

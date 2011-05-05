@@ -42,6 +42,23 @@ public class Analysis {
         return value != null && "_none_".equals(value);
     }
 
+    public static Set<?> parseStemExclusion(Settings settings, Set<?> defaultStemExclusion) {
+        String value = settings.get("stem_exclusion");
+        if (value != null) {
+            if ("_none_".equals(value)) {
+                return ImmutableSet.of();
+            } else {
+                return ImmutableSet.copyOf(Strings.commaDelimitedListToSet(value));
+            }
+        }
+        String[] stopWords = settings.getAsArray("stem_exclusion", null);
+        if (stopWords != null) {
+            return ImmutableSet.copyOf(Iterators.forArray(stopWords));
+        } else {
+            return defaultStemExclusion;
+        }
+    }
+
     public static Set<?> parseStopWords(Settings settings, Set<?> defaultStopWords) {
         String value = settings.get("stopwords");
         if (value != null) {
@@ -63,14 +80,15 @@ public class Analysis {
      * Fetches a list of words from the specified settings file. The list should either be available at the key
      * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
      *
-     * @throws ElasticSearchIllegalArgumentException If the word list cannot be found at either key.
+     * @throws ElasticSearchIllegalArgumentException
+     *          If the word list cannot be found at either key.
      */
     public static Set<String> getWordList(Settings settings, String settingPrefix) {
         String wordListPath = settings.get(settingPrefix + "_path", null);
 
         if (wordListPath == null) {
             String[] explicitWordList = settings.getAsArray(settingPrefix, null);
-            if(explicitWordList == null) {
+            if (explicitWordList == null) {
                 String message = String.format("%s or %s_path must be provided.", settingPrefix, settingPrefix);
                 throw new ElasticSearchIllegalArgumentException(message);
             } else {

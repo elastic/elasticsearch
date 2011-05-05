@@ -26,8 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -37,9 +35,8 @@ public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAn
 
     @Inject public GreekAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        Set<?> stopWords = Analysis.parseStopWords(settings, GreekAnalyzer.getDefaultStopSet());
-
-        analyzer = new GreekAnalyzer(version, stopWords);
+        analyzer = new GreekAnalyzer(version,
+                Analysis.parseStopWords(settings, GreekAnalyzer.getDefaultStopSet()));
     }
 
     @Override public GreekAnalyzer get() {

@@ -73,7 +73,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
         @Override public IntegerFieldMapper build(BuilderContext context) {
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -98,10 +98,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     private String nullValueAsString;
 
-    protected IntegerFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
+    protected IntegerFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
                                  float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                  Integer nullValue) {
-        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -126,6 +126,29 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     @Override public String indexedValue(String value) {
         return NumericUtils.intToPrefixCoded(Integer.parseInt(value));
+    }
+
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        int iValue = Integer.parseInt(value);
+        int iSim;
+        try {
+            iSim = Integer.parseInt(minSim);
+        } catch (NumberFormatException e) {
+            iSim = (int) Float.parseFloat(minSim);
+        }
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        int iValue = Integer.parseInt(value);
+        int iSim = (int) (minSim * dFuzzyFactor);
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
@@ -222,6 +245,9 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
+        }
+        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
+            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

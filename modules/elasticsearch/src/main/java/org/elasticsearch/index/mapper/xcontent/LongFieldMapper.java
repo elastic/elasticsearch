@@ -73,7 +73,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override public LongFieldMapper build(BuilderContext context) {
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -98,10 +98,10 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValueAsString;
 
-    protected LongFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
+    protected LongFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                               Long nullValue) {
-        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
                 new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
@@ -126,6 +126,29 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     @Override public String indexedValue(String value) {
         return NumericUtils.longToPrefixCoded(Long.parseLong(value));
+    }
+
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        long iValue = Long.parseLong(value);
+        long iSim;
+        try {
+            iSim = Long.parseLong(minSim);
+        } catch (NumberFormatException e) {
+            iSim = (long) Double.parseDouble(minSim);
+        }
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        long iValue = Long.parseLong(value);
+        long iSim = (long) (minSim * dFuzzyFactor);
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
@@ -221,6 +244,9 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
+        }
+        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
+            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

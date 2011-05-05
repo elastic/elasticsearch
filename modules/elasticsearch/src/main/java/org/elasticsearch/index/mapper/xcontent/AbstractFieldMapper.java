@@ -321,6 +321,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
         return new TermQuery(new Term(names.indexName(), indexedValue(value)));
     }
 
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        return new FuzzyQuery(new Term(names.indexName(), value), Float.parseFloat(minSim), prefixLength, maxExpansions);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        return new FuzzyQuery(new Term(names.indexName(), value), (float) minSim, prefixLength, maxExpansions);
+    }
+
     @Override public Filter fieldFilter(String value) {
         return new TermFilter(new Term(names.indexName(), indexedValue(value)));
     }

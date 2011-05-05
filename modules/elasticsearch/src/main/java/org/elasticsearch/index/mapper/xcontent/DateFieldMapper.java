@@ -30,6 +30,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -82,7 +83,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
         @Override public DateFieldMapper build(BuilderContext context) {
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -109,15 +110,26 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValue;
 
-    protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep,
+    protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                               String nullValue) {
-        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())));
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
+    }
+
+    @Override protected double parseFuzzyFactor(String fuzzyFactor) {
+        if (fuzzyFactor == null) {
+            return 1.0d;
+        }
+        try {
+            return TimeValue.parseTimeValue(fuzzyFactor, null).millis();
+        } catch (Exception e) {
+            return Double.parseDouble(fuzzyFactor);
+        }
     }
 
     @Override protected int maxPrecisionStep() {
@@ -153,6 +165,30 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override public String indexedValue(String value) {
         return NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value));
+    }
+
+    @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+        long iValue = parseStringValue(value);
+        long iSim;
+        try {
+            iSim = TimeValue.parseTimeValue(minSim, null).millis();
+        } catch (Exception e) {
+            // not a time format
+            iSim = (long) Double.parseDouble(minSim);
+        }
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+    }
+
+    @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
+        long iValue = parseStringValue(value);
+        long iSim = (long) (minSim * dFuzzyFactor);
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
@@ -252,6 +288,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
+        }
+        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
+            builder.field("fuzzy_factor", fuzzyFactor);
         }
         builder.field("format", dateTimeFormatter.format());
         if (nullValue != null) {

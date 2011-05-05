@@ -61,6 +61,7 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
         float boost = 1.0f;
         float minSimilarity = FuzzyQuery.defaultMinSimilarity;
         int prefixLength = FuzzyQuery.defaultPrefixLength;
+        int maxExpansions = FuzzyQuery.defaultMaxExpansions;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -78,6 +79,8 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
                         minSimilarity = parser.floatValue();
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         prefixLength = parser.intValue();
+                    } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
+                        maxExpansions = parser.intValue();
                     }
                 }
             }
@@ -94,7 +97,7 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
 
-        FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(fieldName, value), minSimilarity, prefixLength);
+        FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(fieldName, value), minSimilarity, prefixLength, maxExpansions);
         fuzzyQuery.setBoost(boost);
 
         return wrapSmartNameQuery(fuzzyQuery, smartNameFieldMappers, parseContext);

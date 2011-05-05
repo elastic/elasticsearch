@@ -20,10 +20,38 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.WordlistLoader;
+import org.apache.lucene.analysis.ar.ArabicAnalyzer;
+import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.br.BrazilianAnalyzer;
+import org.apache.lucene.analysis.ca.CatalanAnalyzer;
+import org.apache.lucene.analysis.da.DanishAnalyzer;
+import org.apache.lucene.analysis.de.GermanAnalyzer;
+import org.apache.lucene.analysis.el.GreekAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.es.SpanishAnalyzer;
+import org.apache.lucene.analysis.eu.BasqueAnalyzer;
+import org.apache.lucene.analysis.fa.PersianAnalyzer;
+import org.apache.lucene.analysis.fi.FinnishAnalyzer;
+import org.apache.lucene.analysis.fr.FrenchAnalyzer;
+import org.apache.lucene.analysis.gl.GalicianAnalyzer;
+import org.apache.lucene.analysis.hi.HindiAnalyzer;
+import org.apache.lucene.analysis.hu.HungarianAnalyzer;
+import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
+import org.apache.lucene.analysis.id.IndonesianAnalyzer;
+import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.nl.DutchAnalyzer;
+import org.apache.lucene.analysis.no.NorwegianAnalyzer;
+import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
+import org.apache.lucene.analysis.ro.RomanianAnalyzer;
+import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sv.SwedishAnalyzer;
+import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.File;
@@ -59,6 +87,35 @@ public class Analysis {
         }
     }
 
+    public static final ImmutableMap<String, Set<?>> namedStopWords = MapBuilder.<String, Set<?>>newMapBuilder()
+            .put("_arabic_", ArabicAnalyzer.getDefaultStopSet())
+            .put("_armenian_", ArmenianAnalyzer.getDefaultStopSet())
+            .put("_basque_", BasqueAnalyzer.getDefaultStopSet())
+            .put("_brazilian_", BrazilianAnalyzer.getDefaultStopSet())
+            .put("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet())
+            .put("_catalan_", CatalanAnalyzer.getDefaultStopSet())
+            .put("_danish_", DanishAnalyzer.getDefaultStopSet())
+            .put("_dutch_", DutchAnalyzer.getDefaultStopSet())
+            .put("_english_", EnglishAnalyzer.getDefaultStopSet())
+            .put("_finnish_", FinnishAnalyzer.getDefaultStopSet())
+            .put("_french_", FrenchAnalyzer.getDefaultStopSet())
+            .put("_galician_", GalicianAnalyzer.getDefaultStopSet())
+            .put("_german_", GermanAnalyzer.getDefaultStopSet())
+            .put("_greek_", GreekAnalyzer.getDefaultStopSet())
+            .put("_hindi_", HindiAnalyzer.getDefaultStopSet())
+            .put("_hungarian_", HungarianAnalyzer.getDefaultStopSet())
+            .put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet())
+            .put("_italian_", ItalianAnalyzer.getDefaultStopSet())
+            .put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet())
+            .put("_persian_", PersianAnalyzer.getDefaultStopSet())
+            .put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet())
+            .put("_romanian_", RomanianAnalyzer.getDefaultStopSet())
+            .put("_russian_", RussianAnalyzer.getDefaultStopSet())
+            .put("_spanish_", SpanishAnalyzer.getDefaultStopSet())
+            .put("_swedish_", SwedishAnalyzer.getDefaultStopSet())
+            .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
+            .immutableMap();
+
     public static Set<?> parseStopWords(Settings settings, Set<?> defaultStopWords) {
         String value = settings.get("stopwords");
         if (value != null) {
@@ -70,7 +127,15 @@ public class Analysis {
         }
         String[] stopWords = settings.getAsArray("stopwords", null);
         if (stopWords != null) {
-            return ImmutableSet.copyOf(Iterators.forArray(stopWords));
+            Set setStopWords = new HashSet<String>();
+            for (String stopWord : stopWords) {
+                if (namedStopWords.containsKey(stopWord)) {
+                    setStopWords.addAll(namedStopWords.get(stopWord));
+                } else {
+                    setStopWords.add(stopWord);
+                }
+            }
+            return setStopWords;
         } else {
             return defaultStopWords;
         }

@@ -26,8 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -37,9 +35,8 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Persi
 
     @Inject public PersianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        Set<?> stopWords = Analysis.parseStopWords(settings, PersianAnalyzer.getDefaultStopSet());
-
-        analyzer = new PersianAnalyzer(version, stopWords);
+        analyzer = new PersianAnalyzer(version,
+                Analysis.parseStopWords(settings, PersianAnalyzer.getDefaultStopSet()));
     }
 
     @Override public PersianAnalyzer get() {

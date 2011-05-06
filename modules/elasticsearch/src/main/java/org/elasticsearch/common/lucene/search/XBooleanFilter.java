@@ -41,7 +41,15 @@ public class XBooleanFilter extends Filter {
 
     private DocIdSetIterator getDISI(ArrayList<Filter> filters, int index, IndexReader reader)
             throws IOException {
-        return filters.get(index).getDocIdSet(reader).iterator();
+        DocIdSet docIdSet = filters.get(index).getDocIdSet(reader);
+        if (docIdSet == null) {
+            return DocIdSet.EMPTY_DOCIDSET.iterator();
+        }
+        DocIdSetIterator iterator = docIdSet.iterator();
+        if (iterator == null) {
+            return DocIdSet.EMPTY_DOCIDSET.iterator();
+        }
+        return iterator;
     }
 
     public List<Filter> getShouldFilters() {

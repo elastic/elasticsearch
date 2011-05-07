@@ -112,7 +112,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements org.elas
     }
 
     @Override public Term term(String uid) {
-        return new Term(names.indexName(), uid);
+        return termFactory.createTerm(uid);
     }
 
     @Override public void close() {

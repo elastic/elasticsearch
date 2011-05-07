@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.xcontent.ip;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -179,7 +178,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(new Term(names.indexName(), value), (float) minSim, prefixLength, maxExpansions);
+        return new FuzzyQuery(termFactory.createTerm(value), (float) minSim, prefixLength, maxExpansions);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

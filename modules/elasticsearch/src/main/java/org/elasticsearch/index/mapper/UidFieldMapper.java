@@ -30,6 +30,8 @@ public interface UidFieldMapper extends FieldMapper<Uid>, InternalMapper {
 
     public static final String NAME = "_uid";
 
+    public static final Term TERM_FACTORY = new Term(NAME, "");
+
     Term term(String type, String id);
 
     Term term(String uid);

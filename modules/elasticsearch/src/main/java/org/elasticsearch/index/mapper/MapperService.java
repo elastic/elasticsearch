@@ -67,6 +67,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public static final String DEFAULT_MAPPING = "_default_";
 
+    private final AnalysisService analysisService;
+
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
      */
@@ -91,6 +93,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     @Inject public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
         super(index, indexSettings);
+        this.analysisService = analysisService;
         this.documentParser = new XContentDocumentMapperParser(index, indexSettings, analysisService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
 
@@ -134,6 +137,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     @Override public UnmodifiableIterator<DocumentMapper> iterator() {
         return mappers.values().iterator();
+    }
+
+    public AnalysisService analysisService() {
+        return this.analysisService;
     }
 
     public DocumentMapperParser documentMapperParser() {
@@ -278,7 +285,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (useTermsFilter) {
             PublicTermsFilter termsFilter = new PublicTermsFilter();
             for (String type : types) {
-                termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
+                termsFilter.addTerm(TypeFieldMapper.TERM_FACTORY.createTerm(type));
             }
             return termsFilter;
         } else {
@@ -286,7 +293,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {
-                    bool.add(new FilterClause(new TermFilter(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD));
+                    bool.add(new FilterClause(new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(type)), BooleanClause.Occur.SHOULD));
                 } else {
                     bool.add(new FilterClause(docMapper.typeFilter(), BooleanClause.Occur.SHOULD));
                 }
@@ -311,7 +318,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (!hasMapping(type)) {
                 throw new TypeMissingException(index, type);
             }
-            termsFilter.addTerm(new Term(TypeFieldMapper.NAME, type));
+            termsFilter.addTerm(TypeFieldMapper.TERM_FACTORY.createTerm(type));
         }
         return termsFilter;
     }

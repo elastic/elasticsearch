@@ -197,6 +197,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         if (!mergeContext.mergeFlags().simulate()) {
             this.precisionStep = ((NumberFieldMapper) mergeWith).precisionStep;
             this.includeInAll = ((NumberFieldMapper) mergeWith).includeInAll;
+            this.fuzzyFactor = ((NumberFieldMapper) mergeWith).fuzzyFactor;
+            ;
+            this.dFuzzyFactor = parseFuzzyFactor(this.fuzzyFactor);
         }
     }
 

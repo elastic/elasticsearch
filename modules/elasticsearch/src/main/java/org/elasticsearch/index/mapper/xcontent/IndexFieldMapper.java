@@ -113,7 +113,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements org
     }
 
     @Override public Term term(String value) {
-        return new Term(names.indexName(), value);
+        return termFactory.createTerm(value);
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {

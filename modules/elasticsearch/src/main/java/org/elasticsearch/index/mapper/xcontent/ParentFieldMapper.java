@@ -140,7 +140,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements org.e
     }
 
     @Override public Term term(String uid) {
-        return new Term(names.indexName(), uid);
+        return termFactory.createTerm(uid);
     }
 
     @Override protected String contentType() {

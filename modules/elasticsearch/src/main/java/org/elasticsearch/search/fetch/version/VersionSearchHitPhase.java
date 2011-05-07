@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch.version;
 
-import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.lucene.uid.UidField;
@@ -47,7 +46,7 @@ public class VersionSearchHitPhase implements SearchHitPhase {
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...
-        long version = UidField.loadVersion(hitContext.reader(), new Term(UidFieldMapper.NAME, hitContext.doc().get(UidFieldMapper.NAME)));
+        long version = UidField.loadVersion(hitContext.reader(), UidFieldMapper.TERM_FACTORY.createTerm(hitContext.doc().get(UidFieldMapper.NAME)));
         if (version < 0) {
             version = -1;
         }

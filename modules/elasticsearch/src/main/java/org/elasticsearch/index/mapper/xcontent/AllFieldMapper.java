@@ -108,7 +108,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements org.ela
     }
 
     @Override public Query fieldQuery(String value, QueryParseContext context) {
-        return new AllTermQuery(new Term(names.indexName(), value));
+        return new AllTermQuery(termFactory.createTerm(value));
     }
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {

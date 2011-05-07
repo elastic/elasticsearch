@@ -106,14 +106,14 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements org.
     }
 
     @Override public Term term(String value) {
-        return new Term(names.indexName(), value);
+        return termFactory.createTerm(value);
     }
 
     @Override public Filter fieldFilter(String value) {
         if (index == Field.Index.NO) {
-            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefix(value)));
+            return new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.typePrefix(value)));
         }
-        return new TermFilter(new Term(names.indexName(), value));
+        return new TermFilter(termFactory.createTerm(value));
     }
 
     @Override public Query fieldQuery(String value, QueryParseContext context) {

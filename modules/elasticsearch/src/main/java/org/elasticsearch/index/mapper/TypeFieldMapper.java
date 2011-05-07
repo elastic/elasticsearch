@@ -33,6 +33,8 @@ public interface TypeFieldMapper extends FieldMapper<String>, InternalMapper {
 
     public static final String NAME = "_type";
 
+    public static final Term TERM_FACTORY = new Term(NAME, "");
+
     String value(Document document);
 
     Term term(String value);

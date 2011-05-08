@@ -390,6 +390,58 @@ public class SimpleIndexQueryParserTests {
         assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
+    @Test public void testTextQuery1() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/text1.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat((double) booleanQuery.getBoost(), closeTo(1.0d, 0.00001d));
+        assertThat(((TermQuery) booleanQuery.getClauses()[0].getQuery()).getTerm(), equalTo(new Term("name.first", "aaa")));
+        assertThat(((TermQuery) booleanQuery.getClauses()[1].getQuery()).getTerm(), equalTo(new Term("name.first", "bbb")));
+    }
+
+    @Test public void testTextQuery2() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/text2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat((double) booleanQuery.getBoost(), closeTo(1.5d, 0.00001d));
+        assertThat(((TermQuery) booleanQuery.getClauses()[0].getQuery()).getTerm(), equalTo(new Term("name.first", "aaa")));
+        assertThat(((TermQuery) booleanQuery.getClauses()[1].getQuery()).getTerm(), equalTo(new Term("name.first", "bbb")));
+    }
+
+    @Test public void testTextQuery3() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/text3.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(PhraseQuery.class));
+        PhraseQuery phraseQuery = (PhraseQuery) parsedQuery;
+        assertThat(phraseQuery.getTerms()[0], equalTo(new Term("name.first", "aaa")));
+        assertThat(phraseQuery.getTerms()[1], equalTo(new Term("name.first", "bbb")));
+    }
+
+    @Test public void testTextQuery4() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/text4.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(MultiPhrasePrefixQuery.class));
+        MultiPhrasePrefixQuery phraseQuery = (MultiPhrasePrefixQuery) parsedQuery;
+        assertThat(phraseQuery.getTermArrays().get(0)[0], equalTo(new Term("name.first", "aaa")));
+        assertThat(phraseQuery.getTermArrays().get(1)[0], equalTo(new Term("name.first", "bbb")));
+    }
+
+    @Test public void testTextQuery4_2() throws IOException {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/text4_2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(MultiPhrasePrefixQuery.class));
+        MultiPhrasePrefixQuery phraseQuery = (MultiPhrasePrefixQuery) parsedQuery;
+        assertThat(phraseQuery.getTermArrays().get(0)[0], equalTo(new Term("name.first", "aaa")));
+        assertThat(phraseQuery.getTermArrays().get(1)[0], equalTo(new Term("name.first", "bbb")));
+    }
+
     @Test public void testTermWithBoostQueryBuilder() throws IOException {
         IndexQueryParser queryParser = queryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f)).query();

@@ -23,6 +23,7 @@
       <w>calc</w>
       <w>camelcase</w>
       <w>canonicalhost</w>
+      <w>catenate</w>
       <w>charfilter</w>
       <w>charsets</w>
       <w>checksum</w>
@@ -107,6 +108,7 @@
       <w>ngram</w>
       <w>noop</w>
       <w>nospawn</w>
+      <w>numerics</w>
       <w>param</w>
       <w>params</w>
       <w>persistency</w>

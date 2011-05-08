@@ -220,6 +220,7 @@ public class IndexQueryParserModule extends AbstractModule {
 
     private static class DefaultQueryProcessors extends QueryParsersProcessor {
         @Override public void processXContentQueryParsers(XContentQueryParsersBindings bindings) {
+            bindings.processXContentQueryParser(TextQueryParser.NAME, TextQueryParser.class);
             bindings.processXContentQueryParser(HasChildQueryParser.NAME, HasChildQueryParser.class);
             bindings.processXContentQueryParser(TopChildrenQueryParser.NAME, TopChildrenQueryParser.class);
             bindings.processXContentQueryParser(DisMaxQueryParser.NAME, DisMaxQueryParser.class);

@@ -34,6 +34,36 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * Creates a text query with type "BOOLEAN" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static TextQueryBuilder text(String name, Object text) {
+        return new TextQueryBuilder(name, text).type(TextQueryBuilder.Type.BOOLEAN);
+    }
+
+    /**
+     * Creates a text query with type "PHRASE" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static TextQueryBuilder textPhrase(String name, Object text) {
+        return new TextQueryBuilder(name, text).type(TextQueryBuilder.Type.PHRASE);
+    }
+
+    /**
+     * Creates a text query with type "PHRASE_PREFIX" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static TextQueryBuilder textPhrasePrefix(String name, Object text) {
+        return new TextQueryBuilder(name, text).type(TextQueryBuilder.Type.PHRASE_PREFIX);
+    }
+
+    /**
      * A query that generates the union of documents produced by its sub-queries, and that scores each document
      * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
      * additional matching sub-queries.

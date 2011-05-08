@@ -26,11 +26,13 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.xml.sax.InputSource;
 
-import java.io.File;
+import java.net.URL;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.
@@ -44,21 +46,18 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
     private final HyphenationTree hyphenationTree;
 
-    @Inject public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    @Inject public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettings, env, name, settings);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
         if (hyphenationPatternsPath == null) {
             throw new ElasticSearchIllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
-        File hyphenationPatternsFile = new File(hyphenationPatternsPath);
-        if (!hyphenationPatternsFile.exists()) {
-            throw new ElasticSearchIllegalArgumentException("hyphenation_patterns_path file must exist.");
-        }
+        URL hyphenationPatternsFile = env.resolveConfig(hyphenationPatternsPath);
 
         try {
-            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(hyphenationPatternsFile);
+            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(hyphenationPatternsFile.toExternalForm()));
         } catch (Exception e) {
             throw new ElasticSearchIllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
         }

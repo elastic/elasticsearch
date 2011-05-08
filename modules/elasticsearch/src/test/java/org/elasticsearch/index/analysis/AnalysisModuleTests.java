@@ -24,7 +24,10 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
@@ -61,6 +64,7 @@ public class AnalysisModuleTests {
     private void testSimpleConfiguration(Settings settings) {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
+                new EnvironmentModule(new Environment(settings)),
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
                 new AnalysisModule(settings)).createInjector();
@@ -120,18 +124,19 @@ public class AnalysisModuleTests {
         assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
         assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
 
-        Set<String> wordList = Analysis.getWordList(settings, "index.analysis.filter.dict_dec.word_list");
+        Set<String> wordList = Analysis.getWordList(null, settings, "index.analysis.filter.dict_dec.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
         MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
 
     @Test public void testWordListPath() throws Exception {
+        Environment env = new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS);
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         File wordListFile = generateWordList(words);
         Settings settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.getAbsolutePath()).build();
 
-        Set<String> wordList = Analysis.getWordList(settings, "index.word_list");
+        Set<String> wordList = Analysis.getWordList(env, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
         MatcherAssert.assertThat(wordList, hasItems(words));
     }

@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.StopAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -35,9 +36,9 @@ public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnal
 
     private final StopAnalyzer stopAnalyzer;
 
-    @Inject public StopAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public StopAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        Set<?> stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        Set<?> stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         this.stopAnalyzer = new StopAnalyzer(version, stopWords);
     }
 

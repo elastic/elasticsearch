@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -34,10 +35,10 @@ public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Turki
 
     private final TurkishAnalyzer analyzer;
 
-    @Inject public TurkishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public TurkishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new TurkishAnalyzer(version,
-                Analysis.parseStopWords(settings, TurkishAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, TurkishAnalyzer.getDefaultStopSet()),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

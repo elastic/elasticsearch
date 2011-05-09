@@ -76,7 +76,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
 
         if (!analyzerProviders.containsKey("default")) {
-            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, "default", ImmutableSettings.Builder.EMPTY_SETTINGS));
+            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, null, "default", ImmutableSettings.Builder.EMPTY_SETTINGS));
         }
         if (!analyzerProviders.containsKey("default_index")) {
             analyzerProviders.put("default_index", analyzerProviders.get("default"));

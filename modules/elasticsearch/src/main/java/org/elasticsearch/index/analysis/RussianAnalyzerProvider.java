@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -34,10 +35,10 @@ public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Russi
 
     private final RussianAnalyzer analyzer;
 
-    @Inject public RussianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public RussianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new RussianAnalyzer(version,
-                Analysis.parseStopWords(settings, RussianAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, RussianAnalyzer.getDefaultStopSet()),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

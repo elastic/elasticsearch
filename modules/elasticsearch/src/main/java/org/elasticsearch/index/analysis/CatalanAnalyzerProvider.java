@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -34,10 +35,10 @@ public class CatalanAnalyzerProvider extends AbstractIndexAnalyzerProvider<Catal
 
     private final CatalanAnalyzer analyzer;
 
-    @Inject public CatalanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public CatalanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new CatalanAnalyzer(version,
-                Analysis.parseStopWords(settings, CatalanAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, CatalanAnalyzer.getDefaultStopSet()),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

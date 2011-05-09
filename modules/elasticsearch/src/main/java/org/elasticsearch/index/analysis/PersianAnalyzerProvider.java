@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -33,10 +34,10 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Persi
 
     private final PersianAnalyzer analyzer;
 
-    @Inject public PersianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public PersianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new PersianAnalyzer(version,
-                Analysis.parseStopWords(settings, PersianAnalyzer.getDefaultStopSet()));
+                Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet()));
     }
 
     @Override public PersianAnalyzer get() {

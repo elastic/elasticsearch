@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -34,10 +35,10 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
 
     private final GermanAnalyzer analyzer;
 
-    @Inject public GermanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    @Inject public GermanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new GermanAnalyzer(version,
-                Analysis.parseStopWords(settings, GermanAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet()),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

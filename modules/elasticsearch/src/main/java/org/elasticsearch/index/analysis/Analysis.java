@@ -119,7 +119,7 @@ public class Analysis {
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 
-    public static Set<?> parseStopWords(Settings settings, Set<?> defaultStopWords) {
+    public static Set<?> parseStopWords(Environment env, Settings settings, Set<?> defaultStopWords) {
         String value = settings.get("stopwords");
         if (value != null) {
             if ("_none_".equals(value)) {
@@ -139,9 +139,21 @@ public class Analysis {
                 }
             }
             return setStopWords;
-        } else {
-            return defaultStopWords;
         }
+        Set<String> pathLoadedStopWords = getWordList(env, settings, "stopwords");
+        if (pathLoadedStopWords != null) {
+            Set setStopWords = new HashSet<String>();
+            for (String stopWord : pathLoadedStopWords) {
+                if (namedStopWords.containsKey(stopWord)) {
+                    setStopWords.addAll(namedStopWords.get(stopWord));
+                } else {
+                    setStopWords.add(stopWord);
+                }
+            }
+            return setStopWords;
+        }
+
+        return defaultStopWords;
     }
 
     /**

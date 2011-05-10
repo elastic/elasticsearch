@@ -132,18 +132,35 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
         return value;
     }
 
+    @Override protected boolean customBoost() {
+        return true;
+    }
+
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
-        String value;
+        String value = nullValue;
+        float boost = this.boost;
         if (context.externalValueSet()) {
             value = (String) context.externalValue();
-            if (value == null) {
-                value = nullValue;
-            }
         } else {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            XContentParser parser = context.parser();
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 value = nullValue;
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentParser.Token token;
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                            value = parser.textOrNull();
+                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        }
+                    }
+                }
             } else {
-                value = context.parser().text();
+                value = parser.textOrNull();
             }
         }
         if (value == null) {
@@ -156,7 +173,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
             context.ignoredValue(names.indexName(), value);
             return null;
         }
-        return new Field(names.indexName(), false, value, store, index, termVector);
+        Field field = new Field(names.indexName(), false, value, store, index, termVector);
+        field.setBoost(boost);
+        return field;
     }
 
     @Override protected String contentType() {

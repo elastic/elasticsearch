@@ -290,7 +290,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
             }
             field.setOmitNorms(omitNorms);
             field.setOmitTermFreqAndPositions(omitTermFreqAndPositions);
-            field.setBoost(boost);
+            if (!customBoost()) {
+                field.setBoost(boost);
+            }
             if (context.listener().beforeFieldAdded(this, field, context)) {
                 context.doc().add(field);
             }
@@ -300,6 +302,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, XContent
     }
 
     protected abstract Fieldable parseCreateField(ParseContext context) throws IOException;
+
+    /**
+     * Derived classes can override it to specify that boost value is set by derived classes.
+     */
+    protected boolean customBoost() {
+        return false;
+    }
 
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
         fieldMapperListener.fieldMapper(this);

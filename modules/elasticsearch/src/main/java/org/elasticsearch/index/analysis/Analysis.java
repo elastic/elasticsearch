@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.WordlistLoader;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -56,12 +55,12 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -140,7 +139,7 @@ public class Analysis {
             }
             return setStopWords;
         }
-        Set<String> pathLoadedStopWords = getWordList(env, settings, "stopwords");
+        Set<String> pathLoadedStopWords = getWordSet(env, settings, "stopwords");
         if (pathLoadedStopWords != null) {
             Set setStopWords = new HashSet<String>();
             for (String stopWord : pathLoadedStopWords) {
@@ -156,6 +155,14 @@ public class Analysis {
         return defaultStopWords;
     }
 
+    public static Set<String> getWordSet(Environment env, Settings settings, String settingsPrefix) {
+        List<String> wordList = getWordList(env, settings, settingsPrefix);
+        if (wordList == null) {
+            return null;
+        }
+        return new HashSet<String>(wordList);
+    }
+
     /**
      * Fetches a list of words from the specified settings file. The list should either be available at the key
      * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
@@ -163,7 +170,7 @@ public class Analysis {
      * @throws ElasticSearchIllegalArgumentException
      *          If the word list cannot be found at either key.
      */
-    public static Set<String> getWordList(Environment env, Settings settings, String settingPrefix) {
+    public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
         String wordListPath = settings.get(settingPrefix + "_path", null);
 
         if (wordListPath == null) {
@@ -171,17 +178,42 @@ public class Analysis {
             if (explicitWordList == null) {
                 return null;
             } else {
-                return new HashSet<String>(Arrays.asList(explicitWordList));
+                return Arrays.asList(explicitWordList);
             }
         }
 
         URL wordListFile = env.resolveConfig(wordListPath);
 
         try {
-            return WordlistLoader.getWordSet(new InputStreamReader(wordListFile.openStream(), Charsets.UTF_8), "#");
+            return loadWordList(new InputStreamReader(wordListFile.openStream(), Charsets.UTF_8), "#");
         } catch (IOException ioe) {
             String message = String.format("IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticSearchIllegalArgumentException(message);
         }
+    }
+
+    public static List<String> loadWordList(Reader reader, String comment) throws IOException {
+        final List<String> result = new ArrayList<String>();
+        BufferedReader br = null;
+        try {
+            if (reader instanceof BufferedReader) {
+                br = (BufferedReader) reader;
+            } else {
+                br = new BufferedReader(reader);
+            }
+            String word = null;
+            while ((word = br.readLine()) != null) {
+                if (!Strings.hasText(word)) {
+                    continue;
+                }
+                if (!word.startsWith(comment)) {
+                    result.add(word.trim());
+                }
+            }
+        } finally {
+            if (br != null)
+                br.close();
+        }
+        return result;
     }
 }

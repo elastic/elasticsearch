@@ -124,7 +124,7 @@ public class AnalysisModuleTests {
         assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
         assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
 
-        Set<String> wordList = Analysis.getWordList(null, settings, "index.analysis.filter.dict_dec.word_list");
+        Set<String> wordList = Analysis.getWordSet(null, settings, "index.analysis.filter.dict_dec.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
         MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
@@ -136,7 +136,7 @@ public class AnalysisModuleTests {
         File wordListFile = generateWordList(words);
         Settings settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.getAbsolutePath()).build();
 
-        Set<String> wordList = Analysis.getWordList(env, settings, "index.word_list");
+        Set<String> wordList = Analysis.getWordSet(env, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
         MatcherAssert.assertThat(wordList, hasItems(words));
     }

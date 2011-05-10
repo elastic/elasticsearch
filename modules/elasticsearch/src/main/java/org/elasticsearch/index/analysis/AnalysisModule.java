@@ -326,9 +326,6 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("edgeNGram", EdgeNGramTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("edge_ngram", EdgeNGramTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("shingle", ShingleTokenFilterFactory.class);
-            tokenFiltersBindings.processTokenFilter("phonetic", PhoneticTokenFilterFactory.class);
-            tokenFiltersBindings.processTokenFilter("dictionary_decompounder", DictionaryCompoundWordTokenFilterFactory.class);
-            tokenFiltersBindings.processTokenFilter("hypennation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);
         }
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
@@ -362,6 +359,11 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("snowball", SnowballTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer", StemmerTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("word_delimiter", WordDelimiterTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("synonym", SynonymTokenFilterFactory.class);
+
+            tokenFiltersBindings.processTokenFilter("phonetic", PhoneticTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("dictionary_decompounder", DictionaryCompoundWordTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("hypennation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("arabic_stem", ArabicStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("brazilian_stem", BrazilianStemTokenFilterFactory.class);

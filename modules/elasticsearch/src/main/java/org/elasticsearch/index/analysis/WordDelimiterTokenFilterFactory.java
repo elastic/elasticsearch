@@ -58,7 +58,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         // . => DIGIT
         // \u002C => DIGIT
         // \u200D => ALPHANUM
-        Set<String> charTypeTableValues = Analysis.getWordList(env, settings, "type_table");
+        List<String> charTypeTableValues = Analysis.getWordList(env, settings, "type_table");
         if (charTypeTableValues == null) {
             this.charTypeTable = WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE;
         } else {
@@ -84,7 +84,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         // If 1, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
         this.stemEnglishPossessive = settings.getAsBoolean("stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
-        Set<String> protectedWords = Analysis.getWordList(env, settings, "protected_words");
+        Set<String> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(Lucene.VERSION, protectedWords);
     }
 

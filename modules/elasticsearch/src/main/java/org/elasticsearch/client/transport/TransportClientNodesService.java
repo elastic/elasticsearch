@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -255,11 +256,12 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
             }
             // now, make sure we are connected to all the updated nodes
-            for (DiscoveryNode node : newNodes) {
+            for (Iterator<DiscoveryNode> it = newNodes.iterator(); it.hasNext();) {
+                DiscoveryNode node = it.next();
                 try {
                     transportService.connectToNode(node);
                 } catch (Exception e) {
-                    newNodes.remove(node);
+                    it.remove();
                     logger.debug("Failed to connect to discovered node [" + node + "]", e);
                 }
             }

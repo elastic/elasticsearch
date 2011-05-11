@@ -57,13 +57,18 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("refined_soundex".equalsIgnoreCase(encoder) || "refinedSoundex".equalsIgnoreCase(encoder)) {
             this.encoder = new RefinedSoundex();
         } else if ("double_metaphone".equalsIgnoreCase(encoder) || "doubleMetaphone".equalsIgnoreCase(encoder)) {
-            this.encoder = new DoubleMetaphone();
+            DoubleMetaphone doubleMetaphone = new DoubleMetaphone();
+            doubleMetaphone.setMaxCodeLen(settings.getAsInt("max_code_len", doubleMetaphone.getMaxCodeLen()));
+            this.encoder = doubleMetaphone;
         } else {
             throw new ElasticSearchIllegalArgumentException("unknown encoder [" + encoder + "] for phonetic token filter");
         }
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
+        if (encoder instanceof DoubleMetaphone) {
+            return new DoubleMetaphoneFilter(tokenStream, (DoubleMetaphone) encoder, inject);
+        }
         return new PhoneticFilter(tokenStream, encoder, name(), inject);
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,6 +44,30 @@ public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<Indi
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias) {
         request.addAlias(index, alias);
+        return this;
+    }
+
+    /**
+     * Adds an alias with filter to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filter The filter
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, byte[] filter) {
+        request.addAlias(index, alias, filter);
+        return this;
+    }
+
+    /**
+     * Adds an alias with filter to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filter The filter
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, QueryBuilder filter) {
+        request.addAlias(index, alias, filter);
         return this;
     }
 

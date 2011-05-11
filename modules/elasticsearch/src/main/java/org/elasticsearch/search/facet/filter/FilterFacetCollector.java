@@ -56,7 +56,7 @@ public class FilterFacetCollector extends AbstractFacetCollector implements Opti
             query = new FilteredQuery(query, searchContext.filterCache().cache(searchContext.mapperService().typesFilter(searchContext.types())));
         }
         TotalHitCountCollector collector = new TotalHitCountCollector();
-        searchContext.searcher().search(query, collector);
+        searchContext.searcher().search(query, searchContext.parsedAliasFilter(), collector);
         count = collector.getTotalHits();
     }
 

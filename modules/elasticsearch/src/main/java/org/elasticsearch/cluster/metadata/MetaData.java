@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.common.collect.MapBuilder.*;
+import static org.elasticsearch.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
@@ -56,6 +58,8 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
 
+    private final ImmutableMap<String, Map<String, byte[]>> indexToFilteredAliasMap;
+
     private MetaData(ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates) {
         this.indices = ImmutableMap.copyOf(indices);
         this.templates = templates;
@@ -75,35 +79,49 @@ public class MetaData implements Iterable<IndexMetaData> {
         // build aliases set
         Set<String> aliases = newHashSet();
         for (IndexMetaData indexMetaData : indices.values()) {
-            aliases.addAll(indexMetaData.aliases());
+            aliases.addAll(indexMetaData.aliases().keySet());
         }
         this.aliases = ImmutableSet.copyOf(aliases);
 
         // build aliasAndIndex to Index map
-        MapBuilder<String, Set<String>> tmpAliasAndIndexToIndexBuilder = newMapBuilder();
+        MapBuilder<String, Map<String, byte[]>> tmpAliasAndIndexToIndexBuilder = newMapBuilder();
         for (IndexMetaData indexMetaData : indices.values()) {
-            Set<String> lst = tmpAliasAndIndexToIndexBuilder.get(indexMetaData.index());
+            Map<String, byte[]> lst = tmpAliasAndIndexToIndexBuilder.get(indexMetaData.index());
             if (lst == null) {
-                lst = newHashSet();
+                lst = newHashMap();
                 tmpAliasAndIndexToIndexBuilder.put(indexMetaData.index(), lst);
             }
-            lst.add(indexMetaData.index());
+            lst.put(indexMetaData.index(), Bytes.EMPTY_ARRAY);
 
-            for (String alias : indexMetaData.aliases()) {
-                lst = tmpAliasAndIndexToIndexBuilder.get(alias);
+            for (Map.Entry<String, byte[]> alias : indexMetaData.aliases().entrySet()) {
+                lst = tmpAliasAndIndexToIndexBuilder.get(alias.getKey());
                 if (lst == null) {
-                    lst = newHashSet();
-                    tmpAliasAndIndexToIndexBuilder.put(alias, lst);
+                    lst = newHashMap();
+                    tmpAliasAndIndexToIndexBuilder.put(alias.getKey(), lst);
                 }
-                lst.add(indexMetaData.index());
+                lst.put(indexMetaData.index(), alias.getValue());
             }
         }
 
         MapBuilder<String, String[]> aliasAndIndexToIndexBuilder = newMapBuilder();
-        for (Map.Entry<String, Set<String>> entry : tmpAliasAndIndexToIndexBuilder.map().entrySet()) {
-            aliasAndIndexToIndexBuilder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
+        for (Map.Entry<String, Map<String, byte[]>> entry : tmpAliasAndIndexToIndexBuilder.map().entrySet()) {
+            aliasAndIndexToIndexBuilder.put(entry.getKey(), entry.getValue().keySet().toArray(new String[entry.getValue().size()]));
         }
         this.aliasAndIndexToIndexMap = aliasAndIndexToIndexBuilder.immutableMap();
+
+        // build index to alias,filter map
+        MapBuilder<String, Map<String, byte[]>> indexToFilteredAliasBuilder = newMapBuilder();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            Map<String, byte[]> lst = newHashMap();
+            indexToFilteredAliasBuilder.put(indexMetaData.index(), lst);
+            lst.put(indexMetaData.index(), Bytes.EMPTY_ARRAY);
+            for (Map.Entry<String, byte[]> alias : indexMetaData.aliases().entrySet()) {
+                lst.put(alias.getKey(), alias.getValue());
+            }
+        }
+        indexToFilteredAliasMap = indexToFilteredAliasBuilder.immutableMap();
+
+
     }
 
     public ImmutableSet<String> aliases() {
@@ -242,6 +260,34 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public ImmutableMap<String, IndexTemplateMetaData> getTemplates() {
         return this.templates;
+    }
+
+    public byte[][] aliasFilters(String[] aliases, String index1) {
+        List<byte[]> filterList = Lists.newArrayList();
+
+        Map<String, byte[]> filters = indexToFilteredAliasMap.get(index1);
+        if (filters != null) {
+            for (String alias : aliases) {
+                byte[] filter = filters.get(alias);
+                if (filter != null) {
+                    // This alias exists for this index
+                    if (filter.length > 0) {
+                        // This alias has a filter - add it to the list
+                        filterList.add(filter);
+                    } else {
+                        // This is an index or an alias without a filter - results should be unfiltered
+                        return null;
+                    }
+                }
+            }
+        } else {
+            return null;
+        }
+        if (filterList.isEmpty()) {
+            return null;
+        } else {
+            return filterList.toArray(new byte[filterList.size()][]);
+        }
     }
 
     public int totalNumberOfShards() {

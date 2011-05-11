@@ -92,8 +92,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     /**
      * Status goes across *all* shards.
      */
-    @Override protected GroupShardsIterator shards(IndicesStatusRequest request, ClusterState clusterState) {
-        return clusterState.routingTable().allShardsGrouped(request.indices());
+    @Override protected GroupShardsIterator shards(IndicesStatusRequest request, String[] concreteIndices, ClusterState clusterState) {
+        return clusterState.routingTable().allShardsGrouped(concreteIndices);
     }
 
     /**

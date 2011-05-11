@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -29,12 +30,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
-import java.util.Set;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.common.collect.Sets.*;
+import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
@@ -70,15 +71,39 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(aliasAction.index()));
                     }
-                    Set<String> indexAliases = newHashSet(indexMetaData.settings().getAsArray("index.aliases"));
+                    // TODO: Not sure this is the best way to store it. But at least it's backward compatible.
+                    String[] aliases = indexMetaData.settings().getAsArray("index.aliases");
+                    String[] filters = indexMetaData.settings().getAsArray("index.alias_filters");
+                    Map<String, String> indexAliases = newHashMap();
+                    for (int i = 0; i < aliases.length; i++) {
+                        if (filters != null && i < filters.length) {
+                            indexAliases.put(aliases[i], filters[i]);
+                        } else {
+                            indexAliases.put(aliases[i], "");
+                        }
+                    }
                     if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                        indexAliases.add(aliasAction.alias());
+                        if (aliasAction.filter() != null) {
+                            indexAliases.put(aliasAction.alias(), Base64.encodeBytes(aliasAction.filter()));
+                        } else {
+                            indexAliases.put(aliasAction.alias(), "");
+                        }
                     } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
                         indexAliases.remove(aliasAction.alias());
                     }
 
+                    aliases = new String[indexAliases.size()];
+                    filters = new String[indexAliases.size()];
+                    int cur = 0;
+                    for (Map.Entry<String, String> alias : indexAliases.entrySet()) {
+                        aliases[cur] = alias.getKey();
+                        filters[cur] = alias.getValue();
+                        cur++;
+                    }
+
                     Settings settings = settingsBuilder().put(indexMetaData.settings())
-                            .putArray("index.aliases", indexAliases.toArray(new String[indexAliases.size()]))
+                            .putArray("index.aliases", aliases)
+                            .putArray("index.alias_filters", filters)
                             .build();
 
                     builder.put(newIndexMetaDataBuilder(indexMetaData).settings(settings));

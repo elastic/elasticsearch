@@ -21,8 +21,12 @@ package org.elasticsearch.test.integration.aliases;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -108,7 +112,90 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(indexResponse.index(), equalTo("test_x"));
     }
 
+
+    @Test public void testSearchingFilteringAliases() throws Exception {
+        logger.info("--> creating index [test]");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+
+        logger.info("--> running cluster_health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> adding filtering aliases to index [test]");
+        client1.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test", "alias2").execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test", "foos", new QueryStringQueryBuilder("name:foo")).execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test", "bars", new QueryStringQueryBuilder("name:bar")).execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test", "tests", new QueryStringQueryBuilder("name:test")).execute().actionGet();
+        Thread.sleep(300);
+
+        logger.info("--> indexing against [test]");
+        client1.index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
+
+        logger.info("--> checking counts");
+        CountResponse countResponse = client1.prepareCount("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(countResponse.count(), equalTo(1L));
+
+        countResponse = client1.prepareCount("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(countResponse.count(), equalTo(2L));
+
+        countResponse = client1.prepareCount("tests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(countResponse.count(), equalTo(3L));
+
+        // Index should prevent alias from limiting results
+        countResponse = client1.prepareCount("tests", "test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(countResponse.count(), equalTo(4L));
+
+
+        logger.info("--> checking search");
+        SearchResponse searchResponse = client1.prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1L));
+
+        searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3L));
+
+        searchResponse = client1.prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2L));
+
+    }
+
+    @Test public void testDeletingFilteringAliases() throws Exception {
+        logger.info("--> creating index [test]");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+
+        logger.info("--> adding filtering aliases to index [test]");
+        client1.admin().indices().prepareAliases().addAlias("test", "foos", new QueryStringQueryBuilder("name:foo")).execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test", "bars", new QueryStringQueryBuilder("name:bar")).execute().actionGet();
+        Thread.sleep(300);
+
+        logger.info("--> indexing against [test]");
+        client1.index(indexRequest("test").type("type1").id("1").source(source("1", "foo 1")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "foo 2")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("3").source(source("3", "bar 1")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("4").source(source("4", "baz 2")).refresh(true)).actionGet();
+
+        logger.info("--> checking counts before delete");
+        CountResponse countResponse = client1.prepareCount("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(countResponse.count(), equalTo(2L));
+
+        logger.info("--> delete by query from alias");
+        client1.prepareDeleteByQuery("foos").setQuery(new QueryStringQueryBuilder("name:1")).execute().actionGet();
+        client1.admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> verify that only one record was deleted");
+        countResponse = client1.prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+
+        assertThat(countResponse.count(), equalTo(3L));
+    }
+
     private String source(String id, String nameValue) {
         return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
     }
+
+
 }

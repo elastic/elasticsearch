@@ -110,7 +110,7 @@ public class QueryPhase implements SearchPhase {
                             if (topDocsPhase.scope() != null) {
                                 searchContext.searcher().processingScope(topDocsPhase.scope());
                             }
-                            TopDocs topDocs = searchContext.searcher().search(topDocsPhase.query(), numDocs);
+                            TopDocs topDocs = searchContext.searcher().search(topDocsPhase.query(), searchContext.parsedAliasFilter(), numDocs);
                             if (topDocsPhase.scope() != null) {
                                 // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
                                 searchContext.searcher().processedScope();
@@ -145,7 +145,7 @@ public class QueryPhase implements SearchPhase {
                             searchContext.searcher().processingScope(scopePhase.scope());
                         }
                         Collector collector = collectorPhase.collector();
-                        searchContext.searcher().search(collectorPhase.query(), collector);
+                        searchContext.searcher().search(collectorPhase.query(), searchContext.parsedAliasFilter(), collector);
                         collectorPhase.processCollector(collector);
                         if (collectorPhase.scope() != null) {
                             // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
@@ -192,7 +192,7 @@ public class QueryPhase implements SearchPhase {
             if (searchContext.searchType() == SearchType.COUNT) {
                 CountCollector countCollector = new CountCollector();
                 try {
-                    searchContext.searcher().search(query, countCollector);
+                    searchContext.searcher().search(query, searchContext.parsedAliasFilter(), countCollector);
                 } catch (ScanCollector.StopCollectingException e) {
                     // all is well
                 }
@@ -200,15 +200,15 @@ public class QueryPhase implements SearchPhase {
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size());
                 try {
-                    searchContext.searcher().search(query, scanCollector);
+                    searchContext.searcher().search(query, searchContext.parsedAliasFilter(), scanCollector);
                 } catch (ScanCollector.StopCollectingException e) {
                     // all is well
                 }
                 topDocs = scanCollector.topDocs();
             } else if (sort) {
-                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
+                topDocs = searchContext.searcher().search(query, searchContext.parsedAliasFilter(), numDocs, searchContext.sort());
             } else {
-                topDocs = searchContext.searcher().search(query, numDocs);
+                topDocs = searchContext.searcher().search(query, searchContext.parsedAliasFilter(), numDocs);
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Exception e) {

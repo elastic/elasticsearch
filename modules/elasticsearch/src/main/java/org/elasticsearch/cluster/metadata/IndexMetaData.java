@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,11 +90,11 @@ public class IndexMetaData {
 
     private final State state;
 
-    private final ImmutableSet<String> aliases;
-
     private final Settings settings;
 
     private final ImmutableMap<String, MappingMetaData> mappings;
+
+    private final ImmutableMap<String, byte[]> aliases;
 
     private transient final int totalNumberOfShards;
 
@@ -104,8 +106,7 @@ public class IndexMetaData {
         this.settings = settings;
         this.mappings = mappings;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
-
-        this.aliases = ImmutableSet.copyOf(settings.getAsArray("index.aliases"));
+        this.aliases = fromSettings(settings);
     }
 
     public String index() {
@@ -156,11 +157,11 @@ public class IndexMetaData {
         return settings();
     }
 
-    public ImmutableSet<String> aliases() {
+    public ImmutableMap<String, byte[]> aliases() {
         return this.aliases;
     }
 
-    public ImmutableSet<String> getAliases() {
+    public ImmutableMap<String, byte[]> getAliases() {
         return aliases();
     }
 
@@ -182,6 +183,25 @@ public class IndexMetaData {
 
     public static Builder newIndexMetaDataBuilder(IndexMetaData indexMetaData) {
         return new Builder(indexMetaData);
+    }
+
+    private ImmutableMap<String, byte[]> fromSettings(Settings settings) {
+        String[] aliasNames = settings.getAsArray("index.aliases");
+        String[] filterSources = settings.getAsArray("index.alias_filters");
+        MapBuilder<String, byte[]> aliasesBuilder = MapBuilder.newMapBuilder();
+        for (int i = 0; i < aliasNames.length; i++) {
+            if (i < filterSources.length) {
+                try {
+                    aliasesBuilder.put(aliasNames[i], Base64.decode(filterSources[i]));
+                } catch (IOException ex) {
+                    // Shouldn't be here - we were encoding this byte array
+                    throw new ElasticSearchException("Error decoding filter source", ex);
+                }
+            } else {
+                aliasesBuilder.put(aliasNames[i], Bytes.EMPTY_ARRAY);
+            }
+        }
+        return aliasesBuilder.immutableMap();
     }
 
     public static class Builder {

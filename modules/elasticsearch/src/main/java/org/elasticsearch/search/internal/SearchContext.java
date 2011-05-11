@@ -128,6 +128,8 @@ public class SearchContext implements Releasable {
 
     private Filter filter;
 
+    private Filter aliasFilter;
+
     private int[] docIdsToLoad;
 
     private int docsIdsToLoadFrom;
@@ -341,6 +343,15 @@ public class SearchContext implements Releasable {
 
     public Filter parsedFilter() {
         return this.filter;
+    }
+
+    public SearchContext parsedAliasFilter(Filter aliasFilter) {
+        this.aliasFilter = aliasFilter;
+        return this;
+    }
+
+    public Filter parsedAliasFilter() {
+        return this.aliasFilter;
     }
 
     public String queryParserName() {

@@ -75,19 +75,21 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override protected ShardCountRequest newShardRequest(ShardRouting shard, CountRequest request) {
-        return new ShardCountRequest(shard.index(), shard.id(), request);
+        byte[][] filters = clusterService.state().metaData().aliasFilters(request.indices(), shard.index());
+
+        return new ShardCountRequest(shard.index(), shard.id(), request, filters);
     }
 
     @Override protected ShardCountResponse newShardResponse() {
         return new ShardCountResponse();
     }
 
-    @Override protected GroupShardsIterator shards(CountRequest request, ClusterState clusterState) {
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), request.queryHint(), request.routing(), null);
+    @Override protected GroupShardsIterator shards(CountRequest request, String[] concreteIndices, ClusterState clusterState) {
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, request.queryHint(), request.routing(), null);
     }
 
-    @Override protected void checkBlock(CountRequest request, ClusterState state) {
-        for (String index : request.indices()) {
+    @Override protected void checkBlock(CountRequest request, String[] indices, ClusterState state) {
+        for (String index : indices) {
             state.blocks().indexBlocked(ClusterBlockLevel.READ, index);
         }
     }
@@ -118,7 +120,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         long count = indexShard.count(request.minScore(), request.querySource(), request.querySourceOffset(), request.querySourceLength(),
-                request.queryParserName(), request.types());
+                request.queryParserName(), request.aliasFilters(), request.types());
         return new ShardCountResponse(request.index(), request.shardId(), count);
     }
 }

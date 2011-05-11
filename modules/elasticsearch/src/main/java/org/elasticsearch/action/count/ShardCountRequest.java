@@ -20,6 +20,7 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,11 +44,13 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String queryParserName;
 
+    @Nullable private byte[][] aliasFilters;
+
     ShardCountRequest() {
 
     }
 
-    public ShardCountRequest(String index, int shardId, CountRequest request) {
+    public ShardCountRequest(String index, int shardId, CountRequest request, byte[][] aliasFilters) {
         super(index, shardId);
         this.minScore = request.minScore();
         this.querySource = request.querySource();
@@ -55,6 +58,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         this.querySourceLength = request.querySourceLength();
         this.queryParserName = request.queryParserName();
         this.types = request.types();
+        this.aliasFilters = aliasFilters;
     }
 
     public float minScore() {
@@ -81,6 +85,10 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         return this.types;
     }
 
+    public byte[][] aliasFilters() {
+        return aliasFilters;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
@@ -96,6 +104,22 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
                 types[i] = in.readUTF();
+            }
+        }
+        int filtersSize = in.readVInt();
+        if (filtersSize == 0) {
+            aliasFilters = null;
+        } else {
+            aliasFilters = new byte[filtersSize][];
+            for (int i = 0; i < filtersSize; i++) {
+                int filterSize = in.readVInt();
+                if (filterSize > 0) {
+                    byte[] filter = new byte[filterSize];
+                    in.readFully(filter);
+                    aliasFilters[i] = filter;
+                } else {
+                    aliasFilters[i] = Bytes.EMPTY_ARRAY;
+                }
             }
         }
     }
@@ -114,6 +138,15 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
+        }
+        if (aliasFilters == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(aliasFilters.length);
+            for (byte[] filter : aliasFilters) {
+                out.writeVInt(filter.length);
+                out.writeBytes(filter);
+            }
         }
     }
 }

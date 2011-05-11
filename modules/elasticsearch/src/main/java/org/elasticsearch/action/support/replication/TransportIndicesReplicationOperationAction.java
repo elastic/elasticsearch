@@ -61,12 +61,10 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
         ClusterState clusterState = clusterService.state();
 
-        // update to actual indices
-        request.indices(clusterState.metaData().concreteIndices(request.indices()));
+        // get actual indices
+        String[] indices = clusterState.metaData().concreteIndices(request.indices());
 
-        checkBlock(request, clusterState);
-
-        String[] indices = request.indices();
+        checkBlock(request, indices, clusterState);
 
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(indices.length);
@@ -108,7 +106,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     protected abstract boolean accumulateExceptions();
 
-    protected void checkBlock(Request request, ClusterState state) {
+    protected void checkBlock(Request request, String[] concreteIndices, ClusterState state) {
 
     }
 

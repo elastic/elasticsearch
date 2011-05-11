@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
@@ -36,6 +36,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.IndexQueryParser;
+import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -387,6 +389,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
             parseSource(context, request.source(), request.sourceOffset(), request.sourceLength());
             parseSource(context, request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
+            parseAliasFilter(context, indexService.queryParserService(), request.aliasFilters());
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -440,6 +443,26 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private void cleanContext(SearchContext context) {
         SearchContext.removeCurrent();
     }
+
+    private void parseAliasFilter(SearchContext context, IndexQueryParserService indexQueryParserService, byte[][] aliasFilters) {
+        if (aliasFilters == null || aliasFilters.length == 0) {
+            return;
+        }
+        IndexQueryParser queryParser = indexQueryParserService.defaultIndexQueryParser();
+        Query query;
+        if (aliasFilters.length == 1) {
+            query = queryParser.parse(aliasFilters[0]).query();
+        } else {
+            BooleanQuery combined = new BooleanQuery();
+            for (byte[] filter : aliasFilters) {
+                combined.add(queryParser.parse(filter).query(), BooleanClause.Occur.SHOULD);
+            }
+            query = combined;
+        }
+        // Cache?
+        context.parsedAliasFilter(new QueryWrapperFilter(query));
+    }
+
 
     private void parseSource(SearchContext context, byte[] source, int offset, int length) throws SearchParseException {
         // nothing to parse...

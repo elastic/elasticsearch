@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -62,14 +63,21 @@ public class AliasAction implements Streamable {
 
     private String alias;
 
+    private byte[] filter;
+
     private AliasAction() {
 
     }
 
     public AliasAction(Type actionType, String index, String alias) {
+        this(actionType, index, alias, null);
+    }
+
+    public AliasAction(Type actionType, String index, String alias, byte[] filter) {
         this.actionType = actionType;
         this.index = index;
         this.alias = alias;
+        this.filter = filter;
     }
 
     public Type actionType() {
@@ -84,6 +92,10 @@ public class AliasAction implements Streamable {
         return alias;
     }
 
+    public byte[] filter() {
+        return filter;
+    }
+
     public static AliasAction readAliasAction(StreamInput in) throws IOException {
         AliasAction aliasAction = new AliasAction();
         aliasAction.readFrom(in);
@@ -94,11 +106,24 @@ public class AliasAction implements Streamable {
         actionType = Type.fromValue(in.readByte());
         index = in.readUTF();
         alias = in.readUTF();
+        int size = in.readVInt();
+        if (size > 0) {
+            filter = new byte[size];
+            in.readFully(filter);
+        } else {
+            filter = Bytes.EMPTY_ARRAY;
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
         out.writeUTF(index);
         out.writeUTF(alias);
+        if (filter != null) {
+            out.writeVInt(filter.length);
+            out.writeBytes(filter);
+        } else {
+            out.writeVInt(0);
+        }
     }
 }

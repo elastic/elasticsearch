@@ -84,7 +84,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
-        request.index(clusterState.metaData().concreteIndex(request.index()));
+        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
 
         Set<String> getFields = newHashSet();
         if (request.fields() != null) {
@@ -93,7 +93,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         // add the source, in case we need to parse it to get fields
         getFields.add(SourceFieldMapper.NAME);
 
-        GetRequest getRequest = getRequest(request.index())
+        GetRequest getRequest = getRequest(concreteIndex)
                 .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
@@ -109,7 +109,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
                 try {
-                    DocumentMapper docMapper = indicesService.indexServiceSafe(request.index()).mapperService().documentMapper(request.type());
+                    DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
                         for (String field : request.fields()) {

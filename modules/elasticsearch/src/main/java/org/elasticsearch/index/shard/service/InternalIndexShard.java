@@ -22,8 +22,7 @@ package org.elasticsearch.index.shard.service;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -311,15 +310,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(delete);
     }
 
-    @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+    @Override() public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, @Nullable byte[][] aliasFilters, String... types) throws ElasticSearchException {
         writeAllowed();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        innerDeleteByQuery(querySource, queryParserName, types);
+        innerDeleteByQuery(querySource, queryParserName, aliasFilters, types);
     }
 
-    private void innerDeleteByQuery(byte[] querySource, String queryParserName, String... types) {
+    private void innerDeleteByQuery(byte[] querySource, String queryParserName, byte[][] aliasFilters, String... types) {
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {
             queryParser = queryParserService.indexQueryParser(queryParserName);
@@ -329,12 +328,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         Query query = queryParser.parse(querySource).query();
         query = filterByTypesIfNeeded(query, types);
+        Filter aliasFilter = combineFilters(aliasFilters);
 
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", query);
         }
 
-        engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, types));
+        engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, aliasFilter, aliasFilters, types));
     }
 
     @Override public byte[] get(String type, String id) throws ElasticSearchException {
@@ -361,12 +361,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    @Override public long count(float minScore, byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
-        return count(minScore, querySource, 0, querySource.length, queryParserName, types);
+    @Override public long count(float minScore, byte[] querySource, @Nullable String queryParserName, byte[][] filters, String... types) throws ElasticSearchException {
+        return count(minScore, querySource, 0, querySource.length, queryParserName, filters, types);
     }
 
     @Override public long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength,
-                                @Nullable String queryParserName, String... types) throws ElasticSearchException {
+                                @Nullable String queryParserName, byte[][] filters, String... types) throws ElasticSearchException {
         readAllowed();
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {
@@ -380,9 +380,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // Don't cache it, since it might be very different queries each time...
 //        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
         query = filterByTypesIfNeeded(query, types);
+        Filter filter = combineFilters(filters);
         Engine.Searcher searcher = engine.searcher();
         try {
-            long count = Lucene.count(searcher.searcher(), query, minScore);
+            long count = Lucene.count(searcher.searcher(), query, filter, minScore);
             if (logger.isTraceEnabled()) {
                 logger.trace("count of [{}] is [{}]", query, count);
             }
@@ -533,7 +534,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 break;
             case DELETE_BY_QUERY:
                 Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
+                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.aliasFiltersSource(), deleteByQuery.types());
                 break;
             default:
                 throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
@@ -586,6 +587,26 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             query = new FilteredQuery(query, indexCache.filter().cache(mapperService.typesFilter(types)));
         }
         return query;
+    }
+
+    private Filter combineFilters(byte[][] filters) {
+        if (filters == null) {
+            return null;
+        }
+        IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
+        Query query;
+        if (filters.length == 1) {
+            query = queryParser.parse(filters[0]).query();
+        } else {
+            BooleanQuery combined = new BooleanQuery();
+            for (byte[] filter : filters) {
+                combined.add(queryParser.parse(filter).query(), BooleanClause.Occur.SHOULD);
+            }
+            query = combined;
+        }
+        // Cache?
+        return new QueryWrapperFilter(query);
+
     }
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {

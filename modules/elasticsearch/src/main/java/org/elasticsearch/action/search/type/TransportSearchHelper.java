@@ -67,13 +67,14 @@ public abstract class TransportSearchHelper {
         return ret;
     }
 
-    public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request) {
+    public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, byte[][] aliasFilters) {
         InternalSearchRequest internalRequest = new InternalSearchRequest(shardRouting, numberOfShards, request.searchType());
         internalRequest.source(request.source(), request.sourceOffset(), request.sourceLength());
         internalRequest.extraSource(request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
         internalRequest.scroll(request.scroll());
         internalRequest.timeout(request.timeout());
         internalRequest.types(request.types());
+        internalRequest.aliasFilters(aliasFilters);
         return internalRequest;
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
@@ -44,6 +45,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String routing;
+    @Nullable private byte[][] aliasFilters;
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
         this.index = request.index();
@@ -55,6 +57,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         consistencyLevel(request.consistencyLevel());
         timeout = request.timeout();
         this.routing = request.routing();
+        this.aliasFilters = request.aliasFilters();
     }
 
     ShardDeleteByQueryRequest() {
@@ -88,6 +91,10 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.routing;
     }
 
+    public byte[][] aliasFilters() {
+        return aliasFilters;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         querySource = new byte[in.readVInt()];
@@ -105,6 +112,21 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         }
         if (in.readBoolean()) {
             routing = in.readUTF();
+        }
+        int filtersSize = in.readVInt();
+        if (filtersSize > 0) {
+            aliasFilters = new byte[filtersSize][];
+            for (int i = 0; i < filtersSize; i++) {
+                int filterSize = in.readVInt();
+                if (filterSize > 0) {
+                    aliasFilters[i] = new byte[filterSize];
+                    in.readFully(aliasFilters[i]);
+                } else {
+                    aliasFilters[i] = Bytes.EMPTY_ARRAY;
+                }
+            }
+        } else {
+            aliasFilters = null;
         }
     }
 
@@ -128,6 +150,15 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if(aliasFilters == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(aliasFilters.length);
+            for (byte[] filter : aliasFilters) {
+                out.writeVInt(filter.length);
+                out.writeBytes(filter);
+            }
         }
     }
 

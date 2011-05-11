@@ -21,6 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
@@ -43,9 +44,10 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     private byte[] querySource;
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
+    @Nullable private byte[][] aliasFilters;
     @Nullable private String routing;
 
-    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index) {
+    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, byte[][] aliasFilters) {
         this.index = index;
         this.timeout = request.timeout();
         this.querySource = request.querySource();
@@ -54,6 +56,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
         this.routing = request.routing();
+        this.aliasFilters = aliasFilters;
     }
 
     IndexDeleteByQueryRequest() {
@@ -92,6 +95,10 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return this.types;
     }
 
+    byte[][] aliasFilters() {
+        return aliasFilters;
+    }
+
     public IndexDeleteByQueryRequest queryParserName(String queryParserName) {
         this.queryParserName = queryParserName;
         return this;
@@ -119,6 +126,22 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
+        int filtersSize = in.readVInt();
+        if (filtersSize == 0) {
+            aliasFilters = null;
+        } else {
+            aliasFilters = new byte[filtersSize][];
+            for (int i = 0; i < filtersSize; i++) {
+                int filterSize = in.readVInt();
+                if (filterSize > 0) {
+                    byte[] filter = new byte[filterSize];
+                    in.readFully(filter);
+                    aliasFilters[i] = filter;
+                } else {
+                    aliasFilters[i] = Bytes.EMPTY_ARRAY;
+                }
+            }
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -140,6 +163,15 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if (aliasFilters == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(aliasFilters.length);
+            for (byte[] filter : aliasFilters) {
+                out.writeVInt(filter.length);
+                out.writeBytes(filter);
+            }
         }
     }
 }

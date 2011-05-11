@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -53,7 +55,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         try {
             // {
             //     actions : [
-            //         { add : { index : "test1", alias : "alias1" } }
+            //         { add : { index : "test1", alias : "alias1", filter : "user:kimchy" } }
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
@@ -79,6 +81,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             String index = null;
                             String alias = null;
                             String currentFieldName = null;
+                            byte[] filter = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
@@ -87,6 +90,8 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                         index = parser.text();
                                     } else if ("alias".equals(currentFieldName)) {
                                         alias = parser.text();
+                                    } else if ("filter".equals(currentFieldName)) {
+                                        filter = parseFilter(parser.text());
                                     }
                                 }
                             }
@@ -97,7 +102,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                 throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [alias] to be set");
                             }
                             if (type == AliasAction.Type.ADD) {
-                                indicesAliasesRequest.addAlias(index, alias);
+                                indicesAliasesRequest.addAlias(index, alias, filter);
                             } else if (type == AliasAction.Type.REMOVE) {
                                 indicesAliasesRequest.removeAlias(index, alias);
                             }
@@ -134,5 +139,10 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    private byte[] parseFilter(String queryString) {
+        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+        return queryBuilder.buildAsBytes();
     }
 }

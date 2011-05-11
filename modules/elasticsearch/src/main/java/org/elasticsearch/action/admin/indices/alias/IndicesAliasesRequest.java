@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,6 +54,28 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
      */
     public IndicesAliasesRequest addAlias(String index, String alias) {
         aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index The index
+     * @param alias The alias
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, byte[] filter) {
+        aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, filter));
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index The index
+     * @param alias The alias
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, QueryBuilder filter) {
+        aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, filter.buildAsBytes()));
         return this;
     }
 

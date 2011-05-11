@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -443,18 +444,20 @@ public interface Translog extends IndexShardComponent {
         private byte[] source;
         @Nullable private String queryParserName;
         private String[] types = Strings.EMPTY_ARRAY;
+        @Nullable private byte[][] aliasFiltersSource;
 
         public DeleteByQuery() {
         }
 
         public DeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-            this(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
+            this(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.aliasFiltersSource(), deleteByQuery.types());
         }
 
-        public DeleteByQuery(byte[] source, @Nullable String queryParserName, String... types) {
+        public DeleteByQuery(byte[] source, @Nullable String queryParserName, @Nullable byte[][] aliasFiltersSource, String... types) {
             this.queryParserName = queryParserName;
             this.source = source;
             this.types = types;
+            this.aliasFiltersSource = aliasFiltersSource;
         }
 
         @Override public Type opType() {
@@ -477,6 +480,10 @@ public interface Translog extends IndexShardComponent {
             return this.types;
         }
 
+        public byte[][] aliasFiltersSource() {
+            return aliasFiltersSource;
+        }
+
         @Override public void readFrom(StreamInput in) throws IOException {
             in.readVInt(); // version
             source = new byte[in.readVInt()];
@@ -489,6 +496,22 @@ public interface Translog extends IndexShardComponent {
                 types = new String[typesSize];
                 for (int i = 0; i < typesSize; i++) {
                     types[i] = in.readUTF();
+                }
+            }
+            int filtersSize = in.readVInt();
+            if (filtersSize == 0) {
+                aliasFiltersSource = null;
+            } else {
+                aliasFiltersSource = new byte[filtersSize][];
+                for (int i = 0; i < filtersSize; i++) {
+                    int filterSize = in.readVInt();
+                    if (filterSize > 0) {
+                        byte[] filter = new byte[filterSize];
+                        in.readFully(filter);
+                        aliasFiltersSource[i] = filter;
+                    } else {
+                        aliasFiltersSource[i] = Bytes.EMPTY_ARRAY;
+                    }
                 }
             }
         }
@@ -507,6 +530,16 @@ public interface Translog extends IndexShardComponent {
             for (String type : types) {
                 out.writeUTF(type);
             }
+            if (aliasFiltersSource == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(aliasFiltersSource.length);
+                for (byte[] filter : aliasFiltersSource) {
+                    out.writeVInt(filter.length);
+                    out.writeBytes(filter);
+                }
+            }
+
         }
     }
 }

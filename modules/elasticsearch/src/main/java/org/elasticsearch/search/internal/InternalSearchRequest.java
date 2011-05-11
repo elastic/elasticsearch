@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,6 +78,8 @@ public class InternalSearchRequest implements Streamable {
     private byte[] extraSource;
     private int extraSourceOffset;
     private int extraSourceLength;
+
+    @Nullable private byte[][] aliasFilters;
 
     public InternalSearchRequest() {
     }
@@ -150,6 +153,15 @@ public class InternalSearchRequest implements Streamable {
         return this;
     }
 
+    public byte[][] aliasFilters() {
+        return aliasFilters;
+    }
+
+    public InternalSearchRequest aliasFilters(byte[][] aliasFilters) {
+        this.aliasFilters = aliasFilters;
+        return this;
+    }
+
     public Scroll scroll() {
         return scroll;
     }
@@ -210,6 +222,23 @@ public class InternalSearchRequest implements Streamable {
                 types[i] = in.readUTF();
             }
         }
+        int filtersSize = in.readVInt();
+        if (filtersSize == 0) {
+            aliasFilters = null;
+        } else {
+            aliasFilters = new byte[filtersSize][];
+            for (int i = 0; i < filtersSize; i++) {
+                int filterSize = in.readVInt();
+                if (filterSize > 0) {
+                    byte[] filter = new byte[filterSize];
+                    in.readFully(filter);
+                    aliasFilters[i] = filter;
+                } else {
+                    aliasFilters[i] = Bytes.EMPTY_ARRAY;
+                }
+            }
+        }
+
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -244,6 +273,15 @@ public class InternalSearchRequest implements Streamable {
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
+        }
+        if (aliasFilters == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(aliasFilters.length);
+            for (byte[] filter : aliasFilters) {
+                out.writeVInt(filter.length);
+                out.writeBytes(filter);
+            }
         }
     }
 }

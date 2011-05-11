@@ -58,6 +58,8 @@ public class TranslogService extends AbstractIndexShardComponent {
 
     private TimeValue flushThresholdPeriod;
 
+    private boolean disableFlush;
+
     private final TimeValue interval;
 
     private ScheduledFuture future;
@@ -75,6 +77,7 @@ public class TranslogService extends AbstractIndexShardComponent {
         this.flushThresholdSize = componentSettings.getAsBytesSize("flush_threshold_size", new ByteSizeValue(200, ByteSizeUnit.MB));
         this.flushThresholdPeriod = componentSettings.getAsTime("flush_threshold_period", TimeValue.timeValueMinutes(30));
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(5000));
+        this.disableFlush = componentSettings.getAsBoolean("disable_flush", false);
 
         logger.debug("interval [{}], flush_threshold_ops [{}], flush_threshold_size [{}], flush_threshold_period [{}]", interval, flushThresholdOperations, flushThresholdSize, flushThresholdPeriod);
 
@@ -106,6 +109,11 @@ public class TranslogService extends AbstractIndexShardComponent {
                 logger.info("updating flush_threshold_period from [{}] to [{}]", TranslogService.this.flushThresholdPeriod, flushThresholdPeriod);
                 TranslogService.this.flushThresholdPeriod = flushThresholdPeriod;
             }
+            boolean disableFlush = settings.getAsBoolean("index.translog.disable_flush", TranslogService.this.disableFlush);
+            if (disableFlush != TranslogService.this.disableFlush) {
+                logger.info("updating disable_flush from [{}] to [{}]", TranslogService.this.disableFlush, disableFlush);
+                TranslogService.this.disableFlush = disableFlush;
+            }
         }
     }
 
@@ -115,6 +123,9 @@ public class TranslogService extends AbstractIndexShardComponent {
 
         @Override public void run() {
             if (indexShard.state() == IndexShardState.CLOSED) {
+                return;
+            }
+            if (disableFlush) {
                 return;
             }
 

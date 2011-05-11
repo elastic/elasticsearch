@@ -177,13 +177,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : indices) {
             if (!this.indices.containsKey(index)) {
                 possiblyAliased = true;
+                break;
             }
         }
         if (!possiblyAliased) {
             return indices;
         }
 
-        ArrayList<String> actualIndices = Lists.newArrayListWithCapacity(indices.length);
+        Set<String> actualIndices = Sets.newHashSetWithExpectedSize(indices.length);
         for (String index : indices) {
             String[] actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {

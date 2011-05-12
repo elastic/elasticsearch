@@ -55,6 +55,7 @@ import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
+import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
@@ -70,6 +71,7 @@ import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -79,6 +81,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.analysis.*;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.util.Map;
 
@@ -256,6 +259,20 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public Tokenizer create(Reader reader) {
                 return new EdgeNGramTokenizer(reader, EdgeNGramTokenizer.DEFAULT_SIDE, EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            }
+        }));
+
+        tokenizerFactories.put("pattern", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
+            @Override public String name() {
+                return "pattern";
+            }
+
+            @Override public Tokenizer create(Reader reader) {
+                try {
+                    return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
+                } catch (IOException e) {
+                    throw new ElasticSearchIllegalStateException("failed to parse default pattern");
+                }
             }
         }));
 

@@ -268,6 +268,12 @@ public class AnalysisModule extends AbstractModule {
             if (type == null) {
                 throw new ElasticSearchIllegalArgumentException("Tokenizer [" + tokenizerName + "] must have a type associated with it");
             }
+
+            // if it requires settings, and it has none, then don't register it
+            if (tokenizerSettings.getAsMap().isEmpty() && type.getAnnotation(AnalysisSettingsRequired.class) != null) {
+                continue;
+            }
+
             tokenizerBinder.addBinding(tokenizerName).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
 
@@ -375,6 +381,7 @@ public class AnalysisModule extends AbstractModule {
         }
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
+            tokenizersBindings.processTokenizer("pattern", PatternTokenizerFactory.class);
         }
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {

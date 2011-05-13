@@ -125,6 +125,9 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     @Override public Query rewrite(IndexReader reader) throws IOException {
+        if (termArrays.isEmpty()) {
+            return MatchNoDocsQuery.INSTANCE;
+        }
         MultiPhraseQuery query = new MultiPhraseQuery();
         query.setSlop(slop);
         int sizeMinus1 = termArrays.size() - 1;
@@ -136,6 +139,9 @@ public class MultiPhrasePrefixQuery extends Query {
         List<Term> terms = new ArrayList<Term>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
+            if (terms.size() > maxExpansions) {
+                break;
+            }
         }
         if (terms.isEmpty()) {
             return MatchNoDocsQuery.INSTANCE;

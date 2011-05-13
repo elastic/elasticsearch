@@ -19,6 +19,10 @@
 
 package org.elasticsearch.script;
 
+/**
+ * A simpler base class instead of {@link AbstractSearchScript} for computations
+ * that return a float number.
+ */
 public abstract class AbstractFloatSearchScript extends AbstractSearchScript {
 
     @Override public Object run() {

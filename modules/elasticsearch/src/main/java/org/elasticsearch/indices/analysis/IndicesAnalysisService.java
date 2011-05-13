@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.es.SpanishAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
+import org.apache.lucene.analysis.fr.ElisionFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchStemFilter;
 import org.apache.lucene.analysis.gl.GalicianAnalyzer;
@@ -414,6 +415,15 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new PorterStemFilter(tokenStream);
+            }
+        }));
+        tokenFilterFactories.put("elision", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override public String name() {
+                return "elision";
+            }
+
+            @Override public TokenStream create(TokenStream tokenStream) {
+                return new ElisionFilter(Lucene.ANALYZER_VERSION, tokenStream);
             }
         }));
         tokenFilterFactories.put("arabic_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {

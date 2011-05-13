@@ -24,8 +24,8 @@ import org.elasticsearch.common.Nullable;
 import java.util.Map;
 
 /**
- * A factor to create instances of either {@link ExecutableScript} or {@link SearchScript}. Note,
- * if this factor creates {@link SearchScript}, it must extend {@link AbstractSearchScript}.
+ * A factory to create instances of either {@link ExecutableScript} or {@link SearchScript}. Note,
+ * if this factory creates {@link SearchScript}, it must extend {@link AbstractSearchScript}.
  *
  * @see AbstractExecutableScript
  * @see AbstractSearchScript

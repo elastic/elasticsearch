@@ -336,7 +336,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
-    private void serializeObject(ParseContext context, String currentFieldName) throws IOException {
+    private void serializeObject(final ParseContext context, String currentFieldName) throws IOException {
         context.path().add(currentFieldName);
 
         XContentMapper objectMapper = mappers.get(currentFieldName);
@@ -366,6 +366,14 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                         BuilderContext builderContext = new BuilderContext(context.path());
                         objectMapper = builder.build(builderContext);
                         putMapper(objectMapper);
+
+                        // we need to traverse in case we have a dynamic template and need to add field mappers
+                        // introduced by it
+                        objectMapper.traverse(new FieldMapperListener() {
+                            @Override public void fieldMapper(FieldMapper fieldMapper) {
+                                context.docMapper().addFieldMapper(fieldMapper);
+                            }
+                        });
 
                         // now re add it and parse...
                         context.path().add(currentFieldName);

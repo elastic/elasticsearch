@@ -19,6 +19,10 @@
 
 package org.elasticsearch.script;
 
+/**
+ * A simpler base class instead of {@link AbstractSearchScript} for computations
+ * that return a long number.
+ */
 public abstract class AbstractLongSearchScript extends AbstractSearchScript {
 
     @Override public Object run() {

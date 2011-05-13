@@ -102,6 +102,7 @@ fi
 case `uname` in
     CYGWIN*)
         ES_CLASSPATH=`cygpath -p -w "$ES_CLASSPATH"`
+        ES_HOME=`cygpath -p -w "$ES_HOME"`
     ;;
 esac
 
@@ -120,11 +121,11 @@ launch_service()
     # but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         es_parms="$es_parms -Des-foreground=yes"
-        exec $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
+        exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
                 org.elasticsearch.bootstrap.ElasticSearch
     else
         # Startup ElasticSearch, background it, and write the pid.
-        exec $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
+        exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
         [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
     fi
@@ -139,7 +140,7 @@ eval set -- "$args"
 while true; do
     case $1 in
         -v)
-            $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
+            "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $ES_CLASSPATH $props \
                     org.elasticsearch.Version
             exit 0
         ;;

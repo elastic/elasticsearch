@@ -380,6 +380,16 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    @Override public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
+    }
+
     public FastByteArrayOutputStream buildAsUnsafeBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);

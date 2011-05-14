@@ -574,6 +574,10 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return sourceBuilder();
     }
 
+    @Override public String toString() {
+        return internalBuilder().toString();
+    }
+
     @Override protected void doExecute(ActionListener<SearchResponse> listener) {
         request.source(sourceBuilder());
         client.search(request, listener);

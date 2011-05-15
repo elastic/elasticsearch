@@ -27,7 +27,6 @@ import org.elasticsearch.common.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.histogram.HistogramFacet;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -223,7 +222,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(Fields._TYPE, HistogramFacet.TYPE);
+        builder.field(Fields._TYPE, TYPE);
         builder.startArray(Fields.ENTRIES);
         for (Entry entry : computeEntries()) {
             builder.startObject();

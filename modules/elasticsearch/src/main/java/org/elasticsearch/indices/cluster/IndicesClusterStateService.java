@@ -94,7 +94,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
-    // a map of mappings type we have seen per index
+    // a map of mappings type we have seen per index due to cluster state
+    // we need this so we won't remove types automatically created as part of the indexing process
     private final ConcurrentMap<Tuple<String, String>, Boolean> seenMappings = ConcurrentCollections.newConcurrentMap();
 
     private final Object mutex = new Object();
@@ -197,6 +198,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     });
                 } catch (Exception e) {
                     logger.warn("failed to delete index", e);
+                }
+                // clear seen mappings as well
+                for (Tuple<String, String> tuple : seenMappings.keySet()) {
+                    if (tuple.v1().equals(index)) {
+                        seenMappings.remove(tuple);
+                    }
                 }
             }
         }

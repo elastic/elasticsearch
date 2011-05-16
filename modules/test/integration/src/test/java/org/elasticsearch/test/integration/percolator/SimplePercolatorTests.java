@@ -248,6 +248,56 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         }
     }
 
+    @Test public void multiplePercolators() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            client.admin().indices().prepareDelete("_percolator").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        logger.info("--> register a query 1");
+        client.prepareIndex("_percolator", "test", "kuku")
+                .setSource(jsonBuilder().startObject()
+                        .field("color", "blue")
+                        .field("query", termQuery("field1", "value1"))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+
+        logger.info("--> register a query 2");
+        client.prepareIndex("_percolator", "test", "bubu")
+                .setSource(jsonBuilder().startObject()
+                        .field("color", "green")
+                        .field("query", termQuery("field1", "value2"))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+
+        PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+                .field("field1", "value1")
+                .endObject().endObject())
+                .execute().actionGet();
+        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.matches(), hasItem("kuku"));
+
+        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc").startObject("type1")
+                .field("field1", "value2")
+                .endObject().endObject().endObject())
+                .execute().actionGet();
+        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.matches(), hasItem("bubu"));
+
+    }
+
     @Test public void dynamicAddingRemovingQueries() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

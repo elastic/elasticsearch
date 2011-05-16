@@ -39,6 +39,8 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  */
 public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
 
+    private static final String CLUSTER_UPDATE_TASK_SOURCE = "routing-table-updater";
+
     private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
@@ -60,7 +62,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        clusterService.add(this);
+        clusterService.addPriority(this);
     }
 
     @Override protected void doStop() throws ElasticSearchException {
@@ -75,7 +77,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {
-        if (event.source().equals(RoutingTableUpdater.CLUSTER_UPDATE_TASK_SOURCE)) {
+        if (event.source().equals(CLUSTER_UPDATE_TASK_SOURCE)) {
             // that's us, ignore this event
             return;
         }
@@ -93,7 +95,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 // also, if the routing table changed, it means that we have new indices, or shard have started
                 // or failed, we want to apply this as fast as possible
                 routingTableDirty = true;
-                threadPool.cached().execute(new RoutingTableUpdater());
+                reroute();
             } else {
                 if (event.nodesAdded()) {
                     routingTableDirty = true;
@@ -107,32 +109,34 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         }
     }
 
+    private void reroute() {
+        try {
+            if (!routingTableDirty) {
+                return;
+            }
+            if (lifecycle.stopped()) {
+                return;
+            }
+            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    RoutingAllocation.Result routingResult = shardsAllocation.reroute(currentState);
+                    if (!routingResult.changed()) {
+                        // no state changed
+                        return currentState;
+                    }
+                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                }
+            });
+            routingTableDirty = false;
+        } catch (Exception e) {
+            logger.warn("Failed to reroute routing table", e);
+        }
+    }
+
     private class RoutingTableUpdater implements Runnable {
 
-        private static final String CLUSTER_UPDATE_TASK_SOURCE = "routing-table-updater";
-
         @Override public void run() {
-            try {
-                if (!routingTableDirty) {
-                    return;
-                }
-                if (lifecycle.stopped()) {
-                    return;
-                }
-                clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
-                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(currentState);
-                        if (!routingResult.changed()) {
-                            // no state changed
-                            return currentState;
-                        }
-                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
-                    }
-                });
-                routingTableDirty = false;
-            } catch (Exception e) {
-                logger.warn("Failed to reroute routing table", e);
-            }
+            reroute();
         }
     }
 }

@@ -55,6 +55,11 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     OperationRouting operationRouting();
 
     /**
+     * Adds a priority listener for updated cluster states.
+     */
+    void addPriority(ClusterStateListener listener);
+
+    /**
      * Adds a listener for updated cluster states.
      */
     void add(ClusterStateListener listener);

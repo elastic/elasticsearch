@@ -417,6 +417,10 @@ public class Lucene {
 
         private boolean exists;
 
+        public void reset() {
+            exists = false;
+        }
+
         public boolean exists() {
             return exists;
         }

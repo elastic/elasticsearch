@@ -340,8 +340,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         List<String> matches = new ArrayList<String>();
         if (request.query() == null) {
-            Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
             for (Map.Entry<String, Query> entry : queries.entrySet()) {
+                Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
                 try {
                     searcher.search(entry.getValue(), collector);
                 } catch (IOException e) {

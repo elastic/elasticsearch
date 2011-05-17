@@ -59,7 +59,7 @@ public class FacetPhase implements SearchPhase {
     }
 
     @Override public void execute(SearchContext context) throws ElasticSearchException {
-        if (context.facets() == null) {
+        if (context.facets() == null || context.facets().facetCollectors() == null) {
             return;
         }
         if (context.queryResult().facets() != null) {

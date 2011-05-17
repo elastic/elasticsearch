@@ -201,7 +201,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                             builder.endObject();
 
                             builder.startArray("aliases");
-                            for (String alias : indexMetaData.aliases()) {
+                            for (String alias : indexMetaData.aliases().keySet()) {
                                 builder.value(alias);
                             }
                             builder.endArray();

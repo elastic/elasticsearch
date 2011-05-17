@@ -29,13 +29,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
-import java.util.Set;
-
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.common.collect.Sets.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -70,18 +66,14 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(aliasAction.index()));
                     }
-                    Set<String> indexAliases = newHashSet(indexMetaData.settings().getAsArray("index.aliases"));
+                    IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
                     if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                        indexAliases.add(aliasAction.alias());
+                        indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(aliasAction.alias()).build());
                     } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
-                        indexAliases.remove(aliasAction.alias());
+                        indexMetaDataBuilder.removerAlias(aliasAction.alias());
                     }
 
-                    Settings settings = settingsBuilder().put(indexMetaData.settings())
-                            .putArray("index.aliases", indexAliases.toArray(new String[indexAliases.size()]))
-                            .build();
-
-                    builder.put(newIndexMetaDataBuilder(indexMetaData).settings(settings));
+                    builder.put(indexMetaDataBuilder);
                 }
                 return newClusterStateBuilder().state(currentState).metaData(builder).build();
             }

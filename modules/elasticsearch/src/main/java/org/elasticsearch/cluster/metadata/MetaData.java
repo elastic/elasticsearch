@@ -75,7 +75,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         // build aliases set
         Set<String> aliases = newHashSet();
         for (IndexMetaData indexMetaData : indices.values()) {
-            aliases.addAll(indexMetaData.aliases());
+            aliases.addAll(indexMetaData.aliases().keySet());
         }
         this.aliases = ImmutableSet.copyOf(aliases);
 
@@ -89,7 +89,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             lst.add(indexMetaData.index());
 
-            for (String alias : indexMetaData.aliases()) {
+            for (String alias : indexMetaData.aliases().keySet()) {
                 lst = tmpAliasAndIndexToIndexBuilder.get(alias);
                 if (lst == null) {
                     lst = newHashSet();

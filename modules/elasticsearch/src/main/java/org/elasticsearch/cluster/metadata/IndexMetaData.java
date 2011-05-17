@@ -88,7 +88,7 @@ public class IndexMetaData {
 
     private final State state;
 
-    private final ImmutableSet<String> aliases;
+    private final ImmutableMap<String, AliasMetaData> aliases;
 
     private final Settings settings;
 
@@ -96,7 +96,7 @@ public class IndexMetaData {
 
     private transient final int totalNumberOfShards;
 
-    private IndexMetaData(String index, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings) {
+    private IndexMetaData(String index, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings, ImmutableMap<String, AliasMetaData> aliases) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
@@ -105,7 +105,7 @@ public class IndexMetaData {
         this.mappings = mappings;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
 
-        this.aliases = ImmutableSet.copyOf(settings.getAsArray("index.aliases"));
+        this.aliases = aliases;
     }
 
     public String index() {
@@ -156,11 +156,11 @@ public class IndexMetaData {
         return settings();
     }
 
-    public ImmutableSet<String> aliases() {
+    public ImmutableMap<String, AliasMetaData> aliases() {
         return this.aliases;
     }
 
-    public ImmutableSet<String> getAliases() {
+    public ImmutableMap<String, AliasMetaData> getAliases() {
         return aliases();
     }
 
@@ -194,6 +194,8 @@ public class IndexMetaData {
 
         private MapBuilder<String, MappingMetaData> mappings = MapBuilder.newMapBuilder();
 
+        private MapBuilder<String, AliasMetaData> aliases = MapBuilder.newMapBuilder();
+
         public Builder(String index) {
             this.index = index;
         }
@@ -202,6 +204,7 @@ public class IndexMetaData {
             this(indexMetaData.index());
             settings(indexMetaData.settings());
             mappings.putAll(indexMetaData.mappings);
+            aliases.putAll(indexMetaData.aliases);
             this.state = indexMetaData.state;
         }
 
@@ -262,8 +265,39 @@ public class IndexMetaData {
             return this;
         }
 
+        public Builder putAlias(AliasMetaData aliasMetaData) {
+            aliases.put(aliasMetaData.alias(), aliasMetaData);
+            return this;
+        }
+
+        public Builder putAlias(AliasMetaData.Builder aliasMetaData) {
+            aliases.put(aliasMetaData.alias(), aliasMetaData.build());
+            return this;
+        }
+
+        public Builder removerAlias(String alias) {
+            aliases.remove(alias);
+            return this;
+        }
+
         public IndexMetaData build() {
-            return new IndexMetaData(index, state, settings, mappings.immutableMap());
+            MapBuilder<String, AliasMetaData> tmpAliases  = aliases;
+            Settings tmpSettings = settings;
+
+            // For backward compatibility
+            String[] legacyAliases = settings.getAsArray("index.aliases");
+            if (legacyAliases.length > 0) {
+                tmpAliases = MapBuilder.newMapBuilder();
+                for (String alias : legacyAliases) {
+                    AliasMetaData aliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).build();
+                    tmpAliases.put(alias, aliasMd);
+                }
+                tmpAliases.putAll(aliases.immutableMap());
+                // Remove index.aliases from settings once they are migrated to the new data structure
+                tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
+            }
+
+            return new IndexMetaData(index, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -286,6 +320,13 @@ public class IndexMetaData {
                 builder.map(mapping);
             }
             builder.endArray();
+
+            builder.startObject("aliases");
+            for (AliasMetaData alias : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.toXContent(alias, builder, params);
+            }
+            builder.endObject();
+
 
             builder.endObject();
         }
@@ -316,6 +357,10 @@ public class IndexMetaData {
                                 builder.putMapping(new MappingMetaData(mappingType, mapping));
                             }
                         }
+                    } else if ("aliases".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
+                        }
                     }
                 } else if (token.isValue()) {
                     if ("state".equals(currentFieldName)) {
@@ -335,6 +380,11 @@ public class IndexMetaData {
                 MappingMetaData mappingMd = MappingMetaData.readFrom(in);
                 builder.putMapping(mappingMd);
             }
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.putAlias(aliasMd);
+            }
             return builder.build();
         }
 
@@ -345,6 +395,10 @@ public class IndexMetaData {
             out.writeVInt(indexMetaData.mappings().size());
             for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
                 MappingMetaData.writeTo(mappingMd, out);
+            }
+            out.writeVInt(indexMetaData.aliases().size());
+            for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(aliasMd, out);
             }
         }
     }

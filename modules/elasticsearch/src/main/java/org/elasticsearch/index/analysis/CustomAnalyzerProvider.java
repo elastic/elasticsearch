@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,12 +40,6 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 
-    private final TokenizerFactory tokenizerFactory;
-
-    private final CharFilterFactory[] charFilterFactories;
-
-    private final TokenFilterFactory[] tokenFilterFactories;
-
     private final CustomAnalyzer customAnalyzer;
 
     @Inject public CustomAnalyzerProvider(Index index,
@@ -60,20 +55,32 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         }
         TokenizerFactoryFactory tokenizerFactoryFactory = tokenizerFactories.get(tokenizerName);
         if (tokenizerFactoryFactory == null) {
-            throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find tokenizer under name [" + tokenizerName + "]");
+            tokenizerFactoryFactory = tokenizerFactories.get(Strings.toCamelCase(tokenizerName));
+            if (tokenizerFactoryFactory == null) {
+                tokenizerFactoryFactory = tokenizerFactories.get(Strings.toUnderscoreCase(tokenizerName));
+                if (tokenizerFactoryFactory == null) {
+                    throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find tokenizer under name [" + tokenizerName + "]");
+                }
+            }
         }
         Settings tokenizerSettings = indexSettings.getGroups("index.analysis.tokenizer").get(tokenizerName);
         if (tokenizerSettings == null) {
             tokenizerSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         }
-        tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
+        TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
 
         List<CharFilterFactory> charFilters = newArrayList();
         String[] charFilterNames = settings.getAsArray("char_filter");
         for (String charFilterName : charFilterNames) {
             CharFilterFactoryFactory charFilterFactoryFactory = charFilterFactories.get(charFilterName);
             if (charFilterFactoryFactory == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find char filter under name [" + charFilterName + "]");
+                charFilterFactoryFactory = charFilterFactories.get(Strings.toCamelCase(charFilterName));
+                if (charFilterFactoryFactory == null) {
+                    charFilterFactoryFactory = charFilterFactories.get(Strings.toUnderscoreCase(charFilterName));
+                    if (charFilterFactoryFactory == null) {
+                        throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find char filter under name [" + charFilterName + "]");
+                    }
+                }
             }
             Settings charFilterSettings = indexSettings.getGroups("index.analysis.char_filter").get(charFilterName);
             if (charFilterSettings == null) {
@@ -81,14 +88,20 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             }
             charFilters.add(charFilterFactoryFactory.create(charFilterName, charFilterSettings));
         }
-        this.charFilterFactories = charFilters.toArray(new CharFilterFactory[charFilters.size()]);
+        CharFilterFactory[] charFilterFactories1 = charFilters.toArray(new CharFilterFactory[charFilters.size()]);
 
         List<TokenFilterFactory> tokenFilters = newArrayList();
         String[] tokenFilterNames = settings.getAsArray("filter");
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactoryFactory tokenFilterFactoryFactory = tokenFilterFactories.get(tokenFilterName);
             if (tokenFilterFactoryFactory == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find token filter under name [" + tokenFilterName + "]");
+                tokenFilterFactoryFactory = tokenFilterFactories.get(Strings.toCamelCase(tokenFilterName));
+                if (tokenFilterFactoryFactory == null) {
+                    tokenFilterFactoryFactory = tokenFilterFactories.get(Strings.toUnderscoreCase(tokenFilterName));
+                    if (tokenFilterFactoryFactory == null) {
+                        throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find token filter under name [" + tokenFilterName + "]");
+                    }
+                }
             }
             Settings tokenFilterSettings = indexSettings.getGroups("index.analysis.filter").get(tokenFilterName);
             if (tokenFilterSettings == null) {
@@ -96,9 +109,9 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             }
             tokenFilters.add(tokenFilterFactoryFactory.create(tokenFilterName, tokenFilterSettings));
         }
-        this.tokenFilterFactories = tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]);
+        TokenFilterFactory[] tokenFilterFactories1 = tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]);
 
-        this.customAnalyzer = new CustomAnalyzer(this.tokenizerFactory, this.charFilterFactories, this.tokenFilterFactories);
+        this.customAnalyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories1, tokenFilterFactories1);
     }
 
     @Override public CustomAnalyzer get() {

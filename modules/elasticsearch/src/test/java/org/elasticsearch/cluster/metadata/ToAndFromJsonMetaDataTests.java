@@ -25,6 +25,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -57,6 +58,26 @@ public class ToAndFromJsonMetaDataTests {
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
                         .putMapping("mapping2", MAPPING_SOURCE2))
+                .put(newIndexMetaDataBuilder("test5")
+                        .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
+                        .numberOfShards(1)
+                        .numberOfReplicas(2)
+                        .putMapping("mapping1", MAPPING_SOURCE1)
+                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putAlias(newAliasMetaDataBuilder("alias1"))
+                        .putAlias(newAliasMetaDataBuilder("alias2")))
+                .put(newIndexMetaDataBuilder("test6")
+                        .settings(settingsBuilder()
+                                .put("setting1", "value1")
+                                .put("setting2", "value2")
+                                .put("index.aliases.0", "alias3")
+                                .put("index.aliases.1", "alias1"))
+                        .numberOfShards(1)
+                        .numberOfReplicas(2)
+                        .putMapping("mapping1", MAPPING_SOURCE1)
+                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putAlias(newAliasMetaDataBuilder("alias1"))
+                        .putAlias(newAliasMetaDataBuilder("alias2")))
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
@@ -94,6 +115,33 @@ public class ToAndFromJsonMetaDataTests {
         assertThat(indexMetaData.mappings().size(), equalTo(2));
         assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+
+        indexMetaData = parsedMetaData.index("test5");
+        assertThat(indexMetaData.numberOfShards(), equalTo(1));
+        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.mappings().size(), equalTo(2));
+        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.aliases().size(), equalTo(2));
+        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
+
+        indexMetaData = parsedMetaData.index("test6");
+        assertThat(indexMetaData.numberOfShards(), equalTo(1));
+        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.mappings().size(), equalTo(2));
+        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.aliases().size(), equalTo(3));
+        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.aliases().get("alias3").alias(), equalTo("alias3"));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";

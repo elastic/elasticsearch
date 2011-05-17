@@ -23,8 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -38,8 +36,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
  * @author kimchy (shay.banon)
  */
 public class MappingMetaData {
-
-    private static ESLogger logger = ESLoggerFactory.getLogger(MappingMetaData.class.getName());
 
     public static class Routing {
 

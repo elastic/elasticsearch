@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +31,8 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -62,18 +62,33 @@ public class NetworkService extends AbstractComponent {
         public static final TimeValue TCP_DEFAULT_CONNECT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     }
 
+    /**
+     * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change
+     * the default inet address used in case no settings is provided.
+     */
     public static interface CustomNameResolver {
-        InetAddress resolve();
+        /**
+         * Resolves the default value if possible. If not, return <tt>null</tt>.
+         */
+        InetAddress resolveDefault();
+
+        /**
+         * Resolves a custom value handling, return <tt>null</tt> if can't handle it.
+         */
+        InetAddress resolveIfPossible(String value);
     }
 
-    private volatile ImmutableMap<String, CustomNameResolver> customNameResolvers = ImmutableMap.of();
+    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<CustomNameResolver>();
 
     @Inject public NetworkService(Settings settings) {
         super(settings);
     }
 
-    public void addCustomNameResolver(String name, CustomNameResolver customNameResolver) {
-        customNameResolvers = MapBuilder.<String, CustomNameResolver>newMapBuilder().putAll(customNameResolvers).put(name, customNameResolver).immutableMap();
+    /**
+     * Add a custom name resolver.
+     */
+    public void addCustomNameResolver(CustomNameResolver customNameResolver) {
+        customNameResolvers.add(customNameResolver);
     }
 
 
@@ -112,15 +127,23 @@ public class NetworkService extends AbstractComponent {
             host = defaultValue2;
         }
         if (host == null) {
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress inetAddress = customNameResolver.resolveDefault();
+                if (inetAddress != null) {
+                    return inetAddress;
+                }
+            }
             return null;
         }
         String origHost = host;
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
 
-            CustomNameResolver customNameResolver = customNameResolvers.get(host);
-            if (customNameResolver != null) {
-                return customNameResolver.resolve();
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress inetAddress = customNameResolver.resolveIfPossible(host);
+                if (inetAddress != null) {
+                    return inetAddress;
+                }
             }
 
             if (host.equals("local")) {

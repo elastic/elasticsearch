@@ -13,7 +13,7 @@ dependencies {
     runtime 'org.elasticsearch:es-trove:3.0.0rc1'
     runtime 'org.elasticsearch:es-jsr166y:20110209'
 
-    runtime 'commons-codec:commons-codec:1.4'
+    runtime 'commons-codec:commons-codec:1.5'
 
     runtime 'joda-time:joda-time:1.6.1'
     runtime 'org.mvel:mvel2:2.1.beta2'

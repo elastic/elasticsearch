@@ -52,10 +52,16 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.encoder = new Metaphone();
         } else if ("soundex".equalsIgnoreCase(encoder)) {
             this.encoder = new Soundex();
+        } else if ("caverphone1".equalsIgnoreCase(encoder)) {
+            this.encoder = new Caverphone1();
+        } else if ("caverphone2".equalsIgnoreCase(encoder)) {
+            this.encoder = new Caverphone2();
         } else if ("caverphone".equalsIgnoreCase(encoder)) {
-            this.encoder = new Caverphone();
+            this.encoder = new Caverphone2();
         } else if ("refined_soundex".equalsIgnoreCase(encoder) || "refinedSoundex".equalsIgnoreCase(encoder)) {
             this.encoder = new RefinedSoundex();
+        } else if ("cologne".equalsIgnoreCase(encoder)) {
+            this.encoder = new ColognePhonetic();
         } else if ("double_metaphone".equalsIgnoreCase(encoder) || "doubleMetaphone".equalsIgnoreCase(encoder)) {
             DoubleMetaphone doubleMetaphone = new DoubleMetaphone();
             doubleMetaphone.setMaxCodeLen(settings.getAsInt("max_code_len", doubleMetaphone.getMaxCodeLen()));

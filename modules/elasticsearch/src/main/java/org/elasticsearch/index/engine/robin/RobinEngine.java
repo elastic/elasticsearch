@@ -581,7 +581,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Override public Searcher searcher() throws EngineException {
         AcquirableResource<ReaderSearcherHolder> holder;
-        for (; ;) {
+        for (; ; ) {
             holder = this.nrtResource;
             if (holder.acquire()) {
                 break;
@@ -709,8 +709,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // we need to refresh in order to clear older version values
             long time = threadPool.estimatedTimeInMillis(); // mark time here, before we refresh, and then delete all older values
             refresh(new Refresh(true).force(true));
-            if (indexingSearcher.get() != null) {
-                indexingSearcher.get().release();
+            Searcher searcher = indexingSearcher.get();
+            if (searcher != null) {
                 indexingSearcher.set(null);
             }
             for (Map.Entry<String, VersionValue> entry : versionMap.entrySet()) {
@@ -731,6 +731,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         versionMap.remove(id);
                     }
                 }
+            }
+            if (searcher != null) {
+                searcher.release();
             }
         } finally {
             flushing.set(false);

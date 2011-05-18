@@ -496,15 +496,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (withFlush) {
             engine.flush(new Engine.Flush());
         }
+        // clear unreferenced files
+        translog.clearUnreferenced();
+        engine.refresh(new Engine.Refresh(true));
         synchronized (mutex) {
             logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
         }
         startScheduledTasksIfNeeded();
-        engine.refresh(new Engine.Refresh(true));
-
-        // clear unreferenced files
-        translog.clearUnreferenced();
         indicesLifecycle.afterIndexShardStarted(this);
     }
 

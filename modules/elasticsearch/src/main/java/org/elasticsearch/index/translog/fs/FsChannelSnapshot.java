@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog.fs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.FileChannelInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 
@@ -37,13 +36,9 @@ import java.nio.channels.FileChannel;
  */
 public class FsChannelSnapshot implements Translog.Snapshot {
 
-    private final ShardId shardId;
-
     private final long id;
 
     private final int totalOperations;
-
-    private final int snapshotOperations;
 
     private final RafReference raf;
 
@@ -57,14 +52,12 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     private ByteBuffer cacheBuffer;
 
-    public FsChannelSnapshot(ShardId shardId, long id, RafReference raf, long length, int totalOperations, int snapshotOperations) throws FileNotFoundException {
-        this.shardId = shardId;
+    public FsChannelSnapshot(long id, RafReference raf, long length, int totalOperations) throws FileNotFoundException {
         this.id = id;
         this.raf = raf;
         this.channel = raf.raf().getChannel();
         this.length = length;
         this.totalOperations = totalOperations;
-        this.snapshotOperations = snapshotOperations;
     }
 
     @Override public long translogId() {
@@ -79,12 +72,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
         return this.length;
     }
 
-    @Override public int totalOperations() {
+    @Override public int estimatedTotalOperations() {
         return this.totalOperations;
-    }
-
-    @Override public int snapshotOperations() {
-        return this.snapshotOperations;
     }
 
     @Override public InputStream stream() throws IOException {

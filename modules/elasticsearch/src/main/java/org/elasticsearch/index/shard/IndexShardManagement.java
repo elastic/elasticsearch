@@ -93,7 +93,7 @@ public class IndexShardManagement extends AbstractIndexShardComponent implements
 
     @ManagedAttribute(description = "Number of transaction log operations")
     public long getTranslogNumberOfOperations() {
-        return translog.numberOfOperations();
+        return translog.estimatedNumberOfOperations();
     }
 
     @ManagedAttribute(description = "Estimated size in memory the transaction log takes")

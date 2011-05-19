@@ -33,9 +33,6 @@ import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
@@ -44,37 +41,20 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private final File location;
 
-    private final boolean useStream;
-
-    private final Object mutex = new Object();
+    private volatile FsTranslogFile current;
 
     private boolean syncOnEachOperation = false;
-
-    private volatile long id = 0;
-
-    private final AtomicInteger operationCounter = new AtomicInteger();
-
-    private AtomicLong lastPosition = new AtomicLong(0);
-    private AtomicLong lastWrittenPosition = new AtomicLong(0);
-
-    private RafReference raf;
 
     @Inject public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings);
         this.location = new File(nodeEnv.shardLocation(shardId), "translog");
         this.location.mkdirs();
-        this.useStream = componentSettings.getAsBoolean("use_stream", false);
     }
 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location) {
-        this(shardId, indexSettings, location, false);
-    }
-
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location, boolean useStream) {
         super(shardId, indexSettings);
         this.location = location;
         this.location.mkdirs();
-        this.useStream = useStream;
     }
 
     public File location() {
@@ -82,11 +62,19 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override public long currentId() {
-        return this.id;
+        FsTranslogFile current1 = this.current;
+        if (current1 == null) {
+            return -1;
+        }
+        return current1.id();
     }
 
-    @Override public int numberOfOperations() {
-        return operationCounter.get();
+    @Override public int estimatedNumberOfOperations() {
+        FsTranslogFile current1 = this.current;
+        if (current1 == null) {
+            return 0;
+        }
+        return current1.estimatedNumberOfOperations();
     }
 
     @Override public long memorySizeInBytes() {
@@ -94,63 +82,45 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override public long translogSizeInBytes() {
-        return lastWrittenPosition.get();
+        FsTranslogFile current1 = this.current;
+        if (current1 == null) {
+            return 0;
+        }
+        return current1.translogSizeInBytes();
     }
 
     @Override public void clearUnreferenced() {
-        synchronized (mutex) {
-            File[] files = location.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.getName().equals("translog-" + id)) {
-                        continue;
-                    }
-                    try {
-                        file.delete();
-                    } catch (Exception e) {
-                        // ignore
-                    }
+        File[] files = location.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.getName().equals("translog-" + current.id())) {
+                    continue;
+                }
+                try {
+                    file.delete();
+                } catch (Exception e) {
+                    // ignore
                 }
             }
         }
     }
 
-    @Override public void newTranslog() throws TranslogException {
-        synchronized (mutex) {
-            operationCounter.set(0);
-            lastPosition.set(0);
-            lastWrittenPosition.set(0);
-            this.id = id + 1;
-            if (raf != null) {
-                raf.decreaseRefCount(true);
-            }
-            try {
-                raf = new RafReference(new File(location, "translog-" + id));
-                raf.raf().setLength(0);
-            } catch (IOException e) {
-                raf = null;
-                throw new TranslogException(shardId, "translog not found", e);
-            }
-        }
-    }
-
     @Override public void newTranslog(long id) throws TranslogException {
-        synchronized (mutex) {
-            operationCounter.set(0);
-            lastPosition.set(0);
-            lastWrittenPosition.set(0);
-            this.id = id;
-            if (raf != null) {
-                raf.decreaseRefCount(true);
+        FsTranslogFile newFile;
+        try {
+            newFile = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
+        } catch (IOException e) {
+            throw new TranslogException(shardId, "failed to create new translog file", e);
+        }
+        FsTranslogFile old = current;
+        current = newFile;
+        if (old != null) {
+            // we might create a new translog overriding the current translog id
+            boolean delete = true;
+            if (old.id() == id) {
+                delete = false;
             }
-            try {
-                raf = new RafReference(new File(location, "translog-" + id));
-                // clean the file if it exists
-                raf.raf().setLength(0);
-            } catch (IOException e) {
-                raf = null;
-                throw new TranslogException(shardId, "translog not found", e);
-            }
+            old.close(delete);
         }
     }
 
@@ -165,85 +135,50 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             out.seek(0);
             out.writeInt(size - 4);
 
-            long position = lastPosition.getAndAdd(size);
-            // use channel#write and not raf#write since it allows for concurrent writes
-            // with regards to positions
-            raf.channel().write(ByteBuffer.wrap(out.unsafeByteArray(), 0, size), position);
+            current.add(out.unsafeByteArray(), 0, size);
             if (syncOnEachOperation) {
-                raf.channel().force(false);
-            }
-            synchronized (mutex) {
-                lastWrittenPosition.getAndAdd(size);
-                operationCounter.incrementAndGet();
+                current.sync();
             }
         } catch (Exception e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         }
     }
 
-    @Override public Snapshot snapshot() throws TranslogException {
-        synchronized (mutex) {
-            try {
-                raf.increaseRefCount();
-                raf.channel().force(true);  // sync here, so we make sure we read back teh data?
-                if (useStream) {
-                    return new FsStreamSnapshot(shardId, this.id, raf, lastWrittenPosition.get(), operationCounter.get(), operationCounter.get());
-                } else {
-                    return new FsChannelSnapshot(shardId, this.id, raf, lastWrittenPosition.get(), operationCounter.get(), operationCounter.get());
-                }
-            } catch (Exception e) {
-                throw new TranslogException(shardId, "Failed to snapshot", e);
+    @Override public FsChannelSnapshot snapshot() throws TranslogException {
+        while (true) {
+            FsChannelSnapshot snapshot = current.snapshot();
+            if (snapshot != null) {
+                return snapshot;
             }
+            Thread.yield();
         }
     }
 
     @Override public Snapshot snapshot(Snapshot snapshot) {
-        synchronized (mutex) {
-            if (currentId() != snapshot.translogId()) {
-                return snapshot();
-            }
-            try {
-                raf.increaseRefCount();
-                raf.channel().force(true); // sync here, so we make sure we read back teh data?
-                if (useStream) {
-                    FsStreamSnapshot newSnapshot = new FsStreamSnapshot(shardId, id, raf, lastWrittenPosition.get(), operationCounter.get(), operationCounter.get() - snapshot.totalOperations());
-                    newSnapshot.seekForward(snapshot.position());
-                    return newSnapshot;
-                } else {
-                    FsChannelSnapshot newSnapshot = new FsChannelSnapshot(shardId, id, raf, lastWrittenPosition.get(), operationCounter.get(), operationCounter.get() - snapshot.totalOperations());
-                    newSnapshot.seekForward(snapshot.position());
-                    return newSnapshot;
-                }
-            } catch (Exception e) {
-                throw new TranslogException(shardId, "Failed to snapshot", e);
-            }
+        FsChannelSnapshot snap = snapshot();
+        if (snap.translogId() == snapshot.translogId()) {
+            snap.seekForward(snapshot.position());
         }
+        return snap;
     }
 
     @Override public void sync() {
-        synchronized (mutex) {
-            if (raf != null) {
-                try {
-                    raf.channel().force(true);
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
+        FsTranslogFile current1 = this.current;
+        if (current1 == null) {
+            return;
         }
+        current1.sync();
     }
 
     @Override public void syncOnEachOperation(boolean syncOnEachOperation) {
-        synchronized (mutex) {
-            this.syncOnEachOperation = syncOnEachOperation;
-        }
+        this.syncOnEachOperation = syncOnEachOperation;
     }
 
     @Override public void close(boolean delete) {
-        synchronized (mutex) {
-            if (raf != null) {
-                raf.decreaseRefCount(delete);
-                raf = null;
-            }
+        FsTranslogFile current1 = this.current;
+        if (current1 == null) {
+            return;
         }
+        current1.close(delete);
     }
 }

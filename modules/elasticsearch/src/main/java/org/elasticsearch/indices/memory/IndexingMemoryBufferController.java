@@ -133,7 +133,7 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                             continue;
                         }
                         // check if it is deemed to be inactive (sam translogId and numberOfOperations over a long period of time)
-                        if (status.translogId == translog.currentId() && translog.numberOfOperations() == 0) {
+                        if (status.translogId == translog.currentId() && translog.estimatedNumberOfOperations() == 0) {
                             if (status.time == -1) { // first time
                                 status.time = time;
                             }
@@ -156,7 +156,7 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                             status.time = -1;
                         }
                         status.translogId = translog.currentId();
-                        status.translogNumberOfOperations = translog.numberOfOperations();
+                        status.translogNumberOfOperations = translog.estimatedNumberOfOperations();
                     }
                 }
                 if (activeInactiveStatusChanges) {

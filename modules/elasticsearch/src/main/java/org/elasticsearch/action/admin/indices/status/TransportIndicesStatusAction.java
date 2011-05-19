@@ -158,7 +158,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         if (indexShard.state() == IndexShardState.STARTED) {
 //            shardStatus.estimatedFlushableMemorySize = indexShard.estimateFlushableMemorySize();
             shardStatus.translogId = indexShard.translog().currentId();
-            shardStatus.translogOperations = indexShard.translog().numberOfOperations();
+            shardStatus.translogOperations = indexShard.translog().estimatedNumberOfOperations();
             Engine.Searcher searcher = indexShard.searcher();
             try {
                 shardStatus.docs = new DocsStatus();

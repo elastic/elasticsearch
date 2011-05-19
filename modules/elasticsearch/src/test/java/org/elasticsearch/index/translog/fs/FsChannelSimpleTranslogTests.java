@@ -34,7 +34,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 public class FsChannelSimpleTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override protected Translog create() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"), false);
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"));
     }
 
     @AfterClass public void cleanup() {

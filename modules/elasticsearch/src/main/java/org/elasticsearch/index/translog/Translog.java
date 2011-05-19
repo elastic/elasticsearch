@@ -48,7 +48,7 @@ public interface Translog extends IndexShardComponent {
     /**
      * Returns the number of operations in the transaction log.
      */
-    int numberOfOperations();
+    int estimatedNumberOfOperations();
 
     /**
      * The estimated memory size this translog is taking.
@@ -61,14 +61,7 @@ public interface Translog extends IndexShardComponent {
     long translogSizeInBytes();
 
     /**
-     * Creates a new transaction log internally. Note, users of this class should make
-     * sure that no operations are performed on the trans log when this is called.
-     */
-    void newTranslog() throws TranslogException;
-
-    /**
-     * Creates a new transaction log internally. Note, users of this class should make
-     * sure that no operations are performed on the trans log when this is called.
+     * Creates a new transaction log internally.
      */
     void newTranslog(long id) throws TranslogException;
 
@@ -127,12 +120,7 @@ public interface Translog extends IndexShardComponent {
         /**
          * The total number of operations in the translog.
          */
-        int totalOperations();
-
-        /**
-         * The number of operations in this snapshot.
-         */
-        int snapshotOperations();
+        int estimatedTotalOperations();
 
         boolean hasNext();
 

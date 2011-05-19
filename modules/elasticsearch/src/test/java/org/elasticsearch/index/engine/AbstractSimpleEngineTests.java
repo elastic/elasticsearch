@@ -100,11 +100,11 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Translog createTranslog() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"), false);
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"));
     }
 
     protected Translog createTranslogReplica() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"), false);
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {

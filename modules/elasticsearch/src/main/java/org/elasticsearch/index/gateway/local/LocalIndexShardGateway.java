@@ -60,7 +60,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         super(shardId, indexSettings);
         this.indexShard = (InternalIndexShard) indexShard;
 
-        TimeValue sync = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(1));
+        TimeValue sync = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(10));
         if (sync.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
             // we don't need to execute the sync on a different thread, just do it on the scheduler thread

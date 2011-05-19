@@ -62,19 +62,11 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
         // nothing to do here
     }
 
-    @Override public long count() {
-        return 0;
-    }
-
-    @Override public long sizeInBytes() {
-        return 0;
+    @Override public EntriesStats entriesStats() {
+        return new EntriesStats(0, 0);
     }
 
     @Override public long evictions() {
-        return 0;
-    }
-
-    @Override public long memEvictions() {
         return 0;
     }
 }

@@ -73,7 +73,8 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     }
 
     public CacheStats stats() {
-        return new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), filterCache.memEvictions(), fieldDataCache.sizeInBytes(), filterCache.sizeInBytes(), filterCache.count(), bloomCache.sizeInBytes());
+        FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
+        return new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes());
     }
 
     public FilterCache filter() {

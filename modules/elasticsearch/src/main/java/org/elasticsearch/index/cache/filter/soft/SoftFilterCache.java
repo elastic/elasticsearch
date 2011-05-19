@@ -49,7 +49,6 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
     private volatile TimeValue expire;
 
     private final AtomicLong evictions = new AtomicLong();
-    private AtomicLong memEvictions;
 
     private final ApplySettings applySettings = new ApplySettings();
 
@@ -69,17 +68,14 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
     }
 
     @Override protected ConcurrentMap<Object, ReaderValue> buildCache() {
-        memEvictions = new AtomicLong(); // we need to init it here, since its called from the super constructor
-        // better to have soft on the whole ReaderValue, simpler on the GC to clean it
-        MapMaker mapMaker = new MapMaker().weakKeys().softValues();
-        mapMaker.evictionListener(new CacheMapEvictionListener(memEvictions));
+        MapMaker mapMaker = new MapMaker().weakKeys();
         return mapMaker.makeMap();
     }
 
     @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
-        MapMaker mapMaker = new MapMaker();
+        MapMaker mapMaker = new MapMaker().softValues();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);
         }
@@ -96,10 +92,6 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
 
     @Override public long evictions() {
         return evictions.get();
-    }
-
-    @Override public long memEvictions() {
-        return memEvictions.get();
     }
 
     @Override public void onEviction(Filter filter, DocSet docSet) {

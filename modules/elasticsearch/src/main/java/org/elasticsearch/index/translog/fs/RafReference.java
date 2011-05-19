@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.elasticsearch.common.io.FileSystemUtils;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -60,8 +58,12 @@ public class RafReference {
         return this.raf;
     }
 
-    public void increaseRefCount() {
-        refCount.incrementAndGet();
+    /**
+     * Increases the ref count, and returns <tt>true</tt> if it managed to
+     * actually increment it.
+     */
+    public boolean increaseRefCount() {
+        return refCount.incrementAndGet() > 1;
     }
 
     public void decreaseRefCount(boolean delete) {
@@ -70,8 +72,6 @@ public class RafReference {
                 raf.close();
                 if (delete) {
                     file.delete();
-                } else {
-                    FileSystemUtils.syncFile(file);
                 }
             } catch (IOException e) {
                 // ignore

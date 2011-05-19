@@ -249,7 +249,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         if (snapshot.newTranslogCreated()) {
             if (translogSnapshot.lengthInBytes() > 0) {
                 snapshotRequired = true;
-                expectedNumberOfOperations = translogSnapshot.totalOperations();
+                expectedNumberOfOperations = translogSnapshot.estimatedTotalOperations();
             }
         } else {
             // if we have a commit point, check that we have all the files listed in it in the blob store
@@ -269,20 +269,20 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         translogSnapshot.seekForward(snapshot.lastTranslogLength());
                         if (translogSnapshot.lengthInBytes() > 0) {
                             snapshotRequired = true;
-                            expectedNumberOfOperations = translogSnapshot.totalOperations() - snapshot.lastTotalTranslogOperations();
+                            expectedNumberOfOperations = translogSnapshot.estimatedTotalOperations() - snapshot.lastTotalTranslogOperations();
                         }
                     } // else (no operations, nothing to snapshot)
                 } else {
                     // a full translog snapshot is required
                     if (translogSnapshot.lengthInBytes() > 0) {
-                        expectedNumberOfOperations = translogSnapshot.totalOperations();
+                        expectedNumberOfOperations = translogSnapshot.estimatedTotalOperations();
                         snapshotRequired = true;
                     }
                 }
             } else {
                 // no commit point, snapshot all the translog
                 if (translogSnapshot.lengthInBytes() > 0) {
-                    expectedNumberOfOperations = translogSnapshot.totalOperations();
+                    expectedNumberOfOperations = translogSnapshot.estimatedTotalOperations();
                     snapshotRequired = true;
                 }
             }

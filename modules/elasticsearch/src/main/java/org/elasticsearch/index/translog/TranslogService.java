@@ -129,7 +129,7 @@ public class TranslogService extends AbstractIndexShardComponent {
                 return;
             }
 
-            int currentNumberOfOperations = translog.numberOfOperations();
+            int currentNumberOfOperations = translog.estimatedNumberOfOperations();
             if (currentNumberOfOperations > flushThresholdOperations) {
                 logger.trace("flushing translog, operations [{}], breached [{}]", currentNumberOfOperations, flushThresholdOperations);
                 asyncFlushAndReschedule();

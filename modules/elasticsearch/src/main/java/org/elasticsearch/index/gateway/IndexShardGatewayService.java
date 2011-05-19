@@ -239,7 +239,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         lastIndexVersion = snapshotIndexCommit.getVersion();
                         lastTranslogId = translogSnapshot.translogId();
                         lastTranslogLength = translogSnapshot.length();
-                        lastTotalTranslogOperations = translogSnapshot.totalOperations();
+                        lastTotalTranslogOperations = translogSnapshot.estimatedTotalOperations();
                         return snapshotStatus;
                     }
                     return null;

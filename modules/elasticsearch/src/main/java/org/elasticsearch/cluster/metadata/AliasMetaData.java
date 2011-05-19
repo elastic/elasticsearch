@@ -19,12 +19,16 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author imotov
@@ -34,8 +38,11 @@ public class AliasMetaData {
 
     private final String alias;
 
-    private AliasMetaData(String alias) {
+    private final CompressedString filter;
+
+    private AliasMetaData(String alias, CompressedString filter) {
         this.alias = alias;
+        this.filter = filter;
     }
 
     public String alias() {
@@ -46,6 +53,14 @@ public class AliasMetaData {
         return alias();
     }
 
+    public CompressedString filter() {
+        return filter;
+    }
+
+    public CompressedString getFilter() {
+        return filter();
+    }
+
     public static Builder newAliasMetaDataBuilder(String alias) {
         return new Builder(alias);
     }
@@ -53,6 +68,8 @@ public class AliasMetaData {
     public static class Builder {
 
         private String alias;
+
+        private CompressedString filter;
 
         public Builder(String alias) {
             this.alias = alias;
@@ -66,32 +83,102 @@ public class AliasMetaData {
             return alias;
         }
 
+        public Builder filter(String filter) {
+            if (!Strings.hasLength(filter)) {
+                this.filter = null;
+                return this;
+            }
+            try {
+                XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
+                try {
+                    filter(parser.mapOrdered());
+                } finally {
+                    parser.close();
+                }
+                return this;
+            } catch (IOException e) {
+                throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+            }
+        }
+
+        public Builder filter(Map<String, Object> filter) {
+            if (filter == null || filter.isEmpty()) {
+                this.filter = null;
+                return this;
+            }
+            try {
+                this.filter = new CompressedString(XContentFactory.jsonBuilder().map(filter).string());
+                return this;
+            } catch (IOException e) {
+                throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+            }
+        }
+
+        public Builder filter(XContentBuilder filterBuilder) {
+            try {
+                return filter(filterBuilder.string());
+            } catch (IOException e) {
+                throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+            }
+        }
+
         public AliasMetaData build() {
-            return new AliasMetaData(alias);
+            return new AliasMetaData(alias, filter);
         }
 
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(aliasMetaData.alias(), XContentBuilder.FieldCaseConversion.NONE);
-            // Filters will go here
+
+            if (aliasMetaData.filter() != null) {
+                byte[] data = aliasMetaData.filter().uncompressed();
+                XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                Map<String, Object> filter = parser.mapOrdered();
+                parser.close();
+                builder.field("filter", filter);
+            }
+
             builder.endObject();
         }
 
         public static AliasMetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder(parser.currentName());
+
+            String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
+            if (token == null) {
+                // no data...
+                return builder.build();
+            }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                // Skip the content for now, filter and other settings will go here
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("filter".equals(currentFieldName)) {
+                        Map<String, Object> filter = parser.mapOrdered();
+                        builder.filter(filter);
+                    }
+                }
             }
             return builder.build();
         }
 
         public static void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
             out.writeUTF(aliasMetaData.alias());
+            if (aliasMetaData.filter() != null) {
+                out.writeBoolean(true);
+                aliasMetaData.filter.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         public static AliasMetaData readFrom(StreamInput in) throws IOException {
             String alias = in.readUTF();
-            return new AliasMetaData(alias);
+            CompressedString filter = null;
+            if (in.readBoolean()) {
+                filter = CompressedString.readCompressedString(in);
+            }
+            return new AliasMetaData(alias, filter);
         }
     }
 

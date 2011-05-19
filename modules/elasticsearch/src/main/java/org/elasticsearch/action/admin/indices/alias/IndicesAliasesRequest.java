@@ -19,15 +19,22 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.cluster.metadata.AliasAction.*;
@@ -54,6 +61,62 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
     public IndicesAliasesRequest addAlias(String index, String alias) {
         aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
         return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filter The filter
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, String filter) {
+        aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, filter));
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filter The filter
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, Map<String, Object> filter) {
+        if (filter == null || filter.isEmpty()) {
+            aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
+            return this;
+        }
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.map(filter);
+            aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, builder.string()));
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+        }
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index         The index
+     * @param alias         The alias
+     * @param filterBuilder The filter
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, XContentFilterBuilder filterBuilder) {
+        if (filterBuilder == null) {
+            aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
+            return this;
+        }
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.close();
+            return addAlias(index, alias, builder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+        }
     }
 
     /**

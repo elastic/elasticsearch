@@ -68,7 +68,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
                     IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
                     if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                        indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(aliasAction.alias()).build());
+                        indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(aliasAction.alias()).filter(aliasAction.filter()).build());
                     } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
                         indexMetaDataBuilder.removerAlias(aliasAction.alias());
                     }

@@ -25,6 +25,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,6 +46,42 @@ public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<Indi
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias) {
         request.addAlias(index, alias);
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filter The filter
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, String filter) {
+        request.addAlias(index, alias, filter);
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filter The filter
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, Map<String, Object> filter) {
+        request.addAlias(index, alias, filter);
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param filterBuilder The filter
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, XContentFilterBuilder filterBuilder) {
+        request.addAlias(index, alias, filterBuilder);
         return this;
     }
 

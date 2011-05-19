@@ -64,8 +64,25 @@ public interface Translog extends IndexShardComponent {
 
     /**
      * Creates a new transaction log internally.
+     *
+     * <p>Can only be called by one thread.
      */
     void newTranslog(long id) throws TranslogException;
+
+    /**
+     * Creates a new transient translog, where added ops will be added to the current one, and to
+     * it.
+     *
+     * <p>Can only be called by one thread.
+     */
+    void newTransientTranslog(long id) throws TranslogException;
+
+    /**
+     * Swaps the transient translog to be the current one.
+     *
+     * <p>Can only be called by one thread.
+     */
+    void makeTransientCurrent();
 
     /**
      * Adds a create operation to the transaction log.
@@ -98,6 +115,8 @@ public interface Translog extends IndexShardComponent {
 
     /**
      * Closes the transaction log.
+     *
+     * <p>Can only be called by one thread.
      */
     void close(boolean delete);
 

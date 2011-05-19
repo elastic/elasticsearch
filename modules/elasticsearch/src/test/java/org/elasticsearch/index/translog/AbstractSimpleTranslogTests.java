@@ -51,6 +51,38 @@ public abstract class AbstractSimpleTranslogTests {
 
     protected abstract Translog create();
 
+    @Test public void testTransientTranslog() {
+        Translog.Snapshot snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(0));
+        snapshot.release();
+
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(1));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        snapshot.release();
+
+        translog.newTransientTranslog(2);
+
+        snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(1));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        snapshot.release();
+
+        translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(2));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
+        snapshot.release();
+
+        translog.makeTransientCurrent();
+
+        snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(1)); // now its one, since it only includes "2"
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
+        snapshot.release();
+    }
+
     @Test public void testSimpleOperations() {
         Translog.Snapshot snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(0));

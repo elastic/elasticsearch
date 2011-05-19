@@ -39,14 +39,14 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public ElisionTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-	this.articles = Analysis.parseArticles(env, settings);
+        this.articles = Analysis.parseArticles(env, settings);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-	if (articles == null) {
-	    return new ElisionFilter(version, tokenStream);
-	} else {
-	    return new ElisionFilter(version, tokenStream, articles);
-	}
+        if (articles == null) {
+            return new ElisionFilter(version, tokenStream);
+        } else {
+            return new ElisionFilter(version, tokenStream, articles);
+        }
     }
 }

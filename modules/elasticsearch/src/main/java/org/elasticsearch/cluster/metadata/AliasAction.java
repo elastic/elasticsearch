@@ -62,14 +62,21 @@ public class AliasAction implements Streamable {
 
     private String alias;
 
+    private String filter;
+
     private AliasAction() {
 
     }
 
     public AliasAction(Type actionType, String index, String alias) {
+        this(actionType, index, alias, "");
+    }
+
+    public AliasAction(Type actionType, String index, String alias, String filter) {
         this.actionType = actionType;
         this.index = index;
         this.alias = alias;
+        this.filter = filter;
     }
 
     public Type actionType() {
@@ -84,6 +91,10 @@ public class AliasAction implements Streamable {
         return alias;
     }
 
+    public String filter() {
+        return filter;
+    }
+
     public static AliasAction readAliasAction(StreamInput in) throws IOException {
         AliasAction aliasAction = new AliasAction();
         aliasAction.readFrom(in);
@@ -94,11 +105,13 @@ public class AliasAction implements Streamable {
         actionType = Type.fromValue(in.readByte());
         index = in.readUTF();
         alias = in.readUTF();
+        filter = in.readUTF();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
         out.writeUTF(index);
         out.writeUTF(alias);
+        out.writeUTF(filter);
     }
 }

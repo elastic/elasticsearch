@@ -23,6 +23,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -30,6 +33,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.index.query.xcontent.FilterBuilders.termFilter;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -106,6 +110,29 @@ public class IndexAliasesTests extends AbstractNodesTests {
         logger.info("--> indexing against [alias1], should work against [test_x]");
         indexResponse = client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.index(), equalTo("test_x"));
+    }
+
+    @Test public void testFilteringAliases() throws Exception {
+        logger.info("--> creating index [test]");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+
+        logger.info("--> running cluster_health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
+        XContentFilterBuilder filter = termFilter("user", "kimchy");
+        client1.admin().indices().prepareAliases().addAlias("test", "alias1", filter).execute().actionGet();
+        Thread.sleep(300);
+
+        // For now just making sure that filter was stored with the alias
+        logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
+        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().state();
+        IndexMetaData indexMd = clusterState.metaData().index("test");
+        assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+
     }
 
     private String source(String id, String nameValue) {

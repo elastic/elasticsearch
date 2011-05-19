@@ -33,6 +33,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 
 /**
  * @author kimchy (shay.banon)
@@ -42,6 +43,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     private final File location;
 
     private volatile FsTranslogFile current;
+    private volatile FsTranslogFile trans;
 
     private boolean syncOnEachOperation = false;
 
@@ -124,6 +126,19 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
+    @Override public void newTransientTranslog(long id) throws TranslogException {
+        try {
+            this.trans = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
+        } catch (IOException e) {
+            throw new TranslogException(shardId, "failed to create new translog file", e);
+        }
+    }
+
+    @Override public void makeTransientCurrent() {
+        this.current = this.trans;
+        this.trans = null;
+    }
+
     @Override public void add(Operation operation) throws TranslogException {
         try {
             BytesStreamOutput out = CachedStreamOutput.cachedBytes();
@@ -138,6 +153,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             current.add(out.unsafeByteArray(), 0, size);
             if (syncOnEachOperation) {
                 current.sync();
+            }
+            FsTranslogFile trans = this.trans;
+            if (trans != null) {
+                try {
+                    trans.add(out.unsafeByteArray(), 0, size);
+                } catch (ClosedChannelException e) {
+                    // ignore
+                }
             }
         } catch (Exception e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
@@ -176,9 +199,12 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override public void close(boolean delete) {
         FsTranslogFile current1 = this.current;
-        if (current1 == null) {
-            return;
+        if (current1 != null) {
+            current1.close(delete);
         }
-        current1.close(delete);
+        current1 = this.trans;
+        if (current1 != null) {
+            current1.close(delete);
+        }
     }
 }

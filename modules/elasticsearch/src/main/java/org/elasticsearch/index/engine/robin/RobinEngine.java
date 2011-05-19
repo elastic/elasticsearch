@@ -305,7 +305,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     versionMap.put(create.uid().text(), new VersionValue(create.version(), false, threadPool.estimatedTimeInMillis()));
                 }
                 uidField.version(create.version());
-                writer.addDocument(create.doc(), create.analyzer());
+                // we use update doc and not addDoc since we might get duplicates when using transient translog
+                writer.updateDocument(create.uid(), create.doc(), create.analyzer());
                 translog.add(new Translog.Create(create));
             } else {
                 long currentVersion;
@@ -687,15 +688,16 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         // We can't do prepareCommit here, since we rely on the the segment version for the translog version
 
         try {
-            rwl.writeLock().lock();
-            try {
-                if (indexWriter == null) {
-                    throw new EngineClosedException(shardId, failedEngine);
-                }
-                if (disableFlushCounter > 0) {
-                    throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
-                }
-                if (flush.full()) {
+
+            if (flush.full()) {
+                rwl.writeLock().lock();
+                try {
+                    if (indexWriter == null) {
+                        throw new EngineClosedException(shardId, failedEngine);
+                    }
+                    if (disableFlushCounter > 0) {
+                        throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
+                    }
                     // disable refreshing, not dirty
                     dirty = false;
                     try {
@@ -721,13 +723,26 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         failEngine(e);
                         throw new FlushFailedEngineException(shardId, e);
                     }
-                } else {
+                } finally {
+                    rwl.writeLock().unlock();
+                }
+            } else {
+                rwl.readLock().lock();
+                try {
+                    if (indexWriter == null) {
+                        throw new EngineClosedException(shardId, failedEngine);
+                    }
+                    if (disableFlushCounter > 0) {
+                        throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
+                    }
+
                     if (flushNeeded) {
                         flushNeeded = false;
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
+                            translog.newTransientTranslog(translogId);
                             indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
-                            translog.newTranslog(translogId);
+                            translog.makeTransientCurrent();
                         } catch (Exception e) {
                             throw new FlushFailedEngineException(shardId, e);
                         } catch (OutOfMemoryError e) {
@@ -735,10 +750,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }
+                } finally {
+                    rwl.readLock().unlock();
                 }
-            } finally {
-                rwl.writeLock().unlock();
             }
+
 
             // we need to refresh in order to clear older version values
             long time = threadPool.estimatedTimeInMillis(); // mark time here, before we refresh, and then delete all older values

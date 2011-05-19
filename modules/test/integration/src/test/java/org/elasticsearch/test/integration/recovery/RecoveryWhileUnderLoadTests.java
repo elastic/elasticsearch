@@ -67,6 +67,9 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {
                             long id = idGenerator.incrementAndGet();
+                            if (id % 1000 == 0) {
+                                client("node1").admin().indices().prepareFlush().execute().actionGet();
+                            }
                             client("node1").prepareIndex("test", "type1", Long.toString(id))
                                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
                             indexCounter.incrementAndGet();

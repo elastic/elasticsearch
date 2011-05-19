@@ -43,6 +43,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -84,9 +85,16 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     @Override public void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus.index().startTime(System.currentTimeMillis());
         long version = -1;
+        long translogId = -1;
         try {
             if (IndexReader.indexExists(indexShard.store().directory())) {
                 version = IndexReader.getCurrentVersion(indexShard.store().directory());
+                Map<String, String> commitUserData = IndexReader.getCommitUserData(indexShard.store().directory());
+                if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
+                    translogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
+                } else {
+                    translogId = version;
+                }
             }
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
@@ -108,7 +116,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         }
 
         recoveryStatus.translog().startTime(System.currentTimeMillis());
-        if (version == -1) {
+        if (translogId == -1) {
             // no translog files, bail
             indexShard.start("post recovery from gateway, no translog");
             // no index, just start the shard and bail
@@ -118,9 +126,9 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
         // move an existing translog, if exists, to "recovering" state, and start reading from it
         FsTranslog translog = (FsTranslog) indexShard.translog();
-        File recoveringTranslogFile = new File(translog.location(), "translog-" + version + ".recovering");
+        File recoveringTranslogFile = new File(translog.location(), "translog-" + translogId + ".recovering");
         if (!recoveringTranslogFile.exists()) {
-            File translogFile = new File(translog.location(), "translog-" + version);
+            File translogFile = new File(translog.location(), "translog-" + translogId);
             if (translogFile.exists()) {
                 for (int i = 0; i < 3; i++) {
                     if (translogFile.renameTo(recoveringTranslogFile)) {

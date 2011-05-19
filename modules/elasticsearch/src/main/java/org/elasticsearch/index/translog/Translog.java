@@ -40,6 +40,8 @@ import java.io.InputStream;
 @ThreadSafe
 public interface Translog extends IndexShardComponent {
 
+    public static final String TRANSLOG_ID_KEY = "translog_id";
+
     /**
      * Returns the id of the current transaction log.
      */

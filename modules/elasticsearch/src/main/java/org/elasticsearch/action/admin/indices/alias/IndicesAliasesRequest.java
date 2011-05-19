@@ -19,15 +19,20 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.cluster.metadata.AliasAction.*;
@@ -54,6 +59,59 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
     public IndicesAliasesRequest addAlias(String index, String alias) {
         aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
         return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param source The source
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, String source) {
+        aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, source));
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index  The index
+     * @param alias  The alias
+     * @param source The source
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, Map<String, Object> source) {
+        if (source == null || source.isEmpty()) {
+            aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
+            return this;
+        }
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.map(source);
+            aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, builder.string()));
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index         The index
+     * @param alias         The alias
+     * @param sourceBuilder The source
+     */
+    public IndicesAliasesRequest addAlias(String index, String alias, XContentBuilder sourceBuilder) {
+        if (sourceBuilder == null) {
+            aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
+            return this;
+        }
+        try {
+            return addAlias(index, alias, sourceBuilder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+        }
     }
 
     /**

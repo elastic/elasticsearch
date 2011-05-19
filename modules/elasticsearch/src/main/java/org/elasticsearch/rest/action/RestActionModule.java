@@ -31,6 +31,7 @@ import org.elasticsearch.rest.action.admin.cluster.ping.broadcast.RestBroadcastP
 import org.elasticsearch.rest.action.admin.cluster.ping.replication.RestReplicationPingAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.single.RestSinglePingAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
+import org.elasticsearch.rest.action.admin.indices.alias.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
@@ -94,6 +95,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestReplicationPingAction.class).asEagerSingleton();
 
         bind(RestIndicesStatusAction.class).asEagerSingleton();
+        bind(RestGetIndicesAliasesAction.class).asEagerSingleton();
         bind(RestIndicesAliasesAction.class).asEagerSingleton();
         bind(RestCreateIndexAction.class).asEagerSingleton();
         bind(RestDeleteIndexAction.class).asEagerSingleton();

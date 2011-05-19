@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
@@ -53,7 +54,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         try {
             // {
             //     actions : [
-            //         { add : { index : "test1", alias : "alias1" } }
+            //         { add : { index : "test1", alias : "alias1", filter : {"user" : "kimchy"} } }
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
@@ -78,6 +79,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             }
                             String index = null;
                             String alias = null;
+                            Map<String, Object> filter = null;
                             String currentFieldName = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -88,6 +90,10 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                     } else if ("alias".equals(currentFieldName)) {
                                         alias = parser.text();
                                     }
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    if ("filter".equals(currentFieldName)) {
+                                        filter = parser.mapOrdered();
+                                    }
                                 }
                             }
                             if (index == null) {
@@ -97,7 +103,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                 throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [alias] to be set");
                             }
                             if (type == AliasAction.Type.ADD) {
-                                indicesAliasesRequest.addAlias(index, alias);
+                                indicesAliasesRequest.addAlias(index, alias, filter);
                             } else if (type == AliasAction.Type.REMOVE) {
                                 indicesAliasesRequest.removeAlias(index, alias);
                             }

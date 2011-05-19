@@ -78,6 +78,19 @@ public class ToAndFromJsonMetaDataTests {
                         .putMapping("mapping2", MAPPING_SOURCE2)
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
+                .put(newIndexMetaDataBuilder("test7")
+                        .settings(settingsBuilder()
+                                .put("setting1", "value1")
+                                .put("setting2", "value2")
+                                .put("index.aliases.0", "alias3")
+                                .put("index.aliases.1", "alias1"))
+                        .numberOfShards(1)
+                        .numberOfReplicas(2)
+                        .putMapping("mapping1", MAPPING_SOURCE1)
+                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
+                        .putAlias(newAliasMetaDataBuilder("alias2"))
+                        .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
@@ -142,8 +155,29 @@ public class ToAndFromJsonMetaDataTests {
         assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
         assertThat(indexMetaData.aliases().get("alias3").alias(), equalTo("alias3"));
+
+        indexMetaData = parsedMetaData.index("test7");
+        assertThat(indexMetaData.numberOfShards(), equalTo(1));
+        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.mappings().size(), equalTo(2));
+        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.aliases().size(), equalTo(4));
+        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.aliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
+        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.aliases().get("alias2").filter(), nullValue());
+        assertThat(indexMetaData.aliases().get("alias3").alias(), equalTo("alias3"));
+        assertThat(indexMetaData.aliases().get("alias3").filter(), nullValue());
+        assertThat(indexMetaData.aliases().get("alias4").alias(), equalTo("alias4"));
+        assertThat(indexMetaData.aliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";
     private static final String MAPPING_SOURCE2 = "{\"mapping2\":{\"text2\":{\"type\":\"string\"}}}";
+    private static final String ALIAS_FILTER1 = "{\"field1\":\"value1\"}";
+    private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 }

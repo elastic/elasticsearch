@@ -29,6 +29,16 @@ import org.elasticsearch.index.IndexComponent;
  */
 public interface FilterCache extends IndexComponent, CloseableComponent {
 
+    static class EntriesStats {
+        public final long sizeInBytes;
+        public final long count;
+
+        public EntriesStats(long sizeInBytes, long count) {
+            this.sizeInBytes = sizeInBytes;
+            this.count = count;
+        }
+    }
+
     String type();
 
     Filter cache(Filter filterToCache);
@@ -39,11 +49,7 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
 
     void clear();
 
-    long count();
-
-    long sizeInBytes();
+    EntriesStats entriesStats();
 
     long evictions();
-
-    long memEvictions();
 }

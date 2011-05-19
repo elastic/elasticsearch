@@ -118,6 +118,29 @@ public class Analysis {
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 
+    public static Set<?> parseArticles(Environment env, Settings settings) {
+        String value = settings.get("articles");
+        if (value != null) {
+            if ("_none_".equals(value)) {
+                return ImmutableSet.of();
+            } else {
+                return ImmutableSet.copyOf(Strings.commaDelimitedListToSet(value));
+            }
+        }
+        String[] articles = settings.getAsArray("articles", null);
+        if (articles != null) {
+            Set setArticles = new HashSet<String>(Arrays.asList(articles));
+            return setArticles;
+        }
+        Set<String> pathLoadedArticles = getWordSet(env, settings, "articles");
+        if (pathLoadedArticles != null) {
+            Set setArticles = new HashSet<String>(pathLoadedArticles);
+            return setArticles;
+        }
+
+        return null;
+    }
+
     public static Set<?> parseStopWords(Environment env, Settings settings, Set<?> defaultStopWords) {
         String value = settings.get("stopwords");
         if (value != null) {

@@ -25,7 +25,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
@@ -42,7 +41,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 
@@ -107,22 +105,18 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
     }
 
-    @Override public long sizeInBytes() {
+    @Override public EntriesStats entriesStats() {
         long sizeInBytes = 0;
+        long totalCount = 0;
+        int segmentsCount = 0;
         for (ReaderValue readerValue : cache.values()) {
+            segmentsCount++;
             for (DocSet docSet : readerValue.filters().values()) {
                 sizeInBytes += docSet.sizeInBytes();
+                totalCount++;
             }
         }
-        return sizeInBytes;
-    }
-
-    @Override public long count() {
-        long entries = 0;
-        for (ReaderValue readerValue : cache.values()) {
-            entries += readerValue.filters().size();
-        }
-        return entries;
+        return new EntriesStats(sizeInBytes, totalCount / segmentsCount);
     }
 
     @Override public Filter cache(Filter filterToCache) {
@@ -248,23 +242,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
         public LongsLAB longsLAB() {
             return longsLAB;
-        }
-    }
-
-    public static class CacheMapEvictionListener implements MapEvictionListener<Object, ReaderValue> {
-
-        private final AtomicLong evictions;
-
-        public CacheMapEvictionListener(AtomicLong evictions) {
-            this.evictions = evictions;
-        }
-
-        @Override public void onEviction(Object o, ReaderValue readerValue) {
-            evictions.incrementAndGet();
-            if (readerValue != null) {
-                // extra clean the map
-                readerValue.filters().clear();
-            }
         }
     }
 }

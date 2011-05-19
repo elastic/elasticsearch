@@ -116,7 +116,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
                 totalCount++;
             }
         }
-        return new EntriesStats(sizeInBytes, totalCount / segmentsCount);
+        return new EntriesStats(sizeInBytes, segmentsCount == 0 ? 0 : totalCount / segmentsCount);
     }
 
     @Override public Filter cache(Filter filterToCache) {

@@ -46,21 +46,22 @@ public class NotDocIdSet extends DocIdSet {
     }
 
     @Override public DocIdSetIterator iterator() throws IOException {
-        return new NotDocIdSetIterator();
+        DocIdSetIterator it = set.iterator();
+        if (it == null) {
+            return new AllDocSet.AllDocIdSetIterator(max);
+        }
+        return new NotDocIdSetIterator(max, it);
     }
 
-    class NotDocIdSetIterator extends DocIdSetIterator {
+    public static class NotDocIdSetIterator extends DocIdSetIterator {
+        private final int max;
+        private DocIdSetIterator it1;
         int lastReturn = -1;
-        private DocIdSetIterator it1 = null;
         private int innerDocid = -1;
 
-        NotDocIdSetIterator() throws IOException {
-            initialize();
-        }
-
-        private void initialize() throws IOException {
-            it1 = set.iterator();
-
+        NotDocIdSetIterator(int max, DocIdSetIterator it) throws IOException {
+            this.max = max;
+            this.it1 = it;
             if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) it1 = null;
         }
 

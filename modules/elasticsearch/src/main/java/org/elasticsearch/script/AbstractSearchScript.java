@@ -41,7 +41,10 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
 
     private float score = Float.NaN;
 
-    // helper methods
+    /**
+     * Returns the current score and only applicable when used as a scoring script in a custom score query!.
+     * For other cases, use {@link #doc()} and get the score from it.
+     */
     protected final float score() {
         return score;
     }

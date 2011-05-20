@@ -37,6 +37,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.Set;
@@ -74,6 +75,9 @@ public class ScriptService extends AbstractComponent {
             }
         }
         this.scriptEngines = builder.build();
+
+        // put some default optimized scripts
+        staticCache.put("doc.score", new CompiledScript("native", new DocScoreNativeScriptFactory()));
 
         // compile static scripts
         File scriptsFile = new File(env.configFile(), "scripts");
@@ -182,4 +186,19 @@ public class ScriptService extends AbstractComponent {
         cache.clear();
     }
 
+    public static class DocScoreNativeScriptFactory implements NativeScriptFactory {
+        @Override public ExecutableScript newScript(@Nullable Map<String, Object> params) {
+            return new DocScoreSearchScript();
+        }
+    }
+
+    public static class DocScoreSearchScript extends AbstractFloatSearchScript {
+        @Override public float runAsFloat() {
+            try {
+                return doc().score();
+            } catch (IOException e) {
+                return 0;
+            }
+        }
+    }
 }

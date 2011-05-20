@@ -87,11 +87,11 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         JvmStats stats = new JvmStats(System.currentTimeMillis(), runtimeMXBean.getUptime());
         stats.mem = new Mem();
         MemoryUsage memUsage = memoryMXBean.getHeapMemoryUsage();
-        stats.mem.heapUsed = memUsage.getUsed();
-        stats.mem.heapCommitted = memUsage.getCommitted();
+        stats.mem.heapUsed = memUsage.getUsed() < 0 ? 0 : memUsage.getUsed();
+        stats.mem.heapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
         memUsage = memoryMXBean.getNonHeapMemoryUsage();
-        stats.mem.nonHeapUsed = memUsage.getUsed();
-        stats.mem.nonHeapCommitted = memUsage.getCommitted();
+        stats.mem.nonHeapUsed = memUsage.getUsed() < 0 ? 0 : memUsage.getUsed();
+        stats.mem.nonHeapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
 
         stats.threads = new Threads();
         stats.threads.count = threadMXBean.getThreadCount();

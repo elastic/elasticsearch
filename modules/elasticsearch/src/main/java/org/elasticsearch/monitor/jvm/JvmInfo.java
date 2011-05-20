@@ -62,10 +62,10 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         info.vmVendor = runtimeMXBean.getVmVendor();
         info.vmVersion = runtimeMXBean.getVmVersion();
         info.mem = new Mem();
-        info.mem.heapInit = memoryMXBean.getHeapMemoryUsage().getInit();
-        info.mem.heapMax = memoryMXBean.getHeapMemoryUsage().getMax();
-        info.mem.nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit();
-        info.mem.nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax();
+        info.mem.heapInit = memoryMXBean.getHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getHeapMemoryUsage().getInit();
+        info.mem.heapMax = memoryMXBean.getHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getHeapMemoryUsage().getMax();
+        info.mem.nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getInit();
+        info.mem.nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getMax();
         info.inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
         info.bootClassPath = runtimeMXBean.getBootClassPath();
         info.classPath = runtimeMXBean.getClassPath();
@@ -269,10 +269,10 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     public static class Mem implements Streamable, Serializable {
 
-        long heapInit = -1;
-        long heapMax = -1;
-        long nonHeapInit = -1;
-        long nonHeapMax = -1;
+        long heapInit = 0;
+        long heapMax = 0;
+        long nonHeapInit = 0;
+        long nonHeapMax = 0;
 
         Mem() {
         }

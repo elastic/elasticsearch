@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.*;
+import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
@@ -103,6 +104,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final SimilarityService similarityService;
 
+    private final IndexAliasesService aliasesService;
+
     private final IndexCache indexCache;
 
     private final IndexEngine indexEngine;
@@ -118,7 +121,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private volatile boolean closed = false;
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                        PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
+                                        PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
+                                        IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
                                         IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore) {
         super(index, indexSettings);
         this.injector = injector;
@@ -130,6 +134,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.similarityService = similarityService;
+        this.aliasesService = aliasesService;
         this.indexCache = indexCache;
         this.indexEngine = indexEngine;
         this.indexGateway = indexGateway;
@@ -201,6 +206,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override public SimilarityService similarityService() {
         return similarityService;
+    }
+
+    @Override public IndexAliasesService aliasesService() {
+        return aliasesService;
     }
 
     @Override public IndexEngine engine() {

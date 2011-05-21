@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,6 +45,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.aliases.IndexAlias;
+import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
@@ -143,6 +146,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         synchronized (mutex) {
             applyNewIndices(event);
             applyMappings(event);
+            applyAliases(event);
             applyNewOrUpdatedShards(event);
             applyDeletedIndices(event);
             applyDeletedShards(event);
@@ -366,6 +370,51 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
         }
         return requiresRefresh;
+    }
+
+    private void applyAliases(ClusterChangedEvent event) {
+        // go over and update aliases
+        for (IndexMetaData indexMetaData : event.state().metaData()) {
+            if (!indicesService.hasIndex(indexMetaData.index())) {
+                // we only create / update here
+                continue;
+            }
+            String index = indexMetaData.index();
+            IndexService indexService = indicesService.indexService(index);
+            IndexAliasesService indexAliasesService = indexService.aliasesService();
+            for (AliasMetaData aliasesMd : indexMetaData.aliases().values()) {
+                processAlias(index, aliasesMd.alias(), aliasesMd.filter(), indexAliasesService);
+            }
+            // go over and remove aliases
+            for (IndexAlias indexAlias : indexAliasesService) {
+                if (!indexMetaData.aliases().containsKey(indexAlias.alias())) {
+                    // we have it in our aliases, but not in the metadata, remove it
+                    indexAliasesService.remove(indexAlias.alias());
+                }
+            }
+        }
+    }
+
+    private void processAlias(String index, String alias, CompressedString filter, IndexAliasesService indexAliasesService) {
+        try {
+            if (!indexAliasesService.hasAlias(alias)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] adding alias [{}], filter [{}]", index, alias, filter);
+                }
+                indexAliasesService.add(alias, filter);
+            } else {
+                if ((filter == null && indexAliasesService.alias(alias).filter() != null) ||
+                        (filter != null && !filter.equals(indexAliasesService.alias(alias).filter()))) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] updating alias [{}], filter [{}]", index, alias, filter);
+                    }
+                    indexAliasesService.add(alias, filter);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("[{}] failed to add alias [{}], filter [{}]", e, index, alias, filter);
+        }
+
     }
 
     private void applyNewOrUpdatedShards(final ClusterChangedEvent event) throws ElasticSearchException {

@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
+import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.CacheStats;
@@ -242,6 +243,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexCacheModule(indexSettings));
         modules.add(new IndexQueryParserModule(indexSettings));
         modules.add(new MapperServiceModule());
+        modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
         modules.add(new IndexModule());
         modules.add(new PercolatorModule());

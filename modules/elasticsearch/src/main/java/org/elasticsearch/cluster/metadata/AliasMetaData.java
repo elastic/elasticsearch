@@ -77,6 +77,7 @@ public class AliasMetaData {
 
         public Builder(AliasMetaData aliasMetaData) {
             this(aliasMetaData.alias());
+            filter = aliasMetaData.filter();
         }
 
         public String alias() {

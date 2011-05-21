@@ -49,7 +49,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  *
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
+public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener {
 
     final ConcurrentMap<Object, ReaderValue> cache;
 
@@ -95,6 +95,14 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     @Override public void clear() {
         cache.clear();
+    }
+
+    @Override public void finished(IndexReader reader) {
+        ReaderValue readerValue = cache.remove(reader.getCoreCacheKey());
+        // help soft/weak handling GC
+        if (readerValue != null) {
+            readerValue.filters().clear();
+        }
     }
 
     @Override public void clear(IndexReader reader) {
@@ -156,6 +164,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
                 ReaderValue prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), readerValue);
                 if (prev != null) {
                     readerValue = prev;
+                } else {
+                    reader.addReaderFinishedListener(cache);
                 }
             }
             DocSet docSet = readerValue.filters().get(filter);

@@ -27,11 +27,11 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.common.trove.impl.Constants;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
@@ -56,7 +56,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
 
     @Inject public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-        idReaders = new MapMaker().weakKeys().makeMap();
+        idReaders = ConcurrentCollections.newConcurrentMap();
     }
 
     @Override public void close() throws ElasticSearchException {

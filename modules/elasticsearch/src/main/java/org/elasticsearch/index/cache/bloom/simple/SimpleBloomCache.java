@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.bloom.BloomFilterFactory;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeUnit;
@@ -64,10 +63,7 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
         this.threadPool = threadPool;
 
         this.maxSize = indexSettings.getAsSize("index.cache.bloom.max_size", new SizeValue(500, SizeUnit.MEGA)).singles();
-
-        // weak keys is fine, it will only be cleared once IndexReader references will be removed
-        // (assuming clear(...) will not be called)
-        this.cache = new MapMaker().weakKeys().makeMap();
+        this.cache = ConcurrentCollections.newConcurrentMap();
     }
 
     @Override public void close() throws ElasticSearchException {

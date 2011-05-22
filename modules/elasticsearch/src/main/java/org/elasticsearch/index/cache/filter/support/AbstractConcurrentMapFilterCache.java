@@ -25,7 +25,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
@@ -82,7 +82,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     protected ConcurrentMap<Object, ReaderValue> buildCache() {
-        return new MapMaker().weakKeys().makeMap();
+        return new ConcurrentHashMap<Object, ReaderValue>();
     }
 
     protected ConcurrentMap<Filter, DocSet> buildFilterMap() {

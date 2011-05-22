@@ -21,7 +21,6 @@ package org.elasticsearch.index.cache.field.data.support;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -47,7 +47,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         super(index, indexSettings);
         // weak keys is fine, it will only be cleared once IndexReader references will be removed
         // (assuming clear(...) will not be called)
-        this.cache = new MapMaker().weakKeys().makeMap();
+        this.cache = new ConcurrentHashMap<Object, ConcurrentMap<String, FieldData>>();
     }
 
     @Override public void close() throws ElasticSearchException {

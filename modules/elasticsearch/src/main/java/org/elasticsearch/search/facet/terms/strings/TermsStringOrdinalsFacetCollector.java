@@ -143,7 +143,6 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         AggregatorPriorityQueue queue = new AggregatorPriorityQueue(aggregators.size());
 
         for (ReaderAggregator aggregator : aggregators) {
-            CacheRecycler.pushIntArray(aggregator.counts); // release it here, anyhow we are on the same thread so won't be corrupted
             if (aggregator.nextPosition()) {
                 queue.add(aggregator);
             }
@@ -184,6 +183,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             for (int i = ordered.size() - 1; i >= 0; i--) {
                 list[i] = (InternalStringTermsFacet.StringEntry) ordered.pop();
             }
+
+            for (ReaderAggregator aggregator : aggregators) {
+                CacheRecycler.pushIntArray(aggregator.counts);
+            }
+
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing);
         }
 
@@ -211,6 +215,12 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                 }
             }
         }
+
+
+        for (ReaderAggregator aggregator : aggregators) {
+            CacheRecycler.pushIntArray(aggregator.counts);
+        }
+
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing);
     }
 

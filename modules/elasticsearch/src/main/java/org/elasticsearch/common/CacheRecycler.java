@@ -24,394 +24,379 @@ import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.trove.map.hash.*;
+import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 
 import java.lang.ref.SoftReference;
-import java.util.ArrayDeque;
 import java.util.Arrays;
-import java.util.Deque;
+import java.util.Queue;
 
 public class CacheRecycler {
 
     public static void clear() {
         BufferRecycler.clean();
-        doubleObjectHashMap.remove();
-        longObjectHashMap.remove();
-        longLongHashMap.remove();
-        intIntHashMap.remove();
-        floatIntHashMap.remove();
-        doubleIntHashMap.remove();
-        shortIntHashMap.remove();
-        longIntHashMap.remove();
-        objectIntHashMap.remove();
-        intArray.remove();
+        hashMap.clear();
+        doubleObjectHashMap.clear();
+        longObjectHashMap.clear();
+        longLongHashMap.clear();
+        intIntHashMap.clear();
+        floatIntHashMap.clear();
+        doubleIntHashMap.clear();
+        shortIntHashMap.clear();
+        longIntHashMap.clear();
+        objectIntHashMap.clear();
+        objectArray.clear();
+        intArray.clear();
+    }
+
+    static class SoftWrapper<T> {
+        private SoftReference<T> ref;
+
+        public SoftWrapper() {
+        }
+
+        public void set(T ref) {
+            this.ref = new SoftReference<T>(ref);
+        }
+
+        public T get() {
+            return ref == null ? null : ref.get();
+        }
+
+        public void clear() {
+            ref = null;
+        }
     }
 
     // ----- ExtTHashMap -----
 
-    private static ThreadLocal<SoftReference<Deque<ExtTHashMap>>> hashMap = new ThreadLocal<SoftReference<Deque<ExtTHashMap>>>();
+    private static SoftWrapper<Queue<ExtTHashMap>> hashMap = new SoftWrapper<Queue<ExtTHashMap>>();
 
     public static <K, V> ExtTHashMap<K, V> popHashMap() {
-        SoftReference<Deque<ExtTHashMap>> ref = hashMap.get();
-        Deque<ExtTHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<ExtTHashMap>();
-            hashMap.set(new SoftReference<Deque<ExtTHashMap>>(deque));
+        Queue<ExtTHashMap> ref = hashMap.get();
+        if (ref == null) {
+            return new ExtTHashMap<K, V>();
         }
-        if (deque.isEmpty()) {
-            return new ExtTHashMap();
+        ExtTHashMap map = ref.poll();
+        if (map == null) {
+            return new ExtTHashMap<K, V>();
         }
-        ExtTHashMap map = deque.pollFirst();
-        map.clear();
         return map;
     }
 
     public static void pushHashMap(ExtTHashMap map) {
-        SoftReference<Deque<ExtTHashMap>> ref = hashMap.get();
-        Deque<ExtTHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<ExtTHashMap>();
-            hashMap.set(new SoftReference<Deque<ExtTHashMap>>(deque));
+        Queue<ExtTHashMap> ref = hashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<ExtTHashMap>();
+            hashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ------ ExtTDoubleObjectHashMap -----
 
-    private static ThreadLocal<SoftReference<Deque<ExtTDoubleObjectHashMap>>> doubleObjectHashMap = new ThreadLocal<SoftReference<Deque<ExtTDoubleObjectHashMap>>>();
+    private static SoftWrapper<Queue<ExtTDoubleObjectHashMap>> doubleObjectHashMap = new SoftWrapper<Queue<ExtTDoubleObjectHashMap>>();
 
     public static <T> ExtTDoubleObjectHashMap<T> popDoubleObjectMap() {
-        SoftReference<Deque<ExtTDoubleObjectHashMap>> ref = doubleObjectHashMap.get();
-        Deque<ExtTDoubleObjectHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<ExtTDoubleObjectHashMap>();
-            doubleObjectHashMap.set(new SoftReference<Deque<ExtTDoubleObjectHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<ExtTDoubleObjectHashMap> ref = doubleObjectHashMap.get();
+        if (ref == null) {
             return new ExtTDoubleObjectHashMap();
         }
-        ExtTDoubleObjectHashMap map = deque.pollFirst();
-        map.clear();
+        ExtTDoubleObjectHashMap map = ref.poll();
+        if (map == null) {
+            return new ExtTDoubleObjectHashMap();
+        }
         return map;
     }
 
     public static void pushDoubleObjectMap(ExtTDoubleObjectHashMap map) {
-        SoftReference<Deque<ExtTDoubleObjectHashMap>> ref = doubleObjectHashMap.get();
-        Deque<ExtTDoubleObjectHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<ExtTDoubleObjectHashMap>();
-            doubleObjectHashMap.set(new SoftReference<Deque<ExtTDoubleObjectHashMap>>(deque));
+        Queue<ExtTDoubleObjectHashMap> ref = doubleObjectHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<ExtTDoubleObjectHashMap>();
+            doubleObjectHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ----- ExtTLongObjectHashMap ----
 
-    private static ThreadLocal<SoftReference<Deque<ExtTLongObjectHashMap>>> longObjectHashMap = new ThreadLocal<SoftReference<Deque<ExtTLongObjectHashMap>>>();
+    private static SoftWrapper<Queue<ExtTLongObjectHashMap>> longObjectHashMap = new SoftWrapper<Queue<ExtTLongObjectHashMap>>();
 
     public static <T> ExtTLongObjectHashMap<T> popLongObjectMap() {
-        SoftReference<Deque<ExtTLongObjectHashMap>> ref = longObjectHashMap.get();
-        Deque<ExtTLongObjectHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<ExtTLongObjectHashMap>();
-            longObjectHashMap.set(new SoftReference<Deque<ExtTLongObjectHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<ExtTLongObjectHashMap> ref = longObjectHashMap.get();
+        if (ref == null) {
             return new ExtTLongObjectHashMap();
         }
-        ExtTLongObjectHashMap map = deque.pollFirst();
-        map.clear();
+        ExtTLongObjectHashMap map = ref.poll();
+        if (map == null) {
+            return new ExtTLongObjectHashMap();
+        }
         return map;
     }
 
     public static void pushLongObjectMap(ExtTLongObjectHashMap map) {
-        SoftReference<Deque<ExtTLongObjectHashMap>> ref = longObjectHashMap.get();
-        Deque<ExtTLongObjectHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<ExtTLongObjectHashMap>();
-            longObjectHashMap.set(new SoftReference<Deque<ExtTLongObjectHashMap>>(deque));
+        Queue<ExtTLongObjectHashMap> ref = longObjectHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<ExtTLongObjectHashMap>();
+            longObjectHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ----- TLongLongHashMap ----
 
-    private static ThreadLocal<SoftReference<Deque<TLongLongHashMap>>> longLongHashMap = new ThreadLocal<SoftReference<Deque<TLongLongHashMap>>>();
+    private static SoftWrapper<Queue<TLongLongHashMap>> longLongHashMap = new SoftWrapper<Queue<TLongLongHashMap>>();
 
     public static TLongLongHashMap popLongLongMap() {
-        SoftReference<Deque<TLongLongHashMap>> ref = longLongHashMap.get();
-        Deque<TLongLongHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TLongLongHashMap>();
-            longLongHashMap.set(new SoftReference<Deque<TLongLongHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TLongLongHashMap> ref = longLongHashMap.get();
+        if (ref == null) {
             return new TLongLongHashMap();
         }
-        TLongLongHashMap map = deque.pollFirst();
-        map.clear();
+        TLongLongHashMap map = ref.poll();
+        if (map == null) {
+            return new TLongLongHashMap();
+        }
         return map;
     }
 
     public static void pushLongLongMap(TLongLongHashMap map) {
-        SoftReference<Deque<TLongLongHashMap>> ref = longLongHashMap.get();
-        Deque<TLongLongHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TLongLongHashMap>();
-            longLongHashMap.set(new SoftReference<Deque<TLongLongHashMap>>(deque));
+        Queue<TLongLongHashMap> ref = longLongHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TLongLongHashMap>();
+            longLongHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ----- TIntIntHashMap ----
 
-    private static ThreadLocal<SoftReference<Deque<TIntIntHashMap>>> intIntHashMap = new ThreadLocal<SoftReference<Deque<TIntIntHashMap>>>();
+    private static SoftWrapper<Queue<TIntIntHashMap>> intIntHashMap = new SoftWrapper<Queue<TIntIntHashMap>>();
 
 
     public static TIntIntHashMap popIntIntMap() {
-        SoftReference<Deque<TIntIntHashMap>> ref = intIntHashMap.get();
-        Deque<TIntIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TIntIntHashMap>();
-            intIntHashMap.set(new SoftReference<Deque<TIntIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TIntIntHashMap> ref = intIntHashMap.get();
+        if (ref == null) {
             return new TIntIntHashMap();
         }
-        TIntIntHashMap map = deque.pollFirst();
-        map.clear();
+        TIntIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TIntIntHashMap();
+        }
         return map;
     }
 
     public static void pushIntIntMap(TIntIntHashMap map) {
-        SoftReference<Deque<TIntIntHashMap>> ref = intIntHashMap.get();
-        Deque<TIntIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TIntIntHashMap>();
-            intIntHashMap.set(new SoftReference<Deque<TIntIntHashMap>>(deque));
+        Queue<TIntIntHashMap> ref = intIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TIntIntHashMap>();
+            intIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
 
     // ----- TFloatIntHashMap ---
 
-    private static ThreadLocal<SoftReference<Deque<TFloatIntHashMap>>> floatIntHashMap = new ThreadLocal<SoftReference<Deque<TFloatIntHashMap>>>();
+    private static SoftWrapper<Queue<TFloatIntHashMap>> floatIntHashMap = new SoftWrapper<Queue<TFloatIntHashMap>>();
 
 
     public static TFloatIntHashMap popFloatIntMap() {
-        SoftReference<Deque<TFloatIntHashMap>> ref = floatIntHashMap.get();
-        Deque<TFloatIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TFloatIntHashMap>();
-            floatIntHashMap.set(new SoftReference<Deque<TFloatIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TFloatIntHashMap> ref = floatIntHashMap.get();
+        if (ref == null) {
             return new TFloatIntHashMap();
         }
-        TFloatIntHashMap map = deque.pollFirst();
-        map.clear();
+        TFloatIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TFloatIntHashMap();
+        }
         return map;
     }
 
     public static void pushFloatIntMap(TFloatIntHashMap map) {
-        SoftReference<Deque<TFloatIntHashMap>> ref = floatIntHashMap.get();
-        Deque<TFloatIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TFloatIntHashMap>();
-            floatIntHashMap.set(new SoftReference<Deque<TFloatIntHashMap>>(deque));
+        Queue<TFloatIntHashMap> ref = floatIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TFloatIntHashMap>();
+            floatIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
 
     // ----- TDoubleIntHashMap ---
 
-    private static ThreadLocal<SoftReference<Deque<TDoubleIntHashMap>>> doubleIntHashMap = new ThreadLocal<SoftReference<Deque<TDoubleIntHashMap>>>();
+    private static SoftWrapper<Queue<TDoubleIntHashMap>> doubleIntHashMap = new SoftWrapper<Queue<TDoubleIntHashMap>>();
 
 
     public static TDoubleIntHashMap popDoubleIntMap() {
-        SoftReference<Deque<TDoubleIntHashMap>> ref = doubleIntHashMap.get();
-        Deque<TDoubleIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TDoubleIntHashMap>();
-            doubleIntHashMap.set(new SoftReference<Deque<TDoubleIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TDoubleIntHashMap> ref = doubleIntHashMap.get();
+        if (ref == null) {
             return new TDoubleIntHashMap();
         }
-        TDoubleIntHashMap map = deque.pollFirst();
-        map.clear();
+        TDoubleIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TDoubleIntHashMap();
+        }
         return map;
     }
 
     public static void pushDoubleIntMap(TDoubleIntHashMap map) {
-        SoftReference<Deque<TDoubleIntHashMap>> ref = doubleIntHashMap.get();
-        Deque<TDoubleIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TDoubleIntHashMap>();
-            doubleIntHashMap.set(new SoftReference<Deque<TDoubleIntHashMap>>(deque));
+        Queue<TDoubleIntHashMap> ref = doubleIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TDoubleIntHashMap>();
+            doubleIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
 
     // ----- TByteIntHashMap ---
 
-    private static ThreadLocal<SoftReference<Deque<TByteIntHashMap>>> byteIntHashMap = new ThreadLocal<SoftReference<Deque<TByteIntHashMap>>>();
+    private static SoftWrapper<Queue<TByteIntHashMap>> byteIntHashMap = new SoftWrapper<Queue<TByteIntHashMap>>();
 
 
     public static TByteIntHashMap popByteIntMap() {
-        SoftReference<Deque<TByteIntHashMap>> ref = byteIntHashMap.get();
-        Deque<TByteIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TByteIntHashMap>();
-            byteIntHashMap.set(new SoftReference<Deque<TByteIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TByteIntHashMap> ref = byteIntHashMap.get();
+        if (ref == null) {
             return new TByteIntHashMap();
         }
-        TByteIntHashMap map = deque.pollFirst();
-        map.clear();
+        TByteIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TByteIntHashMap();
+        }
         return map;
     }
 
     public static void pushByteIntMap(TByteIntHashMap map) {
-        SoftReference<Deque<TByteIntHashMap>> ref = byteIntHashMap.get();
-        Deque<TByteIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TByteIntHashMap>();
-            byteIntHashMap.set(new SoftReference<Deque<TByteIntHashMap>>(deque));
+        Queue<TByteIntHashMap> ref = byteIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TByteIntHashMap>();
+            byteIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ----- TShortIntHashMap ---
 
-    private static ThreadLocal<SoftReference<Deque<TShortIntHashMap>>> shortIntHashMap = new ThreadLocal<SoftReference<Deque<TShortIntHashMap>>>();
+    private static SoftWrapper<Queue<TShortIntHashMap>> shortIntHashMap = new SoftWrapper<Queue<TShortIntHashMap>>();
 
 
     public static TShortIntHashMap popShortIntMap() {
-        SoftReference<Deque<TShortIntHashMap>> ref = shortIntHashMap.get();
-        Deque<TShortIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TShortIntHashMap>();
-            shortIntHashMap.set(new SoftReference<Deque<TShortIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TShortIntHashMap> ref = shortIntHashMap.get();
+        if (ref == null) {
             return new TShortIntHashMap();
         }
-        TShortIntHashMap map = deque.pollFirst();
-        map.clear();
+        TShortIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TShortIntHashMap();
+        }
         return map;
     }
 
     public static void pushShortIntMap(TShortIntHashMap map) {
-        SoftReference<Deque<TShortIntHashMap>> ref = shortIntHashMap.get();
-        Deque<TShortIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TShortIntHashMap>();
-            shortIntHashMap.set(new SoftReference<Deque<TShortIntHashMap>>(deque));
+        Queue<TShortIntHashMap> ref = shortIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TShortIntHashMap>();
+            shortIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
 
     // ----- TLongIntHashMap ----
 
-    private static ThreadLocal<SoftReference<Deque<TLongIntHashMap>>> longIntHashMap = new ThreadLocal<SoftReference<Deque<TLongIntHashMap>>>();
+    private static SoftWrapper<Queue<TLongIntHashMap>> longIntHashMap = new SoftWrapper<Queue<TLongIntHashMap>>();
 
 
     public static TLongIntHashMap popLongIntMap() {
-        SoftReference<Deque<TLongIntHashMap>> ref = longIntHashMap.get();
-        Deque<TLongIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TLongIntHashMap>();
-            longIntHashMap.set(new SoftReference<Deque<TLongIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TLongIntHashMap> ref = longIntHashMap.get();
+        if (ref == null) {
             return new TLongIntHashMap();
         }
-        TLongIntHashMap map = deque.pollFirst();
-        map.clear();
+        TLongIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TLongIntHashMap();
+        }
         return map;
     }
 
     public static void pushLongIntMap(TLongIntHashMap map) {
-        SoftReference<Deque<TLongIntHashMap>> ref = longIntHashMap.get();
-        Deque<TLongIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TLongIntHashMap>();
-            longIntHashMap.set(new SoftReference<Deque<TLongIntHashMap>>(deque));
+        Queue<TLongIntHashMap> ref = longIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TLongIntHashMap>();
+            longIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ------ TObjectIntHashMap -----
 
-    private static ThreadLocal<SoftReference<Deque<TObjectIntHashMap>>> objectIntHashMap = new ThreadLocal<SoftReference<Deque<TObjectIntHashMap>>>();
+    private static SoftWrapper<Queue<TObjectIntHashMap>> objectIntHashMap = new SoftWrapper<Queue<TObjectIntHashMap>>();
 
 
     @SuppressWarnings({"unchecked"})
     public static <T> TObjectIntHashMap<T> popObjectIntMap() {
-        SoftReference<Deque<TObjectIntHashMap>> ref = objectIntHashMap.get();
-        Deque<TObjectIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TObjectIntHashMap>();
-            objectIntHashMap.set(new SoftReference<Deque<TObjectIntHashMap>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<TObjectIntHashMap> ref = objectIntHashMap.get();
+        if (ref == null) {
             return new TObjectIntHashMap();
         }
-        TObjectIntHashMap map = deque.pollFirst();
-        map.clear();
+        TObjectIntHashMap map = ref.poll();
+        if (map == null) {
+            return new TObjectIntHashMap();
+        }
         return map;
     }
 
     public static <T> void pushObjectIntMap(TObjectIntHashMap<T> map) {
-        SoftReference<Deque<TObjectIntHashMap>> ref = objectIntHashMap.get();
-        Deque<TObjectIntHashMap> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<TObjectIntHashMap>();
-            objectIntHashMap.set(new SoftReference<Deque<TObjectIntHashMap>>(deque));
+        Queue<TObjectIntHashMap> ref = objectIntHashMap.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<TObjectIntHashMap>();
+            objectIntHashMap.set(ref);
         }
-        deque.add(map);
+        map.clear();
+        ref.add(map);
     }
 
     // ----- int[] -----
 
-    private static ThreadLocal<SoftReference<Deque<Object[]>>> objectArray = new ThreadLocal<SoftReference<Deque<Object[]>>>();
+    private static SoftWrapper<Queue<Object[]>> objectArray = new SoftWrapper<Queue<Object[]>>();
 
     public static Object[] popObjectArray(int size) {
         size = size < 100 ? 100 : size;
-        SoftReference<Deque<Object[]>> ref = objectArray.get();
-        Deque<Object[]> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<Object[]>();
-            objectArray.set(new SoftReference<Deque<Object[]>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<Object[]> ref = objectArray.get();
+        if (ref == null) {
             return new Object[size];
         }
-        Object[] objects = deque.pollFirst();
+        Object[] objects = ref.poll();
+        if (objects == null) {
+            return new Object[size];
+        }
         if (objects.length < size) {
             return new Object[size];
         }
-        Arrays.fill(objects, null);
         return objects;
     }
 
     public static void pushObjectArray(Object[] objects) {
-        SoftReference<Deque<Object[]>> ref = objectArray.get();
-        Deque<Object[]> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<Object[]>();
-            objectArray.set(new SoftReference<Deque<Object[]>>(deque));
+        Queue<Object[]> ref = objectArray.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<Object[]>();
+            objectArray.set(ref);
         }
-        deque.add(objects);
+        Arrays.fill(objects, null);
+        ref.add(objects);
     }
 
 
-    private static ThreadLocal<SoftReference<Deque<int[]>>> intArray = new ThreadLocal<SoftReference<Deque<int[]>>>();
+    private static SoftWrapper<Queue<int[]>> intArray = new SoftWrapper<Queue<int[]>>();
 
     public static int[] popIntArray(int size) {
         return popIntArray(size, 0);
@@ -419,20 +404,22 @@ public class CacheRecycler {
 
     public static int[] popIntArray(int size, int sentinal) {
         size = size < 100 ? 100 : size;
-        SoftReference<Deque<int[]>> ref = intArray.get();
-        Deque<int[]> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<int[]>();
-            intArray.set(new SoftReference<Deque<int[]>>(deque));
-        }
-        if (deque.isEmpty()) {
+        Queue<int[]> ref = intArray.get();
+        if (ref == null) {
             int[] ints = new int[size];
             if (sentinal != 0) {
                 Arrays.fill(ints, sentinal);
             }
             return ints;
         }
-        int[] ints = deque.pollFirst();
+        int[] ints = ref.poll();
+        if (ints == null) {
+            ints = new int[size];
+            if (sentinal != 0) {
+                Arrays.fill(ints, sentinal);
+            }
+            return ints;
+        }
         if (ints.length < size) {
             ints = new int[size];
             if (sentinal != 0) {
@@ -440,17 +427,20 @@ public class CacheRecycler {
             }
             return ints;
         }
-        Arrays.fill(ints, sentinal);
         return ints;
     }
 
     public static void pushIntArray(int[] ints) {
-        SoftReference<Deque<int[]>> ref = intArray.get();
-        Deque<int[]> deque = ref == null ? null : ref.get();
-        if (deque == null) {
-            deque = new ArrayDeque<int[]>();
-            intArray.set(new SoftReference<Deque<int[]>>(deque));
+        pushIntArray(ints, 0);
+    }
+
+    public static void pushIntArray(int[] ints, int sentinal) {
+        Queue<int[]> ref = intArray.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<int[]>();
+            intArray.set(ref);
         }
-        deque.add(ints);
+        Arrays.fill(ints, sentinal);
+        ref.add(ints);
     }
 }

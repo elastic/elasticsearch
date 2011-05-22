@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facet.histogram.bounded;
 
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.BoundedArrayList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -139,6 +138,7 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
     private ComparatorType comparatorType;
 
     Object[] entries;
+    List<Object> entriesList;
     boolean cachedEntries;
     int size;
     long interval;
@@ -176,8 +176,13 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
 
     @Override public List<FullEntry> entries() {
         normalize();
-        releaseCache(); // we release here, and assume it is going to be used on teh same thread and then discarded
-        return (List) new BoundedArrayList(entries, size);
+        if (entriesList == null) {
+            Object[] newEntries = new Object[size];
+            System.arraycopy(entries, 0, newEntries, 0, size);
+            entriesList = Arrays.asList(newEntries);
+        }
+        releaseCache();
+        return (List) entriesList;
     }
 
     @Override public List<FullEntry> getEntries() {

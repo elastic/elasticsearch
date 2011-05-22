@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.aliases;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterClause;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -39,8 +41,8 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.newArrayList;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
  * @author imotov
@@ -70,7 +72,29 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         add(new IndexAlias(alias, filter, parse(alias, filter)));
     }
 
+    /**
+     * Returns the filter associated with a possibly aliased indices.
+     *
+     * <p>Returns <tt>null</tt> if no filtering is required. Note, if no alias if found for the provided value
+     * then no filtering is done.</p>
+     */
     public Filter aliasFilter(String... indices) {
+        if (indices == null) {
+            return null;
+        }
+        // optimize for the most common single index/alias scenario
+        if (indices.length == 1) {
+            String alias = indices[0];
+            // The list contains the index itself - no filtering needed
+            if (alias.equals(index.name())) {
+                return null;
+            }
+            IndexAlias indexAlias = aliases.get(alias);
+            if (indexAlias == null) {
+                return null;
+            }
+            return indexAlias.parsedFilter();
+        }
         List<Filter> filters = null;
         for (String alias : indices) {
             // The list contains the index itself - no filtering needed

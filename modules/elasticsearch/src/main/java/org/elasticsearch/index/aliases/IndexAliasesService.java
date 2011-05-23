@@ -37,11 +37,10 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.AliasFilterParsingException;
+import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
-import java.util.List;
 
-import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
@@ -73,56 +72,42 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
     }
 
     /**
-     * Returns the filter associated with a possibly aliased indices.
+     * Returns the filter associated with listed filtering aliases.
      *
-     * <p>Returns <tt>null</tt> if no filtering is required. Note, if no alias if found for the provided value
-     * then no filtering is done.</p>
+     * <p>The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
+     * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    public Filter aliasFilter(String... indices) {
-        if (indices == null) {
+    public Filter aliasFilter(String... aliases) {
+        if (aliases == null || aliases.length == 0) {
             return null;
         }
-        // optimize for the most common single index/alias scenario
-        if (indices.length == 1) {
-            String alias = indices[0];
-            // The list contains the index itself - no filtering needed
-            if (alias.equals(index.name())) {
-                return null;
-            }
-            IndexAlias indexAlias = aliases.get(alias);
+        if (aliases.length == 1) {
+            IndexAlias indexAlias = alias(aliases[0]);
             if (indexAlias == null) {
-                return null;
+                // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias Filter");
             }
             return indexAlias.parsedFilter();
-        }
-        List<Filter> filters = null;
-        for (String alias : indices) {
-            // The list contains the index itself - no filtering needed
-            if (alias.equals(index.name())) {
-                return null;
-            }
-            IndexAlias indexAlias = aliases.get(alias);
-            if (indexAlias != null) {
-                // The list contains a non-filtering alias - no filtering needed
-                if (indexAlias.parsedFilter() == null) {
-                    return null;
-                } else {
-                    if (filters == null) {
-                        filters = newArrayList();
-                    }
-                    filters.add(indexAlias.parsedFilter());
-                }
-            }
-        }
-        if (filters == null) {
-            return null;
-        }
-        if (filters.size() == 1) {
-            return filters.get(0);
         } else {
             XBooleanFilter combined = new XBooleanFilter();
-            for (Filter filter : filters) {
-                combined.add(new FilterClause(filter, BooleanClause.Occur.SHOULD));
+            for (String alias : aliases) {
+                IndexAlias indexAlias = alias(alias);
+                if (indexAlias == null) {
+                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                    throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias Filter");
+                }
+                if (indexAlias.parsedFilter() != null) {
+                    combined.add(new FilterClause(indexAlias.parsedFilter(), BooleanClause.Occur.SHOULD));
+                } else {
+                    // The filter might be null only if filter was removed after filteringAliases was called
+                    return null;
+                }
+            }
+            if (combined.getShouldFilters().size() == 0) {
+                return null;
+            }
+            if (combined.getShouldFilters().size() == 1) {
+                return combined.getShouldFilters().get(0);
             }
             return combined;
         }

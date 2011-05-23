@@ -70,12 +70,12 @@ public class NetworkService extends AbstractComponent {
         /**
          * Resolves the default value if possible. If not, return <tt>null</tt>.
          */
-        InetAddress resolveDefault();
+        InetAddress resolveDefault() throws IOException;
 
         /**
          * Resolves a custom value handling, return <tt>null</tt> if can't handle it.
          */
-        InetAddress resolveIfPossible(String value);
+        InetAddress resolveIfPossible(String value) throws IOException;
     }
 
     private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<CustomNameResolver>();

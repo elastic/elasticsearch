@@ -19,71 +19,121 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
+
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class CachedStreamOutput {
 
-    static class Entry {
-        final BytesStreamOutput bytes;
-        final HandlesStreamOutput handles;
-        final LZFStreamOutput lzf;
+    private static Entry newEntry() {
+        BytesStreamOutput bytes = new BytesStreamOutput();
+        HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
+        LZFStreamOutput lzf = new LZFStreamOutput(bytes, true);
+        return new Entry(bytes, handles, lzf);
+    }
+
+    public static class Entry {
+        private final BytesStreamOutput bytes;
+        private final HandlesStreamOutput handles;
+        private final LZFStreamOutput lzf;
 
         Entry(BytesStreamOutput bytes, HandlesStreamOutput handles, LZFStreamOutput lzf) {
             this.bytes = bytes;
             this.handles = handles;
             this.lzf = lzf;
         }
+
+        /**
+         * Returns the underlying bytes without any resetting.
+         */
+        public BytesStreamOutput bytes() {
+            return bytes;
+        }
+
+        /**
+         * Returns cached bytes that are also reset.
+         */
+        public BytesStreamOutput cachedBytes() {
+            bytes.reset();
+            return bytes;
+        }
+
+        public LZFStreamOutput cachedLZFBytes() throws IOException {
+            lzf.reset();
+            return lzf;
+        }
+
+        public HandlesStreamOutput cachedHandlesLzfBytes() throws IOException {
+            handles.reset(lzf);
+            return handles;
+        }
+
+        public HandlesStreamOutput cachedHandlesBytes() throws IOException {
+            handles.reset(bytes);
+            return handles;
+        }
     }
 
-    private static final ThreadLocal<SoftReference<Entry>> cache = new ThreadLocal<SoftReference<Entry>>();
+    static class SoftWrapper<T> {
+        private SoftReference<T> ref;
 
-    static Entry instance() {
-        SoftReference<Entry> ref = cache.get();
-        Entry entry = ref == null ? null : ref.get();
-        if (entry == null) {
-            BytesStreamOutput bytes = new BytesStreamOutput();
-            HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
-            LZFStreamOutput lzf = new LZFStreamOutput(bytes, true);
-            entry = new Entry(bytes, handles, lzf);
-            cache.set(new SoftReference<Entry>(entry));
+        public SoftWrapper() {
         }
+
+        public void set(T ref) {
+            this.ref = new SoftReference<T>(ref);
+        }
+
+        public T get() {
+            return ref == null ? null : ref.get();
+        }
+
+        public void clear() {
+            ref = null;
+        }
+    }
+
+    private static final SoftWrapper<Queue<Entry>> cache = new SoftWrapper<Queue<Entry>>();
+    private static final AtomicInteger counter = new AtomicInteger();
+    private static final int BYTES_LIMIT = 10 * 1024 * 1024; // don't cache entries that are bigger than that...
+    private static final int COUNT_LIMIT = 100;
+
+    public static void clear() {
+        cache.clear();
+    }
+
+    public static Entry popEntry() {
+        Queue<Entry> ref = cache.get();
+        if (ref == null) {
+            return newEntry();
+        }
+        Entry entry = ref.poll();
+        if (entry == null) {
+            return newEntry();
+        }
+        counter.decrementAndGet();
         return entry;
     }
 
-    public static void clear() {
-        cache.remove();
-    }
-
-    /**
-     * Returns the cached thread local byte stream, with its internal stream cleared.
-     */
-    public static BytesStreamOutput cachedBytes() {
-        BytesStreamOutput os = instance().bytes;
-        os.reset();
-        return os;
-    }
-
-    public static LZFStreamOutput cachedLZFBytes() throws IOException {
-        LZFStreamOutput lzf = instance().lzf;
-        lzf.reset();
-        return lzf;
-    }
-
-    public static HandlesStreamOutput cachedHandlesLzfBytes() throws IOException {
-        Entry entry = instance();
-        HandlesStreamOutput os = entry.handles;
-        os.reset(entry.lzf);
-        return os;
-    }
-
-    public static HandlesStreamOutput cachedHandlesBytes() throws IOException {
-        Entry entry = instance();
-        HandlesStreamOutput os = entry.handles;
-        os.reset(entry.bytes);
-        return os;
+    public static void pushEntry(Entry entry) {
+        if (entry.bytes().unsafeByteArray().length > BYTES_LIMIT) {
+            return;
+        }
+        Queue<Entry> ref = cache.get();
+        if (ref == null) {
+            ref = new LinkedTransferQueue<Entry>();
+            cache.set(ref);
+        }
+        if (counter.incrementAndGet() > COUNT_LIMIT) {
+            counter.decrementAndGet();
+        } else {
+            ref.add(entry);
+        }
     }
 }

@@ -222,9 +222,14 @@ public class ClusterState {
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
-            BytesStreamOutput os = CachedStreamOutput.cachedBytes();
-            writeTo(state, os);
-            return os.copiedByteArray();
+            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+            try {
+                BytesStreamOutput os = cachedEntry.cachedBytes();
+                writeTo(state, os);
+                return os.copiedByteArray();
+            } finally {
+                CachedStreamOutput.pushEntry(cachedEntry);
+            }
         }
 
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {

@@ -43,8 +43,8 @@ public class LZFStreamOutput extends StreamOutput {
 
     public LZFStreamOutput(StreamOutput out, boolean neverClose) {
         this.neverClose = neverClose;
-        _encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE);
-        _recycler = BufferRecycler.instance();
+        _recycler = neverClose ? new BufferRecycler() : BufferRecycler.instance();
+        _encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE, _recycler);
         _outputStream = out;
         _outputBuffer = _recycler.allocOutputBuffer(OUTPUT_BUFFER_SIZE);
     }

@@ -18,8 +18,8 @@ public class LZFOutputStream extends OutputStream {
     protected int _position = 0;
 
     public LZFOutputStream(final OutputStream outputStream) {
-        _encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE);
         _recycler = BufferRecycler.instance();
+        _encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE, _recycler);
         _outputStream = outputStream;
         _outputBuffer = _recycler.allocOutputBuffer(OUTPUT_BUFFER_SIZE);
     }

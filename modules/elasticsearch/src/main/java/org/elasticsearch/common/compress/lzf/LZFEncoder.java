@@ -35,7 +35,7 @@ public class LZFEncoder {
      * Result consists of a sequence of chunks.
      */
     public static byte[] encode(byte[] data, int length) throws IOException {
-        ChunkEncoder enc = new ChunkEncoder(length);
+        ChunkEncoder enc = new ChunkEncoder(length, BufferRecycler.instance());
         byte[] result = encode(enc, data, length);
         // important: may be able to reuse buffers
         enc.close();

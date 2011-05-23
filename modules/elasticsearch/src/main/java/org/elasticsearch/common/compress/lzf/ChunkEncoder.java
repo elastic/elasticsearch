@@ -56,11 +56,12 @@ public class ChunkEncoder {
      * @param totalLength Total encoded length; used for calculating size
      *                    of hash table to use
      */
-    public ChunkEncoder(int totalLength) {
+    // ES: Added recycler as a parameter so we can control its caching
+    public ChunkEncoder(int totalLength, BufferRecycler recycler) {
         int largestChunkLen = Math.max(totalLength, LZFChunk.MAX_CHUNK_LEN);
 
         int suggestedHashLen = calcHashLen(largestChunkLen);
-        _recycler = BufferRecycler.instance();
+        _recycler = recycler;
         _hashTable = _recycler.allocEncodingHash(suggestedHashLen);
         _hashModulo = _hashTable.length - 1;
         // Ok, then, what's the worst case output buffer length?

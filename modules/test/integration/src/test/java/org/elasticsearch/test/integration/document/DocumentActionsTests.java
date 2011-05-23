@@ -199,6 +199,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             // test successful
             CountResponse countResponse = client1.prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
+            assertThat("Failures " + countResponse.shardFailures(), countResponse.shardFailures().size(), equalTo(0));
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));

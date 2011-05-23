@@ -24,3 +24,12 @@ plugins/river/twitter/build
 plugins/river/wikipedia/build
 plugins/transport/memcached/build
 plugins/transport/thrift/build
+
+## eclipse ignores (use 'gradle eclipse' to build eclipse projects)
+.project
+.classpath
+.settings
+*/.project
+*/.classpath
+*/.settings
+*/eclipse-build

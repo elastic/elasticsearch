@@ -2,6 +2,7 @@ dependsOn(':test-testng')
 
 apply plugin: 'java'
 apply plugin: 'maven'
+apply plugin: 'eclipse'
 
 archivesBaseName = "$project.archivesBaseName"
 
@@ -124,4 +125,8 @@ uploadArchives {
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jline') }
         }
     }
+}
+
+eclipseClasspath {
+    defaultOutputDir = file('build/eclipse-build')
 }

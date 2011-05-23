@@ -129,7 +129,7 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         builder.startObject(TextQueryParser.NAME);
         builder.startObject(name);
 
-        builder.field("text", text);
+        builder.field("query", text);
         if (type != null) {
             builder.field("type", type.toString().toLowerCase());
         }

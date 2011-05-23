@@ -2,6 +2,7 @@ dependsOn(':elasticsearch')
 
 apply plugin: 'java'
 apply plugin: 'maven'
+apply plugin: 'eclipse'
 
 archivesBaseName = "elasticsearch-hadoop"
 
@@ -130,4 +131,8 @@ uploadArchives {
             pom.dependencies = pom.dependencies.findAll {dep -> dep.scope != 'test' } // removes the test scoped ones
         }
     }
+}
+
+eclipseClasspath {
+    defaultOutputDir = file('build/eclipse-build')
 }

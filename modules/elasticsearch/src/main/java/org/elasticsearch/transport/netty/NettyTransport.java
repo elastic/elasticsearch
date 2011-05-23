@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
@@ -307,7 +308,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         threadPool.cached().execute(new Runnable() {
             @Override public void run() {
                 try {
-                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
+                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
                         NodeChannels nodeChannels = it.next();
                         it.remove();
                         nodeChannels.close();
@@ -331,7 +332,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                         serverBootstrap = null;
                     }
 
-                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
+                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
                         NodeChannels nodeChannels = it.next();
                         it.remove();
                         nodeChannels.close();
@@ -427,10 +428,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             options.withCompress(true);
         }
 
-        byte[] data = TransportStreams.buildRequest(requestId, action, message, options);
-
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
-        ChannelFuture channelFuture = targetChannel.write(buffer);
+        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+        TransportStreams.buildRequest(cachedEntry, requestId, action, message, options);
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(cachedEntry.bytes().unsafeByteArray(), 0, cachedEntry.bytes().size());
+        ChannelFuture future = targetChannel.write(buffer);
+        future.addListener(new CacheFutureListener(cachedEntry));
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future
 //        channelFuture.addListener(new ChannelFutureListener() {
 //            @Override public void operationComplete(ChannelFuture future) throws Exception {
@@ -641,4 +643,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         }
     }
+
+    public static class CacheFutureListener implements ChannelFutureListener {
+
+        private final CachedStreamOutput.Entry cachedEntry;
+
+        public CacheFutureListener(CachedStreamOutput.Entry cachedEntry) {
+            this.cachedEntry = cachedEntry;
+        }
+
+        @Override public void operationComplete(ChannelFuture channelFuture) throws Exception {
+            CachedStreamOutput.pushEntry(cachedEntry);
+        }
+    }
+
 }

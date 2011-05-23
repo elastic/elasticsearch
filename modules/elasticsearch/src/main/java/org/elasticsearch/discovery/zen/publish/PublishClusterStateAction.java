@@ -63,16 +63,18 @@ public class PublishClusterStateAction extends AbstractComponent {
         DiscoveryNode localNode = nodesProvider.nodes().localNode();
 
         // serialize the cluster state here, so we won't do it several times per node
+        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         byte[] clusterStateInBytes;
         try {
-            HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesLzfBytes();
+            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
             ClusterState.Builder.writeTo(clusterState, stream);
             stream.flush();
-            BytesStreamOutput wrapped = ((BytesStreamOutput) ((LZFStreamOutput) stream.wrappedOut()).wrappedOut());
-            clusterStateInBytes = wrapped.copiedByteArray();
+            clusterStateInBytes = cachedEntry.bytes().copiedByteArray();
         } catch (Exception e) {
             logger.warn("failed to serialize cluster_state before publishing it to nodes", e);
             return;
+        } finally {
+            CachedStreamOutput.pushEntry(cachedEntry);
         }
 
         for (final DiscoveryNode node : clusterState.nodes()) {

@@ -180,7 +180,7 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
                 innerCache.putIfAbsent(cacheKey, cacheValue);
             }
 
-            return cacheValue.value();
+            return cacheValue.value() == DocSet.EMPTY_DOC_SET ? null : cacheValue.value();
         }
 
         public String toString() {

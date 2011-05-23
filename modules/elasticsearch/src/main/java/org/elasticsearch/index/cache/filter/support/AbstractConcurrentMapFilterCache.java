@@ -171,7 +171,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
             if (prev != null) {
                 docSet = prev;
             }
-            return docSet;
+            return docSet == DocSet.EMPTY_DOC_SET ? null : docSet;
         }
 
         public String toString() {

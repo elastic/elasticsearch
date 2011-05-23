@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.filter;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.filter.soft.SoftFilterCache;
+import org.elasticsearch.index.cache.filter.node.NodeFilterCache;
 
 /**
  * @author kimchy (Shay Banon)
@@ -41,7 +41,7 @@ public class FilterCacheModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(FilterCache.class)
-                .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, SoftFilterCache.class, "org.elasticsearch.index.cache.filter.", "FilterCache"))
+                .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, NodeFilterCache.class, "org.elasticsearch.index.cache.filter.", "FilterCache"))
                 .in(Scopes.SINGLETON);
     }
 }

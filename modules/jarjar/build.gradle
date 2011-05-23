@@ -9,6 +9,7 @@ dependencies {
     runtime 'com.google.inject.extensions:guice-assisted-inject:2.0'
     runtime 'com.google.inject.extensions:guice-multibindings:2.0'
 
+    runtime 'com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru:1.2'
     runtime 'com.google.guava:guava:r09'
     runtime 'org.elasticsearch:es-trove:3.0.0rc1'
     runtime 'org.elasticsearch:es-jsr166y:20110209'
@@ -40,12 +41,13 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.runtime.files.findAll {file ->
-                ['inject', 'codec', 'mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'javax.inject', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
+                ['inject', 'codec', 'mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'javax.inject', 'aopalliance', 'guava', 'concurrentlinkedhashmap', 'trove', 'jsr166y'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")
                 }
             }
+            rule pattern: "com.googlecode.concurrentlinkedhashmap.**", result: "org.elasticsearch.common.concurrentlinkedhashmap.@1"
             rule pattern: "com.google.common.**", result: "org.elasticsearch.common.@1"
             rule pattern: "gnu.trove.**", result: "org.elasticsearch.common.trove.@1"
             rule pattern: "jsr166y.**", result: "org.elasticsearch.common.util.concurrent.jsr166y.@1"

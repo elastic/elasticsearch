@@ -21,15 +21,10 @@ package org.elasticsearch.index.cache.filter.support;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.common.lucene.docset.OpenBitDocSet;
-import org.elasticsearch.common.lucene.docset.SlicedOpenBitSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -51,7 +46,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener {
 
-    final ConcurrentMap<Object, ReaderValue> cache;
+    final ConcurrentMap<Object, FilterCacheValue<ConcurrentMap<Filter, DocSet>>> cache;
 
     final boolean labEnabled;
     final ByteSizeValue labMaxAlloc;
@@ -62,8 +57,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-        // weak keys is fine, it will only be cleared once IndexReader references will be removed
-        // (assuming clear(...) will not be called)
         this.cache = buildCache();
 
         // The LAB is stored per reader, so whole chunks will be cleared once reader is discarded.
@@ -81,8 +74,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         this.labChunkSizeBytes = (int) (labChunkSize.bytes() / RamUsage.NUM_BYTES_LONG);
     }
 
-    protected ConcurrentMap<Object, ReaderValue> buildCache() {
-        return new ConcurrentHashMap<Object, ReaderValue>();
+    protected ConcurrentMap<Object, FilterCacheValue<ConcurrentMap<Filter, DocSet>>> buildCache() {
+        return new ConcurrentHashMap<Object, FilterCacheValue<ConcurrentMap<Filter, DocSet>>>();
     }
 
     protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
@@ -98,18 +91,18 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void finished(IndexReader reader) {
-        ReaderValue readerValue = cache.remove(reader.getCoreCacheKey());
+        FilterCacheValue<ConcurrentMap<Filter, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (readerValue != null) {
-            readerValue.filters().clear();
+            readerValue.value().clear();
         }
     }
 
     @Override public void clear(IndexReader reader) {
-        ReaderValue readerValue = cache.remove(reader.getCoreCacheKey());
+        FilterCacheValue<ConcurrentMap<Filter, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (readerValue != null) {
-            readerValue.filters().clear();
+            readerValue.value().clear();
         }
     }
 
@@ -117,9 +110,9 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         long sizeInBytes = 0;
         long totalCount = 0;
         int segmentsCount = 0;
-        for (ReaderValue readerValue : cache.values()) {
+        for (FilterCacheValue<ConcurrentMap<Filter, DocSet>> readerValue : cache.values()) {
             segmentsCount++;
-            for (DocSet docSet : readerValue.filters().values()) {
+            for (DocSet docSet : readerValue.value().values()) {
                 sizeInBytes += docSet.sizeInBytes();
                 totalCount++;
             }
@@ -154,27 +147,27 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ReaderValue readerValue = cache.cache.get(reader.getCoreCacheKey());
-            if (readerValue == null) {
+            FilterCacheValue<ConcurrentMap<Filter, DocSet>> cacheValue = cache.cache.get(reader.getCoreCacheKey());
+            if (cacheValue == null) {
                 LongsLAB longsLAB = null;
                 if (cache.labEnabled) {
                     longsLAB = new LongsLAB(cache.labChunkSizeBytes, cache.labMaxAllocBytes);
                 }
-                readerValue = new ReaderValue(cache.buildFilterMap(), longsLAB);
-                ReaderValue prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), readerValue);
+                cacheValue = new FilterCacheValue<ConcurrentMap<Filter, DocSet>>(cache.buildFilterMap(), longsLAB);
+                FilterCacheValue<ConcurrentMap<Filter, DocSet>> prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), cacheValue);
                 if (prev != null) {
-                    readerValue = prev;
+                    cacheValue = prev;
                 } else {
                     reader.addReaderFinishedListener(cache);
                 }
             }
-            DocSet docSet = readerValue.filters().get(filter);
+            DocSet docSet = cacheValue.value().get(filter);
             if (docSet != null) {
                 return docSet;
             }
             DocIdSet docIdSet = filter.getDocIdSet(reader);
-            docSet = cacheable(reader, readerValue, docIdSet);
-            DocSet prev = readerValue.filters().putIfAbsent(filter, docSet);
+            docSet = FilterCacheValue.cacheable(reader, cacheValue.longsLAB(), docIdSet);
+            DocSet prev = cacheValue.value().putIfAbsent(filter, docSet);
             if (prev != null) {
                 docSet = prev;
             }
@@ -192,66 +185,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
         public int hashCode() {
             return filter.hashCode() ^ 0x1117BF25;
-        }
-
-        private DocSet cacheable(IndexReader reader, ReaderValue readerValue, DocIdSet set) throws IOException {
-            if (set == null) {
-                return DocSet.EMPTY_DOC_SET;
-            }
-            if (set == DocIdSet.EMPTY_DOCIDSET) {
-                return DocSet.EMPTY_DOC_SET;
-            }
-
-            DocIdSetIterator it = set.iterator();
-            if (it == null) {
-                return DocSet.EMPTY_DOC_SET;
-            }
-            int doc = it.nextDoc();
-            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
-                return DocSet.EMPTY_DOC_SET;
-            }
-
-            // we have a LAB, check if can be used...
-            if (readerValue.longsLAB() == null) {
-                return DocSets.cacheable(reader, set);
-            }
-
-            int numOfWords = OpenBitSet.bits2words(reader.maxDoc());
-            LongsLAB.Allocation allocation = readerValue.longsLAB().allocateLongs(numOfWords);
-            if (allocation == null) {
-                return DocSets.cacheable(reader, set);
-            }
-            // we have an allocation, use it to create SlicedOpenBitSet
-            if (set instanceof OpenBitSet) {
-                return new SlicedOpenBitSet(allocation.getData(), allocation.getOffset(), (OpenBitSet) set);
-            } else if (set instanceof OpenBitDocSet) {
-                return new SlicedOpenBitSet(allocation.getData(), allocation.getOffset(), ((OpenBitDocSet) set).set());
-            } else {
-                SlicedOpenBitSet slicedSet = new SlicedOpenBitSet(allocation.getData(), numOfWords, allocation.getOffset());
-                slicedSet.fastSet(doc); // we already have an open iterator, so use it, and don't forget to set the initial one
-                while ((doc = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    slicedSet.fastSet(doc);
-                }
-                return slicedSet;
-            }
-        }
-    }
-
-    public static class ReaderValue {
-        private final ConcurrentMap<Filter, DocSet> filters;
-        private final LongsLAB longsLAB;
-
-        public ReaderValue(ConcurrentMap<Filter, DocSet> filters, LongsLAB longsLAB) {
-            this.filters = filters;
-            this.longsLAB = longsLAB;
-        }
-
-        public ConcurrentMap<Filter, DocSet> filters() {
-            return filters;
-        }
-
-        public LongsLAB longsLAB() {
-            return longsLAB;
         }
     }
 }

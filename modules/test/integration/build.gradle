@@ -1,6 +1,7 @@
 dependsOn(':elasticsearch')
 
 apply plugin: 'java'
+apply plugin: 'eclipse'
 
 archivesBaseName = "$rootProject.archivesBaseName-$project.archivesBaseName"
 
@@ -14,3 +15,8 @@ sourceSets.test.resources.srcDirs 'src/test/java'
 dependencies {
     compile project(':elasticsearch')
 }
+
+eclipseClasspath {
+    defaultOutputDir = file('build/eclipse-build')
+}
+

@@ -33,6 +33,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -53,6 +54,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final String[] allIndices;
 
     private final ImmutableSet<String> aliases;
+
+    // This map indicates if an alias associated with an index is filtering alias
+    private final ImmutableMap<String, ImmutableMap<String, Boolean>> indexToAliasFilteringRequiredMap;
 
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
 
@@ -78,6 +82,23 @@ public class MetaData implements Iterable<IndexMetaData> {
             aliases.addAll(indexMetaData.aliases().keySet());
         }
         this.aliases = ImmutableSet.copyOf(aliases);
+
+        // build filtering required map
+        MapBuilder<String, ImmutableMap<String, Boolean>> filteringRequiredMap = newMapBuilder();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            MapBuilder<String, Boolean> indexFilteringRequiredMap = newMapBuilder();
+            // Filtering is not required for the index itself
+            indexFilteringRequiredMap.put(indexMetaData.index(), false);
+            for (AliasMetaData aliasMetaData : indexMetaData.aliases().values()) {
+                if (aliasMetaData.filter() != null) {
+                    indexFilteringRequiredMap.put(aliasMetaData.alias(), true);
+                } else {
+                    indexFilteringRequiredMap.put(aliasMetaData.alias(), false);
+                }
+            }
+            filteringRequiredMap.put(indexMetaData.index(), indexFilteringRequiredMap.immutableMap());
+        }
+        indexToAliasFilteringRequiredMap = filteringRequiredMap.immutableMap();
 
         // build aliasAndIndex to Index map
         MapBuilder<String, Set<String>> tmpAliasAndIndexToIndexBuilder = newMapBuilder();
@@ -251,6 +272,66 @@ public class MetaData implements Iterable<IndexMetaData> {
     public int getTotalNumberOfShards() {
         return totalNumberOfShards();
     }
+
+
+    /**
+     * Iterates through the list of indices and selects the effective list of filtering aliases for the
+     * given index.
+     *
+     * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
+     * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.</p>
+     */
+    public String[] filteringAliases(String index, String... indices) {
+        if (indices == null || indices.length == 0) {
+            return null;
+        }
+        // optimize for the most common single index/alias scenario
+        if (indices.length == 1) {
+            String alias = indices[0];
+            // This list contains "_all" - no filtering needed
+            if (alias.equals("_all")) {
+                return null;
+            }
+            ImmutableMap<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
+            if (aliasToFilteringRequiredMap == null) {
+                // Shouldn't happen
+                throw new IndexMissingException(new Index(index));
+            }
+            Boolean filteringRequired = aliasToFilteringRequiredMap.get(alias);
+            if (filteringRequired == null || !filteringRequired) {
+                return null;
+            }
+            return new String[]{alias};
+        }
+        List<String> filteringAliases = null;
+        for (String alias : indices) {
+            ImmutableMap<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
+            if (aliasToFilteringRequiredMap == null) {
+                // Shouldn't happen
+                throw new IndexMissingException(new Index(index));
+            }
+            Boolean filteringRequired = aliasToFilteringRequiredMap.get(alias);
+            // Check that this is an alias for the current index
+            // Otherwise - skip it
+            if (filteringRequired != null) {
+                if (filteringRequired) {
+                    // If filtering required - add it to the list of filters
+                    if (filteringAliases == null) {
+                        filteringAliases = newArrayList();
+                    }
+                    filteringAliases.add(alias);
+                } else {
+                    // If not, we have a non filtering alias for this index - no filtering needed
+                    return null;
+                }
+            }
+        }
+        if (filteringAliases == null) {
+            return null;
+        }
+        return filteringAliases.toArray(new String[filteringAliases.size()]);
+    }
+
 
     @Override public UnmodifiableIterator<IndexMetaData> iterator() {
         return indices.values().iterator();

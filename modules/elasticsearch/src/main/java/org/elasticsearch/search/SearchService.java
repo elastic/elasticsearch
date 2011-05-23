@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
@@ -395,6 +396,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.size() == -1) {
                 context.size(10);
             }
+
+            Filter aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
+            context.aliasFilter(aliasFilter);
 
             // pre process
             dfsPhase.preProcess(context);

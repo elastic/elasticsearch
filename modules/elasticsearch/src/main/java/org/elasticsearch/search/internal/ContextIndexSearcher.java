@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 
@@ -165,16 +166,30 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
         }
 
+        Filter combinedFilter;
+        if (filter == null) {
+            combinedFilter = searchContext.aliasFilter();
+        } else {
+            if (searchContext.aliasFilter() != null) {
+                XBooleanFilter booleanFilter = new XBooleanFilter();
+                booleanFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
+                booleanFilter.add(new FilterClause(searchContext.aliasFilter(), BooleanClause.Occur.MUST));
+                combinedFilter = booleanFilter;
+            } else {
+                combinedFilter = filter;
+            }
+        }
+
         // we only compute the doc id set once since within a context, we execute the same query always...
         if (searchContext.timeout() != null) {
             searchContext.queryResult().searchTimedOut(false);
             try {
-                super.search(weight, filter, collector);
+                super.search(weight, combinedFilter, collector);
             } catch (TimeLimitingCollector.TimeExceededException e) {
                 searchContext.queryResult().searchTimedOut(true);
             }
         } else {
-            super.search(weight, filter, collector);
+            super.search(weight, combinedFilter, collector);
         }
     }
 }

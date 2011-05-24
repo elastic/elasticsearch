@@ -46,15 +46,18 @@ public class TermFilter extends Filter {
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        OpenBitSet result = new OpenBitSet(reader.maxDoc());
+        OpenBitSet result = null;
         TermDocs td = reader.termDocs();
         try {
             td.seek(term);
-            while (td.next()) {
+            if (td.next()) {
+                result = new OpenBitSet(reader.maxDoc());
                 result.fastSet(td.doc());
+                while (td.next()) {
+                    result.fastSet(td.doc());
+                }
             }
-        }
-        finally {
+        } finally {
             td.close();
         }
         return result;

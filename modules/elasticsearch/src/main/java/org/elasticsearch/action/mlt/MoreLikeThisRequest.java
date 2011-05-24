@@ -31,7 +31,7 @@ import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -323,7 +323,7 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
-        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
+        BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.searchSource = bos.unsafeByteArray();
         this.searchSourceOffset = 0;
         this.searchSourceLength = bos.size();

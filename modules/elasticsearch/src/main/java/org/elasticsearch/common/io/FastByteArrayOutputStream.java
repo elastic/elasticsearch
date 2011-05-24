@@ -30,7 +30,7 @@ import java.util.Arrays;
  *
  * @author kimchy (Shay Banon)
  */
-public class FastByteArrayOutputStream extends OutputStream {
+public class FastByteArrayOutputStream extends OutputStream implements BytesStream {
 
     /**
      * A thread local based cache of {@link FastByteArrayOutputStream}.

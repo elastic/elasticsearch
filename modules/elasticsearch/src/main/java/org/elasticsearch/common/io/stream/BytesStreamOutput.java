@@ -19,13 +19,15 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.io.BytesStream;
+
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class BytesStreamOutput extends StreamOutput {
+public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     /**
      * The buffer where data is stored.

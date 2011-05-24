@@ -63,6 +63,10 @@ public class XContentRestResponse extends AbstractRestResponse {
         this.prefixUtf8Result = startJsonp(request);
     }
 
+    public XContentBuilder builder() {
+        return this.builder;
+    }
+
     @Override public String contentType() {
         return builder.contentType().restContentType();
     }

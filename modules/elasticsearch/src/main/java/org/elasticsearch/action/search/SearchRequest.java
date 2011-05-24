@@ -29,7 +29,7 @@ import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -256,7 +256,7 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
+        BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.source = bos.unsafeByteArray();
         this.sourceOffset = 0;
         this.sourceLength = bos.size();
@@ -347,7 +347,7 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
-        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
+        BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.extraSource = bos.unsafeByteArray();
         this.extraSourceOffset = 0;
         this.extraSourceLength = bos.size();

@@ -19,16 +19,27 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.buffer.ChannelBuffers;
 import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.netty.channel.ChannelFuture;
 import org.elasticsearch.common.netty.channel.ChannelFutureListener;
-import org.elasticsearch.common.netty.handler.codec.http.*;
+import org.elasticsearch.common.netty.handler.codec.http.Cookie;
+import org.elasticsearch.common.netty.handler.codec.http.CookieDecoder;
+import org.elasticsearch.common.netty.handler.codec.http.CookieEncoder;
+import org.elasticsearch.common.netty.handler.codec.http.DefaultHttpResponse;
+import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
+import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
+import org.elasticsearch.common.netty.handler.codec.http.HttpResponseStatus;
+import org.elasticsearch.common.netty.handler.codec.http.HttpVersion;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpException;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.IOException;
 import java.util.Set;
@@ -74,12 +85,27 @@ public class NettyHttpChannel implements HttpChannel {
         }
 
         // Convert the response content to a ChannelBuffer.
+        ChannelFutureListener releaseContentListener = null;
         ChannelBuffer buf;
         try {
-            if (response.contentThreadSafe()) {
-                buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+            if (response instanceof XContentRestResponse) {
+                // if its a builder based response, and it was created with a CachedStreamOutput, we can release it
+                // after we write the response, and no need to do an extra copy because its not thread safe
+                XContentBuilder builder = ((XContentRestResponse) response).builder();
+                if (builder.payload() instanceof CachedStreamOutput.Entry) {
+                    releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
+                    buf = ChannelBuffers.wrappedBuffer(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
+                } else if (response.contentThreadSafe()) {
+                    buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+                } else {
+                    buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+                }
             } else {
-                buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+                if (response.contentThreadSafe()) {
+                    buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+                } else {
+                    buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+                }
             }
         } catch (IOException e) {
             throw new HttpException("Failed to convert response to bytes", e);
@@ -116,6 +142,9 @@ public class NettyHttpChannel implements HttpChannel {
 
         // Write the response.
         ChannelFuture future = channel.write(resp);
+        if (releaseContentListener != null) {
+            future.addListener(releaseContentListener);
+        }
 
         // Close the connection after the write operation is done if necessary.
         if (close) {

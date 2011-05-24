@@ -21,14 +21,20 @@ package org.elasticsearch.memcached.netty;
 
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.buffer.ChannelBuffers;
 import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelFuture;
+import org.elasticsearch.common.netty.channel.ChannelFutureListener;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.memcached.MemcachedRestRequest;
 import org.elasticsearch.memcached.MemcachedTransportException;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.nio.charset.Charset;
 
@@ -103,10 +109,35 @@ public class MemcachedRestChannel implements RestChannel {
                 if (keyLength > 0) {
                     writeBuffer.writeBytes(request.getUriBytes());
                 }
+                ChannelFutureListener releaseContentListener = null;
                 if (dataLength > 0) {
-                    writeBuffer.writeBytes(response.content(), 0, response.contentLength());
+                    if (response instanceof XContentRestResponse) {
+                        // if its a builder based response, and it was created with a CachedStreamOutput, we can release it
+                        // after we write the response, and no need to do an extra copy because its not thread safe
+                        XContentBuilder builder = ((XContentRestResponse) response).builder();
+                        if (builder.payload() instanceof CachedStreamOutput.Entry) {
+                            releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
+                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
+                            writeBuffer = ChannelBuffers.wrappedBuffer(writeBuffer, buf);
+                        } else if (response.contentThreadSafe()) {
+                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
+                            writeBuffer = ChannelBuffers.wrappedBuffer(writeBuffer, buf);
+                        } else {
+                            writeBuffer.writeBytes(response.content(), 0, response.contentLength());
+                        }
+                    } else {
+                        if (response.contentThreadSafe()) {
+                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+                            writeBuffer = ChannelBuffers.wrappedBuffer(writeBuffer, buf);
+                        } else {
+                            writeBuffer.writeBytes(response.content(), 0, response.contentLength());
+                        }
+                    }
                 }
-                channel.write(writeBuffer);
+                ChannelFuture future = channel.write(writeBuffer);
+                if (releaseContentListener != null) {
+                    future.addListener(releaseContentListener);
+                }
             } catch (Exception e) {
                 throw new MemcachedTransportException("Failed to write response", e);
             }

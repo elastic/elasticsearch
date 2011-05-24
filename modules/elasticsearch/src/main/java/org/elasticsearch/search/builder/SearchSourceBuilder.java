@@ -23,7 +23,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.trove.iterator.TObjectFloatIterator;
 import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -390,7 +390,7 @@ public class SearchSourceBuilder implements ToXContent {
         }
     }
 
-    public FastByteArrayOutputStream buildAsUnsafeBytes(XContentType contentType) throws SearchSourceBuilderException {
+    public BytesStream buildAsUnsafeBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -510,7 +510,7 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (indexBoost != null) {
             builder.startObject("indices_boost");
-            for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
+            for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext(); ) {
                 it.advance();
                 builder.field(it.key(), it.value());
             }

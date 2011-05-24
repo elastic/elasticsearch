@@ -34,7 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -48,7 +48,12 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -194,7 +199,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         try {
             XContentBuilder builder = XContentFactory.smileBuilder()
                     .startObject().field("query", queryBuilder).endObject();
-            FastByteArrayOutputStream unsafeBytes = builder.unsafeStream();
+            BytesStream unsafeBytes = builder.unsafeStream();
             addQuery(name, unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size());
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to add query [" + name + "]", e);

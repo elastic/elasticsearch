@@ -17,21 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.xcontent.XContentType;
+public interface BytesStream {
 
-/**
- * @author kimchy (shay.banon)
- */
-public interface QueryBuilder {
+    byte[] unsafeByteArray();
 
-    BytesStream buildAsUnsafeBytes() throws QueryBuilderException;
+    int size();
 
-    BytesStream buildAsUnsafeBytes(XContentType contentType) throws QueryBuilderException;
-
-    byte[] buildAsBytes() throws QueryBuilderException;
-
-    byte[] buildAsBytes(XContentType contentType) throws QueryBuilderException;
+    byte[] copiedByteArray();
 }

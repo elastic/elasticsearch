@@ -26,7 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -162,7 +162,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
     @Override public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            FastByteArrayOutputStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
+            BytesStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
             parser = XContentFactory.xContent(unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size()).createParser(unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size());
             return parse(cache.get(), parser);
         } catch (QueryParsingException e) {

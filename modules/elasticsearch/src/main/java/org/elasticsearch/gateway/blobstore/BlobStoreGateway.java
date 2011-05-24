@@ -23,17 +23,26 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.blobstore.*;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFEncoder;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.gateway.shared.SharedStorageGateway;
 import org.elasticsearch.index.gateway.CommitPoint;
@@ -142,28 +151,24 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     @Override public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);
-        XContentBuilder builder;
+        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            builder = XContentFactory.contentBuilder(XContentType.JSON);
+            StreamOutput out;
+            if (compress) {
+                out = cachedEntry.cachedLZFBytes();
+            } else {
+                out = cachedEntry.cachedBytes();
+            }
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
             builder.startObject();
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-        } catch (IOException e) {
-            throw new GatewayException("Failed to serialize metadata into gateway", e);
-        }
-
-        try {
-            byte[] data = builder.unsafeBytes();
-            int size = builder.unsafeBytesLength();
-
-            if (compress) {
-                data = LZFEncoder.encode(data, size);
-                size = data.length;
-            }
-
-            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(data, 0, size), size);
+            builder.close();
+            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(cachedEntry.bytes().unsafeByteArray(), 0, cachedEntry.bytes().size()), cachedEntry.bytes().size());
         } catch (IOException e) {
             throw new GatewayException("Failed to write metadata [" + newMetaData + "]", e);
+        } finally {
+            CachedStreamOutput.pushEntry(cachedEntry);
         }
 
         currentIndex++;

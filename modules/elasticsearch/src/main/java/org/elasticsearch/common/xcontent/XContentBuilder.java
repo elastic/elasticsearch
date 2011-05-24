@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.ReadableInstant;
@@ -63,14 +65,6 @@ public final class XContentBuilder {
         XContentBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
     }
 
-    private XContentGenerator generator;
-
-    private final OutputStream bos;
-
-    private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
-
-    private StringBuilder cachedStringBuilder;
-
     /**
      * Constructs a new cached builder over a cached (thread local) {@link FastByteArrayOutputStream}.
      */
@@ -85,13 +79,34 @@ public final class XContentBuilder {
         return new XContentBuilder(xContent, new FastByteArrayOutputStream());
     }
 
+
+    private XContentGenerator generator;
+
+    private final OutputStream bos;
+
+    private final Object payload;
+
+    private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
+
+    private StringBuilder cachedStringBuilder;
+
+
     /**
      * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
+        this(xContent, bos, null);
+    }
+
+    /**
+     * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
+     * to call {@link #close()} when the builder is done with.
+     */
+    public XContentBuilder(XContent xContent, OutputStream bos, @Nullable Object payload) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos);
+        this.payload = payload;
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
@@ -919,6 +934,14 @@ public final class XContentBuilder {
         }
     }
 
+    @Nullable public Object payload() {
+        return this.payload;
+    }
+
+    public OutputStream stream() {
+        return this.bos;
+    }
+
     /**
      * Returns the unsafe bytes (thread local bound). Make sure to use it with
      * {@link #unsafeBytesLength()}.
@@ -927,7 +950,7 @@ public final class XContentBuilder {
      */
     public byte[] unsafeBytes() throws IOException {
         close();
-        return ((FastByteArrayOutputStream) bos).unsafeByteArray();
+        return ((BytesStream) bos).unsafeByteArray();
     }
 
     /**
@@ -938,15 +961,15 @@ public final class XContentBuilder {
      */
     public int unsafeBytesLength() throws IOException {
         close();
-        return ((FastByteArrayOutputStream) bos).size();
+        return ((BytesStream) bos).size();
     }
 
     /**
      * Returns the actual stream used.
      */
-    public FastByteArrayOutputStream unsafeStream() throws IOException {
+    public BytesStream unsafeStream() throws IOException {
         close();
-        return (FastByteArrayOutputStream) bos;
+        return (BytesStream) bos;
     }
 
     /**
@@ -956,7 +979,7 @@ public final class XContentBuilder {
      */
     public byte[] copiedBytes() throws IOException {
         close();
-        return ((FastByteArrayOutputStream) bos).copiedByteArray();
+        return ((BytesStream) bos).copiedByteArray();
     }
 
     /**

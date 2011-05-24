@@ -30,7 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -171,7 +171,7 @@ public class CountRequest extends BroadcastOperationRequest {
      * @see org.elasticsearch.index.query.xcontent.QueryBuilders
      */
     @Required public CountRequest query(QueryBuilder queryBuilder) {
-        FastByteArrayOutputStream bos = queryBuilder.buildAsUnsafeBytes();
+        BytesStream bos = queryBuilder.buildAsUnsafeBytes();
         this.querySource = bos.unsafeByteArray();
         this.querySourceOffset = 0;
         this.querySourceLength = bos.size();

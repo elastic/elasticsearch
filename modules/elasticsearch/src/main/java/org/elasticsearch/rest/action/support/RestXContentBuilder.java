@@ -22,8 +22,13 @@ package org.elasticsearch.rest.action.support;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -45,7 +50,8 @@ public class RestXContentBuilder {
             // default to JSON
             contentType = XContentType.JSON;
         }
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), cachedEntry.cachedBytes(), cachedEntry);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }

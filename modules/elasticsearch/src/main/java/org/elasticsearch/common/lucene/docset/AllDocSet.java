@@ -53,13 +53,13 @@ public class AllDocSet extends DocSet {
         return new AllDocIdSetIterator(maxDoc);
     }
 
-    private final class AllDocIdSetIterator extends DocIdSetIterator {
+    public static final class AllDocIdSetIterator extends DocIdSetIterator {
 
         private final int maxDoc;
 
         private int doc = -1;
 
-        private AllDocIdSetIterator(int maxDoc) {
+        public AllDocIdSetIterator(int maxDoc) {
             this.maxDoc = maxDoc;
         }
 

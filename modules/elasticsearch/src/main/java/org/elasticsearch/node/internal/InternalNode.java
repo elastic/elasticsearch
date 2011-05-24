@@ -58,6 +58,7 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.filter.IndicesNodeFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
 import org.elasticsearch.jmx.JmxModule;
@@ -257,6 +258,7 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
+        injector.getInstance(IndicesNodeFilterCache.class).close();
         injector.getInstance(IndexingMemoryBufferController.class).close();
         injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("routing");

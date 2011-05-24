@@ -19,7 +19,9 @@
 
 package org.elasticsearch.transport.support;
 
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseOptions;
 
@@ -31,9 +33,10 @@ import java.io.IOException;
 public class TransportStreams {
 
     public static final int HEADER_SIZE = 4 + 8 + 1;
+    public static final byte[] HEADER_PLACEHOLDER = new byte[HEADER_SIZE];
 
     public static void writeHeader(byte[] data, int dataLength, long requestId, byte status) {
-        writeInt(data, 0, dataLength + 9);  // add the requestId and the status
+        writeInt(data, 0, dataLength - 4);  // no need for the header, already there
         writeLong(data, 4, requestId);
         data[12] = status;
     }
@@ -96,58 +99,43 @@ public class TransportStreams {
         return value;
     }
 
-    public static byte[] buildRequest(final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException {
+    public static void buildRequest(CachedStreamOutput.Entry cachedEntry, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException {
         byte status = 0;
         status = TransportStreams.statusSetRequest(status);
 
-        BytesStreamOutput wrapped;
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesLzfBytes();
+            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
+            cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             stream.writeUTF(action);
             message.writeTo(stream);
             stream.flush();
-            wrapped = ((BytesStreamOutput) ((LZFStreamOutput) stream.wrappedOut()).wrappedOut());
-            stream.cleanHandles();
         } else {
-            HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesBytes();
+            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             stream.writeUTF(action);
             message.writeTo(stream);
             stream.flush();
-            wrapped = ((BytesStreamOutput) stream.wrappedOut());
-            stream.cleanHandles();
         }
-
-        byte[] data = new byte[HEADER_SIZE + wrapped.size()];
-        TransportStreams.writeHeader(data, wrapped.size(), requestId, status);
-        System.arraycopy(wrapped.unsafeByteArray(), 0, data, HEADER_SIZE, wrapped.size());
-
-        return data;
+        TransportStreams.writeHeader(cachedEntry.bytes().unsafeByteArray(), cachedEntry.bytes().size(), requestId, status);
     }
 
-    public static byte[] buildResponse(final long requestId, Streamable message, TransportResponseOptions options) throws IOException {
+    public static void buildResponse(CachedStreamOutput.Entry cachedEntry, final long requestId, Streamable message, TransportResponseOptions options) throws IOException {
         byte status = 0;
         status = TransportStreams.statusSetResponse(status);
 
-        BytesStreamOutput wrapped;
         if (options.compress()) {
             status = TransportStreams.statusSetCompress(status);
-            HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesLzfBytes();
+            HandlesStreamOutput stream = cachedEntry.cachedHandlesLzfBytes();
+            cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             message.writeTo(stream);
             stream.flush();
-            wrapped = ((BytesStreamOutput) ((LZFStreamOutput) stream.wrappedOut()).wrappedOut());
         } else {
-            HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesBytes();
+            HandlesStreamOutput stream = cachedEntry.cachedHandlesBytes();
+            cachedEntry.bytes().write(HEADER_PLACEHOLDER);
             message.writeTo(stream);
             stream.flush();
-            wrapped = ((BytesStreamOutput) stream.wrappedOut());
         }
-
-
-        byte[] data = new byte[HEADER_SIZE + wrapped.size()];
-        TransportStreams.writeHeader(data, wrapped.size(), requestId, status);
-        System.arraycopy(wrapped.unsafeByteArray(), 0, data, HEADER_SIZE, wrapped.size());
-
-        return data;
+        TransportStreams.writeHeader(cachedEntry.bytes().unsafeByteArray(), cachedEntry.bytes().size(), requestId, status);
     }
 }

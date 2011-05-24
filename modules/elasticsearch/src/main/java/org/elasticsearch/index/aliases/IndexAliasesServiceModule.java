@@ -17,31 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.index.aliases;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.filter.node.NodeFilterCache;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author imotov
  */
-public class FilterCacheModule extends AbstractModule {
-
-    public static final class FilterCacheSettings {
-        public static final String FILTER_CACHE_TYPE = "index.cache.filter.type";
-    }
-
-    private final Settings settings;
-
-    public FilterCacheModule(Settings settings) {
-        this.settings = settings;
-    }
+public class IndexAliasesServiceModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(FilterCache.class)
-                .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, NodeFilterCache.class, "org.elasticsearch.index.cache.filter.", "FilterCache"))
-                .in(Scopes.SINGLETON);
+        bind(IndexAliasesService.class).asEagerSingleton();
     }
 }

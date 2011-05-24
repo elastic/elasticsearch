@@ -181,11 +181,11 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
-            @Override public void onPing(PingResponse[] pings) {
-                response.set(pings);
-                latch.countDown();
-            }
-        }, timeout);
+                    @Override public void onPing(PingResponse[] pings) {
+                        response.set(pings);
+                        latch.countDown();
+                    }
+                }, timeout);
         try {
             latch.await();
             return response.get();
@@ -219,17 +219,20 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private void sendPingRequest(int id, boolean remove) {
         synchronized (sendMutex) {
+            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                HandlesStreamOutput out = CachedStreamOutput.cachedHandlesBytes();
+                HandlesStreamOutput out = cachedEntry.cachedHandlesBytes();
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
-                datagramPacketSend.setData(((BytesStreamOutput) out.wrappedOut()).copiedByteArray());
+                datagramPacketSend.setData(cachedEntry.bytes().copiedByteArray());
             } catch (IOException e) {
                 if (remove) {
                     receivedResponses.remove(id);
                 }
                 throw new ZenPingException("Failed to serialize ping request", e);
+            } finally {
+                CachedStreamOutput.pushEntry(cachedEntry);
             }
             try {
                 multicastSocket.send(datagramPacketSend);

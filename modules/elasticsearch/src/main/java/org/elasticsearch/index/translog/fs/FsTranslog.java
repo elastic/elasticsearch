@@ -140,8 +140,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override public void add(Operation operation) throws TranslogException {
+        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            BytesStreamOutput out = CachedStreamOutput.cachedBytes();
+            BytesStreamOutput out = cachedEntry.cachedBytes();
             out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();
@@ -164,6 +165,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             }
         } catch (Exception e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
+        } finally {
+            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 

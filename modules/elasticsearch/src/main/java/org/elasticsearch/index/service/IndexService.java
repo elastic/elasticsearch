@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
@@ -55,6 +56,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexQueryParserService queryParserService();
 
     SimilarityService similarityService();
+
+    IndexAliasesService aliasesService();
 
     IndexEngine engine();
 

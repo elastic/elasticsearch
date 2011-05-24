@@ -20,6 +20,8 @@
 package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 
 import java.io.*;
 
@@ -160,9 +162,14 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static byte[] copyToByteArray(InputStream in) throws IOException {
-        FastByteArrayOutputStream out = FastByteArrayOutputStream.Cached.cached();
-        copy(in, out);
-        return out.copiedByteArray();
+        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+        try {
+            BytesStreamOutput out = cachedEntry.cachedBytes();
+            copy(in, out);
+            return out.copiedByteArray();
+        } finally {
+            CachedStreamOutput.pushEntry(cachedEntry);
+        }
     }
 
 

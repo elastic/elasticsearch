@@ -52,15 +52,15 @@ public class Ec2NameResolver implements CustomNameResolver {
 	 */
 	private static enum Ec2HostnameType {
 
-		PRIVATE_IPv4("_ec2:privateIpv4_", "local-ipv4"),
-		PRIVATE_DNS ("_ec2:privateDns_",  "local-hostname"),
-		PUBLIC_IPv4 ("_ec2:publicIpv4_",  "public-ipv4"),
-		PUBLIC_DNS  ("_ec2:publicDns_",   "public-hostname"),
+		PRIVATE_IPv4("ec2:privateIpv4", "local-ipv4"),
+		PRIVATE_DNS ("ec2:privateDns",  "local-hostname"),
+		PUBLIC_IPv4 ("ec2:publicIpv4",  "public-ipv4"),
+		PUBLIC_DNS  ("ec2:publicDns",   "public-hostname"),
 
 		// some less verbose defaults
-		PUBLIC_IP   ("_ec2:publicIp_",    PUBLIC_IPv4.ec2Name),
-		PRIVATE_IP  ("_ec2:privateIp_",   PRIVATE_IPv4.ec2Name),
-		DEFAULT     ("_ec2",              PRIVATE_IPv4.ec2Name);
+		PUBLIC_IP   ("ec2:publicIp",    PUBLIC_IPv4.ec2Name),
+		PRIVATE_IP  ("ec2:privateIp",   PRIVATE_IPv4.ec2Name),
+		DEFAULT     ("ec2",             PRIVATE_IPv4.ec2Name);
 
 		final String configName;
 		final String ec2Name;

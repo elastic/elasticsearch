@@ -106,7 +106,8 @@ public class LZFStreamOutput extends StreamOutput {
     public void close() throws IOException {
         flush();
         if (neverClose) {
-            reset();
+            // just reset here the LZF stream (not the underlying stream, since we might want to read from it)
+            _position = 0;
             return;
         }
         _outputStream.close();

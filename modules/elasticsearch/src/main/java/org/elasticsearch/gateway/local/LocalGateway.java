@@ -25,7 +25,11 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.lzf.LZF;
@@ -38,14 +42,23 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -189,21 +202,20 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     builder.metaData(event.state().metaData());
 
                     try {
+                        File stateFile = new File(location, "metadata-" + event.state().version());
+                        OutputStream fos = new FileOutputStream(stateFile);
+                        if (compress) {
+                            fos = new LZFOutputStream(fos);
+                        }
                         LocalGatewayMetaState stateToWrite = builder.build();
-                        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+                        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, fos);
                         if (prettyPrint) {
                             xContentBuilder.prettyPrint();
                         }
                         xContentBuilder.startObject();
                         LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                         xContentBuilder.endObject();
-
-                        File stateFile = new File(location, "metadata-" + event.state().version());
-                        OutputStream fos = new FileOutputStream(stateFile);
-                        if (compress) {
-                            fos = new LZFOutputStream(fos);
-                        }
-                        fos.write(xContentBuilder.unsafeBytes(), 0, xContentBuilder.unsafeBytesLength());
+                        xContentBuilder.close();
                         fos.close();
 
                         FileSystemUtils.syncFile(stateFile);
@@ -265,21 +277,22 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                     }
 
                     try {
+                        File stateFile = new File(location, "shards-" + event.state().version());
+                        OutputStream fos = new FileOutputStream(stateFile);
+                        if (compress) {
+                            fos = new LZFOutputStream(fos);
+                        }
+
                         LocalGatewayStartedShards stateToWrite = builder.build();
-                        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+                        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, fos);
                         if (prettyPrint) {
                             xContentBuilder.prettyPrint();
                         }
                         xContentBuilder.startObject();
                         LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                         xContentBuilder.endObject();
+                        xContentBuilder.close();
 
-                        File stateFile = new File(location, "shards-" + event.state().version());
-                        OutputStream fos = new FileOutputStream(stateFile);
-                        if (compress) {
-                            fos = new LZFOutputStream(fos);
-                        }
-                        fos.write(xContentBuilder.unsafeBytes(), 0, xContentBuilder.unsafeBytesLength());
                         fos.close();
 
                         FileSystemUtils.syncFile(stateFile);

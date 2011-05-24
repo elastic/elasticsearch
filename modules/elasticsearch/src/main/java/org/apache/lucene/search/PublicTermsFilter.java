@@ -64,7 +64,7 @@ public class PublicTermsFilter extends Filter {
     @Override
     public int hashCode() {
         int hash = 9;
-        for (Iterator<Term> iter = terms.iterator(); iter.hasNext();) {
+        for (Iterator<Term> iter = terms.iterator(); iter.hasNext(); ) {
             Term term = iter.next();
             hash = 31 * hash + term.hashCode();
         }
@@ -73,13 +73,19 @@ public class PublicTermsFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        OpenBitSet result = new OpenBitSet(reader.maxDoc());
+        OpenBitSet result = null;
         TermDocs td = reader.termDocs();
         try {
             for (Term term : terms) {
                 td.seek(term);
-                while (td.next()) {
+                if (td.next()) {
+                    if (result == null) {
+                        result = new OpenBitSet(reader.maxDoc());
+                    }
                     result.fastSet(td.doc());
+                    while (td.next()) {
+                        result.fastSet(td.doc());
+                    }
                 }
             }
         } finally {

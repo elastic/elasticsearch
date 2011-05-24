@@ -25,6 +25,8 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.URL;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 
 /**
@@ -33,7 +35,7 @@ import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
  * <p /> 
  * Valid config values for {@link Ec2HostnameType}s are -
  * <ul>
- *     <li>_ec2 - maps to privateIpv4</li>
+ *     <li>_ec2_ - maps to privateIpv4</li>
  *     <li>_ec2:privateIp_ - maps to privateIpv4</li>
  *     <li>_ec2:privateIpv4_</li>
  *     <li>_ec2:privateDns_</li>
@@ -73,32 +75,39 @@ public class Ec2NameResolver implements CustomNameResolver {
 	}
 
 	private static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
+	private final ESLogger logger;
 
 	/**
-	 * Construct a {@link CustomNameResolver} with the given {@link Ec2HostnameType}
-	 * address type.
+	 * Construct a {@link CustomNameResolver}.
 	 * 
-	 * @param addressType the type of ec2 host to bind to.
 	 */
 	public Ec2NameResolver() {
+		logger = Loggers.getLogger(getClass());
 	}
 
 	/**
+	 * @param type the ec2 hostname type to discover.
 	 * @return the appropriate host resolved from ec2 meta-data.
 	 * @throws IOException if ec2 meta-data cannot be obtained.
 	 * 
 	 * @see CustomNameResolver#resolveIfPossible(String)
 	 */
-	public InetAddress resolve(Ec2HostnameType type) throws IOException {
-		
-		URL url = new URL(EC2_METADATA_URL + type.ec2Name);
-		BufferedReader urlReader = new BufferedReader(new InputStreamReader(url.openStream()));
+	public InetAddress resolve(Ec2HostnameType type) {
+		try {
+			URL url = new URL(EC2_METADATA_URL + type.ec2Name);
+			logger.info("obtaining ec2 hostname from ec2 meta-data url {}", url);
+			BufferedReader urlReader = new BufferedReader(new InputStreamReader(url.openStream()));
 
-		String metadataResult = urlReader.readLine();
-		if (metadataResult == null || metadataResult.length() == 0) {
-			throw new IOException("no ec2 metadata returned from :" + url);
+			String metadataResult = urlReader.readLine();
+			if (metadataResult == null || metadataResult.length() == 0) {
+				logger.error("no ec2 metadata returned from {}", url);
+				return null;
+			}
+			return InetAddress.getByName(metadataResult);
+		} catch (IOException e) {
+			logger.error("exception obtaining metadata", e);
+			return null;
 		}
-		return InetAddress.getByName(metadataResult);
 	}
 
 	/*
@@ -106,7 +115,7 @@ public class Ec2NameResolver implements CustomNameResolver {
 	 * @see org.elasticsearch.common.network.NetworkService.CustomNameResolver#resolveDefault()
 	 */
 	@Override
-	public InetAddress resolveDefault() throws IOException {
+	public InetAddress resolveDefault() {
 		return resolve(Ec2HostnameType.DEFAULT);
 	}
 
@@ -115,7 +124,7 @@ public class Ec2NameResolver implements CustomNameResolver {
 	 * @see org.elasticsearch.common.network.NetworkService.CustomNameResolver#resolveIfPossible(java.lang.String)
 	 */
 	@Override
-	public InetAddress resolveIfPossible(String value) throws IOException {
+	public InetAddress resolveIfPossible(String value) {
 		for (Ec2HostnameType type : Ec2HostnameType.values()) {
 			if (type.configName.equals(value)) {
 				return resolve(type);

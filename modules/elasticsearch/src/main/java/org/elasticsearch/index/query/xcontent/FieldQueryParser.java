@@ -83,6 +83,8 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
                         qpSettings.enablePositionIncrements(parser.booleanValue());
                     } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
                         qpSettings.allowLeadingWildcard(parser.booleanValue());
+                    } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
+                        qpSettings.autoGeneratePhraseQueries(parser.booleanValue());
                     } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
                         qpSettings.lowercaseExpandedTerms(parser.booleanValue());
                     } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {

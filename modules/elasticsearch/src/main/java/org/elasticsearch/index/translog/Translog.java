@@ -493,7 +493,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            in.readVInt(); // version
+            int version = in.readVInt(); // version
             source = new byte[in.readVInt()];
             in.readFully(source);
             if (in.readBoolean()) {
@@ -506,17 +506,19 @@ public interface Translog extends IndexShardComponent {
                     types[i] = in.readUTF();
                 }
             }
-            int aliasesSize = in.readVInt();
-            if (aliasesSize > 0) {
-                filteringAliases = new String[aliasesSize];
-                for (int i = 0; i < aliasesSize; i++) {
-                    filteringAliases[i] = in.readUTF();
+            if (version >= 1) {
+                int aliasesSize = in.readVInt();
+                if (aliasesSize > 0) {
+                    filteringAliases = new String[aliasesSize];
+                    for (int i = 0; i < aliasesSize; i++) {
+                        filteringAliases[i] = in.readUTF();
+                    }
                 }
             }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(0); // version
+            out.writeVInt(1); // version
             out.writeVInt(source.length);
             out.writeBytes(source);
             if (queryParserName == null) {

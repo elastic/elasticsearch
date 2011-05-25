@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.xcontent.FilterBuilders.termFilter;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -82,5 +83,42 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         assertThat(mltResponse.successfulShards(), equalTo(5));
         assertThat(mltResponse.failedShards(), equalTo(0));
         assertThat(mltResponse.hits().totalHits(), equalTo(1l));
+    }
+
+
+    @Test public void testMoreLikeThisWithAliases() throws Exception {
+        logger.info("Creating index test");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+
+        logger.info("Creating aliases alias release");
+        client1.admin().indices().aliases(indexAliasesRequest().addAlias("test", "release", termFilter("text", "release"))).actionGet();
+        client1.admin().indices().aliases(indexAliasesRequest().addAlias("test", "beta", termFilter("text", "beta"))).actionGet();
+
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        client1.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
+        client1.index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
+        client1.index(indexRequest("test").type("type1").id("4").source(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
+        client1.admin().indices().refresh(refreshRequest()).actionGet();
+
+        logger.info("Running moreLikeThis on index");
+        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        assertThat(mltResponse.hits().totalHits(), equalTo(2l));
+
+        logger.info("Running moreLikeThis on beta shard");
+        mltResponse = client1.moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.hits().getAt(0).id(), equalTo("3"));
+
+        logger.info("Running moreLikeThis on release shard");
+        mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).searchIndices("release")).actionGet();
+        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.hits().getAt(0).id(), equalTo("2"));
     }
 }

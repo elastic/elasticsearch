@@ -21,13 +21,21 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 
@@ -171,10 +179,7 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             combinedFilter = searchContext.aliasFilter();
         } else {
             if (searchContext.aliasFilter() != null) {
-                XBooleanFilter booleanFilter = new XBooleanFilter();
-                booleanFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
-                booleanFilter.add(new FilterClause(searchContext.aliasFilter(), BooleanClause.Occur.MUST));
-                combinedFilter = booleanFilter;
+                combinedFilter = new AndFilter(ImmutableList.of(filter, searchContext.aliasFilter()));
             } else {
                 combinedFilter = filter;
             }

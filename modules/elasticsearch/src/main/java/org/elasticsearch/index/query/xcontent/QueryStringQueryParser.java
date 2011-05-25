@@ -137,6 +137,8 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
                     qpSettings.analyzer(analysisService.analyzer(parser.text()));
                 } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
+                } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
+                    qpSettings.autoGeneratePhraseQueries(parser.booleanValue());
                 } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
                     qpSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("enable_position_increments".equals(currentFieldName) || "enablePositionIncrements".equals(currentFieldName)) {

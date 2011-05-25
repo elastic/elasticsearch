@@ -31,6 +31,7 @@ public class QueryParserSettings {
     private String defaultField;
     private float boost = 1.0f;
     private MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
+    private boolean autoGeneratePhraseQueries = false;
     private boolean allowLeadingWildcard = true;
     private boolean lowercaseExpandedTerms = true;
     private boolean enablePositionIncrements = true;
@@ -71,6 +72,14 @@ public class QueryParserSettings {
 
     public void defaultOperator(QueryParser.Operator defaultOperator) {
         this.defaultOperator = defaultOperator;
+    }
+
+    public boolean autoGeneratePhraseQueries() {
+        return autoGeneratePhraseQueries;
+    }
+
+    public void autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
+        this.autoGeneratePhraseQueries = autoGeneratePhraseQueries;
     }
 
     public boolean allowLeadingWildcard() {
@@ -151,6 +160,7 @@ public class QueryParserSettings {
 
         QueryParserSettings that = (QueryParserSettings) o;
 
+        if (autoGeneratePhraseQueries != that.autoGeneratePhraseQueries()) return false;
         if (allowLeadingWildcard != that.allowLeadingWildcard) return false;
         if (Float.compare(that.boost, boost) != 0) return false;
         if (enablePositionIncrements != that.enablePositionIncrements) return false;
@@ -173,6 +183,7 @@ public class QueryParserSettings {
         result = 31 * result + (defaultField != null ? defaultField.hashCode() : 0);
         result = 31 * result + (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
         result = 31 * result + (defaultOperator != null ? defaultOperator.hashCode() : 0);
+        result = 31 * result + (autoGeneratePhraseQueries ? 1 : 0);
         result = 31 * result + (allowLeadingWildcard ? 1 : 0);
         result = 31 * result + (lowercaseExpandedTerms ? 1 : 0);
         result = 31 * result + (enablePositionIncrements ? 1 : 0);

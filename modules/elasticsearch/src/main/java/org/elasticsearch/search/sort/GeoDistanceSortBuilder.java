@@ -90,7 +90,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     /**
      * The order of sorting. Defaults to {@link SortOrder#ASC}.
      */
-    public GeoDistanceSortBuilder order(SortOrder order) {
+    @Override public GeoDistanceSortBuilder order(SortOrder order) {
         this.order = order;
         return this;
     }

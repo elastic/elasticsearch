@@ -129,7 +129,7 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
      * Should the facet run in global mode (not bounded by the search query) or not (bounded by
      * the search query). Defaults to <tt>false</tt>.
      */
-    public DateHistogramFacetBuilder global(boolean global) {
+    @Override public DateHistogramFacetBuilder global(boolean global) {
         super.global(global);
         return this;
     }
@@ -145,7 +145,7 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    public DateHistogramFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    @Override public DateHistogramFacetBuilder facetFilter(XContentFilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

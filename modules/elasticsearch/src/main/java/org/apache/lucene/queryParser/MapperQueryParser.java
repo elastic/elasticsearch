@@ -86,6 +86,7 @@ public class MapperQueryParser extends QueryParser {
         this.analyzer = settings.analyzer();
         setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
         setEnablePositionIncrements(settings.enablePositionIncrements());
+        setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
         setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
         setPhraseSlop(settings.phraseSlop());

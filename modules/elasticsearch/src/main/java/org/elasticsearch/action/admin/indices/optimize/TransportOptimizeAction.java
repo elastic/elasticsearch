@@ -129,7 +129,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     /**
      * The refresh request works against *all* shards.
      */
-    @Override protected GroupShardsIterator shards(OptimizeRequest request, ClusterState clusterState) {
-        return clusterState.routingTable().allShardsGrouped(request.indices());
+    @Override protected GroupShardsIterator shards(OptimizeRequest request, String[] concreteIndices, ClusterState clusterState) {
+        return clusterState.routingTable().allShardsGrouped(concreteIndices);
     }
 }

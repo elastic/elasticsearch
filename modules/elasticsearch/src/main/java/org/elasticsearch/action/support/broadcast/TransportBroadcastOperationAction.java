@@ -89,7 +89,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticSearchException;
 
-    protected abstract GroupShardsIterator shards(Request request, ClusterState clusterState);
+    protected abstract GroupShardsIterator shards(Request request, String[] concreteIndices, ClusterState clusterState);
 
     /**
      * Allows to override how shard routing is iterated over. Default implementation uses
@@ -119,7 +119,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         return false;
     }
 
-    protected void checkBlock(Request request, ClusterState state) {
+    protected void checkBlock(Request request, String[] indices, ClusterState state) {
 
     }
 
@@ -143,6 +143,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
         private final AtomicReferenceArray shardsResponses;
 
+        private final String[] concreteIndices;
+
         AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
@@ -150,11 +152,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             clusterState = clusterService.state();
 
             // update to concrete indices
-            request.indices(clusterState.metaData().concreteIndices(request.indices()));
-            checkBlock(request, clusterState);
+            concreteIndices = clusterState.metaData().concreteIndices(request.indices());
+            checkBlock(request, concreteIndices, clusterState);
 
             nodes = clusterState.nodes();
-            shardsIts = shards(request, clusterState);
+            shardsIts = shards(request, concreteIndices, clusterState);
             expectedOps = shardsIts.size();
 
 

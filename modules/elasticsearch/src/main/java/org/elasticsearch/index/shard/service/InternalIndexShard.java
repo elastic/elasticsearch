@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard.service;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
+import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.mapper.*;
@@ -90,6 +92,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final Translog translog;
 
+    private final IndexAliasesService indexAliasesService;
+
     private final Object mutex = new Object();
 
 
@@ -116,7 +120,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final AtomicLong totalRefreshTime = new AtomicLong();
 
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
-                                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
+                                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -128,6 +132,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
+        this.indexAliasesService = indexAliasesService;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime("index.refresh_interval", engine.defaultRefreshInterval()));
@@ -361,12 +366,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    @Override public long count(float minScore, byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
-        return count(minScore, querySource, 0, querySource.length, queryParserName, types);
+    @Override public long count(float minScore, byte[] querySource, @Nullable String queryParserName, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+        return count(minScore, querySource, 0, querySource.length, queryParserName, filteringAliases, types);
     }
 
     @Override public long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength,
-                                @Nullable String queryParserName, String... types) throws ElasticSearchException {
+                                @Nullable String queryParserName, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         readAllowed();
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {
@@ -380,9 +385,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // Don't cache it, since it might be very different queries each time...
 //        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
         query = filterByTypesIfNeeded(query, types);
+        Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
         Engine.Searcher searcher = engine.searcher();
         try {
-            long count = Lucene.count(searcher.searcher(), query, minScore);
+            long count = Lucene.count(searcher.searcher(), query, aliasFilter, minScore);
             if (logger.isTraceEnabled()) {
                 logger.trace("count of [{}] is [{}]", query, count);
             }

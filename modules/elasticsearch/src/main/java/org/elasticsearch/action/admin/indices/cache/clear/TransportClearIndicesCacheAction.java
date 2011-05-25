@@ -142,7 +142,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     /**
      * The refresh request works against *all* shards.
      */
-    @Override protected GroupShardsIterator shards(ClearIndicesCacheRequest request, ClusterState clusterState) {
-        return clusterState.routingTable().allShardsGrouped(request.indices());
+    @Override protected GroupShardsIterator shards(ClearIndicesCacheRequest request, String[] concreteIndices, ClusterState clusterState) {
+        return clusterState.routingTable().allShardsGrouped(concreteIndices);
     }
 }

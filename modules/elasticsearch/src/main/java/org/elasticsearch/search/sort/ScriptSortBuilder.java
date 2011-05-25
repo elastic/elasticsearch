@@ -70,7 +70,7 @@ public class ScriptSortBuilder extends SortBuilder {
     /**
      * Sets the sort order.
      */
-    public ScriptSortBuilder order(SortOrder order) {
+    @Override public ScriptSortBuilder order(SortOrder order) {
         this.order = order;
         return this;
     }

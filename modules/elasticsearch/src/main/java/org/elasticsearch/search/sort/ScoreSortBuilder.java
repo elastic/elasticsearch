@@ -35,7 +35,7 @@ public class ScoreSortBuilder extends SortBuilder {
     /**
      * The order of sort scoring. By default, its {@link SortOrder#DESC}.
      */
-    public ScoreSortBuilder order(SortOrder order) {
+    @Override public ScoreSortBuilder order(SortOrder order) {
         this.order = order;
         return this;
     }

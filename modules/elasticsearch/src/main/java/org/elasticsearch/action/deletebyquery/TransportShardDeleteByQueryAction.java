@@ -70,13 +70,13 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     @Override protected PrimaryResponse<ShardDeleteByQueryResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.types());
+        indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.filteringAliases(), request.types());
         return new PrimaryResponse<ShardDeleteByQueryResponse>(new ShardDeleteByQueryResponse(), null);
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.types());
+        indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.filteringAliases(), request.types());
     }
 
     @Override protected ShardIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {

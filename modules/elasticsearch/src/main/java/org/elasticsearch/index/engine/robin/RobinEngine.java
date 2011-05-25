@@ -20,6 +20,8 @@
 package org.elasticsearch.index.engine.robin;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
@@ -591,7 +593,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             if (writer == null) {
                 throw new EngineClosedException(shardId);
             }
-            writer.deleteDocuments(delete.query());
+            Query query;
+            if (delete.aliasFilter() == null) {
+                query = delete.query();
+            } else {
+                query = new FilteredQuery(delete.query(), delete.aliasFilter());
+            }
+            writer.deleteDocuments(query);
             translog.add(new Translog.DeleteByQuery(delete));
             dirty = true;
             possibleMergeNeeded = true;

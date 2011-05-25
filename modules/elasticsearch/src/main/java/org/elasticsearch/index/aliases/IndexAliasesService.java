@@ -89,6 +89,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             }
             return indexAlias.parsedFilter();
         } else {
+            // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             XBooleanFilter combined = new XBooleanFilter();
             for (String alias : aliases) {
                 IndexAlias indexAlias = alias(alias);

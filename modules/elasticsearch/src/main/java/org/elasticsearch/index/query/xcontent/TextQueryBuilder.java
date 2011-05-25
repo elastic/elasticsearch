@@ -59,6 +59,8 @@ public class TextQueryBuilder extends BaseQueryBuilder {
 
     private String analyzer;
 
+    private Float boost;
+
     private Integer slop;
 
     private String fuzziness;
@@ -101,6 +103,14 @@ public class TextQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
+     * Set the boost to apply to the query.
+     */
+    public TextQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    /**
      * Set the phrase slop if evaluated to a phrase query type.
      */
     public TextQueryBuilder slop(int slop) {
@@ -138,6 +148,9 @@ public class TextQueryBuilder extends BaseQueryBuilder {
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
+        }
+        if (boost != null) {
+            builder.field("boost", boost);
         }
         if (slop != null) {
             builder.field("slop", slop);

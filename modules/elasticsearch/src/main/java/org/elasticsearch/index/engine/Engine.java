@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
@@ -553,13 +554,17 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Query query;
         private final String queryParserName;
         private final byte[] source;
+        private final String[] filteringAliases;
+        private final Filter aliasFilter;
         private final String[] types;
 
-        public DeleteByQuery(Query query, byte[] source, @Nullable String queryParserName, String... types) {
+        public DeleteByQuery(Query query, byte[] source, @Nullable String queryParserName, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
             this.query = query;
             this.source = source;
             this.queryParserName = queryParserName;
             this.types = types;
+            this.filteringAliases = filteringAliases;
+            this.aliasFilter = aliasFilter;
         }
 
         public String queryParserName() {
@@ -576,6 +581,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public String[] types() {
             return this.types;
+        }
+
+        public String[] filteringAliases() {
+            return filteringAliases;
+        }
+
+        public Filter aliasFilter() {
+            return aliasFilter;
         }
     }
 }

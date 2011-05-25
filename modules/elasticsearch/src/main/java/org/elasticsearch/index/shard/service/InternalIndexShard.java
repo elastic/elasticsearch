@@ -316,15 +316,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(delete);
     }
 
-    @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+    @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         writeAllowed();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        innerDeleteByQuery(querySource, queryParserName, types);
+        innerDeleteByQuery(querySource, queryParserName, filteringAliases, types);
     }
 
-    private void innerDeleteByQuery(byte[] querySource, String queryParserName, String... types) {
+    private void innerDeleteByQuery(byte[] querySource, String queryParserName, String[] filteringAliases, String... types) {
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {
             queryParser = queryParserService.indexQueryParser(queryParserName);
@@ -335,11 +335,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         Query query = queryParser.parse(querySource).query();
         query = filterByTypesIfNeeded(query, types);
 
+        Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
+
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", query);
         }
 
-        engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, types));
+        engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, filteringAliases, aliasFilter, types));
     }
 
     @Override public byte[] get(String type, String id) throws ElasticSearchException {
@@ -538,7 +540,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 break;
             case DELETE_BY_QUERY:
                 Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
+                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.filteringAliases(), deleteByQuery.types());
                 break;
             default:
                 throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");

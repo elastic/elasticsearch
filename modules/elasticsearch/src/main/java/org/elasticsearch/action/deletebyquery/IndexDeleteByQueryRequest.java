@@ -44,8 +44,9 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String routing;
+    @Nullable private String[] filteringAliases;
 
-    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index) {
+    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable String[] filteringAliases) {
         this.index = index;
         this.timeout = request.timeout();
         this.querySource = request.querySource();
@@ -54,6 +55,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
         this.routing = request.routing();
+        this.filteringAliases = filteringAliases;
     }
 
     IndexDeleteByQueryRequest() {
@@ -92,6 +94,10 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return this.types;
     }
 
+    String[] filteringAliases() {
+        return filteringAliases;
+    }
+
     public IndexDeleteByQueryRequest queryParserName(String queryParserName) {
         this.queryParserName = queryParserName;
         return this;
@@ -119,6 +125,13 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         if (in.readBoolean()) {
             routing = in.readUTF();
         }
+        int aliasesSize = in.readVInt();
+        if (aliasesSize > 0) {
+            filteringAliases = new String[aliasesSize];
+            for (int i = 0; i < aliasesSize; i++) {
+                filteringAliases[i] = in.readUTF();
+            }
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -140,6 +153,14 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if (filteringAliases != null) {
+            out.writeVInt(filteringAliases.length);
+            for (String alias : filteringAliases) {
+                out.writeUTF(alias);
+            }
+        } else {
+            out.writeVInt(0);
         }
     }
 }

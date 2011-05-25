@@ -69,8 +69,12 @@ public class Lucene {
     }
 
     public static long count(IndexSearcher searcher, Query query, float minScore) throws IOException {
+        return count(searcher, query, null, minScore);
+    }
+
+    public static long count(IndexSearcher searcher, Query query, Filter filter, float minScore) throws IOException {
         CountCollector countCollector = new CountCollector(minScore);
-        searcher.search(query, countCollector);
+        searcher.search(query, filter, countCollector);
         return countCollector.count();
     }
 

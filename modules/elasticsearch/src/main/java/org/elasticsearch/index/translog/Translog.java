@@ -451,6 +451,7 @@ public interface Translog extends IndexShardComponent {
     static class DeleteByQuery implements Operation {
         private byte[] source;
         @Nullable private String queryParserName;
+        @Nullable private String[] filteringAliases;
         private String[] types = Strings.EMPTY_ARRAY;
 
         public DeleteByQuery() {
@@ -460,10 +461,11 @@ public interface Translog extends IndexShardComponent {
             this(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
         }
 
-        public DeleteByQuery(byte[] source, @Nullable String queryParserName, String... types) {
+        public DeleteByQuery(byte[] source, @Nullable String queryParserName, String[] filteringAliases, String... types) {
             this.queryParserName = queryParserName;
             this.source = source;
             this.types = types;
+            this.filteringAliases = filteringAliases;
         }
 
         @Override public Type opType() {
@@ -480,6 +482,10 @@ public interface Translog extends IndexShardComponent {
 
         public byte[] source() {
             return this.source;
+        }
+
+        public String[] filteringAliases() {
+            return filteringAliases;
         }
 
         public String[] types() {
@@ -500,6 +506,13 @@ public interface Translog extends IndexShardComponent {
                     types[i] = in.readUTF();
                 }
             }
+            int aliasesSize = in.readVInt();
+            if (aliasesSize > 0) {
+                filteringAliases = new String[aliasesSize];
+                for (int i = 0; i < aliasesSize; i++) {
+                    filteringAliases[i] = in.readUTF();
+                }
+            }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
@@ -515,6 +528,14 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(types.length);
             for (String type : types) {
                 out.writeUTF(type);
+            }
+            if (filteringAliases != null) {
+                out.writeVInt(filteringAliases.length);
+                for (String alias : filteringAliases) {
+                    out.writeUTF(alias);
+                }
+            } else {
+                out.writeVInt(0);
             }
         }
     }

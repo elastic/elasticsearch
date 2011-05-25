@@ -324,6 +324,72 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
     }
 
+    @Test public void testDeletingByQueryFilteringAliases() throws Exception {
+        logger.info("--> creating index [test1]");
+        client1.admin().indices().create(createIndexRequest("test1")).actionGet();
+
+        logger.info("--> creating index [test2]");
+        client1.admin().indices().create(createIndexRequest("test2")).actionGet();
+
+        logger.info("--> running cluster_health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> adding filtering aliases to index [test1]");
+        client1.admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test1", "aliasToTests").execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test1", "foos", termFilter("name", "foo")).execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test1", "bars", termFilter("name", "bar")).execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test1", "tests", termFilter("name", "test")).execute().actionGet();
+
+        logger.info("--> adding filtering aliases to index [test2]");
+        client1.admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test2", "tests", termFilter("name", "test")).execute().actionGet();
+        Thread.sleep(300);
+
+        logger.info("--> indexing against [test1]");
+        client1.index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
+
+        logger.info("--> indexing against [test2]");
+        client1.index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("8").source(source("8", "something else")).refresh(true)).actionGet();
+
+        logger.info("--> checking counts before delete");
+        assertThat(client1.prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1L));
+
+        logger.info("--> delete by query from a single alias");
+        client1.prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).execute().actionGet();
+        client1.admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> verify that only one record was deleted");
+        assertThat(client1.prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(3L));
+
+        logger.info("--> delete by query from an aliases pointing to two indices");
+        client1.prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        client1.admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> verify that proper records were deleted");
+        SearchResponse searchResponse = client1.prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertHits(searchResponse.hits(), "3", "4", "6", "7", "8");
+
+        logger.info("--> delete by query from an aliases and an index");
+        client1.prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        client1.admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> verify that proper records were deleted");
+        searchResponse = client1.prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertHits(searchResponse.hits(), "4");
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.totalHits(), equalTo((long) ids.length));
         Set<String> hitIds = newHashSet();

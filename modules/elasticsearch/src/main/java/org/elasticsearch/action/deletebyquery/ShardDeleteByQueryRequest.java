@@ -44,6 +44,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String routing;
+    @Nullable private String[] filteringAliases;
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
         this.index = request.index();
@@ -55,6 +56,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         consistencyLevel(request.consistencyLevel());
         timeout = request.timeout();
         this.routing = request.routing();
+        filteringAliases = request.filteringAliases();
     }
 
     ShardDeleteByQueryRequest() {
@@ -88,6 +90,10 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.routing;
     }
 
+    public String[] filteringAliases() {
+        return filteringAliases;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         querySource = new byte[in.readVInt()];
@@ -105,6 +111,13 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         }
         if (in.readBoolean()) {
             routing = in.readUTF();
+        }
+        int aliasesSize = in.readVInt();
+        if (aliasesSize > 0) {
+            filteringAliases = new String[aliasesSize];
+            for (int i = 0; i < aliasesSize; i++) {
+                filteringAliases[i] = in.readUTF();
+            }
         }
     }
 
@@ -128,6 +141,14 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         } else {
             out.writeBoolean(true);
             out.writeUTF(routing);
+        }
+        if (filteringAliases != null) {
+            out.writeVInt(filteringAliases.length);
+            for (String alias : filteringAliases) {
+                out.writeUTF(alias);
+            }
+        } else {
+            out.writeVInt(0);
         }
     }
 

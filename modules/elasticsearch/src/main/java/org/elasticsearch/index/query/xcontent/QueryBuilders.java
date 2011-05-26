@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.elasticsearch.common.Nullable;
+
 /**
  * A static factory for simple "import static" usage.
  *
@@ -73,12 +75,12 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Constructs a query that will match only specific ids within a type.
+     * Constructs a query that will match only specific ids within types.
      *
-     * @param type The mapping/doc type
+     * @param types The mapping/doc type
      */
-    public static IdsQueryBuilder idsQuery(String type) {
-        return new IdsQueryBuilder(type);
+    public static IdsQueryBuilder idsQuery(@Nullable String... types) {
+        return new IdsQueryBuilder(types);
     }
 
     /**

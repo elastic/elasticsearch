@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.elasticsearch.common.Nullable;
+
 /**
  * A static factory for simple "import static" usage.
  *
@@ -34,12 +36,12 @@ public abstract class FilterBuilders {
     }
 
     /**
-     * Creates a new ids filter with the provided doc/mapping type.
+     * Creates a new ids filter with the provided doc/mapping types.
      *
-     * @param type The type
+     * @param types The types to match the ids against.
      */
-    public static IdsFilterBuilder idsFilter(String type) {
-        return new IdsFilterBuilder(type);
+    public static IdsFilterBuilder idsFilter(@Nullable String... types) {
+        return new IdsFilterBuilder(types);
     }
 
     /**

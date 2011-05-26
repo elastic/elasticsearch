@@ -21,6 +21,8 @@ package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -53,7 +56,7 @@ public class IdsQueryParser extends AbstractIndexComponent implements XContentQu
         XContentParser parser = parseContext.parser();
 
         List<String> ids = new ArrayList<String>();
-        String type = null;
+        Collection<String> types = null;
         String currentFieldName = null;
         float boost = 1.0f;
         XContentParser.Token token;
@@ -69,24 +72,36 @@ public class IdsQueryParser extends AbstractIndexComponent implements XContentQu
                         }
                         ids.add(value);
                     }
+                } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
+                    types = new ArrayList<String>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String value = parser.textOrNull();
+                        if (value == null) {
+                            throw new QueryParsingException(index, "No type specified for term filter");
+                        }
+                        types.add(value);
+                    }
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
-                    type = parser.text();
+                    types = ImmutableList.of(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 }
             }
         }
 
-        if (type == null) {
-            throw new QueryParsingException(index, "[ids] query, no type provided");
-        }
         if (ids.size() == 0) {
             throw new QueryParsingException(index, "[ids] query, no ids values provided");
         }
 
-        UidFilter filter = new UidFilter(type, ids, parseContext.indexCache().bloomCache());
+        if (types == null || types.isEmpty()) {
+            types = parseContext.mapperService().types();
+        } else if (types.size() == 1 && Iterables.getFirst(types, null).equals("_all")) {
+            types = parseContext.mapperService().types();
+        }
+
+        UidFilter filter = new UidFilter(types, ids, parseContext.indexCache().bloomCache());
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         ConstantScoreQuery query = new ConstantScoreQuery(filter);
         query.setBoost(boost);

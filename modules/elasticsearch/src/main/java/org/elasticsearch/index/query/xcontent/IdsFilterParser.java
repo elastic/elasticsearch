@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class IdsFilterParser extends AbstractIndexComponent implements XContentFilterParser {
@@ -49,7 +52,7 @@ public class IdsFilterParser extends AbstractIndexComponent implements XContentF
         XContentParser parser = parseContext.parser();
 
         List<String> ids = new ArrayList<String>();
-        String type = null;
+        Collection<String> types = null;
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -65,24 +68,36 @@ public class IdsFilterParser extends AbstractIndexComponent implements XContentF
                         }
                         ids.add(value);
                     }
+                } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
+                    types = new ArrayList<String>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String value = parser.textOrNull();
+                        if (value == null) {
+                            throw new QueryParsingException(index, "No type specified for term filter");
+                        }
+                        types.add(value);
+                    }
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
-                    type = parser.text();
+                    types = ImmutableList.of(parser.text());
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 }
             }
         }
 
-        if (type == null) {
-            throw new QueryParsingException(index, "[ids] filter, no type provided");
-        }
         if (ids.size() == 0) {
             throw new QueryParsingException(index, "[ids] filter, no ids values provided");
         }
 
-        UidFilter filter = new UidFilter(type, ids, parseContext.indexCache().bloomCache());
+        if (types == null || types.isEmpty()) {
+            types = parseContext.mapperService().types();
+        } else if (types.size() == 1 && Iterables.getFirst(types, null).equals("_all")) {
+            types = parseContext.mapperService().types();
+        }
+
+        UidFilter filter = new UidFilter(types, ids, parseContext.indexCache().bloomCache());
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

@@ -54,6 +54,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
@@ -232,6 +233,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public boolean hasMapping(String mappingType) {
         return mappers.containsKey(mappingType);
+    }
+
+    public Collection<String> types() {
+        return mappers.keySet();
     }
 
     public DocumentMapper documentMapper(String type) {

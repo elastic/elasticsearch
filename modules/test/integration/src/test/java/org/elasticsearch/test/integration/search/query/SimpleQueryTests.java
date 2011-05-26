@@ -174,7 +174,19 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));
 
+        // no type
+        searchResponse = client.prepareSearch().setQuery(constantScoreQuery(idsFilter().ids("1", "3"))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));
+
         searchResponse = client.prepareSearch().setQuery(idsQuery("type1").ids("1", "3")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));
+
+        // no type
+        searchResponse = client.prepareSearch().setQuery(idsQuery().ids("1", "3")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3")));
         assertThat(searchResponse.hits().getAt(1).id(), anyOf(equalTo("1"), equalTo("3")));

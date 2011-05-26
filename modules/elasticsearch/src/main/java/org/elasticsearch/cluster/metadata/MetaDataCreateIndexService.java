@@ -367,6 +367,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private void addMappings(Map<String, Map<String, Object>> mappings, File mappingsDir) {
         File[] mappingsFiles = mappingsDir.listFiles();
         for (File mappingFile : mappingsFiles) {
+            if (mappingFile.isHidden()) {
+                continue;
+            }
             String mappingType = mappingFile.getName().substring(0, mappingFile.getName().lastIndexOf('.'));
             try {
                 String mappingSource = Streams.copyToString(new FileReader(mappingFile));

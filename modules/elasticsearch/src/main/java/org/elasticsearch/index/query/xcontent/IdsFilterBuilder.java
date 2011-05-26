@@ -31,7 +31,7 @@ import java.util.List;
  */
 public class IdsFilterBuilder extends BaseFilterBuilder {
 
-    private String type;
+    private final List<String> types;
 
     private List<String> values = new ArrayList<String>();
 
@@ -40,8 +40,8 @@ public class IdsFilterBuilder extends BaseFilterBuilder {
     /**
      * Create an ids filter based on the type.
      */
-    public IdsFilterBuilder(String type) {
-        this.type = type;
+    public IdsFilterBuilder(String... types) {
+        this.types = types == null ? null : Arrays.asList(types);
     }
 
     /**
@@ -69,7 +69,17 @@ public class IdsFilterBuilder extends BaseFilterBuilder {
 
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(IdsFilterParser.NAME);
-        builder.field("type", type);
+        if (types != null) {
+            if (types.size() == 1) {
+                builder.field("type", types.get(0));
+            } else {
+                builder.startArray("types");
+                for (Object type : types) {
+                    builder.value(type);
+                }
+                builder.endArray();
+            }
+        }
         builder.startArray("values");
         for (Object value : values) {
             builder.value(value);

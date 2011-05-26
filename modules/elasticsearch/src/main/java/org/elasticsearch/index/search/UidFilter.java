@@ -33,22 +33,24 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class UidFilter extends Filter {
 
-    private final Term[] uids;
+    private final List<Term> uids;
 
     private final BloomCache bloomCache;
 
-    public UidFilter(String type, List<String> ids, BloomCache bloomCache) {
+    public UidFilter(Collection<String> types, List<String> ids, BloomCache bloomCache) {
         this.bloomCache = bloomCache;
-        uids = new Term[ids.size()];
-        for (int i = 0; i < ids.size(); i++) {
-            uids[i] = new Term(UidFieldMapper.NAME, Uid.createUid(type, ids.get(i)));
+        this.uids = new ArrayList<Term>(types.size() * ids.size());
+        for (String type : types) {
+            for (String id : ids) {
+                uids.add(new Term(UidFieldMapper.NAME, Uid.createUid(type, id)));
+            }
         }
-        Arrays.sort(uids);
     }
 
     // TODO Optimizations
@@ -86,15 +88,11 @@ public class UidFilter extends Filter {
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         UidFilter uidFilter = (UidFilter) o;
-
-        if (!Arrays.equals(uids, uidFilter.uids)) return false;
-
-        return true;
+        return !uids.equals(uidFilter.uids);
     }
 
     @Override public int hashCode() {
-        return uids != null ? Arrays.hashCode(uids) : 0;
+        return uids.hashCode();
     }
 }

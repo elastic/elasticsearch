@@ -45,6 +45,8 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
 
     private String analyzer;
 
+    private Boolean autoGeneratePhraseQueries;
+
     private Boolean allowLeadingWildcard;
 
     private Boolean lowercaseExpandedTerms;
@@ -185,6 +187,19 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
+     * Set to true if phrase queries will be automatically generated
+     * when the analyzer returns more than one term from whitespace
+     * delimited text.
+     * NOTE: this behavior may not be suitable for all languages.
+     * <p>
+     * Set to false if phrase queries should only be generated when
+     * surrounded by double quotes.
+     */
+    public void autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
+        this.autoGeneratePhraseQueries = autoGeneratePhraseQueries;
+    }
+
+    /**
      * Should leading wildcards be allowed or not. Defaults to <tt>true</tt>.
      */
     public FieldQueryBuilder allowLeadingWildcard(boolean allowLeadingWildcard) {
@@ -265,6 +280,9 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
             }
             if (analyzer != null) {
                 builder.field("analyzer", analyzer);
+            }
+            if (autoGeneratePhraseQueries != null) {
+                builder.field("auto_generate_phrase_queries", autoGeneratePhraseQueries);
             }
             if (allowLeadingWildcard != null) {
                 builder.field("allow_leading_wildcard", allowLeadingWildcard);

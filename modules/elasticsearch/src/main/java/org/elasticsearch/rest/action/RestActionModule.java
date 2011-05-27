@@ -19,9 +19,10 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
@@ -70,73 +71,81 @@ import java.util.List;
  * @author kimchy (Shay Banon)
  */
 public class RestActionModule extends AbstractModule {
-    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
 
-    public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions) {
+    private final List<Class<? extends RestHandler>> restPluginsActions;
+    private List<Class<? extends RestHandler>> disabledDefaultRestActions;
+
+    private final Class<? extends BaseRestHandler>[] defaultRestActions = new Class[] {
+            RestMainAction.class,
+            RestNodesInfoAction.class,
+            RestNodesStatsAction.class,
+            RestNodesShutdownAction.class,
+            RestNodesRestartAction.class,
+            RestClusterStateAction.class,
+            RestClusterHealthAction.class,
+            RestSinglePingAction.class,
+            RestBroadcastPingAction.class,
+            RestReplicationPingAction.class,
+            RestIndicesStatusAction.class,
+            RestGetIndicesAliasesAction.class,
+            RestIndicesAliasesAction.class,
+            RestCreateIndexAction.class,
+            RestDeleteIndexAction.class,
+            RestCloseIndexAction.class,
+            RestOpenIndexAction.class,
+            RestUpdateSettingsAction.class,
+            RestGetSettingsAction.class,
+            RestAnalyzeAction.class,
+            RestGetIndexTemplateAction.class,
+            RestPutIndexTemplateAction.class,
+            RestDeleteIndexTemplateAction.class,
+            RestPutMappingAction.class,
+            RestDeleteMappingAction.class,
+            RestGetMappingAction.class,
+            RestGatewaySnapshotAction.class,
+            RestRefreshAction.class,
+            RestFlushAction.class,
+            RestOptimizeAction.class,
+            RestClearIndicesCacheAction.class,
+            RestIndexAction.class,
+            RestGetAction.class,
+            RestDeleteAction.class,
+            RestDeleteByQueryAction.class,
+            RestCountAction.class,
+            RestBulkAction.class,
+            RestSearchAction.class,
+            RestSearchScrollAction.class,
+            RestMoreLikeThisAction.class,
+            RestPercolateAction.class
+    };
+
+    public RestActionModule(List<Class<? extends RestHandler>> restPluginsActions, List<Class<? extends RestHandler>> disabledDefaultRestActions, Settings settings) {
         this.restPluginsActions = restPluginsActions;
+        this.disabledDefaultRestActions = disabledDefaultRestActions;
     }
 
     @Override protected void configure() {
-        for (Class<? extends BaseRestHandler> restAction : restPluginsActions) {
-            bind(restAction).asEagerSingleton();
+        for (Class<? extends RestHandler> restAction : restPluginsActions) {
+                bind(restAction).asEagerSingleton();
         }
 
-        bind(RestMainAction.class).asEagerSingleton();
-
-        bind(RestNodesInfoAction.class).asEagerSingleton();
-        bind(RestNodesStatsAction.class).asEagerSingleton();
-        bind(RestNodesShutdownAction.class).asEagerSingleton();
-        bind(RestNodesRestartAction.class).asEagerSingleton();
-        bind(RestClusterStateAction.class).asEagerSingleton();
-        bind(RestClusterHealthAction.class).asEagerSingleton();
-
-        bind(RestSinglePingAction.class).asEagerSingleton();
-        bind(RestBroadcastPingAction.class).asEagerSingleton();
-        bind(RestReplicationPingAction.class).asEagerSingleton();
-
-        bind(RestIndicesStatusAction.class).asEagerSingleton();
-        bind(RestGetIndicesAliasesAction.class).asEagerSingleton();
-        bind(RestIndicesAliasesAction.class).asEagerSingleton();
-        bind(RestCreateIndexAction.class).asEagerSingleton();
-        bind(RestDeleteIndexAction.class).asEagerSingleton();
-        bind(RestCloseIndexAction.class).asEagerSingleton();
-        bind(RestOpenIndexAction.class).asEagerSingleton();
-
-        bind(RestUpdateSettingsAction.class).asEagerSingleton();
-        bind(RestGetSettingsAction.class).asEagerSingleton();
-
-        bind(RestAnalyzeAction.class).asEagerSingleton();
-        bind(RestGetIndexTemplateAction.class).asEagerSingleton();
-        bind(RestPutIndexTemplateAction.class).asEagerSingleton();
-        bind(RestDeleteIndexTemplateAction.class).asEagerSingleton();
-
-        bind(RestPutMappingAction.class).asEagerSingleton();
-        bind(RestDeleteMappingAction.class).asEagerSingleton();
-        bind(RestGetMappingAction.class).asEagerSingleton();
-
-        bind(RestGatewaySnapshotAction.class).asEagerSingleton();
-
-        bind(RestRefreshAction.class).asEagerSingleton();
-        bind(RestFlushAction.class).asEagerSingleton();
-        bind(RestOptimizeAction.class).asEagerSingleton();
-        bind(RestClearIndicesCacheAction.class).asEagerSingleton();
-
-        bind(RestIndexAction.class).asEagerSingleton();
-
-        bind(RestGetAction.class).asEagerSingleton();
-
-        bind(RestDeleteAction.class).asEagerSingleton();
-
-        bind(RestDeleteByQueryAction.class).asEagerSingleton();
-
-        bind(RestCountAction.class).asEagerSingleton();
-        bind(RestBulkAction.class).asEagerSingleton();
-
-        bind(RestSearchAction.class).asEagerSingleton();
-        bind(RestSearchScrollAction.class).asEagerSingleton();
-
-        bind(RestMoreLikeThisAction.class).asEagerSingleton();
-
-        bind(RestPercolateAction.class).asEagerSingleton();
+        for (Class<? extends RestHandler> restAction : defaultRestActions) {
+            if (!isDefaultActionDisabled(restAction)) {
+                bind(restAction).asEagerSingleton();
+            }
+        }
     }
+
+    private boolean isDefaultActionDisabled(Class<? extends RestHandler> restAction) {
+        boolean disabled = false;
+        for (Class<? extends RestHandler> restDisabledDefaultAction : disabledDefaultRestActions) {
+            if (restDisabledDefaultAction.isAssignableFrom(restAction)) {
+                disabled = true;
+                break;
+            }
+        }
+        return disabled;
+    }
+
+
 }

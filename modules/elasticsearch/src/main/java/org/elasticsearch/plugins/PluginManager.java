@@ -78,7 +78,7 @@ public class PluginManager {
                         pluginFile = new File(environment.pluginsFile(), name + ".zip");
                         if (version == null) {
                             // try with ES version from downloads
-                            URL pluginUrl = new URL("http://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + Version.number());
+                            URL pluginUrl = new URL("http://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + Version.number() + ".zip");
                             System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                             try {
                                 downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
@@ -104,7 +104,7 @@ public class PluginManager {
                             }
                         } else {
                             // download explicit version
-                            URL pluginUrl = new URL("http://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + version);
+                            URL pluginUrl = new URL("http://github.com/downloads/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
                             System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                             try {
                                 downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));

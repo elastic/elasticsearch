@@ -49,6 +49,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final TransportNodesInfoAction nodesInfoAction;
 
+    private final boolean disableSites;
+
     @Inject public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
                               RestController restController, TransportNodesInfoAction nodesInfoAction) {
         super(settings);
@@ -56,6 +58,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         this.transport = transport;
         this.restController = restController;
         this.nodesInfoAction = nodesInfoAction;
+
+        this.disableSites = componentSettings.getAsBoolean("disable_sites", false);
 
         transport.httpServerAdapter(new Dispatcher(this));
     }
@@ -107,6 +111,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     private void handlePluginSite(HttpRequest request, HttpChannel channel) {
+        if (disableSites) {
+            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            return;
+        }
         if (request.method() != RestRequest.Method.GET) {
             channel.sendResponse(new StringRestResponse(FORBIDDEN));
             return;

@@ -21,7 +21,11 @@ package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.format.*;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatterBuilder;
+import org.elasticsearch.common.joda.time.format.DateTimeParser;
+import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 
 /**
  * @author kimchy (shay.banon)
@@ -117,7 +121,7 @@ public class Joda {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
         } else {
-            String[] formats = Strings.split(input, "||");
+            String[] formats = Strings.delimitedListToStringArray(input, "||");
             if (formats == null || formats.length == 1) {
                 formatter = DateTimeFormat.forPattern(input);
             } else {

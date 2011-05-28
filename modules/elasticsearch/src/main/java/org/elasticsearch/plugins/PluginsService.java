@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -37,7 +38,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.util.*;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 import static org.elasticsearch.common.collect.Maps.*;
 
@@ -60,7 +66,7 @@ public class PluginsService extends AbstractComponent {
         Map<String, Plugin> plugins = Maps.newHashMap();
         plugins.putAll(loadPluginsFromClasspath(settings));
 
-        logger.info("loaded {}", plugins.keySet());
+        logger.info("loaded {}, sites {}", plugins.keySet(), sitePlugins());
 
         this.plugins = ImmutableMap.copyOf(plugins);
     }
@@ -136,6 +142,24 @@ public class PluginsService extends AbstractComponent {
             services.addAll(plugin.shardServices());
         }
         return services;
+    }
+
+    private Set<String> sitePlugins() {
+        File pluginsFile = environment.pluginsFile();
+        Set<String> sitePlugins = Sets.newHashSet();
+        if (!pluginsFile.exists()) {
+            return sitePlugins;
+        }
+        if (!pluginsFile.isDirectory()) {
+            return sitePlugins;
+        }
+        File[] pluginsFiles = pluginsFile.listFiles();
+        for (File pluginFile : pluginsFiles) {
+            if (new File(pluginFile, "_site").exists()) {
+                sitePlugins.add(pluginFile.getName());
+            }
+        }
+        return sitePlugins;
     }
 
     private void loadPluginsIntoClassLoader() {

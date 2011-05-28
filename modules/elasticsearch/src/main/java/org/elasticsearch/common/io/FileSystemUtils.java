@@ -19,7 +19,12 @@
 
 package org.elasticsearch.common.io;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,6 +60,32 @@ public class FileSystemUtils {
             }
         }
         return files.size();
+    }
+
+
+    public static boolean hasExtensions(File root, String... extensions) {
+        if (root != null && root.exists()) {
+            if (root.isDirectory()) {
+                File[] children = root.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isDirectory()) {
+                            boolean has = hasExtensions(child, extensions);
+                            if (has) {
+                                return true;
+                            }
+                        } else {
+                            for (String extension : extensions) {
+                                if (child.getName().endsWith(extension)) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     public static boolean deleteRecursively(File root) {

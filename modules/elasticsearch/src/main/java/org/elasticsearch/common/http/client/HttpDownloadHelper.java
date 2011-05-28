@@ -21,7 +21,13 @@ package org.elasticsearch.common.http.client;
 
 import org.elasticsearch.common.Nullable;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
@@ -143,6 +149,7 @@ public class HttpDownloadHelper {
          * begin a download
          */
         public void beginDownload() {
+            out.print("Downloading ");
             dots = 0;
         }
 
@@ -161,6 +168,7 @@ public class HttpDownloadHelper {
          * end a download
          */
         public void endDownload() {
+            out.println("DONE");
             out.flush();
         }
     }

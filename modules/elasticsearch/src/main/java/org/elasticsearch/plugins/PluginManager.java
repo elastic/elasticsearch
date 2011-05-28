@@ -189,6 +189,8 @@ public class PluginManager {
                 tmpLocation.renameTo(site);
             }
         }
+
+        System.out.println("Installed " + name);
     }
 
     public void removePlugin(String name) throws IOException {

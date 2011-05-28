@@ -28,6 +28,7 @@ import java.io.IOException;
 public class LimitFilter extends NoCacheFilter {
 
     private final int limit;
+    private int counter;
 
     public LimitFilter(int limit) {
         this.limit = limit;
@@ -38,13 +39,15 @@ public class LimitFilter extends NoCacheFilter {
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        if (counter > limit) {
+            return null;
+        }
         return new LimitDocSet(reader.maxDoc(), limit);
     }
 
-    public static class LimitDocSet extends GetDocSet {
+    public class LimitDocSet extends GetDocSet {
 
         private final int limit;
-        private int counter;
 
         public LimitDocSet(int maxDoc, int limit) {
             super(maxDoc);

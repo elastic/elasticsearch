@@ -25,6 +25,8 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatterBuilder;
+import org.elasticsearch.common.joda.time.format.DateTimeParser;
 import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.testng.annotations.Test;
@@ -38,6 +40,19 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (Shay Banon)
  */
 public class SimpleJodaTests {
+
+    @Test public void testMultiParsers() {
+        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+        DateTimeParser[] parsers = new DateTimeParser[3];
+        parsers[0] = DateTimeFormat.forPattern("MM/dd/yyyy").withZone(DateTimeZone.UTC).getParser();
+        parsers[1] = DateTimeFormat.forPattern("MM-dd-yyyy").withZone(DateTimeZone.UTC).getParser();
+        parsers[2] = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(DateTimeZone.UTC).getParser();
+        builder.append(DateTimeFormat.forPattern("MM/dd/yyyy").withZone(DateTimeZone.UTC).getPrinter(), parsers);
+
+        DateTimeFormatter formatter = builder.toFormatter();
+
+        formatter.parseMillis("2009-11-15 14:12:12");
+    }
 
     @Test public void testIsoDateFormatDateTimeNoMillisUTC() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC);

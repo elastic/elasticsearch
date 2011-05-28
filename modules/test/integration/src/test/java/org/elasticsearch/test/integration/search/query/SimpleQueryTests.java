@@ -195,6 +195,26 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(0l));
     }
 
+    @Test public void testLimitFilter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value1_2").execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field2", "value2_3").execute().actionGet();
+        client.prepareIndex("test", "type1", "4").setSource("field3", "value3_4").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+    }
+
     @Test public void filterExistsMissingTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

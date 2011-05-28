@@ -255,6 +255,7 @@ public class IndexQueryParserModule extends AbstractModule {
             bindings.processXContentQueryFilter(HasChildFilterParser.NAME, HasChildFilterParser.class);
             bindings.processXContentQueryFilter(TypeFilterParser.NAME, TypeFilterParser.class);
             bindings.processXContentQueryFilter(IdsFilterParser.NAME, IdsFilterParser.class);
+            bindings.processXContentQueryFilter(LimitFilterParser.NAME, LimitFilterParser.class);
             bindings.processXContentQueryFilter(TermFilterParser.NAME, TermFilterParser.class);
             bindings.processXContentQueryFilter(TermsFilterParser.NAME, TermsFilterParser.class);
             bindings.processXContentQueryFilter(RangeFilterParser.NAME, RangeFilterParser.class);

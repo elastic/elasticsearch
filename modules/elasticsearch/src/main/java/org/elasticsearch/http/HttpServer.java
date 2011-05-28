@@ -23,15 +23,15 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.StringRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
-import org.elasticsearch.rest.support.RestUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.File;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.*;
@@ -41,49 +41,35 @@ import static org.elasticsearch.rest.RestStatus.*;
  */
 public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
-    private final HttpServerTransport transport;
+    private final Environment environment;
 
-    private final ThreadPool threadPool;
+    private final HttpServerTransport transport;
 
     private final RestController restController;
 
     private final TransportNodesInfoAction nodesInfoAction;
 
-    private final PathTrie<HttpServerHandler> getHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<HttpServerHandler> postHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<HttpServerHandler> putHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<HttpServerHandler> deleteHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<HttpServerHandler> headHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<HttpServerHandler> optionsHandlers = new PathTrie<HttpServerHandler>(RestUtils.REST_DECODER);
-
-    @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool,
+    @Inject public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
                               RestController restController, TransportNodesInfoAction nodesInfoAction) {
         super(settings);
+        this.environment = environment;
         this.transport = transport;
-        this.threadPool = threadPool;
         this.restController = restController;
         this.nodesInfoAction = nodesInfoAction;
 
-        transport.httpServerAdapter(new HttpServerAdapter() {
-            @Override public void dispatchRequest(HttpRequest request, HttpChannel channel) {
-                internalDispatchRequest(request, channel);
-            }
-        });
+        transport.httpServerAdapter(new Dispatcher(this));
     }
 
-    public void registerHandler(HttpRequest.Method method, String path, HttpServerHandler handler) {
-        if (method == HttpRequest.Method.GET) {
-            getHandlers.insert(path, handler);
-        } else if (method == HttpRequest.Method.POST) {
-            postHandlers.insert(path, handler);
-        } else if (method == HttpRequest.Method.PUT) {
-            putHandlers.insert(path, handler);
-        } else if (method == HttpRequest.Method.DELETE) {
-            deleteHandlers.insert(path, handler);
-        } else if (method == RestRequest.Method.HEAD) {
-            headHandlers.insert(path, handler);
-        } else if (method == RestRequest.Method.OPTIONS) {
-            optionsHandlers.insert(path, handler);
+    static class Dispatcher implements HttpServerAdapter {
+
+        private final HttpServer server;
+
+        Dispatcher(HttpServer server) {
+            this.server = server;
+        }
+
+        @Override public void dispatchRequest(HttpRequest request, HttpChannel channel) {
+            server.internalDispatchRequest(request, channel);
         }
     }
 
@@ -104,72 +90,62 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         transport.close();
     }
 
-    void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
-        final HttpServerHandler httpHandler = getHandler(request);
-        if (httpHandler == null) {
-            // if nothing was dispatched by the rest request, send either error or default handling per method
-            if (!restController.dispatchRequest(request, channel)) {
-                if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                    StringRestResponse response = new StringRestResponse(OK);
-                    channel.sendResponse(response);
-                } else {
-                    channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
-                }
-            }
-        } else {
-            if (httpHandler.spawn()) {
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        try {
-                            httpHandler.handleRequest(request, channel);
-                        } catch (Exception e) {
-                            try {
-                                channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                            } catch (IOException e1) {
-                                logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
-                            }
-                        }
-                    }
-                });
+    public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
+        if (request.rawPath().startsWith("/_plugin/")) {
+            handlePluginSite(request, channel);
+            return;
+        }
+        if (!restController.dispatchRequest(request, channel)) {
+            if (request.method() == RestRequest.Method.OPTIONS) {
+                // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+                StringRestResponse response = new StringRestResponse(OK);
+                channel.sendResponse(response);
             } else {
-                try {
-                    httpHandler.handleRequest(request, channel);
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    } catch (IOException e1) {
-                        logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
-                    }
-                }
+                channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
             }
         }
     }
 
-    private HttpServerHandler getHandler(HttpRequest request) {
-        String path = getPath(request);
-        HttpRequest.Method method = request.method();
-        if (method == HttpRequest.Method.GET) {
-            return getHandlers.retrieve(path, request.params());
-        } else if (method == HttpRequest.Method.POST) {
-            return postHandlers.retrieve(path, request.params());
-        } else if (method == HttpRequest.Method.PUT) {
-            return putHandlers.retrieve(path, request.params());
-        } else if (method == HttpRequest.Method.DELETE) {
-            return deleteHandlers.retrieve(path, request.params());
-        } else if (method == RestRequest.Method.HEAD) {
-            return headHandlers.retrieve(path, request.params());
-        } else if (method == RestRequest.Method.OPTIONS) {
-            return optionsHandlers.retrieve(path, request.params());
-        } else {
-            return null;
+    private void handlePluginSite(HttpRequest request, HttpChannel channel) {
+        if (request.method() != RestRequest.Method.GET) {
+            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            return;
         }
-    }
+        int i1 = request.rawPath().indexOf('/', 9);
+        if (i1 == -1) {
+            channel.sendResponse(new StringRestResponse(NOT_FOUND));
+            return;
+        }
+        String pluginName = request.rawPath().substring(9, i1);
+        String sitePath = request.rawPath().substring(i1 + 1);
 
-    private String getPath(HttpRequest request) {
-        // we use rawPath since we don't want to decode it while processing the path resolution
-        // so we can handle things like:
-        // my_index/my_type/http%3A%2F%2Fwww.google.com
-        return request.rawPath();
+        if (sitePath.length() == 0) {
+            sitePath = "/index.html";
+        }
+
+        // Convert file separators.
+        sitePath = sitePath.replace('/', File.separatorChar);
+
+        // this is a plugin provided site, serve it as static files from the plugin location
+        File siteFile = new File(new File(environment.pluginsFile(), pluginName), "_site");
+        File file = new File(siteFile, sitePath);
+        if (!file.exists() || file.isHidden()) {
+            channel.sendResponse(new StringRestResponse(NOT_FOUND));
+            return;
+        }
+        if (!file.isFile()) {
+            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            return;
+        }
+        if (!file.getAbsolutePath().startsWith(siteFile.getAbsolutePath())) {
+            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            return;
+        }
+        try {
+            byte[] data = Streams.copyToByteArray(file);
+            channel.sendResponse(new BytesRestResponse(data, ""));
+        } catch (IOException e) {
+            channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
+        }
     }
 }

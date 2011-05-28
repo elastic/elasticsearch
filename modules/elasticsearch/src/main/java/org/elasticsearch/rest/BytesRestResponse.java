@@ -17,14 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.rest;
 
-/**
- * @author kimchy (Shay Banon)
- */
-public interface HttpServerHandler {
+import java.io.IOException;
 
-    void handleRequest(HttpRequest request, HttpChannel channel);
+public class BytesRestResponse extends AbstractRestResponse {
 
-    boolean spawn();
+    private final byte[] bytes;
+
+    private final String contentType;
+
+    public BytesRestResponse(byte[] bytes, String contentType) {
+        this.bytes = bytes;
+        this.contentType = contentType;
+    }
+
+    @Override public boolean contentThreadSafe() {
+        return true;
+    }
+
+    @Override public String contentType() {
+        return contentType;
+    }
+
+    @Override public byte[] content() throws IOException {
+        return bytes;
+    }
+
+    @Override public int contentLength() throws IOException {
+        return bytes.length;
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.OK;
+    }
 }

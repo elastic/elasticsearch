@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -121,6 +122,9 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public Filter cache(Filter filterToCache) {
+        if (filterToCache instanceof NoCacheFilter) {
+            return filterToCache;
+        }
         if (isCached(filterToCache)) {
             return filterToCache;
         }

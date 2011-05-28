@@ -21,11 +21,23 @@ package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.spans.*;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.lucene.search.*;
+import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.LimitFilter;
+import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.OrFilter;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -954,6 +966,19 @@ public class SimpleIndexQueryParserTests {
         assertThat((double) wildcardQuery.getBoost(), closeTo(1.1, 0.001));
 
         assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+    }
+
+    @Test public void testLimitFilter() throws Exception {
+        IndexQueryParser queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/limit-filter.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(filteredQuery.getFilter(), instanceOf(LimitFilter.class));
+        assertThat(((LimitFilter) filteredQuery.getFilter()).getLimit(), equalTo(2));
+
+        assertThat(filteredQuery.getQuery(), instanceOf(TermQuery.class));
+        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
     }
 
     @Test public void testTermFilterQuery() throws Exception {

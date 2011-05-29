@@ -7,7 +7,7 @@
 #  conf: /path/to/conf
 #  data: /path/to/data
 #  work: /path/to/work
-#  logs: /paht/to/logs
+#  logs: /path/to/logs
 
 # Gateway Settings
 #gateway:

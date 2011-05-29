@@ -2,6 +2,13 @@
 #cluster:
 #  name: elasticsearch
 
+# Path Settings
+#path:
+#  conf: /path/to/conf
+#  data: /path/to/data
+#  work: /path/to/work
+#  logs: /paht/to/logs
+
 # Gateway Settings
 #gateway:
 #  recover_after_nodes: 1

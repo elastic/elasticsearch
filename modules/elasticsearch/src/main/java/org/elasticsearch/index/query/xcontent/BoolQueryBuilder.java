@@ -33,7 +33,11 @@ import java.util.List;
  */
 public class BoolQueryBuilder extends BaseQueryBuilder {
 
-    private ArrayList<Clause> clauses = new ArrayList<Clause>();
+    private ArrayList<Clause> mustClauses = new ArrayList<Clause>();
+
+    private ArrayList<Clause> mustNotClauses = new ArrayList<Clause>();
+
+    private ArrayList<Clause> shouldClauses = new ArrayList<Clause>();
 
     private float boost = -1;
 
@@ -45,7 +49,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
      * Adds a query that <b>must</b> appear in the matching documents.
      */
     public BoolQueryBuilder must(XContentQueryBuilder queryBuilder) {
-        clauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST));
+        mustClauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST));
         return this;
     }
 
@@ -53,7 +57,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
      * Adds a query that <b>must not</b> appear in the matching documents.
      */
     public BoolQueryBuilder mustNot(XContentQueryBuilder queryBuilder) {
-        clauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST_NOT));
+        mustNotClauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST_NOT));
         return this;
     }
 
@@ -65,7 +69,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
      * @see #minimumNumberShouldMatch(int)
      */
     public BoolQueryBuilder should(XContentQueryBuilder queryBuilder) {
-        clauses.add(new Clause(queryBuilder, BooleanClause.Occur.SHOULD));
+        shouldClauses.add(new Clause(queryBuilder, BooleanClause.Occur.SHOULD));
         return this;
     }
 
@@ -105,29 +109,22 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
-     * A list of the current clauses.
+     * A list of the current clauses. Its modification has no consequence on
+     * the composition of the boolean query
      */
     public List<Clause> clauses() {
-        return this.clauses;
+        ArrayList<Clause> all = new ArrayList<Clause>();
+        all.addAll(mustClauses);
+        all.addAll(mustNotClauses);
+        all.addAll(shouldClauses);
+        return all;
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
-        List<Clause> musts = new ArrayList<Clause>();
-        List<Clause> mustNots = new ArrayList<Clause>();
-        List<Clause> shoulds = new ArrayList<Clause>();
-        for (Clause clause : clauses) {
-            if (clause.occur == BooleanClause.Occur.MUST) {
-                musts.add(clause);
-            } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
-                mustNots.add(clause);
-            } else if (clause.occur == BooleanClause.Occur.SHOULD) {
-                shoulds.add(clause);
-            }
-        }
-        doXArrayContent("must", musts, builder, params);
-        doXArrayContent("must_not", mustNots, builder, params);
-        doXArrayContent("should", shoulds, builder, params);
+        doXArrayContent("must", mustClauses, builder, params);
+        doXArrayContent("must_not", mustNotClauses, builder, params);
+        doXArrayContent("should", shouldClauses, builder, params);
         if (boost != -1) {
             builder.field("boost", boost);
         }

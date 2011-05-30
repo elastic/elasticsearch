@@ -19,7 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -105,6 +110,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             }
         }
         final Settings settings = updatedSettingsBuilder.build();
+        if (settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS) != null) {
+            listener.onFailure(new ElasticSearchIllegalArgumentException("can't change the number of shards for an index"));
+            return;
+        }
         clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {

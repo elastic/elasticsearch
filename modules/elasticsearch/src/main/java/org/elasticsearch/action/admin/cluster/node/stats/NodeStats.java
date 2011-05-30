@@ -28,7 +28,6 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 
@@ -49,21 +48,17 @@ public class NodeStats extends NodeOperationResponse {
 
     private NetworkStats network;
 
-    private TransportStats transport;
-
     NodeStats() {
     }
 
     public NodeStats(DiscoveryNode node, NodeIndicesStats indices,
-                     OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
-                     TransportStats transport) {
+                     OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network) {
         super(node);
         this.indices = indices;
         this.os = os;
         this.process = process;
         this.jvm = jvm;
         this.network = network;
-        this.transport = transport;
     }
 
     /**
@@ -136,14 +131,6 @@ public class NodeStats extends NodeOperationResponse {
         return network();
     }
 
-    public TransportStats transport() {
-        return transport;
-    }
-
-    public TransportStats getTransport() {
-        return transport();
-    }
-
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -166,9 +153,6 @@ public class NodeStats extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             network = NetworkStats.readNetworkStats(in);
-        }
-        if (in.readBoolean()) {
-            transport = TransportStats.readTransportStats(in);
         }
     }
 
@@ -203,12 +187,6 @@ public class NodeStats extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             network.writeTo(out);
-        }
-        if (transport == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            transport.writeTo(out);
         }
     }
 }

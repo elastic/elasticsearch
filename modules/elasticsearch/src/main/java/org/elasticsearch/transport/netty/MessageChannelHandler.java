@@ -26,9 +26,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
-import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.channel.ExceptionEvent;
+import org.elasticsearch.common.netty.channel.MessageEvent;
+import org.elasticsearch.common.netty.channel.SimpleChannelUpstreamHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportSerializationException;
+import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
@@ -53,17 +62,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         this.logger = logger;
     }
 
-    @Override public void writeComplete(ChannelHandlerContext ctx, WriteCompletionEvent e) throws Exception {
-        transportServiceAdapter.sent(e.getWrittenAmount());
-        super.writeComplete(ctx, e);
-    }
-
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent event) throws Exception {
         ChannelBuffer buffer = (ChannelBuffer) event.getMessage();
 
         int size = buffer.getInt(buffer.readerIndex() - 4);
-
-        transportServiceAdapter.received(size + 4);
 
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;

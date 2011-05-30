@@ -95,8 +95,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     @Override protected NodeStats nodeOperation(NodeStatsRequest request) throws ElasticSearchException {
         return new NodeStats(clusterService.state().nodes().localNode(), indicesService.stats(),
                 monitorService.osService().stats(), monitorService.processService().stats(),
-                monitorService.jvmService().stats(), monitorService.networkService().stats(),
-                transportService.stats());
+                monitorService.jvmService().stats(), monitorService.networkService().stats());
     }
 
     @Override protected boolean accumulateExceptions() {

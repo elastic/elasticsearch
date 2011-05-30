@@ -27,7 +27,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -76,9 +82,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
                         }
                         if (nodeStats.network() != null) {
                             nodeStats.network().toXContent(builder, request);
-                        }
-                        if (nodeStats.transport() != null) {
-                            nodeStats.transport().toXContent(builder, request);
                         }
 
                         builder.endObject();

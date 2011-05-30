@@ -113,18 +113,21 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
+        List<Clause> musts = new ArrayList<Clause>();
+        List<Clause> mustNots = new ArrayList<Clause>();
+        List<Clause> shoulds = new ArrayList<Clause>();
         for (Clause clause : clauses) {
             if (clause.occur == BooleanClause.Occur.MUST) {
-                builder.field("must");
-                clause.queryBuilder.toXContent(builder, params);
+                musts.add(clause);
             } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
-                builder.field("must_not");
-                clause.queryBuilder.toXContent(builder, params);
+                mustNots.add(clause);
             } else if (clause.occur == BooleanClause.Occur.SHOULD) {
-                builder.field("should");
-                clause.queryBuilder.toXContent(builder, params);
+                shoulds.add(clause);
             }
         }
+        doXArrayContent("must", musts, builder, params);
+        doXArrayContent("must_not", mustNots, builder, params);
+        doXArrayContent("should", shoulds, builder, params);
         if (boost != -1) {
             builder.field("boost", boost);
         }
@@ -135,6 +138,22 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
             builder.field("minimum_number_should_match", minimumNumberShouldMatch);
         }
         builder.endObject();
+    }
+
+    private void doXArrayContent(String field, List<Clause> clauses, XContentBuilder builder, Params params) throws IOException {
+        if (clauses.isEmpty()) {
+            return;
+        }
+        if (clauses.size() == 1) {
+            builder.field(field);
+            clauses.get(0).queryBuilder.toXContent(builder, params);
+        } else {
+            builder.startArray(field);
+            for (Clause clause : clauses) {
+                clause.queryBuilder.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
     }
 
     private static class Clause {

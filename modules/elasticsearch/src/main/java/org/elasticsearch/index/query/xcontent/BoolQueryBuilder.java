@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.search.BooleanClause;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,11 +32,11 @@ import java.util.List;
  */
 public class BoolQueryBuilder extends BaseQueryBuilder {
 
-    private ArrayList<Clause> mustClauses = new ArrayList<Clause>();
+    private ArrayList<XContentQueryBuilder> mustClauses = new ArrayList<XContentQueryBuilder>();
 
-    private ArrayList<Clause> mustNotClauses = new ArrayList<Clause>();
+    private ArrayList<XContentQueryBuilder> mustNotClauses = new ArrayList<XContentQueryBuilder>();
 
-    private ArrayList<Clause> shouldClauses = new ArrayList<Clause>();
+    private ArrayList<XContentQueryBuilder> shouldClauses = new ArrayList<XContentQueryBuilder>();
 
     private float boost = -1;
 
@@ -49,7 +48,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
      * Adds a query that <b>must</b> appear in the matching documents.
      */
     public BoolQueryBuilder must(XContentQueryBuilder queryBuilder) {
-        mustClauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST));
+        mustClauses.add(queryBuilder);
         return this;
     }
 
@@ -57,7 +56,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
      * Adds a query that <b>must not</b> appear in the matching documents.
      */
     public BoolQueryBuilder mustNot(XContentQueryBuilder queryBuilder) {
-        mustNotClauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST_NOT));
+        mustNotClauses.add(queryBuilder);
         return this;
     }
 
@@ -69,7 +68,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
      * @see #minimumNumberShouldMatch(int)
      */
     public BoolQueryBuilder should(XContentQueryBuilder queryBuilder) {
-        shouldClauses.add(new Clause(queryBuilder, BooleanClause.Occur.SHOULD));
+        shouldClauses.add(queryBuilder);
         return this;
     }
 
@@ -109,15 +108,10 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
-     * A list of the current clauses. Its modification has no consequence on
-     * the composition of the boolean query
+     * Return <code>true</code> if the query being built has no clause yet
      */
-    public List<Clause> clauses() {
-        ArrayList<Clause> all = new ArrayList<Clause>();
-        all.addAll(mustClauses);
-        all.addAll(mustNotClauses);
-        all.addAll(shouldClauses);
-        return all;
+    public boolean hasClauses() {
+        return !mustClauses.isEmpty() || !mustNotClauses.isEmpty() || !shouldClauses.isEmpty();
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -137,29 +131,20 @@ public class BoolQueryBuilder extends BaseQueryBuilder {
         builder.endObject();
     }
 
-    private void doXArrayContent(String field, List<Clause> clauses, XContentBuilder builder, Params params) throws IOException {
+    private void doXArrayContent(String field, List<XContentQueryBuilder> clauses, XContentBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
             return;
         }
         if (clauses.size() == 1) {
             builder.field(field);
-            clauses.get(0).queryBuilder.toXContent(builder, params);
+            clauses.get(0).toXContent(builder, params);
         } else {
             builder.startArray(field);
-            for (Clause clause : clauses) {
-                clause.queryBuilder.toXContent(builder, params);
+            for (XContentQueryBuilder clause : clauses) {
+                clause.toXContent(builder, params);
             }
             builder.endArray();
         }
     }
 
-    private static class Clause {
-        final XContentQueryBuilder queryBuilder;
-        final BooleanClause.Occur occur;
-
-        private Clause(XContentQueryBuilder queryBuilder, BooleanClause.Occur occur) {
-            this.queryBuilder = queryBuilder;
-            this.occur = occur;
-        }
-    }
 }

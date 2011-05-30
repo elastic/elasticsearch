@@ -143,7 +143,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                         parseSource(getResponse, boolBuilder, docMapper, fields, request);
                     }
 
-                    if (boolBuilder.clauses().isEmpty()) {
+                    if (!boolBuilder.hasClauses()) {
                         // no field added, fail
                         listener.onFailure(new ElasticSearchException("No fields found to fetch the 'likeText' from"));
                         return;

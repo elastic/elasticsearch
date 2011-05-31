@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.common.Required;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -44,10 +45,9 @@ public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappi
     }
 
     /**
-     * The type of the mappings. Not required since it can be defined explicitly within the mapping source.
-     * If it is not defined within the mapping source, then it is required.
+     * The type of the mappings.
      */
-    public PutMappingRequestBuilder setType(String type) {
+    @Required public PutMappingRequestBuilder setType(String type) {
         request.type(type);
         return this;
     }

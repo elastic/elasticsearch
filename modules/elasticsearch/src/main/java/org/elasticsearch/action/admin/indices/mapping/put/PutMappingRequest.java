@@ -76,6 +76,9 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+        if (mappingType == null) {
+            validationException = addValidationError("mapping type is missing", validationException);
+        }
         if (mappingSource == null) {
             validationException = addValidationError("mapping source is missing", validationException);
         }
@@ -105,10 +108,9 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * The type of the mappings. Not required since it can be defined explicitly within the mapping source.
-     * If it is not defined within the mapping source, then it is required.
+     * The type of the mappings.
      */
-    public PutMappingRequest type(String mappingType) {
+    @Required public PutMappingRequest type(String mappingType) {
         this.mappingType = mappingType;
         return this;
     }

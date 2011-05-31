@@ -25,7 +25,11 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.node.Node;
-import org.testng.annotations.*;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.io.Streams.*;
@@ -73,7 +77,7 @@ public class SimpleAttachmentIntegrationTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html");
 
-        node.client().admin().indices().putMapping(putMappingRequest("test").source(mapping)).actionGet();
+        node.client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
         node.client().index(indexRequest("test").type("person")
                 .source(jsonBuilder().startObject().field("file", html).endObject())).actionGet();

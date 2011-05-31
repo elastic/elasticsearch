@@ -31,6 +31,9 @@ public class Booleans {
         if (length == 1) {
             return text[offset] != '0';
         }
+        if (length == 2) {
+            return !(text[offset] == 'n' && text[offset + 1] == 'o');
+        }
         if (length == 3) {
             return !(text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f');
         }
@@ -44,13 +47,13 @@ public class Booleans {
         if (value == null) {
             return defaultValue;
         }
-        return !(value.equals("false") || value.equals("0") || value.equals("off"));
+        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {
         if (value == null) {
             return defaultValue;
         }
-        return !(value.equals("false") || value.equals("0") || value.equals("off"));
+        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
     }
 }

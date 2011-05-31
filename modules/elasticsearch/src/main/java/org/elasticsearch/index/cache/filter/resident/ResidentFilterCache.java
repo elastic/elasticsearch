@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.filter.resident;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.base.Objects;
 import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
@@ -89,6 +90,13 @@ public class ResidentFilterCache extends AbstractConcurrentMapFilterCache implem
 
     @Override public void onEviction(Filter filter, DocSet docSet) {
         evictions.incrementAndGet();
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.cache.field.max_size",
+                "index.cache.field.expire"
+        );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {

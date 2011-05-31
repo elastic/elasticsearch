@@ -24,6 +24,7 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -94,6 +95,16 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
 
     @Override public void close(boolean delete) throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.merge.policy.min_merge_size",
+                "index.merge.policy.max_merge_size",
+                "index.merge.policy.max_merge_docs",
+                "index.merge.policy.merge_factor",
+                "index.compound_format"
+        );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {

@@ -24,6 +24,7 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -88,6 +89,15 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         mergePolicy.setUseCompoundFile(compoundFormat);
         policies.add(mergePolicy);
         return mergePolicy;
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.merge.policy.min_merge_docs",
+                "index.merge.policy.max_merge_docs",
+                "index.merge.policy.merge_factor",
+                "index.compound_format"
+        );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {

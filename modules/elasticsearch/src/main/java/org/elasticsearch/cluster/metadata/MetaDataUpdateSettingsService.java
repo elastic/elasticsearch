@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,12 +26,14 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.RoutingTable.*;
 
@@ -103,17 +104,29 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     public void updateSettings(final Settings pSettings, final String[] indices, final Listener listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
         for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
+            if (entry.getKey().equals("index")) {
+                continue;
+            }
             if (!entry.getKey().startsWith("index.")) {
                 updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
             } else {
                 updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
             }
         }
-        final Settings settings = updatedSettingsBuilder.build();
-        if (settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS) != null) {
-            listener.onFailure(new ElasticSearchIllegalArgumentException("can't change the number of shards for an index"));
-            return;
+        Set<String> removedSettings = Sets.newHashSet();
+        for (String key : updatedSettingsBuilder.internalMap().keySet()) {
+            if (!IndexMetaData.dynamicSettings().contains(key)) {
+                removedSettings.add(key);
+            }
         }
+        if (!removedSettings.isEmpty()) {
+            logger.warn("{} ignoring non dynamic index level settings: {}", indices, removedSettings);
+            for (String removedSetting : removedSettings) {
+                updatedSettingsBuilder.remove(removedSetting);
+            }
+        }
+        final Settings settings = updatedSettingsBuilder.build();
+
         clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {

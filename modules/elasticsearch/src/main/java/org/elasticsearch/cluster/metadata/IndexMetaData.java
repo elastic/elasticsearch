@@ -35,6 +35,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -44,6 +46,21 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 @Immutable
 public class IndexMetaData {
+
+    private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
+            .add(IndexMetaData.SETTING_NUMBER_OF_REPLICAS)
+            .add(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS)
+            .build();
+
+    public static ImmutableSet<String> dynamicSettings() {
+        return dynamicSettings;
+    }
+
+    public static synchronized void addDynamicSettings(String... settings) {
+        HashSet<String> updatedSettings = new HashSet<String>(dynamicSettings);
+        updatedSettings.addAll(Arrays.asList(settings));
+        dynamicSettings = ImmutableSet.copyOf(updatedSettings);
+    }
 
     public static enum State {
         OPEN((byte) 0),
@@ -281,7 +298,7 @@ public class IndexMetaData {
         }
 
         public IndexMetaData build() {
-            MapBuilder<String, AliasMetaData> tmpAliases  = aliases;
+            MapBuilder<String, AliasMetaData> tmpAliases = aliases;
             Settings tmpSettings = settings;
 
             // For backward compatibility

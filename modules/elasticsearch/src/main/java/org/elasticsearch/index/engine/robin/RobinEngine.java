@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.engine.robin;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.ExtendedIndexSearcher;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
@@ -1077,6 +1082,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
         return indexWriter;
     }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.term_index_interval",
+                "index.term_index_divisor",
+                "index.index_concurrency"
+        );
+    }
+
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {

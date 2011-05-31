@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.field.data.resident;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.base.Objects;
 import org.elasticsearch.common.collect.MapEvictionListener;
@@ -89,6 +90,13 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
 
     @Override public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
         evictions.incrementAndGet();
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.cache.field.max_size",
+                "index.cache.field.expire"
+        );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {

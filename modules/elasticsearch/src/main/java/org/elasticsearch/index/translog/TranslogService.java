@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -90,6 +91,15 @@ public class TranslogService extends AbstractIndexShardComponent {
     public void close() {
         indexSettingsService.removeListener(applySettings);
         this.future.cancel(true);
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.translog.flush_threshold_ops",
+                "index.translog.flush_threshold_size",
+                "index.translog.flush_threshold_period",
+                "index.translog.disable_flush"
+        );
     }
 
     class ApplySettings implements IndexSettingsService.Listener {

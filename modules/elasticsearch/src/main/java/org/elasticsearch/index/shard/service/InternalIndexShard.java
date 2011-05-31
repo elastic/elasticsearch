@@ -29,6 +29,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -40,8 +41,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.engine.*;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.OptimizeFailedEngineException;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
@@ -593,6 +602,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             query = new FilteredQuery(query, indexCache.filter().cache(mapperService.typesFilter(types)));
         }
         return query;
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings("index.refresh_interval");
     }
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {

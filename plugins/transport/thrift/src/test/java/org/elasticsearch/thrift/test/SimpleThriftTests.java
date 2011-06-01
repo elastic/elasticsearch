@@ -27,7 +27,11 @@ import org.apache.thrift.transport.TTransportException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.thrift.*;
+import org.elasticsearch.thrift.Method;
+import org.elasticsearch.thrift.Rest;
+import org.elasticsearch.thrift.RestRequest;
+import org.elasticsearch.thrift.RestResponse;
+import org.elasticsearch.thrift.Status;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -83,6 +87,6 @@ public class SimpleThriftTests {
     }
 
     private Map<String, Object> parseBody(RestResponse response) throws IOException {
-        return XContentFactory.xContent(XContentType.JSON).createParser(response.BufferForBody().array(), response.BufferForBody().arrayOffset(), response.BufferForBody().remaining()).map();
+        return XContentFactory.xContent(XContentType.JSON).createParser(response.bufferForBody().array(), response.bufferForBody().arrayOffset(), response.bufferForBody().remaining()).map();
     }
 }

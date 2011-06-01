@@ -78,7 +78,7 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
     }
 
     @Override public boolean hasContent() {
-        return request.isSetBody() && request.BufferForBody().remaining() > 0;
+        return request.isSetBody() && request.bufferForBody().remaining() > 0;
     }
 
     @Override public boolean contentUnsafe() {
@@ -89,21 +89,21 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
         if (!request.isSetBody()) {
             return Bytes.EMPTY_ARRAY;
         }
-        return request.BufferForBody().array();
+        return request.bufferForBody().array();
     }
 
     @Override public int contentByteArrayOffset() {
         if (!request.isSetBody()) {
             return 0;
         }
-        return request.BufferForBody().arrayOffset();
+        return request.bufferForBody().arrayOffset();
     }
 
     @Override public int contentLength() {
         if (!request.isSetBody()) {
             return 0;
         }
-        return request.BufferForBody().remaining();
+        return request.bufferForBody().remaining();
     }
 
     @Override public String contentAsString() {

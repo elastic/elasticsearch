@@ -6,9 +6,7 @@
 package org.elasticsearch.thrift;
 
 
-import org.apache.thrift.TEnum;
-
-public enum Status implements TEnum {
+public enum Status implements org.apache.thrift.TEnum {
     CONT(100),
     SWITCHING_PROTOCOLS(101),
     OK(200),

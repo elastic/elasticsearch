@@ -22,11 +22,11 @@ package org.elasticsearch.thrift;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TCompactProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.server.THsHaServer;
-import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
-import org.apache.thrift.transport.*;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TServerSocket;
+import org.apache.thrift.transport.TTransportFactory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -34,8 +34,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.transport.BindTransportException;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,7 +49,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
  */
 public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
 
-    final String type;
+    final int frame;
 
     final String port;
 
@@ -71,10 +74,10 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
         this.client = client;
         this.networkService = networkService;
         this.nodesInfoAction = nodesInfoAction;
-        this.type = componentSettings.get("type", "threadpool");
+        this.frame = (int) componentSettings.getAsBytesSize("frame", new ByteSizeValue(-1)).bytes();
         this.port = componentSettings.get("port", "9500-9600");
-        this.bindHost = componentSettings.get("bind_host");
-        this.publishHost = componentSettings.get("publish_host");
+        this.bindHost = componentSettings.get("bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
+        this.publishHost = componentSettings.get("publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
 
         if (componentSettings.get("protocol", "binary").equals("compact")) {
             protocolFactory = new TCompactProtocol.Factory();
@@ -84,6 +87,14 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
     }
 
     @Override protected void doStart() throws ElasticSearchException {
+        InetAddress bindAddrX;
+        try {
+            bindAddrX = networkService.resolveBindHostAddress(bindHost);
+        } catch (IOException e) {
+            throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
+        }
+        final InetAddress bindAddr = bindAddrX;
+
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
@@ -91,24 +102,26 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
                 ThriftServer.this.portNumber = portNumber;
                 try {
                     Rest.Processor processor = new Rest.Processor(client);
-                    if ("threadpool_framed".equals(type) || "threadpool".equals("threadpool")) {
-                        TTransportFactory transportFactory;
-                        if ("threadpool_framed".equals(type)) {
-                            transportFactory = new TFramedTransport.Factory();
-                        } else {
-                            transportFactory = new TTransportFactory();
-                        }
-                        TServerTransport serverTransport = new TServerSocket(portNumber);
-                        server = new TThreadPoolServer(processor, serverTransport, transportFactory, protocolFactory);
-                    } else if ("nonblocking".equals(type) || "hsha".equals(type)) {
-                        TNonblockingServerTransport serverTransport = new TNonblockingServerSocket(portNumber);
-                        TFramedTransport.Factory transportFactory = new TFramedTransport.Factory();
-                        if ("nonblocking".equals(type)) {
-                            server = new TNonblockingServer(processor, serverTransport, transportFactory, protocolFactory);
-                        } else {
-                            server = new THsHaServer(processor, serverTransport, transportFactory, protocolFactory);
-                        }
+
+                    // Bind and start to accept incoming connections.
+                    TServerSocket serverSocket = new TServerSocket(new InetSocketAddress(bindAddr, portNumber));
+
+                    TThreadPoolServer.Args args = new TThreadPoolServer.Args(serverSocket)
+                            .minWorkerThreads(16)
+                            .maxWorkerThreads(Integer.MAX_VALUE)
+                            .inputProtocolFactory(protocolFactory)
+                            .outputProtocolFactory(protocolFactory)
+                            .processor(processor);
+
+                    if (frame <= 0) {
+                        args.inputTransportFactory(new TTransportFactory());
+                        args.outputTransportFactory(new TTransportFactory());
+                    } else {
+                        args.inputTransportFactory(new TFramedTransport.Factory(frame));
+                        args.outputTransportFactory(new TFramedTransport.Factory(frame));
                     }
+
+                    server = new TThreadPoolServer(args);
                 } catch (Exception e) {
                     lastException.set(e);
                     return false;

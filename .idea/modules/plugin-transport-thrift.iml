@@ -16,7 +16,7 @@
     <orderEntry type="module-library">
       <library name="libthrift">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.elasticsearch/es-libthrift/jars/es-libthrift-0.5.0.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.elasticsearch/es-libthrift/jars/es-libthrift-0.6.1.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

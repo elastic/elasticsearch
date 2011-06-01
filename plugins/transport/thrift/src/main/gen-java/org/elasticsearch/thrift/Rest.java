@@ -5,75 +5,72 @@
  */
 package org.elasticsearch.thrift;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.FieldMetaData;
-import org.apache.thrift.meta_data.StructMetaData;
-import org.apache.thrift.protocol.*;
-import org.apache.thrift.transport.TMemoryInputTransport;
-import org.apache.thrift.transport.TNonblockingTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Rest {
 
     public interface Iface {
 
-        public RestResponse execute(RestRequest request) throws TException;
+        public RestResponse execute(RestRequest request) throws org.apache.thrift.TException;
 
     }
 
     public interface AsyncIface {
 
-        public void execute(RestRequest request, AsyncMethodCallback<AsyncClient.execute_call> resultHandler) throws TException;
+        public void execute(RestRequest request, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.execute_call> resultHandler) throws org.apache.thrift.TException;
 
     }
 
-    public static class Client implements TServiceClient, Iface {
-        public static class Factory implements TServiceClientFactory<Client> {
+    public static class Client implements org.apache.thrift.TServiceClient, Iface {
+        public static class Factory implements org.apache.thrift.TServiceClientFactory<Client> {
             public Factory() {
             }
 
-            public Client getClient(TProtocol prot) {
+            public Client getClient(org.apache.thrift.protocol.TProtocol prot) {
                 return new Client(prot);
             }
 
-            public Client getClient(TProtocol iprot, TProtocol oprot) {
+            public Client getClient(org.apache.thrift.protocol.TProtocol iprot, org.apache.thrift.protocol.TProtocol oprot) {
                 return new Client(iprot, oprot);
             }
         }
 
-        public Client(TProtocol prot) {
+        public Client(org.apache.thrift.protocol.TProtocol prot) {
             this(prot, prot);
         }
 
-        public Client(TProtocol iprot, TProtocol oprot) {
+        public Client(org.apache.thrift.protocol.TProtocol iprot, org.apache.thrift.protocol.TProtocol oprot) {
             iprot_ = iprot;
             oprot_ = oprot;
         }
 
-        protected TProtocol iprot_;
-        protected TProtocol oprot_;
+        protected org.apache.thrift.protocol.TProtocol iprot_;
+        protected org.apache.thrift.protocol.TProtocol oprot_;
 
         protected int seqid_;
 
-        public TProtocol getInputProtocol() {
+        public org.apache.thrift.protocol.TProtocol getInputProtocol() {
             return this.iprot_;
         }
 
-        public TProtocol getOutputProtocol() {
+        public org.apache.thrift.protocol.TProtocol getOutputProtocol() {
             return this.oprot_;
         }
 
-        public RestResponse execute(RestRequest request) throws TException {
+        public RestResponse execute(RestRequest request) throws org.apache.thrift.TException {
             send_execute(request);
             return recv_execute();
         }
 
-        public void send_execute(RestRequest request) throws TException {
-            oprot_.writeMessageBegin(new TMessage("execute", TMessageType.CALL, ++seqid_));
+        public void send_execute(RestRequest request) throws org.apache.thrift.TException {
+            oprot_.writeMessageBegin(new org.apache.thrift.protocol.TMessage("execute", org.apache.thrift.protocol.TMessageType.CALL, ++seqid_));
             execute_args args = new execute_args();
             args.setRequest(request);
             args.write(oprot_);
@@ -81,15 +78,15 @@ public class Rest {
             oprot_.getTransport().flush();
         }
 
-        public RestResponse recv_execute() throws TException {
-            TMessage msg = iprot_.readMessageBegin();
-            if (msg.type == TMessageType.EXCEPTION) {
-                TApplicationException x = TApplicationException.read(iprot_);
+        public RestResponse recv_execute() throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TMessage msg = iprot_.readMessageBegin();
+            if (msg.type == org.apache.thrift.protocol.TMessageType.EXCEPTION) {
+                org.apache.thrift.TApplicationException x = org.apache.thrift.TApplicationException.read(iprot_);
                 iprot_.readMessageEnd();
                 throw x;
             }
             if (msg.seqid != seqid_) {
-                throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "execute failed: out of sequence response");
+                throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.BAD_SEQUENCE_ID, "execute failed: out of sequence response");
             }
             execute_result result = new execute_result();
             result.read(iprot_);
@@ -97,65 +94,66 @@ public class Rest {
             if (result.isSetSuccess()) {
                 return result.success;
             }
-            throw new TApplicationException(TApplicationException.MISSING_RESULT, "execute failed: unknown result");
+            throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "execute failed: unknown result");
         }
 
     }
 
-    public static class AsyncClient extends TAsyncClient implements AsyncIface {
-        public static class Factory implements TAsyncClientFactory<AsyncClient> {
-            private TAsyncClientManager clientManager;
-            private TProtocolFactory protocolFactory;
+    public static class AsyncClient extends org.apache.thrift.async.TAsyncClient implements AsyncIface {
+        public static class Factory implements org.apache.thrift.async.TAsyncClientFactory<AsyncClient> {
+            private org.apache.thrift.async.TAsyncClientManager clientManager;
+            private org.apache.thrift.protocol.TProtocolFactory protocolFactory;
 
-            public Factory(TAsyncClientManager clientManager, TProtocolFactory protocolFactory) {
+            public Factory(org.apache.thrift.async.TAsyncClientManager clientManager, org.apache.thrift.protocol.TProtocolFactory protocolFactory) {
                 this.clientManager = clientManager;
                 this.protocolFactory = protocolFactory;
             }
 
-            public AsyncClient getAsyncClient(TNonblockingTransport transport) {
+            public AsyncClient getAsyncClient(org.apache.thrift.transport.TNonblockingTransport transport) {
                 return new AsyncClient(protocolFactory, clientManager, transport);
             }
         }
 
-        public AsyncClient(TProtocolFactory protocolFactory, TAsyncClientManager clientManager, TNonblockingTransport transport) {
+        public AsyncClient(org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.async.TAsyncClientManager clientManager, org.apache.thrift.transport.TNonblockingTransport transport) {
             super(protocolFactory, clientManager, transport);
         }
 
-        public void execute(RestRequest request, AsyncMethodCallback<execute_call> resultHandler) throws TException {
+        public void execute(RestRequest request, org.apache.thrift.async.AsyncMethodCallback<execute_call> resultHandler) throws org.apache.thrift.TException {
             checkReady();
             execute_call method_call = new execute_call(request, resultHandler, this, protocolFactory, transport);
+            this.currentMethod = method_call;
             manager.call(method_call);
         }
 
-        public static class execute_call extends TAsyncMethodCall {
+        public static class execute_call extends org.apache.thrift.async.TAsyncMethodCall {
             private RestRequest request;
 
-            public execute_call(RestRequest request, AsyncMethodCallback<execute_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+            public execute_call(RestRequest request, org.apache.thrift.async.AsyncMethodCallback<execute_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
                 super(client, protocolFactory, transport, resultHandler, false);
                 this.request = request;
             }
 
-            public void write_args(TProtocol prot) throws TException {
-                prot.writeMessageBegin(new TMessage("execute", TMessageType.CALL, 0));
+            public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
+                prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("execute", org.apache.thrift.protocol.TMessageType.CALL, 0));
                 execute_args args = new execute_args();
                 args.setRequest(request);
                 args.write(prot);
                 prot.writeMessageEnd();
             }
 
-            public RestResponse getResult() throws TException {
-                if (getState() != State.RESPONSE_READ) {
+            public RestResponse getResult() throws org.apache.thrift.TException {
+                if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
                     throw new IllegalStateException("Method call not finished!");
                 }
-                TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
-                TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+                org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
+                org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
                 return (new Client(prot)).recv_execute();
             }
         }
 
     }
 
-    public static class Processor implements TProcessor {
+    public static class Processor implements org.apache.thrift.TProcessor {
         private static final Logger LOGGER = LoggerFactory.getLogger(Processor.class.getName());
 
         public Processor(Iface iface) {
@@ -164,20 +162,20 @@ public class Rest {
         }
 
         protected static interface ProcessFunction {
-            public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException;
+            public void process(int seqid, org.apache.thrift.protocol.TProtocol iprot, org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException;
         }
 
         private Iface iface_;
         protected final HashMap<String, ProcessFunction> processMap_ = new HashMap<String, ProcessFunction>();
 
-        public boolean process(TProtocol iprot, TProtocol oprot) throws TException {
-            TMessage msg = iprot.readMessageBegin();
+        public boolean process(org.apache.thrift.protocol.TProtocol iprot, org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TMessage msg = iprot.readMessageBegin();
             ProcessFunction fn = processMap_.get(msg.name);
             if (fn == null) {
-                TProtocolUtil.skip(iprot, TType.STRUCT);
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, org.apache.thrift.protocol.TType.STRUCT);
                 iprot.readMessageEnd();
-                TApplicationException x = new TApplicationException(TApplicationException.UNKNOWN_METHOD, "Invalid method name: '" + msg.name + "'");
-                oprot.writeMessageBegin(new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid));
+                org.apache.thrift.TApplicationException x = new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.UNKNOWN_METHOD, "Invalid method name: '" + msg.name + "'");
+                oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage(msg.name, org.apache.thrift.protocol.TMessageType.EXCEPTION, msg.seqid));
                 x.write(oprot);
                 oprot.writeMessageEnd();
                 oprot.getTransport().flush();
@@ -188,14 +186,14 @@ public class Rest {
         }
 
         private class execute implements ProcessFunction {
-            public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException {
+            public void process(int seqid, org.apache.thrift.protocol.TProtocol iprot, org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
                 execute_args args = new execute_args();
                 try {
                     args.read(iprot);
-                } catch (TProtocolException e) {
+                } catch (org.apache.thrift.protocol.TProtocolException e) {
                     iprot.readMessageEnd();
-                    TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-                    oprot.writeMessageBegin(new TMessage("execute", TMessageType.EXCEPTION, seqid));
+                    org.apache.thrift.TApplicationException x = new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.PROTOCOL_ERROR, e.getMessage());
+                    oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("execute", org.apache.thrift.protocol.TMessageType.EXCEPTION, seqid));
                     x.write(oprot);
                     oprot.writeMessageEnd();
                     oprot.getTransport().flush();
@@ -204,7 +202,7 @@ public class Rest {
                 iprot.readMessageEnd();
                 execute_result result = new execute_result();
                 result.success = iface_.execute(args.request);
-                oprot.writeMessageBegin(new TMessage("execute", TMessageType.REPLY, seqid));
+                oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("execute", org.apache.thrift.protocol.TMessageType.REPLY, seqid));
                 result.write(oprot);
                 oprot.writeMessageEnd();
                 oprot.getTransport().flush();
@@ -214,17 +212,17 @@ public class Rest {
 
     }
 
-    public static class execute_args implements TBase<execute_args, execute_args._Fields>, java.io.Serializable, Cloneable {
-        private static final TStruct STRUCT_DESC = new TStruct("execute_args");
+    public static class execute_args implements org.apache.thrift.TBase<execute_args, execute_args._Fields>, java.io.Serializable, Cloneable {
+        private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("execute_args");
 
-        private static final TField REQUEST_FIELD_DESC = new TField("request", TType.STRUCT, (short) 1);
+        private static final org.apache.thrift.protocol.TField REQUEST_FIELD_DESC = new org.apache.thrift.protocol.TField("request", org.apache.thrift.protocol.TType.STRUCT, (short) 1);
 
         public RestRequest request;
 
         /**
          * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
          */
-        public enum _Fields implements TFieldIdEnum {
+        public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             REQUEST((short) 1, "request");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -283,14 +281,14 @@ public class Rest {
 
         // isset id assignments
 
-        public static final Map<_Fields, FieldMetaData> metaDataMap;
+        public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
 
         static {
-            Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-            tmpMap.put(_Fields.REQUEST, new FieldMetaData("request", TFieldRequirementType.REQUIRED,
-                    new StructMetaData(TType.STRUCT, RestRequest.class)));
+            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+            tmpMap.put(_Fields.REQUEST, new org.apache.thrift.meta_data.FieldMetaData("request", org.apache.thrift.TFieldRequirementType.REQUIRED,
+                    new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, RestRequest.class)));
             metaDataMap = Collections.unmodifiableMap(tmpMap);
-            FieldMetaData.addStructMetaDataMap(execute_args.class, metaDataMap);
+            org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_args.class, metaDataMap);
         }
 
         public execute_args() {
@@ -334,7 +332,7 @@ public class Rest {
         }
 
         /**
-         * Returns true if field request is set (has been asigned a value) and false otherwise
+         * Returns true if field request is set (has been assigned a value) and false otherwise
          */
         public boolean isSetRequest() {
             return this.request != null;
@@ -369,7 +367,7 @@ public class Rest {
         }
 
         /**
-         * Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
          */
         public boolean isSet(_Fields field) {
             if (field == null) {
@@ -426,7 +424,7 @@ public class Rest {
                 return lastComparison;
             }
             if (isSetRequest()) {
-                lastComparison = TBaseHelper.compareTo(this.request, typedOther.request);
+                lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.request, typedOther.request);
                 if (lastComparison != 0) {
                     return lastComparison;
                 }
@@ -438,25 +436,25 @@ public class Rest {
             return _Fields.findByThriftId(fieldId);
         }
 
-        public void read(TProtocol iprot) throws TException {
-            TField field;
+        public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TField field;
             iprot.readStructBegin();
             while (true) {
                 field = iprot.readFieldBegin();
-                if (field.type == TType.STOP) {
+                if (field.type == org.apache.thrift.protocol.TType.STOP) {
                     break;
                 }
                 switch (field.id) {
                     case 1: // REQUEST
-                        if (field.type == TType.STRUCT) {
+                        if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
                             this.request = new RestRequest();
                             this.request.read(iprot);
                         } else {
-                            TProtocolUtil.skip(iprot, field.type);
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
                         }
                         break;
                     default:
-                        TProtocolUtil.skip(iprot, field.type);
+                        org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
                 }
                 iprot.readFieldEnd();
             }
@@ -466,7 +464,7 @@ public class Rest {
             validate();
         }
 
-        public void write(TProtocol oprot) throws TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
             validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -495,26 +493,42 @@ public class Rest {
             return sb.toString();
         }
 
-        public void validate() throws TException {
+        public void validate() throws org.apache.thrift.TException {
             // check for required fields
             if (request == null) {
-                throw new TProtocolException("Required field 'request' was not present! Struct: " + toString());
+                throw new org.apache.thrift.protocol.TProtocolException("Required field 'request' was not present! Struct: " + toString());
+            }
+        }
+
+        private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+            try {
+                write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+            } catch (org.apache.thrift.TException te) {
+                throw new java.io.IOException(te);
+            }
+        }
+
+        private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+            try {
+                read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+            } catch (org.apache.thrift.TException te) {
+                throw new java.io.IOException(te);
             }
         }
 
     }
 
-    public static class execute_result implements TBase<execute_result, execute_result._Fields>, java.io.Serializable, Cloneable {
-        private static final TStruct STRUCT_DESC = new TStruct("execute_result");
+    public static class execute_result implements org.apache.thrift.TBase<execute_result, execute_result._Fields>, java.io.Serializable, Cloneable {
+        private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("execute_result");
 
-        private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short) 0);
+        private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.STRUCT, (short) 0);
 
         public RestResponse success;
 
         /**
          * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
          */
-        public enum _Fields implements TFieldIdEnum {
+        public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -573,14 +587,14 @@ public class Rest {
 
         // isset id assignments
 
-        public static final Map<_Fields, FieldMetaData> metaDataMap;
+        public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
 
         static {
-            Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-            tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT,
-                    new StructMetaData(TType.STRUCT, RestResponse.class)));
+            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+            tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+                    new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, RestResponse.class)));
             metaDataMap = Collections.unmodifiableMap(tmpMap);
-            FieldMetaData.addStructMetaDataMap(execute_result.class, metaDataMap);
+            org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_result.class, metaDataMap);
         }
 
         public execute_result() {
@@ -624,7 +638,7 @@ public class Rest {
         }
 
         /**
-         * Returns true if field success is set (has been asigned a value) and false otherwise
+         * Returns true if field success is set (has been assigned a value) and false otherwise
          */
         public boolean isSetSuccess() {
             return this.success != null;
@@ -659,7 +673,7 @@ public class Rest {
         }
 
         /**
-         * Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
          */
         public boolean isSet(_Fields field) {
             if (field == null) {
@@ -716,7 +730,7 @@ public class Rest {
                 return lastComparison;
             }
             if (isSetSuccess()) {
-                lastComparison = TBaseHelper.compareTo(this.success, typedOther.success);
+                lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.success, typedOther.success);
                 if (lastComparison != 0) {
                     return lastComparison;
                 }
@@ -728,25 +742,25 @@ public class Rest {
             return _Fields.findByThriftId(fieldId);
         }
 
-        public void read(TProtocol iprot) throws TException {
-            TField field;
+        public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TField field;
             iprot.readStructBegin();
             while (true) {
                 field = iprot.readFieldBegin();
-                if (field.type == TType.STOP) {
+                if (field.type == org.apache.thrift.protocol.TType.STOP) {
                     break;
                 }
                 switch (field.id) {
                     case 0: // SUCCESS
-                        if (field.type == TType.STRUCT) {
+                        if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
                             this.success = new RestResponse();
                             this.success.read(iprot);
                         } else {
-                            TProtocolUtil.skip(iprot, field.type);
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
                         }
                         break;
                     default:
-                        TProtocolUtil.skip(iprot, field.type);
+                        org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
                 }
                 iprot.readFieldEnd();
             }
@@ -756,7 +770,7 @@ public class Rest {
             validate();
         }
 
-        public void write(TProtocol oprot) throws TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
             oprot.writeStructBegin(STRUCT_DESC);
 
             if (this.isSetSuccess()) {
@@ -784,8 +798,24 @@ public class Rest {
             return sb.toString();
         }
 
-        public void validate() throws TException {
+        public void validate() throws org.apache.thrift.TException {
             // check for required fields
+        }
+
+        private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+            try {
+                write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+            } catch (org.apache.thrift.TException te) {
+                throw new java.io.IOException(te);
+            }
+        }
+
+        private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+            try {
+                read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+            } catch (org.apache.thrift.TException te) {
+                throw new java.io.IOException(te);
+            }
         }
 
     }

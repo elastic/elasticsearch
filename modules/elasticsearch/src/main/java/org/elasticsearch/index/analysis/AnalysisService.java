@@ -58,51 +58,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                                    @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
         super(index, indexSettings);
 
-        Map<String, AnalyzerProvider> analyzerProviders = newHashMap();
-        if (analyzerFactoryFactories != null) {
-            Map<String, Settings> analyzersSettings = indexSettings.getGroups("index.analysis.analyzer");
-            for (Map.Entry<String, AnalyzerProviderFactory> entry : analyzerFactoryFactories.entrySet()) {
-                String analyzerName = entry.getKey();
-                AnalyzerProviderFactory analyzerFactoryFactory = entry.getValue();
-
-                Settings analyzerSettings = analyzersSettings.get(analyzerName);
-                if (analyzerSettings == null) {
-                    analyzerSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-                }
-
-                AnalyzerProvider analyzerFactory = analyzerFactoryFactory.create(analyzerName, analyzerSettings);
-                analyzerProviders.put(analyzerName, analyzerFactory);
-            }
-        }
-
-        if (!analyzerProviders.containsKey("default")) {
-            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, null, "default", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("default_index")) {
-            analyzerProviders.put("default_index", analyzerProviders.get("default"));
-        }
-        if (!analyzerProviders.containsKey("default_search")) {
-            analyzerProviders.put("default_search", analyzerProviders.get("default"));
-        }
-
-        Map<String, NamedAnalyzer> analyzers = newHashMap();
-        for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
-            NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get());
-            analyzers.put(analyzerFactory.name(), analyzer);
-            analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
-            String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
-            if (strAliases != null) {
-                for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
-                    analyzers.put(alias, analyzer);
-                }
-            }
-            String[] aliases = indexSettings.getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
-            for (String alias : aliases) {
-                analyzers.put(alias, analyzer);
-            }
-        }
-        this.analyzers = ImmutableMap.copyOf(analyzers);
-
         Map<String, TokenizerFactory> tokenizers = newHashMap();
         if (tokenizerFactoryFactories != null) {
             Map<String, Settings> tokenizersSettings = indexSettings.getGroups("index.analysis.tokenizer");
@@ -159,6 +114,54 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
         this.tokenFilters = ImmutableMap.copyOf(tokenFilters);
+
+        Map<String, AnalyzerProvider> analyzerProviders = newHashMap();
+        if (analyzerFactoryFactories != null) {
+            Map<String, Settings> analyzersSettings = indexSettings.getGroups("index.analysis.analyzer");
+            for (Map.Entry<String, AnalyzerProviderFactory> entry : analyzerFactoryFactories.entrySet()) {
+                String analyzerName = entry.getKey();
+                AnalyzerProviderFactory analyzerFactoryFactory = entry.getValue();
+
+                Settings analyzerSettings = analyzersSettings.get(analyzerName);
+                if (analyzerSettings == null) {
+                    analyzerSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+                }
+
+                AnalyzerProvider analyzerFactory = analyzerFactoryFactory.create(analyzerName, analyzerSettings);
+                analyzerProviders.put(analyzerName, analyzerFactory);
+            }
+        }
+
+        if (!analyzerProviders.containsKey("default")) {
+            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, null, "default", ImmutableSettings.Builder.EMPTY_SETTINGS));
+        }
+        if (!analyzerProviders.containsKey("default_index")) {
+            analyzerProviders.put("default_index", analyzerProviders.get("default"));
+        }
+        if (!analyzerProviders.containsKey("default_search")) {
+            analyzerProviders.put("default_search", analyzerProviders.get("default"));
+        }
+
+        Map<String, NamedAnalyzer> analyzers = newHashMap();
+        for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
+            if (analyzerFactory instanceof CustomAnalyzerProvider) {
+                ((CustomAnalyzerProvider) analyzerFactory).build(this);
+            }
+            NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get());
+            analyzers.put(analyzerFactory.name(), analyzer);
+            analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
+            String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
+            if (strAliases != null) {
+                for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
+                    analyzers.put(alias, analyzer);
+                }
+            }
+            String[] aliases = indexSettings.getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
+            for (String alias : aliases) {
+                analyzers.put(alias, analyzer);
+            }
+        }
+        this.analyzers = ImmutableMap.copyOf(analyzers);
     }
 
     public void close() {

@@ -89,10 +89,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements In
         }
     }
 
-    static class FieldWrapper {
-        public Field field;
-    }
-
     private String nullValue;
 
     private Boolean includeInAll;

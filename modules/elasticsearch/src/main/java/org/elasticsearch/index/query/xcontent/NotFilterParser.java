@@ -61,6 +61,9 @@ public class NotFilterParser extends AbstractIndexComponent implements XContentF
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("filter".equals(currentFieldName)) {
                     filter = parseContext.parseInnerFilter();
+                } else {
+                    // its the filter, and the name is the field
+                    filter = parseContext.parseInnerFilter(currentFieldName);
                 }
             } else if (token.isValue()) {
                 if ("_cache".equals(currentFieldName)) {

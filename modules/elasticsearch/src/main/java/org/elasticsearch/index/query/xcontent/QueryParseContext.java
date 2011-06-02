@@ -175,6 +175,20 @@ public class QueryParseContext {
         return result;
     }
 
+    public Filter parseInnerFilter(String filterName) throws IOException, QueryParsingException {
+        XContentFilterParser filterParser = indexQueryParser.filterParser(filterName);
+        if (filterParser == null) {
+            throw new QueryParsingException(index, "No filter registered for [" + filterName + "]");
+        }
+        Filter result = filterParser.parse(this);
+        // don't move to the nextToken in this case...
+//        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
+//            // if we are at END_OBJECT, move to the next one...
+//            parser.nextToken();
+//        }
+        return result;
+    }
+
     public FieldMapper fieldMapper(String name) {
         FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name);
         if (fieldMappers == null) {

@@ -33,7 +33,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -73,12 +81,18 @@ public class RestGetMappingAction extends BaseRestHandler {
                     builder.startObject();
 
                     if (indices.length == 1 && types.size() == 1) {
+                        if (metaData.indices().isEmpty()) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                            return;
+                        }
+                        boolean foundType = false;
                         IndexMetaData indexMetaData = metaData.iterator().next();
                         for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
                             if (!types.isEmpty() && !types.contains(mappingMd.type())) {
                                 // filter this type out...
                                 continue;
                             }
+                            foundType = true;
                             byte[] mappingSource = mappingMd.source().uncompressed();
                             XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                             Map<String, Object> mapping = parser.map();
@@ -88,6 +102,10 @@ public class RestGetMappingAction extends BaseRestHandler {
                             }
                             builder.field(mappingMd.type());
                             builder.map(mapping);
+                        }
+                        if (!foundType) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types.iterator().next())));
+                            return;
                         }
                     } else {
                         for (IndexMetaData indexMetaData : metaData) {

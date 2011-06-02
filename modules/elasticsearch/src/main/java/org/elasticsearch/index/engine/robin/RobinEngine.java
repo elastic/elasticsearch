@@ -749,6 +749,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                     if (flushNeeded) {
                         flushNeeded = false;
+                        long time = System.currentTimeMillis();
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
@@ -760,6 +761,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             failEngine(e);
                             throw new FlushFailedEngineException(shardId, e);
                         }
+                        System.err.println("Commit took " + new TimeValue(System.currentTimeMillis() - time));
                     }
                 } finally {
                     rwl.readLock().unlock();

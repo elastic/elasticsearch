@@ -75,8 +75,8 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
         @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
             try {
                 // if merge is not enabled, don't do any merging...
-                if (writer.getMergePolicy() instanceof EnableMergePolicy) {
-                    if (!((EnableMergePolicy) writer.getMergePolicy()).isMergeEnabled()) {
+                if (writer.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
+                    if (!((EnableMergePolicy) writer.getConfig().getMergePolicy()).isMergeEnabled()) {
                         return;
                     }
                 }

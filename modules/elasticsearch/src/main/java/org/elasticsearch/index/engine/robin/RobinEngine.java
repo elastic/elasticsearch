@@ -698,8 +698,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             throw new FlushNotAllowedEngineException(shardId, "Already flushing...");
         }
 
-        // We can't do prepareCommit here, since we rely on the the segment version for the translog version
-
         try {
 
             if (flush.full()) {

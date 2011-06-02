@@ -29,7 +29,12 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -67,6 +72,9 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             }
         }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
+            if (entry.getKey().equals("pretty")) {
+                continue;
+            }
             updateSettings.put(entry.getKey(), entry.getValue());
         }
         updateSettingsRequest.settings(updateSettings);

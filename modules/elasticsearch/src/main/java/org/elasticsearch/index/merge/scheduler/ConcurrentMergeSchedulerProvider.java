@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.TrackingConcurrentMergeScheduler;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -81,8 +85,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
         @Override public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
             try {
                 // if merge is not enabled, don't do any merging...
-                if (writer.getMergePolicy() instanceof EnableMergePolicy) {
-                    if (!((EnableMergePolicy) writer.getMergePolicy()).isMergeEnabled()) {
+                if (writer.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
+                    if (!((EnableMergePolicy) writer.getConfig().getMergePolicy()).isMergeEnabled()) {
                         return;
                     }
                 }

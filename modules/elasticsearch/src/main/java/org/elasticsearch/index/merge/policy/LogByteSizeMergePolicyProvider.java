@@ -78,7 +78,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
     @Override public LogByteSizeMergePolicy newMergePolicy() {
         CustomLogByteSizeMergePolicy mergePolicy;
         if (asyncMerge) {
-            mergePolicy = new CustomLogByteSizeMergePolicy(this);
+            mergePolicy = new EnableMergeLogByteSizeMergePolicy(this);
         } else {
             mergePolicy = new CustomLogByteSizeMergePolicy(this);
         }

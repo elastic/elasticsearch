@@ -19,15 +19,27 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidAliasNameException;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
@@ -40,9 +52,12 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    @Inject public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService) {
+    private final IndicesService indicesService;
+
+    @Inject public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
     }
 
     public void indicesAliases(final Request request, final Listener listener) {
@@ -60,22 +75,58 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
                 }
 
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                for (AliasAction aliasAction : request.actions) {
-                    IndexMetaData indexMetaData = builder.get(aliasAction.index());
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(aliasAction.index()));
-                    }
-                    IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
-                    if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                        indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(aliasAction.alias()).filter(aliasAction.filter()).build());
-                    } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
-                        indexMetaDataBuilder.removerAlias(aliasAction.alias());
-                    }
+                List<String> indicesToClose = Lists.newArrayList();
+                Map<String, IndexService> indices = Maps.newHashMap();
+                try {
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    for (AliasAction aliasAction : request.actions) {
+                        IndexMetaData indexMetaData = builder.get(aliasAction.index());
+                        if (indexMetaData == null) {
+                            throw new IndexMissingException(new Index(aliasAction.index()));
+                        }
+                        IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
+                        if (aliasAction.actionType() == AliasAction.Type.ADD) {
+                            String filter = aliasAction.filter();
+                            if (Strings.hasLength(filter)) {
+                                // parse the filter, in order to validate it
+                                IndexService indexService = indices.get(indexMetaData.index());
+                                if (indexService == null) {
+                                    indexService = indicesService.indexService(indexMetaData.index());
+                                    if (indexService == null) {
+                                        // temporarily create the index so we have can parse the filter
+                                        indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                                        indicesToClose.add(indexMetaData.index());
+                                    }
+                                    indices.put(indexMetaData.index(), indexService);
+                                }
 
-                    builder.put(indexMetaDataBuilder);
+                                // now, parse the filter
+                                XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) indexService.queryParserService().defaultIndexQueryParser();
+                                try {
+                                    XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
+                                    try {
+                                        indexQueryParser.parseInnerFilter(parser);
+                                    } finally {
+                                        parser.close();
+                                    }
+                                } catch (Exception e) {
+                                    listener.onFailure(new ElasticSearchIllegalArgumentException("failed to parse filter for [" + aliasAction.alias() + "]", e));
+                                    return currentState;
+                                }
+                            }
+                            indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(aliasAction.alias()).filter(filter).build());
+                        } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
+                            indexMetaDataBuilder.removerAlias(aliasAction.alias());
+                        }
+
+                        builder.put(indexMetaDataBuilder);
+                    }
+                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
+                } finally {
+                    for (String index : indicesToClose) {
+                        indicesService.cleanIndex(index, "created for mapping processing");
+                    }
                 }
-                return newClusterStateBuilder().state(currentState).metaData(builder).build();
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {

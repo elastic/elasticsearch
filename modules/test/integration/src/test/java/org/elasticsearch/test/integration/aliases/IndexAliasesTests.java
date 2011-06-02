@@ -32,14 +32,14 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Set;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.collect.Sets.newHashSet;
+import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -53,14 +53,14 @@ public class IndexAliasesTests extends AbstractNodesTests {
     protected Client client1;
     protected Client client2;
 
-    @BeforeMethod public void startNodes() {
+    @BeforeClass public void startNodes() {
         startNode("server1");
         startNode("server2");
         client1 = getClient1();
         client2 = getClient2();
     }
 
-    @AfterMethod public void closeNodes() {
+    @AfterClass public void closeNodes() {
         client1.close();
         client2.close();
         closeAllNodes();
@@ -74,8 +74,10 @@ public class IndexAliasesTests extends AbstractNodesTests {
         return client("server2");
     }
 
-
     @Test public void testAliases() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
         logger.info("--> creating index [test]");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -119,7 +121,32 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(indexResponse.index(), equalTo("test_x"));
     }
 
+    @Test public void testFailedFilter() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
+        logger.info("--> creating index [test]");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+
+        logger.info("--> running cluster_health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        try {
+            logger.info("--> aliasing index [test] with [alias1] and filter [t]");
+            client1.admin().indices().prepareAliases().addAlias("test", "alias1", "{ t }").execute().actionGet();
+            assert false;
+        } catch (Exception e) {
+            // all is well
+        }
+    }
+
     @Test public void testFilteringAliases() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
         logger.info("--> creating index [test]");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -143,6 +170,9 @@ public class IndexAliasesTests extends AbstractNodesTests {
     }
 
     @Test public void testSearchingFilteringAliasesSingleIndex() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
         logger.info("--> creating index [test]");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -190,6 +220,9 @@ public class IndexAliasesTests extends AbstractNodesTests {
     }
 
     @Test public void testSearchingFilteringAliasesTwoIndices() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
         logger.info("--> creating index [test1]");
         client1.admin().indices().create(createIndexRequest("test1")).actionGet();
 
@@ -258,6 +291,9 @@ public class IndexAliasesTests extends AbstractNodesTests {
     }
 
     @Test public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
         logger.info("--> creating indices");
         client1.admin().indices().create(createIndexRequest("test1")).actionGet();
         client1.admin().indices().create(createIndexRequest("test2")).actionGet();
@@ -325,6 +361,9 @@ public class IndexAliasesTests extends AbstractNodesTests {
     }
 
     @Test public void testDeletingByQueryFilteringAliases() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
         logger.info("--> creating index [test1]");
         client1.admin().indices().create(createIndexRequest("test1")).actionGet();
 

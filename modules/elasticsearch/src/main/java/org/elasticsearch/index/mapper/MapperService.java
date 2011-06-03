@@ -171,6 +171,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().contains("#")) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
             }
+            if (mapper.type().contains(",")) {
+                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
+            }
             if (mapper.type().contains(".")) {
                 logger.warn("Type [{}] contains a '.', it is recommended not to include it within a type name", mapper.type());
             }

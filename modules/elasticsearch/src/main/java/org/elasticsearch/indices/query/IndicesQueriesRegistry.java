@@ -25,7 +25,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -33,11 +32,11 @@ import java.util.Map;
  */
 public class IndicesQueriesRegistry {
 
-    private final ImmutableMap<String, QueryParser> queryParsers;
-    private final ImmutableMap<String, FilterParser> filterParsers;
+    private ImmutableMap<String, QueryParser> queryParsers;
+    private ImmutableMap<String, FilterParser> filterParsers;
 
     @Inject public IndicesQueriesRegistry(Settings settings) {
-        HashMap<String, QueryParser> queryParsers = Maps.newHashMap();
+        Map<String, QueryParser> queryParsers = Maps.newHashMap();
         addQueryParser(queryParsers, new TextQueryParser());
         addQueryParser(queryParsers, new HasChildQueryParser());
         addQueryParser(queryParsers, new TopChildrenQueryParser());
@@ -69,7 +68,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new FuzzyLikeThisFieldQueryParser());
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
 
-        HashMap<String, FilterParser> filterParsers = Maps.newHashMap();
+        Map<String, FilterParser> filterParsers = Maps.newHashMap();
         addFilterParser(filterParsers, new HasChildFilterParser());
         addFilterParser(filterParsers, new TypeFilterParser());
         addFilterParser(filterParsers, new IdsFilterParser());
@@ -93,6 +92,21 @@ public class IndicesQueriesRegistry {
         addFilterParser(filterParsers, new MatchAllFilterParser());
         addFilterParser(filterParsers, new ExistsFilterParser());
         addFilterParser(filterParsers, new MissingFilterParser());
+        this.filterParsers = ImmutableMap.copyOf(filterParsers);
+    }
+
+    /**
+     * Adds a global query parser.
+     */
+    public void addQueryParser(QueryParser queryParser) {
+        Map<String, QueryParser> queryParsers = Maps.newHashMap(this.queryParsers);
+        addQueryParser(queryParsers, queryParser);
+        this.queryParsers = ImmutableMap.copyOf(queryParsers);
+    }
+
+    public void addFilterParser(FilterParser filterParser) {
+        Map<String, FilterParser> filterParsers = Maps.newHashMap(this.filterParsers);
+        addFilterParser(filterParsers, filterParser);
         this.filterParsers = ImmutableMap.copyOf(filterParsers);
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
@@ -109,9 +110,31 @@ public class IndexQueryParserModule extends AbstractModule {
 
     private final LinkedList<QueryParsersProcessor> processors = Lists.newLinkedList();
 
+    private final Map<String, Class<? extends QueryParser>> queries = Maps.newHashMap();
+    private final Map<String, Class<? extends FilterParser>> filters = Maps.newHashMap();
 
     public IndexQueryParserModule(Settings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * Adds a custom query parser.
+     *
+     * @param name        The name of the query parser
+     * @param queryParser the class of the query parser
+     */
+    public void addQueryParser(String name, Class<? extends QueryParser> queryParser) {
+        queries.put(name, queryParser);
+    }
+
+    /**
+     * Adds a custom filter parser.
+     *
+     * @param name         The name of the filter parser
+     * @param filterParser the class of the filter parser
+     */
+    public void addFilterParser(String name, Class<? extends FilterParser> filterParser) {
+        filters.put(name, filterParser);
     }
 
     public IndexQueryParserModule addProcessor(QueryParsersProcessor processor) {
@@ -143,6 +166,10 @@ public class IndexQueryParserModule extends AbstractModule {
             processor.processXContentQueryParsers(xContentQueryParsersBindings);
         }
 
+        for (Map.Entry<String, Class<? extends QueryParser>> entry : queries.entrySet()) {
+            queryBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(QueryParserFactory.class, entry.getValue())).in(Scopes.SINGLETON);
+        }
+
         // handle XContentFilterParsers
         MapBinder<String, FilterParserFactory> filterBinder
                 = MapBinder.newMapBinder(binder(), String.class, FilterParserFactory.class);
@@ -161,6 +188,10 @@ public class IndexQueryParserModule extends AbstractModule {
         QueryParsersProcessor.XContentFilterParsersBindings xContentFilterParsersBindings = new QueryParsersProcessor.XContentFilterParsersBindings(filterBinder, xContentFilterParserGroups);
         for (QueryParsersProcessor processor : processors) {
             processor.processXContentFilterParsers(xContentFilterParsersBindings);
+        }
+
+        for (Map.Entry<String, Class<? extends FilterParser>> entry : filters.entrySet()) {
+            filterBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(FilterParserFactory.class, entry.getValue())).in(Scopes.SINGLETON);
         }
     }
 }

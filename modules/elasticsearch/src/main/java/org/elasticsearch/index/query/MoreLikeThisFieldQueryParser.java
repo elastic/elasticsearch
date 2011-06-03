@@ -24,12 +24,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.Set;
@@ -39,12 +35,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class MoreLikeThisFieldQueryParser extends AbstractIndexComponent implements QueryParser {
+public class MoreLikeThisFieldQueryParser implements QueryParser {
 
     public static final String NAME = "mlt_field";
 
-    @Inject public MoreLikeThisFieldQueryParser(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public MoreLikeThisFieldQueryParser() {
     }
 
     @Override public String[] names() {
@@ -103,7 +98,7 @@ public class MoreLikeThisFieldQueryParser extends AbstractIndexComponent impleme
         }
 
         if (mltQuery.getLikeText() == null) {
-            throw new QueryParsingException(index, "more_like_this_field requires 'like_text' to be specified");
+            throw new QueryParsingException(parseContext.index(), "more_like_this_field requires 'like_text' to be specified");
         }
 
         // move to the next end object, to close the field name

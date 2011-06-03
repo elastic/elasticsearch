@@ -24,13 +24,7 @@ import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.query.parser.QueryParserCache;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -39,18 +33,11 @@ import static org.elasticsearch.common.lucene.search.Queries.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class FieldQueryParser extends AbstractIndexComponent implements QueryParser {
+public class FieldQueryParser implements QueryParser {
 
     public static final String NAME = "field";
 
-    private final AnalysisService analysisService;
-
-    private final QueryParserCache queryParserCache;
-
-    @Inject public FieldQueryParser(Index index, @IndexSettings Settings settings, AnalysisService analysisService, QueryParserCache queryParserCache) {
-        super(index, settings);
-        this.analysisService = analysisService;
-        this.queryParserCache = queryParserCache;
+    @Inject public FieldQueryParser() {
     }
 
     @Override public String[] names() {
@@ -88,7 +75,7 @@ public class FieldQueryParser extends AbstractIndexComponent implements QueryPar
                     } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                         qpSettings.phraseSlop(parser.intValue());
                     } else if ("analyzer".equals(currentFieldName)) {
-                        qpSettings.analyzer(analysisService.analyzer(parser.text()));
+                        qpSettings.analyzer(parseContext.analysisService().analyzer(parser.text()));
                     } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
@@ -96,7 +83,7 @@ public class FieldQueryParser extends AbstractIndexComponent implements QueryPar
                         } else if ("and".equalsIgnoreCase(op)) {
                             qpSettings.defaultOperator(org.apache.lucene.queryParser.QueryParser.Operator.AND);
                         } else {
-                            throw new QueryParsingException(index, "Query default operator [" + op + "] is not allowed");
+                            throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed");
                         }
                     } else if ("fuzzy_min_sim".equals(currentFieldName) || "fuzzyMinSim".equals(currentFieldName)) {
                         qpSettings.fuzzyMinSim(parser.floatValue());
@@ -121,14 +108,14 @@ public class FieldQueryParser extends AbstractIndexComponent implements QueryPar
         }
 
         if (qpSettings.queryString() == null) {
-            throw new QueryParsingException(index, "No value specified for term query");
+            throw new QueryParsingException(parseContext.index(), "No value specified for term query");
         }
 
         if (qpSettings.escape()) {
             qpSettings.queryString(org.apache.lucene.queryParser.QueryParser.escape(qpSettings.queryString()));
         }
 
-        Query query = queryParserCache.get(qpSettings);
+        Query query = parseContext.indexCache().queryParserCache().get(qpSettings);
         if (query != null) {
             return query;
         }
@@ -139,10 +126,10 @@ public class FieldQueryParser extends AbstractIndexComponent implements QueryPar
             query = queryParser.parse(qpSettings.queryString());
             query.setBoost(qpSettings.boost());
             query = optimizeQuery(fixNegativeQueryIfNeeded(query));
-            queryParserCache.put(qpSettings, query);
+            parseContext.indexCache().queryParserCache().put(qpSettings, query);
             return query;
         } catch (ParseException e) {
-            throw new QueryParsingException(index, "Failed to parse query [" + qpSettings.queryString() + "]", e);
+            throw new QueryParsingException(parseContext.index(), "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }
     }
 }

@@ -25,23 +25,18 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ConstantScoreQueryParser extends AbstractIndexComponent implements QueryParser {
+public class ConstantScoreQueryParser implements QueryParser {
 
     public static final String NAME = "constant_score";
 
-    @Inject public ConstantScoreQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public ConstantScoreQueryParser() {
     }
 
     @Override public String[] names() {
@@ -76,7 +71,7 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
             }
         }
         if (filter == null && query == null) {
-            throw new QueryParsingException(index, "[constant_score] requires either 'filter' or 'query' element");
+            throw new QueryParsingException(parseContext.index(), "[constant_score] requires either 'filter' or 'query' element");
         }
 
         if (filter != null) {

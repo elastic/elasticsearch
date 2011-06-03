@@ -22,12 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -36,12 +32,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class RangeFilterParser extends AbstractIndexComponent implements FilterParser {
+public class RangeFilterParser implements FilterParser {
 
     public static final String NAME = "range";
 
-    @Inject public RangeFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public RangeFilterParser() {
     }
 
     @Override public String[] names() {
@@ -103,7 +98,7 @@ public class RangeFilterParser extends AbstractIndexComponent implements FilterP
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(index, "No field specified for range filter");
+            throw new QueryParsingException(parseContext.index(), "No field specified for range filter");
         }
 
         Filter filter = null;

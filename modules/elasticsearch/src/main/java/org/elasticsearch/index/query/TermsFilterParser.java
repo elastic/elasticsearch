@@ -23,13 +23,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PublicTermsFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -38,12 +34,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsFilterParser extends AbstractIndexComponent implements FilterParser {
+public class TermsFilterParser implements FilterParser {
 
     public static final String NAME = "terms";
 
-    @Inject public TermsFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public TermsFilterParser() {
     }
 
     @Override public String[] names() {
@@ -76,7 +71,7 @@ public class TermsFilterParser extends AbstractIndexComponent implements FilterP
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     String value = parser.text();
                     if (value == null) {
-                        throw new QueryParsingException(index, "No value specified for term filter");
+                        throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                     }
                     if (fieldMapper != null) {
                         value = fieldMapper.indexedValue(value);

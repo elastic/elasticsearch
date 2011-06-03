@@ -24,11 +24,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,12 +34,11 @@ import static org.elasticsearch.common.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SpanNearQueryParser extends AbstractIndexComponent implements QueryParser {
+public class SpanNearQueryParser implements QueryParser {
 
     public static final String NAME = "span_near";
 
-    @Inject public SpanNearQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public SpanNearQueryParser() {
     }
 
     @Override public String[] names() {
@@ -70,7 +65,7 @@ public class SpanNearQueryParser extends AbstractIndexComponent implements Query
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         Query query = parseContext.parseInnerQuery();
                         if (!(query instanceof SpanQuery)) {
-                            throw new QueryParsingException(index, "spanNear [clauses] must be of type span query");
+                            throw new QueryParsingException(parseContext.index(), "spanNear [clauses] must be of type span query");
                         }
                         clauses.add((SpanQuery) query);
                     }
@@ -88,10 +83,10 @@ public class SpanNearQueryParser extends AbstractIndexComponent implements Query
             }
         }
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(index, "span_near must include [clauses]");
+            throw new QueryParsingException(parseContext.index(), "span_near must include [clauses]");
         }
         if (slop == -1) {
-            throw new QueryParsingException(index, "span_near must include [slop]");
+            throw new QueryParsingException(parseContext.index(), "span_near must include [slop]");
         }
 
         SpanNearQuery query = new SpanNearQuery(clauses.toArray(new SpanQuery[clauses.size()]), slop, inOrder, collectPayloads);

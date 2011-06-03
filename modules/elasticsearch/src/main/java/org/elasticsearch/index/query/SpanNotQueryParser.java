@@ -24,23 +24,18 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SpanNotQueryParser extends AbstractIndexComponent implements QueryParser {
+public class SpanNotQueryParser implements QueryParser {
 
     public static final String NAME = "span_not";
 
-    @Inject public SpanNotQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public SpanNotQueryParser() {
     }
 
     @Override public String[] names() {
@@ -64,13 +59,13 @@ public class SpanNotQueryParser extends AbstractIndexComponent implements QueryP
                 if ("include".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(index, "spanNot [include] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "spanNot [include] must be of type span query");
                     }
                     include = (SpanQuery) query;
                 } else if ("exclude".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(index, "spanNot [exclude] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "spanNot [exclude] must be of type span query");
                     }
                     exclude = (SpanQuery) query;
                 }
@@ -81,10 +76,10 @@ public class SpanNotQueryParser extends AbstractIndexComponent implements QueryP
             }
         }
         if (include == null) {
-            throw new QueryParsingException(index, "spanNot must have [include] span query clause");
+            throw new QueryParsingException(parseContext.index(), "spanNot must have [include] span query clause");
         }
         if (exclude == null) {
-            throw new QueryParsingException(index, "spanNot must have [exclude] span query clause");
+            throw new QueryParsingException(parseContext.index(), "spanNot must have [exclude] span query clause");
         }
 
         SpanNotQuery query = new SpanNotQuery(include, exclude);

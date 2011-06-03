@@ -19,7 +19,10 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.recovery.RecoverySource;
 import org.elasticsearch.index.shard.recovery.RecoveryTarget;
@@ -27,17 +30,22 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cache.filter.IndicesNodeFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
+import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndicesModule extends AbstractModule {
+public class IndicesModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
     public IndicesModule(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new IndicesQueriesModule());
     }
 
     @Override protected void configure() {

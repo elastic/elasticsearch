@@ -24,24 +24,19 @@ import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FieldMaskingSpanQueryParser extends AbstractIndexComponent implements QueryParser {
+public class FieldMaskingSpanQueryParser implements QueryParser {
 
     public static final String NAME = "field_masking_span";
 
-    @Inject public FieldMaskingSpanQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public FieldMaskingSpanQueryParser() {
     }
 
     @Override public String[] names() {
@@ -65,7 +60,7 @@ public class FieldMaskingSpanQueryParser extends AbstractIndexComponent implemen
                 if ("query".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(index, "field_masking_span [query] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "field_masking_span [query] must be of type span query");
                     }
                     inner = (SpanQuery) query;
                 }
@@ -78,10 +73,10 @@ public class FieldMaskingSpanQueryParser extends AbstractIndexComponent implemen
             }
         }
         if (inner == null) {
-            throw new QueryParsingException(index, "field_masking_span must have [query] span query clause");
+            throw new QueryParsingException(parseContext.index(), "field_masking_span must have [query] span query clause");
         }
         if (field == null) {
-            throw new QueryParsingException(index, "field_masking_span must have [field] set for it");
+            throw new QueryParsingException(parseContext.index(), "field_masking_span must have [field] set for it");
         }
 
         FieldMapper mapper = parseContext.mapperService().smartNameFieldMapper(field);

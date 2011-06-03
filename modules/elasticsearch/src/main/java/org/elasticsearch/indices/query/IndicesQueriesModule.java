@@ -17,25 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.indices.query;
 
-import org.apache.lucene.search.Query;
+import org.elasticsearch.common.inject.AbstractModule;
 
-import java.io.IOException;
+public class IndicesQueriesModule extends AbstractModule {
 
-/**
- * @author kimchy (shay.banon)
- */
-public interface QueryParser {
-
-    /**
-     * The names this query parser is registered under.
-     */
-    String[] names();
-
-    /**
-     * Parses the into a query from the current parser location. Will be at "START_OBJECT" location,
-     * and should end when the token is at the matching "END_OBJECT".
-     */
-    Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+    @Override protected void configure() {
+        bind(IndicesQueriesRegistry.class).asEagerSingleton();
+    }
 }

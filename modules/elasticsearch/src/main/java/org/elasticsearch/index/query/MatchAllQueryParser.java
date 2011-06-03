@@ -24,23 +24,18 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MatchAllQueryParser extends AbstractIndexComponent implements QueryParser {
+public class MatchAllQueryParser implements QueryParser {
 
     public static final String NAME = "match_all";
 
-    @Inject public MatchAllQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public MatchAllQueryParser() {
     }
 
     @Override public String[] names() {

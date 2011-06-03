@@ -27,11 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -41,12 +37,11 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class CustomScoreQueryParser extends AbstractIndexComponent implements QueryParser {
+public class CustomScoreQueryParser implements QueryParser {
 
     public static final String NAME = "custom_score";
 
-    @Inject public CustomScoreQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public CustomScoreQueryParser() {
     }
 
     @Override public String[] names() {
@@ -84,10 +79,10 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements Qu
             }
         }
         if (query == null) {
-            throw new QueryParsingException(index, "[custom_score] requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' field");
         }
         if (script == null) {
-            throw new QueryParsingException(index, "[custom_score] requires 'script' field");
+            throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'script' field");
         }
 
         SearchContext context = SearchContext.current();

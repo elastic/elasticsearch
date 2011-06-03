@@ -21,14 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.xcontent.NumberFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -37,12 +33,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class NumericRangeFilterParser extends AbstractIndexComponent implements FilterParser {
+public class NumericRangeFilterParser implements FilterParser {
 
     public static final String NAME = "numeric_range";
 
-    @Inject public NumericRangeFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public NumericRangeFilterParser() {
     }
 
     @Override public String[] names() {
@@ -106,12 +101,12 @@ public class NumericRangeFilterParser extends AbstractIndexComponent implements 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
 
         if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
-            throw new QueryParsingException(index, "failed to find mapping for field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext.index(), "failed to find mapping for field [" + fieldName + "]");
         }
 
         FieldMapper mapper = smartNameFieldMappers.mapper();
         if (!(mapper instanceof NumberFieldMapper)) {
-            throw new QueryParsingException(index, "Field [" + fieldName + "] is not a numeric type");
+            throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a numeric type");
         }
         Filter filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.indexCache().fieldData(), from, to, includeLower, includeUpper);
 

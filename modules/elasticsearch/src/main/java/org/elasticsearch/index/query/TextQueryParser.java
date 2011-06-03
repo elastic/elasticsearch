@@ -23,23 +23,18 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class TextQueryParser extends AbstractIndexComponent implements QueryParser {
+public class TextQueryParser implements QueryParser {
 
     public static final String NAME = "text";
 
-    @Inject public TextQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public TextQueryParser() {
     }
 
     @Override public String[] names() {
@@ -106,7 +101,7 @@ public class TextQueryParser extends AbstractIndexComponent implements QueryPars
                         } else if ("and".equalsIgnoreCase(op)) {
                             occur = BooleanClause.Occur.MUST;
                         } else {
-                            throw new QueryParsingException(index, "text query requires operator to be either 'and' or 'or', not [" + op + "]");
+                            throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
                     }
                 }
@@ -119,7 +114,7 @@ public class TextQueryParser extends AbstractIndexComponent implements QueryPars
         }
 
         if (text == null) {
-            throw new QueryParsingException(index, "No text specified for text query");
+            throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
 
         org.elasticsearch.index.search.TextQueryParser tQP = new org.elasticsearch.index.search.TextQueryParser(parseContext, fieldName, text);

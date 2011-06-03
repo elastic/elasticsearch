@@ -23,12 +23,8 @@ import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,12 +43,11 @@ import java.util.List;
  *
  * @author kimchy (shay.banon)
  */
-public class FuzzyLikeThisQueryParser extends AbstractIndexComponent implements QueryParser {
+public class FuzzyLikeThisQueryParser implements QueryParser {
 
     public static final String NAME = "flt";
 
-    @Inject public FuzzyLikeThisQueryParser(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public FuzzyLikeThisQueryParser() {
     }
 
     @Override public String[] names() {
@@ -100,7 +95,7 @@ public class FuzzyLikeThisQueryParser extends AbstractIndexComponent implements 
         }
 
         if (likeText == null) {
-            throw new QueryParsingException(index, "fuzzy_like_this requires 'like_text' to be specified");
+            throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'like_text' to be specified");
         }
 
         FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, parseContext.mapperService().searchAnalyzer());

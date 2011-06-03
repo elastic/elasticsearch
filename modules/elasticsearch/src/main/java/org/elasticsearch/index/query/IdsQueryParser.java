@@ -24,12 +24,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.search.UidFilter;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,12 +35,11 @@ import java.util.List;
 /**
  *
  */
-public class IdsQueryParser extends AbstractIndexComponent implements QueryParser {
+public class IdsQueryParser implements QueryParser {
 
     public static final String NAME = "ids";
 
-    @Inject public IdsQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public IdsQueryParser() {
     }
 
     @Override public String[] names() {
@@ -67,7 +62,7 @@ public class IdsQueryParser extends AbstractIndexComponent implements QueryParse
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(index, "No value specified for term filter");
+                            throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                         }
                         ids.add(value);
                     }
@@ -76,7 +71,7 @@ public class IdsQueryParser extends AbstractIndexComponent implements QueryParse
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(index, "No type specified for term filter");
+                            throw new QueryParsingException(parseContext.index(), "No type specified for term filter");
                         }
                         types.add(value);
                     }
@@ -91,7 +86,7 @@ public class IdsQueryParser extends AbstractIndexComponent implements QueryParse
         }
 
         if (ids.size() == 0) {
-            throw new QueryParsingException(index, "[ids] query, no ids values provided");
+            throw new QueryParsingException(parseContext.index(), "[ids] query, no ids values provided");
         }
 
         if (types == null || types.isEmpty()) {

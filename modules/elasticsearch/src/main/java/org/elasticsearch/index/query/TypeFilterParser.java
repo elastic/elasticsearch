@@ -23,22 +23,17 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
-public class TypeFilterParser extends AbstractIndexComponent implements FilterParser {
+public class TypeFilterParser implements FilterParser {
 
     public static final String NAME = "type";
 
-    @Inject public TypeFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public TypeFilterParser() {
     }
 
     @Override public String[] names() {
@@ -50,15 +45,15 @@ public class TypeFilterParser extends AbstractIndexComponent implements FilterPa
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(index, "type filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext.index(), "type filter should have a value field, and the type name");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("value")) {
-            throw new QueryParsingException(index, "type filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext.index(), "type filter should have a value field, and the type name");
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.VALUE_STRING) {
-            throw new QueryParsingException(index, "type filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext.index(), "type filter should have a value field, and the type name");
         }
         String type = parser.text();
         // move to the next token

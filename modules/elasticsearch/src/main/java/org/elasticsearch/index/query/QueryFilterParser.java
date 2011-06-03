@@ -23,22 +23,17 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFilterParser extends AbstractIndexComponent implements FilterParser {
+public class QueryFilterParser implements FilterParser {
 
     public static final String NAME = "query";
 
-    @Inject public QueryFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public QueryFilterParser() {
     }
 
     @Override public String[] names() {

@@ -24,12 +24,8 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,12 +34,11 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class MoreLikeThisQueryParser extends AbstractIndexComponent implements QueryParser {
+public class MoreLikeThisQueryParser implements QueryParser {
 
     public static final String NAME = "mlt";
 
-    @Inject public MoreLikeThisQueryParser(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public MoreLikeThisQueryParser() {
     }
 
     @Override public String[] names() {
@@ -101,10 +96,10 @@ public class MoreLikeThisQueryParser extends AbstractIndexComponent implements Q
         }
 
         if (mltQuery.getLikeText() == null) {
-            throw new QueryParsingException(index, "more_like_this requires 'like_text' to be specified");
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like_text' to be specified");
         }
         if (mltQuery.getMoreLikeFields() == null || mltQuery.getMoreLikeFields().length == 0) {
-            throw new QueryParsingException(index, "more_like_this requires 'fields' to be specified");
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be specified");
         }
 
         mltQuery.setAnalyzer(parseContext.mapperService().searchAnalyzer());

@@ -23,11 +23,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,12 +33,11 @@ import static org.elasticsearch.common.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class DisMaxQueryParser extends AbstractIndexComponent implements QueryParser {
+public class DisMaxQueryParser implements QueryParser {
 
     public static final String NAME = "dis_max";
 
-    @Inject public DisMaxQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public DisMaxQueryParser() {
     }
 
     @Override public String[] names() {

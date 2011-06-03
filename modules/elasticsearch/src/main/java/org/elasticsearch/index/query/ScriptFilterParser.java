@@ -26,11 +26,7 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,12 +37,11 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class ScriptFilterParser extends AbstractIndexComponent implements FilterParser {
+public class ScriptFilterParser implements FilterParser {
 
     public static final String NAME = "script";
 
-    @Inject public ScriptFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public ScriptFilterParser() {
     }
 
     @Override public String[] names() {
@@ -87,7 +82,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements Filter
         }
 
         if (script == null) {
-            throw new QueryParsingException(index, "script must be provided with a [script] filter");
+            throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter");
         }
         if (params == null) {
             params = Maps.newHashMap();

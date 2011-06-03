@@ -112,7 +112,6 @@ public class IndexQueryParserModule extends AbstractModule {
 
     public IndexQueryParserModule(Settings settings) {
         this.settings = settings;
-        this.processors.add(new DefaultQueryProcessors());
     }
 
     public IndexQueryParserModule addProcessor(QueryParsersProcessor processor) {
@@ -162,66 +161,6 @@ public class IndexQueryParserModule extends AbstractModule {
         QueryParsersProcessor.XContentFilterParsersBindings xContentFilterParsersBindings = new QueryParsersProcessor.XContentFilterParsersBindings(filterBinder, xContentFilterParserGroups);
         for (QueryParsersProcessor processor : processors) {
             processor.processXContentFilterParsers(xContentFilterParsersBindings);
-        }
-    }
-
-    private static class DefaultQueryProcessors extends QueryParsersProcessor {
-        @Override public void processXContentQueryParsers(XContentQueryParsersBindings bindings) {
-            bindings.processXContentQueryParser(TextQueryParser.NAME, TextQueryParser.class);
-            bindings.processXContentQueryParser(HasChildQueryParser.NAME, HasChildQueryParser.class);
-            bindings.processXContentQueryParser(TopChildrenQueryParser.NAME, TopChildrenQueryParser.class);
-            bindings.processXContentQueryParser(DisMaxQueryParser.NAME, DisMaxQueryParser.class);
-            bindings.processXContentQueryParser(IdsQueryParser.NAME, IdsQueryParser.class);
-            bindings.processXContentQueryParser(MatchAllQueryParser.NAME, MatchAllQueryParser.class);
-            bindings.processXContentQueryParser(QueryStringQueryParser.NAME, QueryStringQueryParser.class);
-            bindings.processXContentQueryParser(BoostingQueryParser.NAME, BoostingQueryParser.class);
-            bindings.processXContentQueryParser(BoolQueryParser.NAME, BoolQueryParser.class);
-            bindings.processXContentQueryParser(TermQueryParser.NAME, TermQueryParser.class);
-            bindings.processXContentQueryParser(TermsQueryParser.NAME, TermsQueryParser.class);
-            bindings.processXContentQueryParser(FuzzyQueryParser.NAME, FuzzyQueryParser.class);
-            bindings.processXContentQueryParser(FieldQueryParser.NAME, FieldQueryParser.class);
-            bindings.processXContentQueryParser(RangeQueryParser.NAME, RangeQueryParser.class);
-            bindings.processXContentQueryParser(PrefixQueryParser.NAME, PrefixQueryParser.class);
-            bindings.processXContentQueryParser(WildcardQueryParser.NAME, WildcardQueryParser.class);
-            bindings.processXContentQueryParser(FilteredQueryParser.NAME, FilteredQueryParser.class);
-            bindings.processXContentQueryParser(ConstantScoreQueryParser.NAME, ConstantScoreQueryParser.class);
-            bindings.processXContentQueryParser(CustomBoostFactorQueryParser.NAME, CustomBoostFactorQueryParser.class);
-            bindings.processXContentQueryParser(CustomScoreQueryParser.NAME, CustomScoreQueryParser.class);
-            bindings.processXContentQueryParser(SpanTermQueryParser.NAME, SpanTermQueryParser.class);
-            bindings.processXContentQueryParser(SpanNotQueryParser.NAME, SpanNotQueryParser.class);
-            bindings.processXContentQueryParser(SpanFirstQueryParser.NAME, SpanFirstQueryParser.class);
-            bindings.processXContentQueryParser(SpanNearQueryParser.NAME, SpanNearQueryParser.class);
-            bindings.processXContentQueryParser(SpanOrQueryParser.NAME, SpanOrQueryParser.class);
-            bindings.processXContentQueryParser(MoreLikeThisQueryParser.NAME, MoreLikeThisQueryParser.class);
-            bindings.processXContentQueryParser(MoreLikeThisFieldQueryParser.NAME, MoreLikeThisFieldQueryParser.class);
-            bindings.processXContentQueryParser(FuzzyLikeThisQueryParser.NAME, FuzzyLikeThisQueryParser.class);
-            bindings.processXContentQueryParser(FuzzyLikeThisFieldQueryParser.NAME, FuzzyLikeThisFieldQueryParser.class);
-        }
-
-        @Override public void processXContentFilterParsers(XContentFilterParsersBindings bindings) {
-            bindings.processXContentQueryFilter(HasChildFilterParser.NAME, HasChildFilterParser.class);
-            bindings.processXContentQueryFilter(TypeFilterParser.NAME, TypeFilterParser.class);
-            bindings.processXContentQueryFilter(IdsFilterParser.NAME, IdsFilterParser.class);
-            bindings.processXContentQueryFilter(LimitFilterParser.NAME, LimitFilterParser.class);
-            bindings.processXContentQueryFilter(TermFilterParser.NAME, TermFilterParser.class);
-            bindings.processXContentQueryFilter(TermsFilterParser.NAME, TermsFilterParser.class);
-            bindings.processXContentQueryFilter(RangeFilterParser.NAME, RangeFilterParser.class);
-            bindings.processXContentQueryFilter(NumericRangeFilterParser.NAME, NumericRangeFilterParser.class);
-            bindings.processXContentQueryFilter(PrefixFilterParser.NAME, PrefixFilterParser.class);
-            bindings.processXContentQueryFilter(ScriptFilterParser.NAME, ScriptFilterParser.class);
-            bindings.processXContentQueryFilter(GeoDistanceFilterParser.NAME, GeoDistanceFilterParser.class);
-            bindings.processXContentQueryFilter(GeoDistanceRangeFilterParser.NAME, GeoDistanceRangeFilterParser.class);
-            bindings.processXContentQueryFilter(GeoBoundingBoxFilterParser.NAME, GeoBoundingBoxFilterParser.class);
-            bindings.processXContentQueryFilter(GeoPolygonFilterParser.NAME, GeoPolygonFilterParser.class);
-            bindings.processXContentQueryFilter(QueryFilterParser.NAME, QueryFilterParser.class);
-            bindings.processXContentQueryFilter(FQueryFilterParser.NAME, FQueryFilterParser.class);
-            bindings.processXContentQueryFilter(BoolFilterParser.NAME, BoolFilterParser.class);
-            bindings.processXContentQueryFilter(AndFilterParser.NAME, AndFilterParser.class);
-            bindings.processXContentQueryFilter(OrFilterParser.NAME, OrFilterParser.class);
-            bindings.processXContentQueryFilter(NotFilterParser.NAME, NotFilterParser.class);
-            bindings.processXContentQueryFilter(MatchAllFilterParser.NAME, MatchAllFilterParser.class);
-            bindings.processXContentQueryFilter(ExistsFilterParser.NAME, ExistsFilterParser.class);
-            bindings.processXContentQueryFilter(MissingFilterParser.NAME, MissingFilterParser.class);
         }
     }
 }

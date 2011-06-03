@@ -27,8 +27,8 @@ import org.elasticsearch.node.NodeBuilder;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 public class FilterCacheGcStress {
 

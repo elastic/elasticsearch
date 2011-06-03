@@ -552,23 +552,17 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class DeleteByQuery {
         private final Query query;
-        private final String queryParserName;
         private final byte[] source;
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
 
-        public DeleteByQuery(Query query, byte[] source, @Nullable String queryParserName, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
+        public DeleteByQuery(Query query, byte[] source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
             this.query = query;
             this.source = source;
-            this.queryParserName = queryParserName;
             this.types = types;
             this.filteringAliases = filteringAliases;
             this.aliasFilter = aliasFilter;
-        }
-
-        public String queryParserName() {
-            return this.queryParserName;
         }
 
         public Query query() {

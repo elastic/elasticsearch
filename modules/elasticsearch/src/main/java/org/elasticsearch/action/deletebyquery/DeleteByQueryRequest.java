@@ -66,7 +66,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     private int querySourceLength;
     private boolean querySourceUnsafe;
 
-    private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String routing;
 
@@ -120,7 +119,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * The query source to execute.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
     @Required public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
         BytesStream bos = queryBuilder.buildAsUnsafeBytes();
@@ -184,21 +183,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         this.querySourceOffset = offset;
         this.querySourceLength = length;
         this.querySourceUnsafe = unsafe;
-        return this;
-    }
-
-    /**
-     * The query parse name to use. If not set, will use the default one.
-     */
-    String queryParserName() {
-        return queryParserName;
-    }
-
-    /**
-     * The query parse name to use. If not set, will use the default one.
-     */
-    public DeleteByQueryRequest queryParserName(String queryParserName) {
-        this.queryParserName = queryParserName;
         return this;
     }
 
@@ -287,10 +271,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         in.readFully(querySource);
 
         if (in.readBoolean()) {
-            queryParserName = in.readUTF();
-        }
-
-        if (in.readBoolean()) {
             routing = in.readUTF();
         }
 
@@ -311,12 +291,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         out.writeVInt(querySourceLength);
         out.writeBytes(querySource, querySourceOffset, querySourceLength);
 
-        if (queryParserName == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryParserName);
-        }
         if (routing == null) {
             out.writeBoolean(false);
         } else {

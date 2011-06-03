@@ -34,8 +34,6 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParser;
-import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
@@ -119,8 +117,6 @@ public class SearchContext implements Releasable {
     private Float minimumScore;
 
     private boolean trackScores = false; // when sorting, track scores as well...
-
-    private String queryParserName;
 
     private ParsedQuery originalQuery;
 
@@ -262,17 +258,6 @@ public class SearchContext implements Releasable {
         return this.searcher;
     }
 
-    public IndexQueryParser queryParser() throws IndexQueryParserMissingException {
-        if (queryParserName != null) {
-            IndexQueryParser queryParser = queryParserService().indexQueryParser(queryParserName);
-            if (queryParser == null) {
-                throw new IndexQueryParserMissingException(queryParserName);
-            }
-            return queryParser;
-        }
-        return queryParserService().defaultIndexQueryParser();
-    }
-
     public MapperService mapperService() {
         return indexService.mapperService();
     }
@@ -352,15 +337,6 @@ public class SearchContext implements Releasable {
 
     public Filter aliasFilter() {
         return aliasFilter;
-    }
-
-    public String queryParserName() {
-        return queryParserName;
-    }
-
-    public SearchContext queryParserName(String queryParserName) {
-        this.queryParserName = queryParserName;
-        return this;
     }
 
     public SearchContext parsedQuery(ParsedQuery query) {

@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -104,7 +104,7 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
      * @param alias         The alias
      * @param filterBuilder The filter
      */
-    public IndicesAliasesRequest addAlias(String index, String alias, XContentFilterBuilder filterBuilder) {
+    public IndicesAliasesRequest addAlias(String index, String alias, FilterBuilder filterBuilder) {
         if (filterBuilder == null) {
             aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias));
             return this;

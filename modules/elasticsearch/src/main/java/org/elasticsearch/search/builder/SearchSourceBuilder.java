@@ -30,8 +30,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
-import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -66,19 +66,17 @@ public class SearchSourceBuilder implements ToXContent {
         return new HighlightBuilder();
     }
 
-    private XContentQueryBuilder queryBuilder;
+    private QueryBuilder queryBuilder;
 
     private byte[] queryBinary;
 
-    private XContentFilterBuilder filterBuilder;
+    private FilterBuilder filterBuilder;
 
     private byte[] filterBinary;
 
     private int from = -1;
 
     private int size = -1;
-
-    private String queryParserName;
 
     private Boolean explain;
 
@@ -112,9 +110,9 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Constructs a new search source builder with a search query.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchSourceBuilder query(XContentQueryBuilder query) {
+    public SearchSourceBuilder query(QueryBuilder query) {
         this.queryBuilder = query;
         return this;
     }
@@ -139,7 +137,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchSourceBuilder filter(XContentFilterBuilder filter) {
+    public SearchSourceBuilder filter(FilterBuilder filter) {
         this.filterBuilder = filter;
         return this;
     }
@@ -183,14 +181,6 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder minScore(float minScore) {
         this.minScore = minScore;
-        return this;
-    }
-
-    /**
-     * An optional query parser name to use.
-     */
-    public SearchSourceBuilder queryParserName(String queryParserName) {
-        this.queryParserName = queryParserName;
         return this;
     }
 
@@ -423,9 +413,6 @@ public class SearchSourceBuilder implements ToXContent {
         }
         if (size != -1) {
             builder.field("size", size);
-        }
-        if (queryParserName != null) {
-            builder.field("query_parser_name", queryParserName);
         }
 
         if (queryBuilder != null) {

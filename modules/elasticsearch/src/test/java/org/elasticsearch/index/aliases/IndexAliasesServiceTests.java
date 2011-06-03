@@ -32,9 +32,9 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -43,8 +43,8 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -70,7 +70,7 @@ public class IndexAliasesServiceTests {
         return injector.getInstance(IndexQueryParserService.class);
     }
 
-    public static CompressedString filter(XContentFilterBuilder filterBuilder) throws IOException {
+    public static CompressedString filter(FilterBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();

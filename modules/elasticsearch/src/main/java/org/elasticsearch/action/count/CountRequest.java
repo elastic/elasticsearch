@@ -71,7 +71,6 @@ public class CountRequest extends BroadcastOperationRequest {
     private boolean querySourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
-    private String queryParserName;
 
     CountRequest() {
     }
@@ -168,7 +167,7 @@ public class CountRequest extends BroadcastOperationRequest {
     /**
      * The query source to execute.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
     @Required public CountRequest query(QueryBuilder queryBuilder) {
         BytesStream bos = queryBuilder.buildAsUnsafeBytes();
@@ -236,21 +235,6 @@ public class CountRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * The query parse name to use. If not set, will use the default one.
-     */
-    String queryParserName() {
-        return queryParserName;
-    }
-
-    /**
-     * The query parse name to use. If not set, will use the default one.
-     */
-    public CountRequest queryParserName(String queryParserName) {
-        this.queryParserName = queryParserName;
-        return this;
-    }
-
-    /**
      * The types of documents the query will run against. Defaults to all types.
      */
     String[] types() {
@@ -305,9 +289,6 @@ public class CountRequest extends BroadcastOperationRequest {
         querySource = new byte[querySourceLength];
         in.readFully(querySource);
 
-        if (in.readBoolean()) {
-            queryParserName = in.readUTF();
-        }
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -337,12 +318,6 @@ public class CountRequest extends BroadcastOperationRequest {
         out.writeVInt(querySourceLength);
         out.writeBytes(querySource, querySourceOffset, querySourceLength);
 
-        if (queryParserName == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryParserName);
-        }
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

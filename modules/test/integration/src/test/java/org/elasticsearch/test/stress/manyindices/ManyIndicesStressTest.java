@@ -30,7 +30,7 @@ import org.elasticsearch.node.NodeBuilder;
 
 import java.util.Date;
 
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -26,7 +26,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.node.Node;
 
 import java.util.concurrent.CountDownLatch;
@@ -37,8 +37,8 @@ import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 
@@ -203,7 +203,7 @@ public class NodesStressTest {
                 barrier2.await();
                 for (; counter < max; counter++) {
                     Client client = client(counter);
-                    XContentQueryBuilder query = termQuery("num", counter % fieldNumLimit);
+                    QueryBuilder query = termQuery("num", counter % fieldNumLimit);
                     query = constantScoreQuery(queryFilter(query));
 
                     SearchResponse search = client.search(searchRequest()
@@ -245,8 +245,8 @@ public class NodesStressTest {
                     long id = idGenerator.incrementAndGet();
                     client.index(Requests.indexRequest().index("test").type("type1").id(Long.toString(id))
                             .source(XContentFactory.jsonBuilder().startObject()
-                            .field("num", id % fieldNumLimit)
-                            .endObject()))
+                                    .field("num", id % fieldNumLimit)
+                                    .endObject()))
                             .actionGet();
                 }
                 System.out.println("Indexer [" + id + "]: Done");

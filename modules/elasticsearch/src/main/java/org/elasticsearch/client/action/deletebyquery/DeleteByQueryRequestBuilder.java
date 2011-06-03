@@ -77,7 +77,7 @@ public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQuer
     /**
      * The query source to execute.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
     public DeleteByQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
         request.query(queryBuilder);

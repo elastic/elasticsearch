@@ -41,7 +41,6 @@ import static org.elasticsearch.action.Actions.*;
 public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest {
 
     private byte[] querySource;
-    private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String routing;
     @Nullable private String[] filteringAliases;
@@ -50,7 +49,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         this.index = index;
         this.timeout = request.timeout();
         this.querySource = request.querySource();
-        this.queryParserName = request.queryParserName();
         this.types = request.types();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
@@ -82,10 +80,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return this;
     }
 
-    String queryParserName() {
-        return queryParserName;
-    }
-
     String routing() {
         return this.routing;
     }
@@ -98,11 +92,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return filteringAliases;
     }
 
-    public IndexDeleteByQueryRequest queryParserName(String queryParserName) {
-        this.queryParserName = queryParserName;
-        return this;
-    }
-
     public IndexDeleteByQueryRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
@@ -112,9 +101,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         super.readFrom(in);
         querySource = new byte[in.readVInt()];
         in.readFully(querySource);
-        if (in.readBoolean()) {
-            queryParserName = in.readUTF();
-        }
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -138,12 +124,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         super.writeTo(out);
         out.writeVInt(querySource.length);
         out.writeBytes(querySource);
-        if (queryParserName == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryParserName);
-        }
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

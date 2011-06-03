@@ -46,7 +46,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

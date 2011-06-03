@@ -23,7 +23,6 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -78,8 +77,7 @@ public class FacetParseElement implements SearchParseElement {
                         facetFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("facet_filter".equals(facetFieldName) || "facetFilter".equals(facetFieldName)) {
-                            XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-                            filter = indexQueryParser.parseInnerFilter(parser);
+                            filter = context.queryParserService().parseInnerFilter(parser);
                         } else {
                             FacetProcessor facetProcessor = facetProcessors.processor(facetFieldName);
                             if (facetProcessor == null) {

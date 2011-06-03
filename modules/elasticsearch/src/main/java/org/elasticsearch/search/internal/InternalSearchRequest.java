@@ -42,7 +42,6 @@ import static org.elasticsearch.search.Scroll.*;
  *  from : 0, size : 20, (optional, can be set on the request)
  *  sort : { "name.first" : {}, "name.last" : { reverse : true } }
  *  fields : [ "name.first", "name.last" ]
- *  queryParserName : "",
  *  query : { ... }
  *  facets : {
  *      "facet1" : {

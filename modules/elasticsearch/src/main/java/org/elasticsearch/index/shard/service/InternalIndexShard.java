@@ -52,8 +52,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.query.IndexQueryParser;
-import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -325,23 +323,16 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(delete);
     }
 
-    @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+    @Override public void deleteByQuery(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         writeAllowed();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        innerDeleteByQuery(querySource, queryParserName, filteringAliases, types);
+        innerDeleteByQuery(querySource, filteringAliases, types);
     }
 
-    private void innerDeleteByQuery(byte[] querySource, String queryParserName, String[] filteringAliases, String... types) {
-        IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
-        if (queryParserName != null) {
-            queryParser = queryParserService.indexQueryParser(queryParserName);
-            if (queryParser == null) {
-                throw new IndexQueryParserMissingException(queryParserName);
-            }
-        }
-        Query query = queryParser.parse(querySource).query();
+    private void innerDeleteByQuery(byte[] querySource, String[] filteringAliases, String... types) {
+        Query query = queryParserService.parse(querySource).query();
         query = filterByTypesIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
@@ -350,7 +341,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             logger.trace("delete_by_query [{}]", query);
         }
 
-        engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, filteringAliases, aliasFilter, types));
+        engine.delete(new Engine.DeleteByQuery(query, querySource, filteringAliases, aliasFilter, types));
     }
 
     @Override public byte[] get(String type, String id) throws ElasticSearchException {
@@ -377,21 +368,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    @Override public long count(float minScore, byte[] querySource, @Nullable String queryParserName, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
-        return count(minScore, querySource, 0, querySource.length, queryParserName, filteringAliases, types);
+    @Override public long count(float minScore, byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+        return count(minScore, querySource, 0, querySource.length, filteringAliases, types);
     }
 
     @Override public long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength,
-                                @Nullable String queryParserName, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+                                @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         readAllowed();
-        IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
-        if (queryParserName != null) {
-            queryParser = queryParserService.indexQueryParser(queryParserName);
-            if (queryParser == null) {
-                throw new IndexQueryParserMissingException(queryParserName);
-            }
-        }
-        Query query = queryParser.parse(querySource, querySourceOffset, querySourceLength).query();
+        Query query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
         // wrap it in filter, cache it, and constant score it
         // Don't cache it, since it might be very different queries each time...
 //        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
@@ -549,7 +533,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 break;
             case DELETE_BY_QUERY:
                 Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.filteringAliases(), deleteByQuery.types());
+                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types());
                 break;
             default:
                 throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");

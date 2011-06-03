@@ -450,7 +450,6 @@ public interface Translog extends IndexShardComponent {
 
     static class DeleteByQuery implements Operation {
         private byte[] source;
-        @Nullable private String queryParserName;
         @Nullable private String[] filteringAliases;
         private String[] types = Strings.EMPTY_ARRAY;
 
@@ -458,13 +457,12 @@ public interface Translog extends IndexShardComponent {
         }
 
         public DeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-            this(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
+            this(deleteByQuery.source(), deleteByQuery.types());
         }
 
-        public DeleteByQuery(byte[] source, @Nullable String queryParserName, String[] filteringAliases, String... types) {
-            this.queryParserName = queryParserName;
+        public DeleteByQuery(byte[] source, String[] filteringAliases, String... types) {
             this.source = source;
-            this.types = types;
+            this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.filteringAliases = filteringAliases;
         }
 
@@ -473,11 +471,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public long estimateSize() {
-            return source.length + ((queryParserName == null ? 0 : queryParserName.length()) * 2) + 8;
-        }
-
-        public String queryParserName() {
-            return this.queryParserName;
+            return source.length + 8;
         }
 
         public byte[] source() {
@@ -496,8 +490,11 @@ public interface Translog extends IndexShardComponent {
             int version = in.readVInt(); // version
             source = new byte[in.readVInt()];
             in.readFully(source);
-            if (in.readBoolean()) {
-                queryParserName = in.readUTF();
+            if (version < 2) {
+                // for query_parser_name, which was removed
+                if (in.readBoolean()) {
+                    in.readUTF();
+                }
             }
             int typesSize = in.readVInt();
             if (typesSize > 0) {
@@ -518,15 +515,9 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(1); // version
+            out.writeVInt(2); // version
             out.writeVInt(source.length);
             out.writeBytes(source);
-            if (queryParserName == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeUTF(queryParserName);
-            }
             out.writeVInt(types.length);
             for (String type : types) {
                 out.writeUTF(type);

@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.statistical;
 
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -56,7 +56,7 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public StatisticalScriptFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public StatisticalScriptFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

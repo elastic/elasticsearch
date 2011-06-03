@@ -23,7 +23,7 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
@@ -212,7 +212,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public GeoDistanceFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public GeoDistanceFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

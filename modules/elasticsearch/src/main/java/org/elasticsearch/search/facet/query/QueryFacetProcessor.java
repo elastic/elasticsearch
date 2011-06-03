@@ -24,7 +24,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -48,8 +47,7 @@ public class QueryFacetProcessor extends AbstractComponent implements FacetProce
     }
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
-        XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        Query facetQuery = indexQueryParser.parse(parser).query();
+        Query facetQuery = context.queryParserService().parse(parser).query();
         return new QueryFacetCollector(facetName, facetQuery, context.filterCache());
     }
 

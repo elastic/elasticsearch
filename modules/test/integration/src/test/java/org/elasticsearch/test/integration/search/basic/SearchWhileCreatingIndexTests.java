@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration.search.basic;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;

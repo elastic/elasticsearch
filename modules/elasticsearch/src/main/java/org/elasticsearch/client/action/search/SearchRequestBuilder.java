@@ -29,8 +29,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
-import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
@@ -190,9 +190,9 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     /**
      * Constructs a new search source builder with a search query.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchRequestBuilder setQuery(XContentQueryBuilder queryBuilder) {
+    public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
         sourceBuilder().query(queryBuilder);
         return this;
     }
@@ -217,7 +217,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(XContentFilterBuilder filter) {
+    public SearchRequestBuilder setFilter(FilterBuilder filter) {
         sourceBuilder().filter(filter);
         return this;
     }
@@ -261,14 +261,6 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder setSize(int size) {
         sourceBuilder().size(size);
-        return this;
-    }
-
-    /**
-     * An optional query parser name to use.
-     */
-    public SearchRequestBuilder setQueryParserName(String queryParserName) {
-        sourceBuilder().queryParserName(queryParserName);
         return this;
     }
 

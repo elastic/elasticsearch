@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
-import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetBuilder;
 import org.elasticsearch.search.facet.filter.FilterFacetBuilder;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacetBuilder;
@@ -43,7 +43,7 @@ public class FacetBuilders {
         return new QueryFacetBuilder(facetName);
     }
 
-    public static QueryFacetBuilder queryFacet(String facetName, XContentQueryBuilder query) {
+    public static QueryFacetBuilder queryFacet(String facetName, QueryBuilder query) {
         return new QueryFacetBuilder(facetName).query(query);
     }
 
@@ -51,7 +51,7 @@ public class FacetBuilders {
         return new FilterFacetBuilder(facetName);
     }
 
-    public static FilterFacetBuilder filterFacet(String facetName, XContentFilterBuilder filter) {
+    public static FilterFacetBuilder filterFacet(String facetName, FilterBuilder filter) {
         return new FilterFacetBuilder(facetName).filter(filter);
     }
 

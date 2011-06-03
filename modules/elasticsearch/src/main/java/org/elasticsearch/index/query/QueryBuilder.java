@@ -20,12 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface QueryBuilder {
+public interface QueryBuilder extends ToXContent {
 
     BytesStream buildAsUnsafeBytes() throws QueryBuilderException;
 

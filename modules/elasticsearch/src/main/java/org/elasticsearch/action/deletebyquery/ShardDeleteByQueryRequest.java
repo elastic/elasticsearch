@@ -41,7 +41,6 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
 
     private int shardId;
     private byte[] querySource;
-    private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String routing;
     @Nullable private String[] filteringAliases;
@@ -49,7 +48,6 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
         this.index = request.index();
         this.querySource = request.querySource();
-        this.queryParserName = request.queryParserName();
         this.types = request.types();
         this.shardId = shardId;
         replicationType(request.replicationType());
@@ -78,10 +76,6 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return querySource;
     }
 
-    public String queryParserName() {
-        return queryParserName;
-    }
-
     public String[] types() {
         return this.types;
     }
@@ -98,9 +92,6 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         super.readFrom(in);
         querySource = new byte[in.readVInt()];
         in.readFully(querySource);
-        if (in.readBoolean()) {
-            queryParserName = in.readUTF();
-        }
         shardId = in.readVInt();
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -125,12 +116,6 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         super.writeTo(out);
         out.writeVInt(querySource.length);
         out.writeBytes(querySource);
-        if (queryParserName == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryParserName);
-        }
         out.writeVInt(shardId);
         out.writeVInt(types.length);
         for (String type : types) {

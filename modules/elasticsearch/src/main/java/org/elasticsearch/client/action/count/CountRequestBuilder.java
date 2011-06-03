@@ -55,14 +55,6 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
     }
 
     /**
-     * The query parse name to use. If not set, will use the default one.
-     */
-    public CountRequestBuilder setQueryParserName(String queryParserName) {
-        request.queryParserName(queryParserName);
-        return this;
-    }
-
-    /**
      * The minimum score of the documents to include in the count. Defaults to <tt>-1</tt> which means all
      * documents will be included in the count.
      */
@@ -98,7 +90,7 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
     /**
      * The query source to execute.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
     public CountRequestBuilder setQuery(QueryBuilder queryBuilder) {
         request.query(queryBuilder);
@@ -108,7 +100,7 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
     /**
      * The query source to execute.
      *
-     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     * @see org.elasticsearch.index.query.QueryBuilders
      */
     public CountRequestBuilder setQuery(byte[] querySource) {
         request.query(querySource);

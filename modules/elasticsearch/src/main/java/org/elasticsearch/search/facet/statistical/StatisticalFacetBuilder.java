@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -66,7 +66,7 @@ public class StatisticalFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public StatisticalFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public StatisticalFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

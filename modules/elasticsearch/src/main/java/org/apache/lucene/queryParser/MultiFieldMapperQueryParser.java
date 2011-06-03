@@ -19,8 +19,12 @@
 
 package org.apache.lucene.queryParser;
 
-import org.apache.lucene.search.*;
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.util.ArrayList;
 import java.util.List;

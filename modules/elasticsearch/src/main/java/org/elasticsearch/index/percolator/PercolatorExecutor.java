@@ -54,10 +54,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -226,8 +225,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
-                        query = queryParser.parse(parser).query();
+                        query = queryParserService.parse(parser).query();
                     }
                 }
             }
@@ -274,8 +272,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
-                        query = queryParser.parse(parser).query();
+                        query = queryParserService.parse(parser).query();
                     }
                 } else if (token == null) {
                     break;
@@ -299,8 +296,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     public Response percolate(DocAndSourceQueryRequest request) throws ElasticSearchException {
         Query query = null;
         if (Strings.hasLength(request.query()) && !request.query().equals("*")) {
-            IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
-            query = queryParser.parse(QueryBuilders.queryString(request.query())).query();
+            query = queryParserService.parse(QueryBuilders.queryString(request.query())).query();
         }
         return percolate(new DocAndQueryRequest(request.doc(), query));
     }

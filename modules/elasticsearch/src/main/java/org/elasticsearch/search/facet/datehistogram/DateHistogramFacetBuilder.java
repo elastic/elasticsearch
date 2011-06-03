@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -145,7 +145,7 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    @Override public DateHistogramFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    @Override public DateHistogramFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

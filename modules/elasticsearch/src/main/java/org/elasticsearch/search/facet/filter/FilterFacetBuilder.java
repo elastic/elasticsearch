@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.filter;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public class FilterFacetBuilder extends AbstractFacetBuilder {
 
-    private XContentFilterBuilder filter;
+    private FilterBuilder filter;
 
     public FilterFacetBuilder(String name) {
         super(name);
@@ -53,12 +53,12 @@ public class FilterFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public FilterFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public FilterFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }
 
-    public FilterFacetBuilder filter(XContentFilterBuilder filter) {
+    public FilterFacetBuilder filter(FilterBuilder filter) {
         this.filter = filter;
         return this;
     }

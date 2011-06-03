@@ -42,7 +42,7 @@ import org.elasticsearch.node.internal.InternalNode;
 import java.io.File;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 /**
  * @author kimchy (shay.banon)

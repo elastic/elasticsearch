@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet.terms;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -78,7 +78,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
      * An additional facet filter that will further filter the documents the facet will be
      * executed on.
      */
-    public TermsFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public TermsFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

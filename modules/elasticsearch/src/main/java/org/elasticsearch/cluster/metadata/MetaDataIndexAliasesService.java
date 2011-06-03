@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
+import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -101,7 +101,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 }
 
                                 // now, parse the filter
-                                XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) indexService.queryParserService().defaultIndexQueryParser();
+                                IndexQueryParserService indexQueryParser = indexService.queryParserService();
                                 try {
                                     XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
                                     try {

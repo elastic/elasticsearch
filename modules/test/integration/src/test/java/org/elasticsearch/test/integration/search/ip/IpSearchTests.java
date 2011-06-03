@@ -28,7 +28,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

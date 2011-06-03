@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import static org.elasticsearch.index.query.support.QueryParsers.*;
 

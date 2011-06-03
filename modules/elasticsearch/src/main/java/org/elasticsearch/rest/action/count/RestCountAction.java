@@ -27,7 +27,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -74,7 +79,6 @@ public class RestCountAction extends BaseRestHandler {
                     countRequest.query(RestActions.parseQuerySource(request));
                 }
             }
-            countRequest.queryParserName(request.param("query_parser_name"));
             countRequest.queryHint(request.param("query_hint"));
             countRequest.routing(request.param("routing"));
             countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));

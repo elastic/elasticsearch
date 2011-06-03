@@ -29,9 +29,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
-import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -179,7 +184,6 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
 
-        searchSourceBuilder.queryParserName(request.param("query_parser_name"));
         searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
         searchSourceBuilder.version(request.paramAsBoolean("version", null));
 

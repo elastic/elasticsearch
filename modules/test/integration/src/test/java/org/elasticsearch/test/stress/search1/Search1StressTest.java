@@ -39,7 +39,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 /**
  * @author kimchy (shay.banon)

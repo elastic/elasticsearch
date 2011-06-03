@@ -23,7 +23,12 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeFilter;
+import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +38,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 

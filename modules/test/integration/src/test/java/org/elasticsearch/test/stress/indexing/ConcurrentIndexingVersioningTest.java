@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 
 import java.util.concurrent.CountDownLatch;

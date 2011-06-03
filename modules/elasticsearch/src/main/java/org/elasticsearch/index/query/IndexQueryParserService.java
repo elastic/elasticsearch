@@ -19,16 +19,30 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.ScriptService;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
@@ -38,50 +52,188 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 public class IndexQueryParserService extends AbstractIndexComponent {
 
     public static final class Defaults {
-        public static final String DEFAULT = "default";
-        public static final String PREFIX = "index.queryparser.types";
+        public static final String QUERY_PREFIX = "index.queryparser.query";
+        public static final String FILTER_PREFIX = "index.queryparser.filter";
     }
 
-    private final IndexQueryParser defaultIndexQueryParser;
-
-    private final Map<String, IndexQueryParser> indexQueryParsers;
-
-    @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
-                                           @Nullable Map<String, IndexQueryParserFactory> indexQueryParsersFactories) {
-        super(index, indexSettings);
-        Map<String, Settings> queryParserGroupSettings;
-        if (indexSettings != null) {
-            queryParserGroupSettings = indexSettings.getGroups(Defaults.PREFIX);
-        } else {
-            queryParserGroupSettings = newHashMap();
+    private ThreadLocal<QueryParseContext> cache = new ThreadLocal<QueryParseContext>() {
+        @Override protected QueryParseContext initialValue() {
+            return new QueryParseContext(index, IndexQueryParserService.this);
         }
-        Map<String, IndexQueryParser> qparsers = newHashMap();
-        if (indexQueryParsersFactories != null) {
-            for (Map.Entry<String, IndexQueryParserFactory> entry : indexQueryParsersFactories.entrySet()) {
-                String qparserName = entry.getKey();
-                Settings qparserSettings = queryParserGroupSettings.get(qparserName);
-                if (qparserSettings == null) {
-                    qparserSettings = EMPTY_SETTINGS;
+    };
+
+    final ScriptService scriptService;
+
+    final MapperService mapperService;
+
+    final SimilarityService similarityService;
+
+    final IndexCache indexCache;
+
+    final IndexEngine indexEngine;
+
+    private final Map<String, QueryParser> queryParsers;
+
+    private final Map<String, FilterParser> filterParsers;
+
+    @Inject public IndexQueryParserService(Index index,
+                                           @IndexSettings Settings indexSettings, ScriptService scriptService,
+                                           MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
+                                           @Nullable SimilarityService similarityService,
+                                           @Nullable Map<String, QueryParserFactory> namedQueryParsers,
+                                           @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
+        super(index, indexSettings);
+        this.scriptService = scriptService;
+        this.mapperService = mapperService;
+        this.similarityService = similarityService;
+        this.indexCache = indexCache;
+        this.indexEngine = indexEngine;
+
+        List<QueryParser> queryParsers = newArrayList();
+        if (namedQueryParsers != null) {
+            Map<String, Settings> queryParserGroups = indexSettings.getGroups(IndexQueryParserService.Defaults.QUERY_PREFIX);
+            for (Map.Entry<String, QueryParserFactory> entry : namedQueryParsers.entrySet()) {
+                String queryParserName = entry.getKey();
+                QueryParserFactory queryParserFactory = entry.getValue();
+                Settings queryParserSettings = queryParserGroups.get(queryParserName);
+                if (queryParserSettings == null) {
+                    queryParserSettings = EMPTY_SETTINGS;
                 }
-                qparsers.put(qparserName, entry.getValue().create(qparserName, qparserSettings));
+                queryParsers.add(queryParserFactory.create(queryParserName, queryParserSettings));
             }
         }
-        indexQueryParsers = ImmutableMap.copyOf(qparsers);
 
-        defaultIndexQueryParser = indexQueryParser(Defaults.DEFAULT);
+        Map<String, QueryParser> queryParsersMap = newHashMap();
+        if (queryParsers != null) {
+            for (QueryParser queryParser : queryParsers) {
+                add(queryParsersMap, queryParser);
+            }
+        }
+        this.queryParsers = ImmutableMap.copyOf(queryParsersMap);
+
+        List<FilterParser> filterParsers = newArrayList();
+        if (namedFilterParsers != null) {
+            Map<String, Settings> filterParserGroups = indexSettings.getGroups(IndexQueryParserService.Defaults.FILTER_PREFIX);
+            for (Map.Entry<String, FilterParserFactory> entry : namedFilterParsers.entrySet()) {
+                String filterParserName = entry.getKey();
+                FilterParserFactory filterParserFactory = entry.getValue();
+                Settings filterParserSettings = filterParserGroups.get(filterParserName);
+                if (filterParserSettings == null) {
+                    filterParserSettings = EMPTY_SETTINGS;
+                }
+                filterParsers.add(filterParserFactory.create(filterParserName, filterParserSettings));
+            }
+        }
+
+        Map<String, FilterParser> filterParsersMap = newHashMap();
+        if (filterParsers != null) {
+            for (FilterParser filterParser : filterParsers) {
+                add(filterParsersMap, filterParser);
+            }
+        }
+        this.filterParsers = ImmutableMap.copyOf(filterParsersMap);
     }
 
     public void close() {
-        for (IndexQueryParser indexQueryParser : indexQueryParsers.values()) {
-            indexQueryParser.close();
+        cache.remove();
+    }
+
+    public QueryParser queryParser(String name) {
+        return queryParsers.get(name);
+    }
+
+    public FilterParser filterParser(String name) {
+        return filterParsers.get(name);
+    }
+
+    public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
+        XContentParser parser = null;
+        try {
+            BytesStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
+            parser = XContentFactory.xContent(unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size()).createParser(unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size());
+            return parse(cache.get(), parser);
+        } catch (QueryParsingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new QueryParsingException(index, "Failed to parse", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
         }
     }
 
-    public IndexQueryParser indexQueryParser(String name) {
-        return indexQueryParsers.get(name);
+    public ParsedQuery parse(byte[] source) throws ElasticSearchException {
+        return parse(source, 0, source.length);
     }
 
-    public IndexQueryParser defaultIndexQueryParser() {
-        return defaultIndexQueryParser;
+    public ParsedQuery parse(byte[] source, int offset, int length) throws ElasticSearchException {
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
+            return parse(cache.get(), parser);
+        } catch (QueryParsingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new QueryParsingException(index, "Failed to parse", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
+
+    public ParsedQuery parse(String source) throws QueryParsingException {
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(source).createParser(source);
+            return parse(cache.get(), parser);
+        } catch (QueryParsingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new QueryParsingException(index, "Failed to parse [" + source + "]", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
+
+    public ParsedQuery parse(XContentParser parser) {
+        try {
+            return parse(cache.get(), parser);
+        } catch (IOException e) {
+            throw new QueryParsingException(index, "Failed to parse", e);
+        }
+    }
+
+    public Filter parseInnerFilter(XContentParser parser) throws IOException {
+        QueryParseContext context = cache.get();
+        context.reset(parser);
+        return context.parseInnerFilter();
+    }
+
+    public Query parseInnerQuery(XContentParser parser) throws IOException {
+        QueryParseContext context = cache.get();
+        context.reset(parser);
+        return context.parseInnerQuery();
+    }
+
+    private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+        parseContext.reset(parser);
+        Query query = parseContext.parseInnerQuery();
+        return new ParsedQuery(query, parseContext.copyNamedFilters());
+    }
+
+    private void add(Map<String, FilterParser> map, FilterParser filterParser) {
+        for (String name : filterParser.names()) {
+            map.put(name.intern(), filterParser);
+        }
+    }
+
+    private void add(Map<String, QueryParser> map, QueryParser queryParser) {
+        for (String name : queryParser.names()) {
+            map.put(name.intern(), queryParser);
+        }
     }
 }

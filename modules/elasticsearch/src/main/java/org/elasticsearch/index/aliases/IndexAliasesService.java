@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -48,15 +47,15 @@ import static org.elasticsearch.common.collect.MapBuilder.*;
  */
 public class IndexAliasesService extends AbstractIndexComponent implements Iterable<IndexAlias> {
 
-    private final IndexQueryParserService indexQueryParserService;
+    private final IndexQueryParserService indexQueryParser;
 
     private volatile ImmutableMap<String, IndexAlias> aliases = ImmutableMap.of();
 
     private final Object mutex = new Object();
 
-    @Inject public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParserService) {
+    @Inject public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParser) {
         super(index, indexSettings);
-        this.indexQueryParserService = indexQueryParserService;
+        this.indexQueryParser = indexQueryParser;
     }
 
     public boolean hasAlias(String alias) {
@@ -130,7 +129,6 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         if (filter == null) {
             return null;
         }
-        XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) indexQueryParserService.defaultIndexQueryParser();
         try {
             byte[] filterSource = filter.uncompressed();
             XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource);

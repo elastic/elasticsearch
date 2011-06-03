@@ -26,8 +26,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -40,7 +40,7 @@ import java.util.Set;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.collect.Sets.*;
-import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -157,7 +157,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
-        XContentFilterBuilder filter = termFilter("user", "kimchy");
+        FilterBuilder filter = termFilter("user", "kimchy");
         client1.admin().indices().prepareAliases().addAlias("test", "alias1", filter).execute().actionGet();
         Thread.sleep(300);
 

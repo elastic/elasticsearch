@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.range;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -144,7 +144,7 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    public RangeFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public RangeFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

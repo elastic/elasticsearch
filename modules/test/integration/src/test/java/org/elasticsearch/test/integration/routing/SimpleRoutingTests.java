@@ -25,13 +25,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

@@ -27,7 +27,7 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.elasticsearch.index.query.QueryParseContext;
 
 /**
  * @author kimchy (shay.banon)

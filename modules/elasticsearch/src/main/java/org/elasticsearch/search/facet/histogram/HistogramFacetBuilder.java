@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -127,7 +127,7 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    public HistogramFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public HistogramFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

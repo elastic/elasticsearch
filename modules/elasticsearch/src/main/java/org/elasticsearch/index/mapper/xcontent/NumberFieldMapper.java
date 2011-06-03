@@ -31,7 +31,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.Reader;
 

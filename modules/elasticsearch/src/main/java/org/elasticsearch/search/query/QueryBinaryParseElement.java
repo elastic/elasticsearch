@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -31,11 +30,10 @@ import org.elasticsearch.search.internal.SearchContext;
 public class QueryBinaryParseElement implements SearchParseElement {
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
-        XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
         byte[] querySource = parser.binaryValue();
         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
         try {
-            context.parsedQuery(indexQueryParser.parse(qSourceParser));
+            context.parsedQuery(context.queryParserService().parse(qSourceParser));
         } finally {
             qSourceParser.close();
         }

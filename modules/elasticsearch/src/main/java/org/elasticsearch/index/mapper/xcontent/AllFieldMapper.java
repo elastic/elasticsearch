@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 

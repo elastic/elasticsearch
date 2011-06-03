@@ -43,7 +43,7 @@ import org.elasticsearch.threadpool.ThreadPoolModule;
 
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 /**
  * @author kimchy (shay.banon)

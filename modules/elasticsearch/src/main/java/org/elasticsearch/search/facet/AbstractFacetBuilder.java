@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -35,13 +35,13 @@ public abstract class AbstractFacetBuilder implements ToXContent {
 
     protected String scope;
 
-    protected XContentFilterBuilder facetFilter;
+    protected FilterBuilder facetFilter;
 
     protected AbstractFacetBuilder(String name) {
         this.name = name;
     }
 
-    public AbstractFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public AbstractFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }

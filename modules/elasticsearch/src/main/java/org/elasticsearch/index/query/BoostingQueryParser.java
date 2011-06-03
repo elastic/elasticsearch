@@ -22,23 +22,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BoostingQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class BoostingQueryParser extends AbstractIndexComponent implements QueryParser {
+public class BoostingQueryParser implements QueryParser {
 
     public static final String NAME = "boosting";
 
-    @Inject public BoostingQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public BoostingQueryParser() {
     }
 
     @Override public String[] names() {
@@ -74,13 +69,13 @@ public class BoostingQueryParser extends AbstractIndexComponent implements Query
         }
 
         if (positiveQuery == null) {
-            throw new QueryParsingException(index, "[boosting] query requires 'positive' query to be set'");
+            throw new QueryParsingException(parseContext.index(), "[boosting] query requires 'positive' query to be set'");
         }
         if (negativeQuery == null) {
-            throw new QueryParsingException(index, "[boosting] query requires 'negative' query to be set'");
+            throw new QueryParsingException(parseContext.index(), "[boosting] query requires 'negative' query to be set'");
         }
         if (negativeBoost == -1) {
-            throw new QueryParsingException(index, "[boosting] query requires 'negative_boost' to be set'");
+            throw new QueryParsingException(parseContext.index(), "[boosting] query requires 'negative_boost' to be set'");
         }
 
         BoostingQuery boostingQuery = new BoostingQuery(positiveQuery, negativeQuery, negativeBoost);

@@ -31,11 +31,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
@@ -62,6 +64,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     };
 
+    final AnalysisService analysisService;
+
     final ScriptService scriptService;
 
     final MapperService mapperService;
@@ -76,14 +80,16 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, FilterParser> filterParsers;
 
-    @Inject public IndexQueryParserService(Index index,
-                                           @IndexSettings Settings indexSettings, ScriptService scriptService,
+    @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
+                                           IndicesQueriesRegistry indicesQueriesRegistry,
+                                           ScriptService scriptService, AnalysisService analysisService,
                                            MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
                                            @Nullable SimilarityService similarityService,
                                            @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                            @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
         super(index, indexSettings);
         this.scriptService = scriptService;
+        this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;
@@ -104,6 +110,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
 
         Map<String, QueryParser> queryParsersMap = newHashMap();
+        queryParsersMap.putAll(indicesQueriesRegistry.queryParsers());
         if (queryParsers != null) {
             for (QueryParser queryParser : queryParsers) {
                 add(queryParsersMap, queryParser);
@@ -126,6 +133,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
 
         Map<String, FilterParser> filterParsersMap = newHashMap();
+        filterParsersMap.putAll(indicesQueriesRegistry.filterParsers());
         if (filterParsers != null) {
             for (FilterParser filterParser : filterParsers) {
                 add(filterParsersMap, filterParser);

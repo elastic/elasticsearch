@@ -22,20 +22,15 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.LimitFilter;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
-public class LimitFilterParser extends AbstractIndexComponent implements FilterParser {
+public class LimitFilterParser implements FilterParser {
 
     public static final String NAME = "limit";
 
-    @Inject public LimitFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public LimitFilterParser() {
     }
 
     @Override public String[] names() {
@@ -59,7 +54,7 @@ public class LimitFilterParser extends AbstractIndexComponent implements FilterP
         }
 
         if (limit == -1) {
-            throw new QueryParsingException(index, "No value specified for limit filter");
+            throw new QueryParsingException(parseContext.index(), "No value specified for limit filter");
         }
 
         return new LimitFilter(limit);

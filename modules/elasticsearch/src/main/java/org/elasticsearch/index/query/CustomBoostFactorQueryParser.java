@@ -24,23 +24,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class CustomBoostFactorQueryParser extends AbstractIndexComponent implements QueryParser {
+public class CustomBoostFactorQueryParser implements QueryParser {
 
     public static final String NAME = "custom_boost_factor";
 
-    @Inject public CustomBoostFactorQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public CustomBoostFactorQueryParser() {
     }
 
     @Override public String[] names() {
@@ -72,7 +67,7 @@ public class CustomBoostFactorQueryParser extends AbstractIndexComponent impleme
             }
         }
         if (query == null) {
-            throw new QueryParsingException(index, "[constant_factor_query] requires 'query' element");
+            throw new QueryParsingException(parseContext.index(), "[constant_factor_query] requires 'query' element");
         }
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new BoostScoreFunction(boostFactor));
         functionScoreQuery.setBoost(boost);

@@ -24,11 +24,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.OpenFilterClause;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,12 +34,11 @@ import static org.elasticsearch.common.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class BoolFilterParser extends AbstractIndexComponent implements FilterParser {
+public class BoolFilterParser implements FilterParser {
 
     public static final String NAME = "bool";
 
-    @Inject public BoolFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public BoolFilterParser() {
     }
 
     @Override public String[] names() {

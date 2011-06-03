@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -69,8 +70,16 @@ public class QueryParseContext {
         this.namedFilters.clear();
     }
 
+    public Index index() {
+        return this.index;
+    }
+
     public XContentParser parser() {
         return parser;
+    }
+
+    public AnalysisService analysisService() {
+        return indexQueryParser.analysisService;
     }
 
     public ScriptService scriptService() {

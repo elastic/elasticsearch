@@ -22,23 +22,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NotFilterParser extends AbstractIndexComponent implements FilterParser {
+public class NotFilterParser implements FilterParser {
 
     public static final String NAME = "not";
 
-    @Inject public NotFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public NotFilterParser() {
     }
 
     @Override public String[] names() {
@@ -74,7 +69,7 @@ public class NotFilterParser extends AbstractIndexComponent implements FilterPar
         }
 
         if (filter == null) {
-            throw new QueryParsingException(index, "filter is required when using `not` filter");
+            throw new QueryParsingException(parseContext.index(), "filter is required when using `not` filter");
         }
 
         Filter notFilter = new NotFilter(filter);

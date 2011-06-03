@@ -25,13 +25,9 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,12 +46,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  *
  * @author kimchy (shay.banon)
  */
-public class TermsQueryParser extends AbstractIndexComponent implements QueryParser {
+public class TermsQueryParser implements QueryParser {
 
     public static final String NAME = "terms";
 
-    @Inject public TermsQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public TermsQueryParser() {
     }
 
     @Override public String[] names() {
@@ -81,7 +76,7 @@ public class TermsQueryParser extends AbstractIndexComponent implements QueryPar
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     String value = parser.text();
                     if (value == null) {
-                        throw new QueryParsingException(index, "No value specified for terms query");
+                        throw new QueryParsingException(parseContext.index(), "No value specified for terms query");
                     }
                     values.add(value);
                 }

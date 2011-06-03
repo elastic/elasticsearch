@@ -20,14 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.index.IndexComponent;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface FilterParser extends IndexComponent {
+public interface FilterParser {
 
     /**
      * The names this filter is registered under.

@@ -21,17 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -40,12 +36,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implements FilterParser {
+public class GeoBoundingBoxFilterParser implements FilterParser {
 
     public static final String NAME = "geo_bbox";
 
-    @Inject public GeoBoundingBoxFilterParser(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public GeoBoundingBoxFilterParser() {
     }
 
     @Override public String[] names() {
@@ -153,10 +148,10 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            throw new QueryParsingException(index, "failed to find geo_point field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
         if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
-            throw new QueryParsingException(index, "field [" + fieldName + "] is not a geo_point field");
+            throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
         fieldName = mapper.names().indexName();
 

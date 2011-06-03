@@ -25,9 +25,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,12 +35,11 @@ import static org.elasticsearch.common.lucene.search.Queries.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class BoolQueryParser extends AbstractIndexComponent implements QueryParser {
+public class BoolQueryParser implements QueryParser {
 
     public static final String NAME = "bool";
 
-    @Inject public BoolQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public BoolQueryParser(Settings settings) {
         BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount()));
     }
 

@@ -23,13 +23,9 @@ import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.query.type.child.TopChildrenQuery;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,12 +33,11 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class TopChildrenQueryParser extends AbstractIndexComponent implements QueryParser {
+public class TopChildrenQueryParser implements QueryParser {
 
     public static final String NAME = "top_children";
 
-    @Inject public TopChildrenQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public TopChildrenQueryParser() {
     }
 
     @Override public String[] names() {
@@ -86,18 +81,18 @@ public class TopChildrenQueryParser extends AbstractIndexComponent implements Qu
             }
         }
         if (query == null) {
-            throw new QueryParsingException(index, "[child] requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[child] requires 'query' field");
         }
         if (childType == null) {
-            throw new QueryParsingException(index, "[child] requires 'type' field");
+            throw new QueryParsingException(parseContext.index(), "[child] requires 'type' field");
         }
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(index, "No mapping for for type [" + childType + "]");
+            throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
         }
         if (childDocMapper.parentFieldMapper() == null) {
-            throw new QueryParsingException(index, "Type [" + childType + "] does not have parent mapping");
+            throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 

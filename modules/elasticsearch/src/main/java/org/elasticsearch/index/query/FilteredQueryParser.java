@@ -25,23 +25,18 @@ import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FilteredQueryParser extends AbstractIndexComponent implements QueryParser {
+public class FilteredQueryParser implements QueryParser {
 
     public static final String NAME = "filtered";
 
-    @Inject public FilteredQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public FilteredQueryParser() {
     }
 
     @Override public String[] names() {
@@ -76,10 +71,10 @@ public class FilteredQueryParser extends AbstractIndexComponent implements Query
             }
         }
         if (query == null) {
-            throw new QueryParsingException(index, "[filtered] requires 'query' element");
+            throw new QueryParsingException(parseContext.index(), "[filtered] requires 'query' element");
         }
         if (filter == null) {
-            throw new QueryParsingException(index, "[filtered] requires 'filter' element");
+            throw new QueryParsingException(parseContext.index(), "[filtered] requires 'filter' element");
         }
 
         // cache if required

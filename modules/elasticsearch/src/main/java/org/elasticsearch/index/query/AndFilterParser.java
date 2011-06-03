@@ -22,11 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,12 +32,11 @@ import static org.elasticsearch.common.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class AndFilterParser extends AbstractIndexComponent implements FilterParser {
+public class AndFilterParser implements FilterParser {
 
     public static final String NAME = "and";
 
-    @Inject public AndFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public AndFilterParser() {
     }
 
     @Override public String[] names() {
@@ -87,7 +82,7 @@ public class AndFilterParser extends AbstractIndexComponent implements FilterPar
         }
 
         if (filters.isEmpty()) {
-            throw new QueryParsingException(index, "[or] filter requires 'filters' to be set on it'");
+            throw new QueryParsingException(parseContext.index(), "[or] filter requires 'filters' to be set on it'");
         }
 
         // no need to cache this one

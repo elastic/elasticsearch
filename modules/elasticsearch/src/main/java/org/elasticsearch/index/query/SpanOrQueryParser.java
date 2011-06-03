@@ -24,11 +24,7 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,12 +34,11 @@ import static org.elasticsearch.common.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SpanOrQueryParser extends AbstractIndexComponent implements QueryParser {
+public class SpanOrQueryParser implements QueryParser {
 
     public static final String NAME = "span_or";
 
-    @Inject public SpanOrQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public SpanOrQueryParser() {
     }
 
     @Override public String[] names() {
@@ -67,7 +62,7 @@ public class SpanOrQueryParser extends AbstractIndexComponent implements QueryPa
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         Query query = parseContext.parseInnerQuery();
                         if (!(query instanceof SpanQuery)) {
-                            throw new QueryParsingException(index, "spanNear [clauses] must be of type span query");
+                            throw new QueryParsingException(parseContext.index(), "spanNear [clauses] must be of type span query");
                         }
                         clauses.add((SpanQuery) query);
                     }
@@ -79,7 +74,7 @@ public class SpanOrQueryParser extends AbstractIndexComponent implements QueryPa
             }
         }
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(index, "spanOr must include [clauses]");
+            throw new QueryParsingException(parseContext.index(), "spanOr must include [clauses]");
         }
 
         SpanOrQuery query = new SpanOrQuery(clauses.toArray(new SpanQuery[clauses.size()]));

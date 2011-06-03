@@ -24,12 +24,8 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -38,12 +34,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class PrefixQueryParser extends AbstractIndexComponent implements QueryParser {
+public class PrefixQueryParser implements QueryParser {
 
     public static final String NAME = "prefix";
 
-    @Inject public PrefixQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public PrefixQueryParser() {
     }
 
     @Override public String[] names() {
@@ -83,7 +78,7 @@ public class PrefixQueryParser extends AbstractIndexComponent implements QueryPa
         }
 
         if (value == null) {
-            throw new QueryParsingException(index, "No value specified for prefix query");
+            throw new QueryParsingException(parseContext.index(), "No value specified for prefix query");
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

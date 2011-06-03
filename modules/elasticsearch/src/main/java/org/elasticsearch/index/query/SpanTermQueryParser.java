@@ -24,12 +24,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -38,12 +34,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SpanTermQueryParser extends AbstractIndexComponent implements QueryParser {
+public class SpanTermQueryParser implements QueryParser {
 
     public static final String NAME = "span_term";
 
-    @Inject public SpanTermQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public SpanTermQueryParser() {
     }
 
     @Override public String[] names() {
@@ -86,7 +81,7 @@ public class SpanTermQueryParser extends AbstractIndexComponent implements Query
         }
 
         if (value == null) {
-            throw new QueryParsingException(index, "No value specified for term query");
+            throw new QueryParsingException(parseContext.index(), "No value specified for term query");
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

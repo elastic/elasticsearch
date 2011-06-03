@@ -24,23 +24,18 @@ import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SpanFirstQueryParser extends AbstractIndexComponent implements QueryParser {
+public class SpanFirstQueryParser implements QueryParser {
 
     public static final String NAME = "span_first";
 
-    @Inject public SpanFirstQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public SpanFirstQueryParser() {
     }
 
     @Override public String[] names() {
@@ -64,7 +59,7 @@ public class SpanFirstQueryParser extends AbstractIndexComponent implements Quer
                 if ("match".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(index, "spanFirst [match] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "spanFirst [match] must be of type span query");
                     }
                     match = (SpanQuery) query;
                 }
@@ -77,10 +72,10 @@ public class SpanFirstQueryParser extends AbstractIndexComponent implements Quer
             }
         }
         if (match == null) {
-            throw new QueryParsingException(index, "spanFirst must have [match] span query clause");
+            throw new QueryParsingException(parseContext.index(), "spanFirst must have [match] span query clause");
         }
         if (end == -1) {
-            throw new QueryParsingException(index, "spanFirst must have [end] set for it");
+            throw new QueryParsingException(parseContext.index(), "spanFirst must have [end] set for it");
         }
 
         SpanFirstQuery query = new SpanFirstQuery(match, end);

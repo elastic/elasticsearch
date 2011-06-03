@@ -23,12 +23,8 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -37,12 +33,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class MissingFilterParser extends AbstractIndexComponent implements FilterParser {
+public class MissingFilterParser implements FilterParser {
 
     public static final String NAME = "missing";
 
-    @Inject public MissingFilterParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public MissingFilterParser() {
     }
 
     @Override public String[] names() {
@@ -70,7 +65,7 @@ public class MissingFilterParser extends AbstractIndexComponent implements Filte
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(index, "exists must be provided with a [field]");
+            throw new QueryParsingException(parseContext.index(), "exists must be provided with a [field]");
         }
 
         Filter filter = null;

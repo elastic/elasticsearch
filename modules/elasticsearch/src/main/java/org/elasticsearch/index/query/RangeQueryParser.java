@@ -22,12 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -36,12 +32,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class RangeQueryParser extends AbstractIndexComponent implements QueryParser {
+public class RangeQueryParser implements QueryParser {
 
     public static final String NAME = "range";
 
-    @Inject public RangeQueryParser(Index index, @IndexSettings Settings settings) {
-        super(index, settings);
+    @Inject public RangeQueryParser() {
     }
 
     @Override public String[] names() {

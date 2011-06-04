@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.bloom;
 
-import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -66,9 +65,8 @@ public class BloomFilterFactory {
         return new ObsBloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
     }
 
-    private static OpenBitSet bucketsFor(long numElements, int bucketsPer) {
-        long numBits = numElements * bucketsPer + EXCESS; //TODO overflow?
-        return new OpenBitSet((long) Math.min(Long.MAX_VALUE, numBits));
+    private static long bucketsFor(long numElements, int bucketsPer) {
+        return numElements * bucketsPer + EXCESS;
     }
 
     public static void main(String[] args) throws UnsupportedEncodingException {

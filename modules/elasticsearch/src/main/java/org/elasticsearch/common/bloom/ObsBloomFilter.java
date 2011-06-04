@@ -29,10 +29,12 @@ public class ObsBloomFilter implements BloomFilter {
     private final int hashCount;
 
     private final OpenBitSet bitset;
+    private final long size;
 
-    ObsBloomFilter(int hashCount, OpenBitSet bs) {
+    ObsBloomFilter(int hashCount, long size) {
         this.hashCount = hashCount;
-        this.bitset = bs;
+        this.bitset = new OpenBitSet(size);
+        this.size = size;
     }
 
     long emptyBuckets() {
@@ -46,7 +48,7 @@ public class ObsBloomFilter implements BloomFilter {
     }
 
     private long buckets() {
-        return bitset.size();
+        return size;
     }
 
     private long[] getHashBuckets(ByteBuffer key) {

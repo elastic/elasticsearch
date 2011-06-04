@@ -20,7 +20,7 @@
 package org.elasticsearch.plugin.mapper.attachments;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.mapper.xcontent.RegisterAttachmentType;
+import org.elasticsearch.index.mapper.attachment.RegisterAttachmentType;
 
 /**
  * @author kimchy (shay.banon)

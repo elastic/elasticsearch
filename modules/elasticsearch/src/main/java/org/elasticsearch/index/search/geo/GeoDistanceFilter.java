@@ -25,8 +25,8 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 
 import java.io.IOException;
 

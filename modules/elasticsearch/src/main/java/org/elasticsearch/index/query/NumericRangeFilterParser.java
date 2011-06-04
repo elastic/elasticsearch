@@ -24,7 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.xcontent.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 

@@ -30,7 +30,7 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;

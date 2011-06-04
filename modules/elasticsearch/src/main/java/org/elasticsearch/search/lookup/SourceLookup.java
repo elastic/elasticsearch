@@ -31,8 +31,8 @@ import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldSelector;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
 
 import java.util.Collection;
 import java.util.List;

@@ -30,7 +30,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
 

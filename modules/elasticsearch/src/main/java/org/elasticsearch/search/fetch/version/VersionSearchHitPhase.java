@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch.version;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.lucene.uid.UidField;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.SearchHitPhase;
 import org.elasticsearch.search.internal.SearchContext;

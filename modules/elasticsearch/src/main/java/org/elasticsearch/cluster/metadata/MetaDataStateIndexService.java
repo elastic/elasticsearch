@@ -76,14 +76,18 @@ public class MetaDataStateIndexService extends AbstractComponent {
                         .metaData(currentState.metaData())
                         .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.CLOSE));
 
+                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
+                        .addIndexBlock(request.index, INDEX_CLOSED_BLOCK);
+
+                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
+
                 RoutingTable.Builder rtBuilder = RoutingTable.builder()
                         .routingTable(currentState.routingTable())
                         .remove(request.index);
 
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                        .addIndexBlock(request.index, INDEX_CLOSED_BLOCK);
+                RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
 
-                return ClusterState.builder().state(currentState).metaData(mdBuilder).routingTable(rtBuilder).blocks(blocks).build();
+                return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {

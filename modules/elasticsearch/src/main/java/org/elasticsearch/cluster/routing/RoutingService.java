@@ -20,7 +20,11 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -88,14 +92,15 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 routingTableDirty = true;
                 scheduledRoutingTableFuture = threadPool.scheduleWithFixedDelay(new RoutingTableUpdater(), schedule);
             }
-            if (event.nodesRemoved() || event.routingTableChanged()) {
+            if (event.nodesRemoved()) {
                 // if nodes were removed, we don't want to wait for the scheduled task
                 // since we want to get primary election as fast as possible
-
-                // also, if the routing table changed, it means that we have new indices, or shard have started
-                // or failed, we want to apply this as fast as possible
                 routingTableDirty = true;
                 reroute();
+                // Commented out since we make sure to reroute whenever shards changes state or metadata changes state
+//            } else if (event.routingTableChanged()) {
+//                routingTableDirty = true;
+//                reroute();
             } else {
                 if (event.nodesAdded()) {
                     routingTableDirty = true;

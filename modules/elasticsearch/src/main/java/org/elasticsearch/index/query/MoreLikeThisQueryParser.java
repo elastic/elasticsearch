@@ -25,7 +25,7 @@ import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
 import java.util.List;

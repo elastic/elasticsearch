@@ -24,7 +24,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;

@@ -43,7 +43,7 @@ import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -85,7 +85,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private volatile ImmutableMap<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
     private volatile ImmutableMap<String, FieldMappers> fullNameFieldMappers = ImmutableMap.of();
 
-    // for now, just use the xcontent one. Can work on it more to support custom ones
     private final DocumentMapperParser documentParser;
 
     private final InternalFieldMapperListener fieldMapperListener = new InternalFieldMapperListener();
@@ -95,7 +94,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     @Inject public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.documentParser = new XContentDocumentMapperParser(index, indexSettings, analysisService);
+        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
@@ -106,7 +105,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 defaultMappingUrl = environment.resolveConfig("default-mapping.json");
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                defaultMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/xcontent/default-mapping.json");
+                defaultMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/default-mapping.json");
             }
         } else {
             try {

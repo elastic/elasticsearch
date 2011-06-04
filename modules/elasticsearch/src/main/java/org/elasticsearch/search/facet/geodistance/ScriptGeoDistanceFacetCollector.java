@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet.geodistance;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.mapper.xcontent.geo.GeoPointFieldData;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;

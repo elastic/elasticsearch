@@ -28,7 +28,7 @@ import org.elasticsearch.common.trove.iterator.TLongIntIterator;
 import org.elasticsearch.common.trove.map.hash.TLongIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.index.mapper.xcontent.ip.IpFieldMapper;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.terms.InternalTermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -187,7 +187,7 @@ public class InternalIpTermsFacet extends InternalTermsFacet {
         }
 
         BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TLongIntIterator it = aggregated.iterator(); it.hasNext();) {
+        for (TLongIntIterator it = aggregated.iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new LongEntry(it.key(), it.value()));
         }

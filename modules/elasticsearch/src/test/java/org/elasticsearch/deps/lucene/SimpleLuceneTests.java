@@ -19,8 +19,17 @@
 
 package org.elasticsearch.deps.lucene;
 
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldSelector;
+import org.apache.lucene.document.FieldSelectorResult;
+import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.NumericField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermDocs;
+import org.apache.lucene.index.TermEnum;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -252,87 +261,6 @@ public class SimpleLuceneTests {
 
         TermDocs termDocs = reader.termDocs();
         termDocs.next();
-    }
-
-    /**
-     * Verify doc freqs update with refresh of readers.
-     */
-    @Test public void testTermEnumDocFreq() throws Exception {
-        Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
-
-        IndexReader reader = indexWriter.getReader();
-
-        Document doc = new Document();
-        doc.add(new Field("id", "1", Field.Store.NO, Field.Index.ANALYZED));
-        doc.add(new Field("value", "aaa", Field.Store.NO, Field.Index.ANALYZED));
-        indexWriter.addDocument(doc);
-
-        reader = refreshReader(reader);
-
-        TermEnum termEnum = reader.terms(new Term("value", ""));
-        assertThat(termEnum.term().text(), equalTo("aaa"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.close();
-
-        doc = new Document();
-        doc.add(new Field("id", "2", Field.Store.NO, Field.Index.ANALYZED));
-        doc.add(new Field("value", "bbb bbb", Field.Store.NO, Field.Index.ANALYZED));
-        indexWriter.addDocument(doc);
-
-        reader = refreshReader(reader);
-
-        termEnum = reader.terms(new Term("value", ""));
-        assertThat(termEnum.term().text(), equalTo("aaa"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.next();
-        assertThat(termEnum.term().text(), equalTo("bbb"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.close();
-
-        doc = new Document();
-        doc.add(new Field("id", "3", Field.Store.NO, Field.Index.ANALYZED));
-        doc.add(new Field("value", "bbb", Field.Store.NO, Field.Index.ANALYZED));
-        indexWriter.addDocument(doc);
-
-        reader = refreshReader(reader);
-
-        termEnum = reader.terms(new Term("value", ""));
-        assertThat(termEnum.term().text(), equalTo("aaa"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.next();
-        assertThat(termEnum.term().text(), equalTo("bbb"));
-        assertThat(termEnum.docFreq(), equalTo(2));
-        termEnum.close();
-
-        indexWriter.deleteDocuments(new Term("id", "3"));
-
-        reader = refreshReader(reader);
-
-        // won't see the changes until optimize
-        termEnum = reader.terms(new Term("value", ""));
-        assertThat(termEnum.term().text(), equalTo("aaa"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.next();
-        assertThat(termEnum.term().text(), equalTo("bbb"));
-        assertThat(termEnum.docFreq(), equalTo(2));
-        termEnum.close();
-
-        indexWriter.expungeDeletes();
-
-        reader = refreshReader(reader);
-
-        termEnum = reader.terms(new Term("value", ""));
-        assertThat(termEnum.term().text(), equalTo("aaa"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.next();
-        assertThat(termEnum.term().text(), equalTo("bbb"));
-        assertThat(termEnum.docFreq(), equalTo(1));
-        termEnum.close();
-
-
-        reader.close();
-        indexWriter.close();
     }
 
     /**

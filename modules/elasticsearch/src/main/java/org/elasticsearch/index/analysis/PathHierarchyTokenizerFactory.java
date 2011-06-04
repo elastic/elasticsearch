@@ -36,6 +36,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
 
     private final char delimiter;
     private final char replacement;
+    private final int skip;
 
     @Inject public PathHierarchyTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
@@ -57,9 +58,10 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         } else {
             this.replacement = replacement.charAt(0);
         }
+        this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
     }
 
     @Override public Tokenizer create(Reader reader) {
-        return new PathHierarchyTokenizer(reader, bufferSize, delimiter, replacement);
+        return new PathHierarchyTokenizer(reader, bufferSize, delimiter, replacement, skip);
     }
 }

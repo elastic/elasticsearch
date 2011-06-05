@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
+import org.apache.lucene.analysis.path.ReversePathHierarchyTokenizer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -37,6 +38,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     private final char delimiter;
     private final char replacement;
     private final int skip;
+    private final boolean reverse;
 
     @Inject public PathHierarchyTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
@@ -59,9 +61,13 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
             this.replacement = replacement.charAt(0);
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
+        this.reverse = settings.getAsBoolean("reverse", false);
     }
 
     @Override public Tokenizer create(Reader reader) {
+        if (reverse) {
+            return new ReversePathHierarchyTokenizer(reader, bufferSize, delimiter, replacement, skip);
+        }
         return new PathHierarchyTokenizer(reader, bufferSize, delimiter, replacement, skip);
     }
 }

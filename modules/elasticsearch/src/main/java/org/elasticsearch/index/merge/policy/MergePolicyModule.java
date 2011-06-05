@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.LogMergePolicy;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
@@ -35,15 +34,8 @@ public class MergePolicyModule extends AbstractModule {
     }
 
     @Override protected void configure() {
-        bind(Integer.class)
-                .annotatedWith(MergeFactor.class)
-                .toInstance(settings.getAsInt("index.merge.policy.mergeFactor", LogMergePolicy.DEFAULT_MERGE_FACTOR));
-
-        // TODO consider moving to BalancedSegmentMergePolicyProvider as the default
-        // Note, when using the index jmeter benchmark, it seams like the balanced merger keeps on merging ...
-        // don't have time to look at it now...
         bind(MergePolicyProvider.class)
-                .to(settings.getAsClass("index.merge.policy.type", LogByteSizeMergePolicyProvider.class))
+                .to(settings.getAsClass("index.merge.policy.type", TieredMergePolicyProvider.class))
                 .asEagerSingleton();
     }
 }

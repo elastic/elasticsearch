@@ -1,0 +1,244 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.merge.policy;
+
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.TieredMergePolicy;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.store.Store;
+
+import java.io.IOException;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+
+public class TieredMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<TieredMergePolicy> {
+
+    private final IndexSettingsService indexSettingsService;
+
+    private final Set<CustomTieredMergePolicyProvider> policies = new CopyOnWriteArraySet<CustomTieredMergePolicyProvider>();
+
+    private volatile boolean compoundFormat;
+    private volatile double expungeDeletesPctAllowed;
+    private volatile ByteSizeValue floorSegment;
+    private volatile int maxMergeAtOnce;
+    private volatile int maxMergeAtOnceExplicit;
+    private volatile ByteSizeValue maxMergedSegment;
+    private volatile double segmentsPerTier;
+    private boolean asyncMerge;
+
+    private final ApplySettings applySettings = new ApplySettings();
+
+    @Inject public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
+        super(store.shardId(), store.indexSettings());
+        this.indexSettingsService = indexSettingsService;
+
+        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", store.suggestUseCompoundFile());
+        this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
+        this.expungeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d); // percentage
+        this.floorSegment = componentSettings.getAsBytesSize("floor_segment", new ByteSizeValue(2, ByteSizeUnit.MB));
+        this.maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", 10);
+        this.maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", 30);
+        // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
+        this.maxMergedSegment = componentSettings.getAsBytesSize("max_merge_segment", new ByteSizeValue(5, ByteSizeUnit.GB));
+        this.segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", 10d);
+
+        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merge_segment[{}], segments_per_tier[{}], async_merge[{}]",
+                expungeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, asyncMerge);
+
+        indexSettingsService.addListener(applySettings);
+    }
+
+
+    @Override public TieredMergePolicy newMergePolicy() {
+        CustomTieredMergePolicyProvider mergePolicy;
+        if (asyncMerge) {
+            mergePolicy = new EnableMergeTieredMergePolicyProvider(this);
+        } else {
+            mergePolicy = new CustomTieredMergePolicyProvider(this);
+        }
+        mergePolicy.setUseCompoundFile(compoundFormat);
+        mergePolicy.setExpungeDeletesPctAllowed(expungeDeletesPctAllowed);
+        mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
+        mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
+        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
+        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
+        mergePolicy.setSegmentsPerTier(segmentsPerTier);
+        return mergePolicy;
+    }
+
+    @Override public void close(boolean delete) throws ElasticSearchException {
+        indexSettingsService.removeListener(applySettings);
+    }
+
+    static {
+        IndexMetaData.addDynamicSettings(
+                "index.merge.policy.expunge_deletes_allowed",
+                "index.merge.policy.floor_segment",
+                "index.merge.policy.max_merge_at_once",
+                "index.merge.policy.max_merge_at_once_explicit",
+                "index.merge.policy.max_merged_segment",
+                "index.merge.policy.segments_per_tier",
+                "index.compound_format"
+        );
+    }
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            double expungeDeletesPctAllowed = settings.getAsDouble("index.merge.policy.expunge_deletes_allowed", TieredMergePolicyProvider.this.expungeDeletesPctAllowed);
+            if (expungeDeletesPctAllowed != TieredMergePolicyProvider.this.expungeDeletesPctAllowed) {
+                logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", TieredMergePolicyProvider.this.expungeDeletesPctAllowed, expungeDeletesPctAllowed);
+                TieredMergePolicyProvider.this.expungeDeletesPctAllowed = expungeDeletesPctAllowed;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setExpungeDeletesPctAllowed(expungeDeletesPctAllowed);
+                }
+            }
+
+            ByteSizeValue floorSegment = settings.getAsBytesSize("index.merge.policy.floor_segment", TieredMergePolicyProvider.this.floorSegment);
+            if (!floorSegment.equals(TieredMergePolicyProvider.this.floorSegment)) {
+                logger.info("updating [floor_segment] from [{}] to [{}]", TieredMergePolicyProvider.this.floorSegment, floorSegment);
+                TieredMergePolicyProvider.this.floorSegment = floorSegment;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setFloorSegmentMB(floorSegment.mbFrac());
+                }
+            }
+
+            int maxMergeAtOnce = settings.getAsInt("index.merge.policy.max_merge_at_once", TieredMergePolicyProvider.this.maxMergeAtOnce);
+            if (maxMergeAtOnce != TieredMergePolicyProvider.this.maxMergeAtOnce) {
+                logger.info("updating [max_merge_at_once] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergeAtOnce, maxMergeAtOnce);
+                TieredMergePolicyProvider.this.maxMergeAtOnce = maxMergeAtOnce;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setMaxMergeAtOnce(maxMergeAtOnce);
+                }
+            }
+
+            int maxMergeAtOnceExplicit = settings.getAsInt("index.merge.policy.max_merge_at_once_explicit", TieredMergePolicyProvider.this.maxMergeAtOnceExplicit);
+            if (maxMergeAtOnce != TieredMergePolicyProvider.this.maxMergeAtOnceExplicit) {
+                logger.info("updating [max_merge_at_once_explicit] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergeAtOnceExplicit, maxMergeAtOnceExplicit);
+                TieredMergePolicyProvider.this.maxMergeAtOnceExplicit = maxMergeAtOnceExplicit;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
+                }
+            }
+
+            ByteSizeValue maxMergedSegment = settings.getAsBytesSize("index.merge.policy.max_merged_segment", TieredMergePolicyProvider.this.maxMergedSegment);
+            if (!maxMergedSegment.equals(TieredMergePolicyProvider.this.maxMergedSegment)) {
+                logger.info("updating [max_merged_segment] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergedSegment, maxMergedSegment);
+                TieredMergePolicyProvider.this.maxMergedSegment = maxMergedSegment;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setFloorSegmentMB(maxMergedSegment.mbFrac());
+                }
+            }
+
+            double segmentsPerTier = settings.getAsDouble("index.merge.policy.segments_per_tier", TieredMergePolicyProvider.this.segmentsPerTier);
+            if (segmentsPerTier != TieredMergePolicyProvider.this.segmentsPerTier) {
+                logger.info("updating [segments_per_tier] from [{}] to [{}]", TieredMergePolicyProvider.this.segmentsPerTier, segmentsPerTier);
+                TieredMergePolicyProvider.this.segmentsPerTier = segmentsPerTier;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setSegmentsPerTier(segmentsPerTier);
+                }
+            }
+
+            boolean compoundFormat = settings.getAsBoolean("index.compound_format", TieredMergePolicyProvider.this.compoundFormat);
+            if (compoundFormat != TieredMergePolicyProvider.this.compoundFormat) {
+                logger.info("updating index.compound_format from [{}] to [{}]", TieredMergePolicyProvider.this.compoundFormat, compoundFormat);
+                TieredMergePolicyProvider.this.compoundFormat = compoundFormat;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setUseCompoundFile(compoundFormat);
+                }
+            }
+        }
+    }
+
+    public static class CustomTieredMergePolicyProvider extends TieredMergePolicy {
+
+        private final TieredMergePolicyProvider provider;
+
+        public CustomTieredMergePolicyProvider(TieredMergePolicyProvider provider) {
+            super();
+            this.provider = provider;
+        }
+
+        @Override public void close() {
+            super.close();
+            provider.policies.remove(this);
+        }
+    }
+
+    public static class EnableMergeTieredMergePolicyProvider extends CustomTieredMergePolicyProvider implements EnableMergePolicy {
+
+        private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
+            @Override protected Boolean initialValue() {
+                return Boolean.FALSE;
+            }
+        };
+
+        public EnableMergeTieredMergePolicyProvider(TieredMergePolicyProvider provider) {
+            super(provider);
+        }
+
+        @Override public void enableMerge() {
+            enableMerge.set(Boolean.TRUE);
+        }
+
+        @Override public void disableMerge() {
+            enableMerge.set(Boolean.FALSE);
+        }
+
+        @Override public boolean isMergeEnabled() {
+            return enableMerge.get() == Boolean.TRUE;
+        }
+
+        @Override public void close() {
+            enableMerge.remove();
+            super.close();
+        }
+
+        @Override public MergePolicy.MergeSpecification findMerges(SegmentInfos infos) throws IOException {
+            if (enableMerge.get() == Boolean.FALSE) {
+                return null;
+            }
+            return super.findMerges(infos);
+        }
+
+        @Override public MergePolicy.MergeSpecification findMergesToExpungeDeletes(SegmentInfos segmentInfos) throws CorruptIndexException, IOException {
+            if (enableMerge.get() == Boolean.FALSE) {
+                return null;
+            }
+            return super.findMergesToExpungeDeletes(segmentInfos);
+        }
+
+        @Override public MergePolicy.MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxNumSegments, Set<SegmentInfo> segmentsToOptimize) throws IOException {
+            if (enableMerge.get() == Boolean.FALSE) {
+                return null;
+            }
+            return super.findMergesForOptimize(infos, maxNumSegments, segmentsToOptimize);
+        }
+    }
+}

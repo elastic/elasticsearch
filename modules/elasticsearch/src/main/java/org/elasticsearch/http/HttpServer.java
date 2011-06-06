@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -33,6 +34,8 @@ import org.elasticsearch.rest.StringRestResponse;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.*;
 
@@ -119,13 +122,23 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             channel.sendResponse(new StringRestResponse(FORBIDDEN));
             return;
         }
-        int i1 = request.rawPath().indexOf('/', 9);
+        // TODO for a "/_plugin" endpoint, we should have a page that lists all the plugins?
+
+        String path = request.rawPath().substring("/_plugin/".length());
+        int i1 = path.indexOf('/');
+        String pluginName;
+        String sitePath;
         if (i1 == -1) {
+            pluginName = path;
+            sitePath = null;
+            // TODO This is a path in the form of "/_plugin/head", without a trailing "/", which messes up
+            // resources fetching if it does not exists, a better solution would be to send a redirect
             channel.sendResponse(new StringRestResponse(NOT_FOUND));
             return;
+        } else {
+            pluginName = path.substring(0, i1);
+            sitePath = path.substring(i1 + 1);
         }
-        String pluginName = request.rawPath().substring(9, i1);
-        String sitePath = request.rawPath().substring(i1 + 1);
 
         if (sitePath.length() == 0) {
             sitePath = "/index.html";
@@ -151,9 +164,52 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         }
         try {
             byte[] data = Streams.copyToByteArray(file);
-            channel.sendResponse(new BytesRestResponse(data, ""));
+            channel.sendResponse(new BytesRestResponse(data, guessMimeType(sitePath)));
         } catch (IOException e) {
             channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
         }
     }
+
+
+    // TODO: Don't respond with a mime type that violates the request's Accept header
+    private String guessMimeType(String path) {
+        int lastDot = path.lastIndexOf('.');
+        if (lastDot == -1) {
+            return "";
+        }
+        String extension = path.substring(lastDot + 1).toLowerCase();
+        String mimeType = DEFAULT_MIME_TYPES.get(extension);
+        if (mimeType == null) {
+            return "";
+        }
+        return mimeType;
+    }
+
+    static {
+        // This is not an exhaustive list, just the most common types. Call registerMimeType() to add more.
+        Map<String, String> mimeTypes = new HashMap<String, String>();
+        mimeTypes.put("txt", "text/plain");
+        mimeTypes.put("css", "text/css");
+        mimeTypes.put("csv", "text/csv");
+        mimeTypes.put("htm", "text/html");
+        mimeTypes.put("html", "text/html");
+        mimeTypes.put("xml", "text/xml");
+        mimeTypes.put("js", "text/javascript"); // Technically it should be application/javascript (RFC 4329), but IE8 struggles with that
+        mimeTypes.put("xhtml", "application/xhtml+xml");
+        mimeTypes.put("json", "application/json");
+        mimeTypes.put("pdf", "application/pdf");
+        mimeTypes.put("zip", "application/zip");
+        mimeTypes.put("tar", "application/x-tar");
+        mimeTypes.put("gif", "image/gif");
+        mimeTypes.put("jpeg", "image/jpeg");
+        mimeTypes.put("jpg", "image/jpeg");
+        mimeTypes.put("tiff", "image/tiff");
+        mimeTypes.put("tif", "image/tiff");
+        mimeTypes.put("png", "image/png");
+        mimeTypes.put("svg", "image/svg+xml");
+        mimeTypes.put("ico", "image/vnd.microsoft.icon");
+        DEFAULT_MIME_TYPES = ImmutableMap.copyOf(mimeTypes);
+    }
+
+    public static final Map<String, String> DEFAULT_MIME_TYPES;
 }

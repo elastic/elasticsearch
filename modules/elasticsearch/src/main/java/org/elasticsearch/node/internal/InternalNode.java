@@ -71,6 +71,7 @@ import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.rest.proxy.RestReverseProxyModule;
 import org.elasticsearch.river.RiversManager;
 import org.elasticsearch.river.RiversModule;
 import org.elasticsearch.script.ScriptModule;
@@ -131,6 +132,7 @@ public final class InternalNode implements Node {
         modules.add(new ThreadPoolModule(settings));
         modules.add(new DiscoveryModule(settings));
         modules.add(new ClusterModule(settings));
+        modules.add(new RestReverseProxyModule(settings));
         modules.add(new RestModule(settings));
         modules.add(new TransportModule(settings));
         if (settings.getAsBoolean("http.enabled", true)) {

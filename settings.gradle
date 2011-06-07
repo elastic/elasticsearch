@@ -27,6 +27,7 @@ include 'plugins-river-rabbitmq'
 include 'plugins-river-couchdb'
 
 include 'plugins-rest-hellorest'
+include 'plugins-rest-hellosecurerest'
 
 rootProject.name = 'elasticsearch-root'
 rootProject.children.each {project ->

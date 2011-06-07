@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.proxy.RestReverseProxyController;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
@@ -40,9 +41,11 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final RestReverseProxyController proxyController;
 
-    @Inject public RestController(Settings settings) {
+    @Inject public RestController(Settings settings,  RestReverseProxyController proxyController) {
         super(settings);
+        this.proxyController = proxyController;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -55,6 +58,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+        handler = proxyController.proxyRestAction(handler);
         switch (method) {
             case GET:
                 getHandlers.insert(path, handler);

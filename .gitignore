@@ -19,6 +19,7 @@ plugins/lang/javascript/build
 plugins/lang/python/build
 plugins/mapper/attachments/build
 plugins/rest/hellorest/build
+plugins/rest/hellosecurerest/build
 plugins/river/couchdb/build
 plugins/river/rabbitmq/build
 plugins/river/twitter/build

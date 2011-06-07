@@ -23,7 +23,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.hellorest.action.hello.RestPostHelloAction;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
@@ -41,7 +40,7 @@ import org.elasticsearch.rest.action.main.RestMainAction;
  * {"_index":"articles","_type":"article","_id":"t_LGwhhHTt2pBFiixUktOA","_version":1, "_source" : {"hello":"rest"}}
  *
  *  Install the plugin by copying the plugin JAR file to the plugins/rest-hellorest/ directory .
- *  Disable the plugin with the -Dhellorest.enabled=true commandline argument
+ *  Disable the plugin with the -Dhellorest.enabled=false commandline argument
  *
  * @author itaifrenkel
  */
@@ -68,7 +67,7 @@ public class HelloRestPlugin extends AbstractPlugin {
                 RestModule restModule = (RestModule) module;
 
                 //enable only specific REST actions
-                restModule.removeDefaultRestActions(RestHandler.class);
+                restModule.removeDefaultRestActions();
                 restModule.addRestAction(RestMainAction.class);
                 restModule.addRestAction(RestGetAction.class);
                 restModule.addRestAction(RestClusterStateAction.class);

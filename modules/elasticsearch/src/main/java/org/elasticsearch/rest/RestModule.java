@@ -19,12 +19,11 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.action.RestActionModule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -33,26 +32,28 @@ import java.util.List;
 public class RestModule extends AbstractModule  {
 
     private final Settings settings;
-    private List<Class<? extends RestHandler>> restPluginsActions = Lists.newArrayList();
-    private List<Class<? extends RestHandler>> disabledDefaultRestActions = Lists.newArrayList();
-    private final PluginsService pluginsService;
+    private final List<Class<? extends RestHandler>> restPluginsActions;
+    private boolean disabledDefaultRestActions = false;
 
-    public void addRestAction(Class<? extends BaseRestHandler> restAction) {
+
+public void addRestAction(Class<? extends RestHandler> restAction) {
         restPluginsActions.add(restAction);
     }
 
-    public void removeDefaultRestActions(Class<? extends RestHandler> restAction) {
-        disabledDefaultRestActions.add(restAction);
+    public void removeDefaultRestActions() {
+        disabledDefaultRestActions = true;
     }
 
-    public RestModule(Settings settings,  PluginsService pluginsService) {
+    public RestModule(Settings settings) {
         this.settings = settings;
-        this.pluginsService = pluginsService;
+        this.restPluginsActions = new ArrayList<Class<? extends RestHandler>>();
     }
 
     @Override protected void configure() {
+
         bind(RestController.class).asEagerSingleton();
-        new RestActionModule(restPluginsActions, disabledDefaultRestActions, settings).configure(binder());
+        new RestActionModule(restPluginsActions, disabledDefaultRestActions).configure(binder());
     }
+
 
 }

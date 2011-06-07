@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
@@ -72,8 +71,8 @@ import java.util.List;
  */
 public class RestActionModule extends AbstractModule {
 
-    private final List<Class<? extends RestHandler>> restPluginsActions;
-    private List<Class<? extends RestHandler>> disabledDefaultRestActions;
+    private final boolean disableDefaultRestActions = false;
+    private final  List<Class<? extends RestHandler>> pluginRestHandlers;
 
     private final Class<? extends BaseRestHandler>[] defaultRestActions = new Class[] {
             RestMainAction.class,
@@ -119,33 +118,21 @@ public class RestActionModule extends AbstractModule {
             RestPercolateAction.class
     };
 
-    public RestActionModule(List<Class<? extends RestHandler>> restPluginsActions, List<Class<? extends RestHandler>> disabledDefaultRestActions, Settings settings) {
-        this.restPluginsActions = restPluginsActions;
-        this.disabledDefaultRestActions = disabledDefaultRestActions;
+    public RestActionModule( List<Class<? extends RestHandler>> restPluginsActions, boolean disableDefaultRestActions) {
+        this.pluginRestHandlers = restPluginsActions;
     }
 
     @Override protected void configure() {
-        for (Class<? extends RestHandler> restAction : restPluginsActions) {
-                bind(restAction).asEagerSingleton();
-        }
 
-        for (Class<? extends RestHandler> restAction : defaultRestActions) {
-            if (!isDefaultActionDisabled(restAction)) {
-                bind(restAction).asEagerSingleton();
+        if (!disableDefaultRestActions) {
+            for (Class<? extends RestHandler> restAction : defaultRestActions) {
+                    bind(restAction).asEagerSingleton();
             }
         }
-    }
 
-    private boolean isDefaultActionDisabled(Class<? extends RestHandler> restAction) {
-        boolean disabled = false;
-        for (Class<? extends RestHandler> restDisabledDefaultAction : disabledDefaultRestActions) {
-            if (restDisabledDefaultAction.isAssignableFrom(restAction)) {
-                disabled = true;
-                break;
-            }
+        for (Class<? extends RestHandler> restAction : pluginRestHandlers) {
+                    bind(restAction).asEagerSingleton();
         }
-        return disabled;
     }
-
 
 }

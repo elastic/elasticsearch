@@ -131,7 +131,7 @@ public final class InternalNode implements Node {
         modules.add(new ThreadPoolModule(settings));
         modules.add(new DiscoveryModule(settings));
         modules.add(new ClusterModule(settings));
-        modules.add(new RestModule(settings, pluginsService));
+        modules.add(new RestModule(settings));
         modules.add(new TransportModule(settings));
         if (settings.getAsBoolean("http.enabled", true)) {
             modules.add(new HttpServerModule(settings));

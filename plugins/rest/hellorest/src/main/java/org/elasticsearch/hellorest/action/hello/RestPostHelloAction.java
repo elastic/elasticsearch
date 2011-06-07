@@ -42,7 +42,6 @@ public class RestPostHelloAction extends BaseRestHandler {
 
     @Inject public RestPostHelloAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        logger.warn("settings" + this.getClass());
         controller.registerHandler(POST, "/{index}/{type}/_hello", this); // auto id creation;
     }
 

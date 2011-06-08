@@ -34,7 +34,14 @@ import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.buffer.ChannelBuffers;
-import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelFuture;
+import org.elasticsearch.common.netty.channel.ChannelFutureListener;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.channel.ChannelPipeline;
+import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
+import org.elasticsearch.common.netty.channel.Channels;
+import org.elasticsearch.common.netty.channel.ExceptionEvent;
 import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.oio.OioClientSocketChannelFactory;
@@ -51,14 +58,24 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -463,28 +480,26 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             if (nodeChannels != null) {
                 return;
             }
-            synchronized (this) {
-                // recheck here, within the sync block (we cache connections, so we don't care about this single sync block)
-                nodeChannels = connectedNodes.get(node);
-                if (nodeChannels != null) {
-                    return;
-                }
 
-                nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
-                try {
-                    connectToChannels(nodeChannels, node);
-                } catch (Exception e) {
-                    nodeChannels.close();
-                    throw e;
-                }
+            nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
+            try {
+                connectToChannels(nodeChannels, node);
+            } catch (Exception e) {
+                nodeChannels.close();
+                throw e;
+            }
 
-                connectedNodes.put(node, nodeChannels);
-
+            NodeChannels existing = connectedNodes.putIfAbsent(node, nodeChannels);
+            if (existing != null) {
+                // we are already connected to a node, close this ones
+                nodeChannels.close();
+            } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Connected to node [{}]", node);
                 }
+                transportServiceAdapter.raiseNodeConnected(node);
             }
-            transportServiceAdapter.raiseNodeConnected(node);
+
         } catch (ConnectTransportException e) {
             throw e;
         } catch (Exception e) {

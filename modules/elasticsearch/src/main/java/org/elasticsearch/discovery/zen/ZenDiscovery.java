@@ -21,7 +21,11 @@ package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -113,7 +117,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.initialPingTimeout = componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
-        logger.debug("using initial_ping_timeout [{}]", initialPingTimeout);
+        logger.debug("using ping_timeout [{}]", initialPingTimeout);
 
         this.electMaster = new ElectMasterService(settings);
 

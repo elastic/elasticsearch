@@ -25,4 +25,4 @@
 #discovery:
 #  zen:
 #    multicast.enabled: false
-#    unicast.hosts: ["host1", "host2"]
+#    unicast.zen.hosts: ["host1", "host2"]

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -113,6 +114,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
             }
         }
+        // never allow to change the number of shards
+        for (String key : updatedSettingsBuilder.internalMap().keySet()) {
+            if (key.equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
+                listener.onFailure(new ElasticSearchIllegalArgumentException("can't change the number of shards for an index"));
+                return;
+            }
+        }
+
         Set<String> removedSettings = Sets.newHashSet();
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
             if (!IndexMetaData.dynamicSettings().contains(key)) {

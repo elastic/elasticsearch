@@ -25,4 +25,4 @@
 #discovery:
 #  zen:
 #    multicast.enabled: false
-#    unicast.zen.hosts: ["host1", "host2"]
+#    ping.unicast.hosts: ["host1", "host2"]

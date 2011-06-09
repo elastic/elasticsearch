@@ -94,6 +94,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         ClusterState clusterState = clusterService.state();
+        request.routing(clusterState.metaData().resolveIndexRouting(request.routing(), request.index()));
         request.index(clusterState.metaData().concreteIndex(request.index())); // we need to get the concrete index here...
         if (clusterState.metaData().hasIndex(request.index())) {
             // check if routing is required, if so, do a broadcast delete

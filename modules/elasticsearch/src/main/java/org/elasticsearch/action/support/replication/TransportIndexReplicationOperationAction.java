@@ -59,7 +59,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
 
         ClusterState clusterState = clusterService.state();
-        // upate to concrete index
+        // update to concrete index
         request.index(clusterState.metaData().concreteIndex(request.index()));
 
         checkBlock(request, clusterState);

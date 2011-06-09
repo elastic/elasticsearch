@@ -139,7 +139,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             }
 
             int maxMergeAtOnceExplicit = settings.getAsInt("index.merge.policy.max_merge_at_once_explicit", TieredMergePolicyProvider.this.maxMergeAtOnceExplicit);
-            if (maxMergeAtOnce != TieredMergePolicyProvider.this.maxMergeAtOnceExplicit) {
+            if (maxMergeAtOnceExplicit != TieredMergePolicyProvider.this.maxMergeAtOnceExplicit) {
                 logger.info("updating [max_merge_at_once_explicit] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergeAtOnceExplicit, maxMergeAtOnceExplicit);
                 TieredMergePolicyProvider.this.maxMergeAtOnceExplicit = maxMergeAtOnceExplicit;
                 for (CustomTieredMergePolicyProvider policy : policies) {

@@ -21,7 +21,11 @@ package org.elasticsearch.discovery.local;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -232,7 +236,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateUpdateTask() {
                         @Override public ClusterState execute(ClusterState currentState) {
-                            return nodeSpecificClusterState;
+                            ClusterState.Builder builder = ClusterState.builder().state(nodeSpecificClusterState);
+                            // if the routing table did not change, use the original one
+                            if (nodeSpecificClusterState.routingTable().version() == currentState.routingTable().version()) {
+                                builder.routingTable(currentState.routingTable());
+                            }
+
+                            return builder.build();
                         }
 
                         @Override public void clusterStateProcessed(ClusterState clusterState) {

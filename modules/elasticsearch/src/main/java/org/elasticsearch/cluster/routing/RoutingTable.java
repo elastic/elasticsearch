@@ -48,11 +48,18 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = newRoutingTableBuilder().build();
 
+    private final long version;
+
     // index to IndexRoutingTable map
     private final ImmutableMap<String, IndexRoutingTable> indicesRouting;
 
-    RoutingTable(Map<String, IndexRoutingTable> indicesRouting) {
+    RoutingTable(long version, Map<String, IndexRoutingTable> indicesRouting) {
+        this.version = version;
         this.indicesRouting = ImmutableMap.copyOf(indicesRouting);
+    }
+
+    public long version() {
+        return this.version;
     }
 
     @Override public UnmodifiableIterator<IndexRoutingTable> iterator() {
@@ -203,11 +210,52 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public static class Builder {
 
+        private long version;
+
         private final Map<String, IndexRoutingTable> indicesRouting = newHashMap();
 
         public Builder routingTable(RoutingTable routingTable) {
+            version = routingTable.version;
             for (IndexRoutingTable indexRoutingTable : routingTable) {
                 indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
+            }
+            return this;
+        }
+
+        public Builder updateNodes(RoutingNodes routingNodes) {
+            // this is being called without pre initializing the routing table, so we must copy over the version as well
+            this.version = routingNodes.routingTable().version();
+
+            Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = newHashMap();
+            for (RoutingNode routingNode : routingNodes) {
+                for (MutableShardRouting shardRoutingEntry : routingNode) {
+                    // every relocating shard has a double entry, ignore the target one.
+                    if (shardRoutingEntry.state() == ShardRoutingState.INITIALIZING && shardRoutingEntry.relocatingNodeId() != null)
+                        continue;
+
+                    String index = shardRoutingEntry.index();
+                    IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
+                    if (indexBuilder == null) {
+                        indexBuilder = new IndexRoutingTable.Builder(index);
+                        indexRoutingTableBuilders.put(index, indexBuilder);
+                    }
+
+                    boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
+                    indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
+                }
+            }
+            for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
+                String index = shardRoutingEntry.index();
+                IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
+                if (indexBuilder == null) {
+                    indexBuilder = new IndexRoutingTable.Builder(index);
+                    indexRoutingTableBuilders.put(index, indexBuilder);
+                }
+                boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
+                indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
+            }
+            for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
+                add(indexBuilder);
             }
             return this;
         }
@@ -263,47 +311,18 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return this;
         }
 
-        public Builder updateNodes(RoutingNodes routingNodes) {
-            Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = newHashMap();
-            for (RoutingNode routingNode : routingNodes) {
-                for (MutableShardRouting shardRoutingEntry : routingNode) {
-                    // every relocating shard has a double entry, ignore the target one.
-                    if (shardRoutingEntry.state() == ShardRoutingState.INITIALIZING && shardRoutingEntry.relocatingNodeId() != null)
-                        continue;
-
-                    String index = shardRoutingEntry.index();
-                    IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
-                    if (indexBuilder == null) {
-                        indexBuilder = new IndexRoutingTable.Builder(index);
-                        indexRoutingTableBuilders.put(index, indexBuilder);
-                    }
-
-                    boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
-                    indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
-                }
-            }
-            for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
-                String index = shardRoutingEntry.index();
-                IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
-                if (indexBuilder == null) {
-                    indexBuilder = new IndexRoutingTable.Builder(index);
-                    indexRoutingTableBuilders.put(index, indexBuilder);
-                }
-                boolean allocatedPostApi = routingNodes.routingTable().index(shardRoutingEntry.index()).shard(shardRoutingEntry.id()).allocatedPostApi();
-                indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry), !allocatedPostApi);
-            }
-            for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
-                add(indexBuilder);
-            }
+        public Builder version(long version) {
+            this.version = version;
             return this;
         }
 
         public RoutingTable build() {
-            return new RoutingTable(indicesRouting);
+            return new RoutingTable(version, indicesRouting);
         }
 
         public static RoutingTable readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
+            builder.version = in.readLong();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 IndexRoutingTable index = IndexRoutingTable.Builder.readFrom(in);
@@ -314,6 +333,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         }
 
         public static void writeTo(RoutingTable table, StreamOutput out) throws IOException {
+            out.writeLong(table.version);
             out.writeVInt(table.indicesRouting.size());
             for (IndexRoutingTable index : table.indicesRouting.values()) {
                 IndexRoutingTable.Builder.writeTo(index, out);

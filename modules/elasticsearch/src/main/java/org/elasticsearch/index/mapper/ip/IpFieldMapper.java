@@ -76,7 +76,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         try {
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new ElasticSearchIllegalArgumentException("failed ot parse ip [" + ip + "], not full ip address (4 dots)");
+                throw new ElasticSearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
@@ -158,7 +158,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     /**
-     * Dates should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
+     * IPs should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
      */
     @Override public Object valueForSearch(Fieldable field) {
         return valueAsString(field);

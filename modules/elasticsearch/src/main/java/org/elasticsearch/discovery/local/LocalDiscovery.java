@@ -241,6 +241,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             if (nodeSpecificClusterState.routingTable().version() == currentState.routingTable().version()) {
                                 builder.routingTable(currentState.routingTable());
                             }
+                            if (nodeSpecificClusterState.metaData().version() == currentState.metaData().version()) {
+                                builder.metaData(currentState.metaData());
+                            }
 
                             return builder.build();
                         }

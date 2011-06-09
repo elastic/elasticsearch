@@ -435,6 +435,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         if (newState.routingTable().version() == currentState.routingTable().version()) {
                             builder.routingTable(currentState.routingTable());
                         }
+                        // same for metadata
+                        if (newState.metaData().version() == currentState.metaData().version()) {
+                            builder.metaData(currentState.metaData());
+                        }
 
                         return builder.build();
                     }

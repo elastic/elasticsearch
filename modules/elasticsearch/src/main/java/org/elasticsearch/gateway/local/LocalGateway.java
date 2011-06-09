@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -165,7 +166,9 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             listener.onSuccess(ClusterState.builder().build());
         } else {
             logger.debug("elected state from [{}]", electedState.node());
-            listener.onSuccess(ClusterState.builder().version(electedState.state().version()).metaData(electedState.state().metaData()).build());
+            ClusterState.Builder builder = ClusterState.builder().version(electedState.state().version());
+            builder.metaData(MetaData.builder().metaData(electedState.state().metaData()).version(electedState.state().version()));
+            listener.onSuccess(builder.build());
         }
     }
 
@@ -189,20 +192,19 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
 
         // we only write the local metadata if this is a possible master node
-        // currently, we always write the metadata, since we want to keep it in sync with the latest version, but
-        // we need to think of a better way to not persist it when nothing changed
-        if (event.state().nodes().localNode().masterNode()) {
+        if (event.state().nodes().localNode().masterNode() && event.metaDataChanged()) {
             executor.execute(new Runnable() {
                 @Override public void run() {
                     LocalGatewayMetaState.Builder builder = LocalGatewayMetaState.builder();
                     if (currentMetaState != null) {
                         builder.state(currentMetaState);
                     }
-                    builder.version(event.state().version());
+                    final long version = event.state().metaData().version();
+                    builder.version(version);
                     builder.metaData(event.state().metaData());
 
                     try {
-                        File stateFile = new File(location, "metadata-" + event.state().version());
+                        File stateFile = new File(location, "metadata-" + version);
                         OutputStream fos = new FileOutputStream(stateFile);
                         if (compress) {
                             fos = new LZFOutputStream(fos);
@@ -225,7 +227,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                         // delete all the other files
                         File[] files = location.listFiles(new FilenameFilter() {
                             @Override public boolean accept(File dir, String name) {
-                                return name.startsWith("metadata-") && !name.equals("metadata-" + event.state().version());
+                                return name.startsWith("metadata-") && !name.equals("metadata-" + version);
                             }
                         });
                         for (File file : files) {

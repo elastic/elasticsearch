@@ -21,19 +21,31 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.*;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.Immutable;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -46,6 +58,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
 
+    private final long version;
     private final ImmutableMap<String, IndexMetaData> indices;
     private final ImmutableMap<String, IndexTemplateMetaData> templates;
 
@@ -60,7 +73,8 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
 
-    private MetaData(ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates) {
+    private MetaData(long version, ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates) {
+        this.version = version;
         this.indices = ImmutableMap.copyOf(indices);
         this.templates = templates;
         int totalNumberOfShards = 0;
@@ -125,6 +139,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             aliasAndIndexToIndexBuilder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
         this.aliasAndIndexToIndexMap = aliasAndIndexToIndexBuilder.immutableMap();
+    }
+
+    public long version() {
+        return this.version;
     }
 
     public ImmutableSet<String> aliases() {
@@ -348,11 +366,14 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static class Builder {
 
+        private long version;
+
         private MapBuilder<String, IndexMetaData> indices = newMapBuilder();
 
         private MapBuilder<String, IndexTemplateMetaData> templates = newMapBuilder();
 
         public Builder metaData(MetaData metaData) {
+            this.version = metaData.version;
             this.indices.putAll(metaData.indices);
             this.templates.putAll(metaData.templates);
             return this;
@@ -420,8 +441,13 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Builder version(long version) {
+            this.version = version;
+            return this;
+        }
+
         public MetaData build() {
-            return new MetaData(indices.immutableMap(), templates.immutableMap());
+            return new MetaData(version, indices.immutableMap(), templates.immutableMap());
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -484,6 +510,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static MetaData readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
+            builder.version = in.readLong();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.put(IndexMetaData.Builder.readFrom(in));
@@ -496,6 +523,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
+            out.writeLong(metaData.version);
             out.writeVInt(metaData.indices.size());
             for (IndexMetaData indexMetaData : metaData) {
                 IndexMetaData.Builder.writeTo(indexMetaData, out);

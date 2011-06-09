@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,6 +39,8 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
     protected String[] indices;
 
     private boolean threadedListener = false;
+    @Nullable private String routing;
+
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
@@ -80,6 +83,10 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
 
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
+    }
+
+    public String routing() {
+        return null;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

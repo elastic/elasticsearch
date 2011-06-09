@@ -26,9 +26,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.set.hash.THashSet;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
 
 import static org.elasticsearch.action.Actions.*;
 
@@ -42,7 +44,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     private int shardId;
     private byte[] querySource;
     private String[] types = Strings.EMPTY_ARRAY;
-    @Nullable private String routing;
+    @Nullable private Set<String> routing;
     @Nullable private String[] filteringAliases;
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
@@ -80,7 +82,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.types;
     }
 
-    public String routing() {
+    public Set<String> routing() {
         return this.routing;
     }
 
@@ -100,8 +102,12 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
                 types[i] = in.readUTF();
             }
         }
-        if (in.readBoolean()) {
-            routing = in.readUTF();
+        int routingSize = in.readVInt();
+        if (routingSize > 0) {
+            routing = new THashSet<String>(routingSize);
+            for (int i = 0; i < routingSize; i++) {
+                routing.add(in.readUTF());
+            }
         }
         int aliasesSize = in.readVInt();
         if (aliasesSize > 0) {
@@ -121,11 +127,13 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         for (String type : types) {
             out.writeUTF(type);
         }
-        if (routing == null) {
-            out.writeBoolean(false);
+        if (routing != null) {
+            out.writeVInt(routing.size());
+            for (String r : routing) {
+                out.writeUTF(r);
+            }
         } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
+            out.writeVInt(0);
         }
         if (filteringAliases != null) {
             out.writeVInt(filteringAliases.length);

@@ -38,6 +38,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.common.collect.Lists.*;
@@ -84,7 +86,8 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override protected GroupShardsIterator shards(CountRequest request, String[] concreteIndices, ClusterState clusterState) {
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, request.queryHint(), request.routing(), null);
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, request.queryHint(), routingMap, null);
     }
 
     @Override protected void checkBlock(CountRequest request, String[] concreteIndices, ClusterState state) {

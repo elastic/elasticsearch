@@ -114,7 +114,12 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     return currentState;
                                 }
                             }
-                            indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(aliasAction.alias()).filter(filter).build());
+                            indexMetaDataBuilder.putAlias(AliasMetaData.newAliasMetaDataBuilder(
+                                    aliasAction.alias())
+                                    .filter(filter)
+                                    .indexRouting(aliasAction.indexRouting())
+                                    .searchRouting(aliasAction.searchRouting())
+                                    .build());
                         } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
                             indexMetaDataBuilder.removerAlias(aliasAction.alias());
                         }

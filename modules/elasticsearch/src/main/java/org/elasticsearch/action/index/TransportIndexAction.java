@@ -120,6 +120,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         MetaData metaData = clusterService.state().metaData();
+        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
         request.index(metaData.concreteIndex(request.index()));
         if (metaData.hasIndex(request.index())) {
             MappingMetaData mappingMd = metaData.index(request.index()).mapping(request.type());

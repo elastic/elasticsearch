@@ -19,12 +19,20 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -62,14 +70,20 @@ public class AliasAction implements Streamable {
 
     private String alias;
 
-    private String filter;
+    @Nullable private String filter;
+
+    @Nullable private String indexRouting;
+
+    @Nullable private String searchRouting;
 
     private AliasAction() {
 
     }
 
     public AliasAction(Type actionType, String index, String alias) {
-        this(actionType, index, alias, "");
+        this.actionType = actionType;
+        this.index = index;
+        this.alias = alias;
     }
 
     public AliasAction(Type actionType, String index, String alias, String filter) {
@@ -95,6 +109,66 @@ public class AliasAction implements Streamable {
         return filter;
     }
 
+    public AliasAction filter(String filter) {
+        this.filter = filter;
+        return this;
+    }
+
+    public AliasAction filter(Map<String, Object> filter) {
+        if (filter == null || filter.isEmpty()) {
+            this.filter = null;
+            return this;
+        }
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.map(filter);
+            this.filter = builder.string();
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+        }
+    }
+
+    public AliasAction filter(FilterBuilder filterBuilder) {
+        if (filterBuilder == null) {
+            this.filter = null;
+            return this;
+        }
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.close();
+            this.filter = builder.string();
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+        }
+    }
+
+    public AliasAction routing(String routing) {
+        this.indexRouting = routing;
+        this.searchRouting = routing;
+        return this;
+    }
+
+    public String indexRouting() {
+        return indexRouting;
+    }
+
+    public AliasAction indexRouting(String indexRouting) {
+        this.indexRouting = indexRouting;
+        return this;
+    }
+
+    public String searchRouting() {
+        return searchRouting;
+    }
+
+    public AliasAction searchRouting(String searchRouting) {
+        this.searchRouting = searchRouting;
+        return this;
+    }
+
     public static AliasAction readAliasAction(StreamInput in) throws IOException {
         AliasAction aliasAction = new AliasAction();
         aliasAction.readFrom(in);
@@ -105,13 +179,47 @@ public class AliasAction implements Streamable {
         actionType = Type.fromValue(in.readByte());
         index = in.readUTF();
         alias = in.readUTF();
-        filter = in.readUTF();
+        if (in.readBoolean()) {
+            filter = in.readUTF();
+        }
+        if (in.readBoolean()) {
+            indexRouting = in.readUTF();
+        }
+        if (in.readBoolean()) {
+            searchRouting = in.readUTF();
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
         out.writeUTF(index);
         out.writeUTF(alias);
-        out.writeUTF(filter);
+        if (filter == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(filter);
+        }
+        if (indexRouting == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(indexRouting);
+        }
+        if (searchRouting == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(searchRouting);
+        }
     }
+
+    public static AliasAction newAddAliasAction(String index, String alias) {
+        return new AliasAction(Type.ADD, index, alias);
+    }
+
+    public static AliasAction newRemoveAliasAction(String index, String alias) {
+        return new AliasAction(Type.REMOVE, index, alias);
+    }
+
 }

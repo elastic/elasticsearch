@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.set.hash.THashSet;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,9 +46,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
+import static org.elasticsearch.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
@@ -59,6 +63,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
 
     private final long version;
+
+    public final static Pattern routingPattern = Pattern.compile(",");
+
     private final ImmutableMap<String, IndexMetaData> indices;
     private final ImmutableMap<String, IndexTemplateMetaData> templates;
 
@@ -66,7 +73,9 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final String[] allIndices;
 
-    private final ImmutableSet<String> aliases;
+    private final ImmutableMap<String, ImmutableMap<String, AliasMetaData>> aliases;
+
+    private final ImmutableMap<String, ImmutableMap<String, ImmutableSet<String>>> aliasToIndexToSearchRoutingMap;
 
     // This map indicates if an alias associated with an index is filtering alias
     private final ImmutableMap<String, ImmutableMap<String, Boolean>> indexToAliasFilteringRequiredMap;
@@ -90,12 +99,46 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
 
-        // build aliases set
-        Set<String> aliases = newHashSet();
+        // build aliases map
+        MapBuilder<String, MapBuilder<String, AliasMetaData>> tmpAliasesMap = newMapBuilder();
         for (IndexMetaData indexMetaData : indices.values()) {
-            aliases.addAll(indexMetaData.aliases().keySet());
+            String index = indexMetaData.index();
+            for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
+                MapBuilder<String, AliasMetaData> indexAliasMap = tmpAliasesMap.get(aliasMd.alias());
+                if (indexAliasMap == null) {
+                    indexAliasMap = newMapBuilder();
+                    tmpAliasesMap.put(aliasMd.alias(), indexAliasMap);
+                }
+                indexAliasMap.put(index, aliasMd);
+            }
         }
-        this.aliases = ImmutableSet.copyOf(aliases);
+        MapBuilder<String, ImmutableMap<String, AliasMetaData>> aliases = newMapBuilder();
+        for (Map.Entry<String, MapBuilder<String, AliasMetaData>> alias : tmpAliasesMap.map().entrySet()) {
+            aliases.put(alias.getKey(), alias.getValue().immutableMap());
+        }
+        this.aliases = aliases.immutableMap();
+
+        // build routing aliases set
+        MapBuilder<String, MapBuilder<String, ImmutableSet<String>>> tmpAliasToIndexToSearchRoutingMap = newMapBuilder();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
+                MapBuilder<String, ImmutableSet<String>> indexToSearchRoutingMap = tmpAliasToIndexToSearchRoutingMap.get(aliasMd.alias());
+                if (indexToSearchRoutingMap == null) {
+                    indexToSearchRoutingMap = newMapBuilder();
+                    tmpAliasToIndexToSearchRoutingMap.put(aliasMd.alias(), indexToSearchRoutingMap);
+                }
+                if (aliasMd.searchRouting() != null) {
+                    indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.copyOf(routingPattern.split(aliasMd.searchRouting())));
+                } else {
+                    indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.<String>of());
+                }
+            }
+        }
+        MapBuilder<String, ImmutableMap<String, ImmutableSet<String>>> aliasToIndexToSearchRoutingMap = newMapBuilder();
+        for (Map.Entry<String, MapBuilder<String, ImmutableSet<String>>> alias : tmpAliasToIndexToSearchRoutingMap.map().entrySet()) {
+            aliasToIndexToSearchRoutingMap.put(alias.getKey(), alias.getValue().immutableMap());
+        }
+        this.aliasToIndexToSearchRoutingMap = aliasToIndexToSearchRoutingMap.immutableMap();
 
         // build filtering required map
         MapBuilder<String, ImmutableMap<String, Boolean>> filteringRequiredMap = newMapBuilder();
@@ -146,7 +189,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public ImmutableSet<String> aliases() {
-        return this.aliases;
+        return this.aliases.keySet();
     }
 
     public ImmutableSet<String> getAliases() {
@@ -176,6 +219,184 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String[] concreteIndicesIgnoreMissing(String[] indices) {
         return concreteIndices(indices, true);
+    }
+
+    /**
+     * Returns indexing routing for the given index.
+     */
+    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
+        // Check if index is specified by an alias
+        ImmutableMap<String, AliasMetaData> indexAliases = aliases.get(aliasOrIndex);
+        if (indexAliases == null || indexAliases.isEmpty()) {
+            return routing;
+        }
+        if (indexAliases.size() > 1) {
+            throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + indexAliases.keySet() + "], can't execute a single index op");
+        }
+        AliasMetaData aliasMd = indexAliases.values().iterator().next();
+        if (aliasMd.indexRouting() != null) {
+            if (routing != null) {
+                if (routing.equals(aliasMd.indexRouting())) {
+                    return routing;
+                } else {
+                    return null;
+                }
+            }
+            return aliasMd.indexRouting();
+        } else {
+            return routing;
+        }
+    }
+
+    /**
+     * Sets the same routing for all indices
+     */
+    private Map<String, Set<String>> resolveSearchRoutingAllIndices(String routing) {
+        if (routing != null) {
+            THashSet<String> r = new THashSet<String>(Arrays.asList(routingPattern.split(routing)));
+            Map<String, Set<String>> routings = newHashMap();
+            String[] concreteIndices = concreteAllIndices();
+            for (String index : concreteIndices) {
+                routings.put(index, r);
+            }
+            return routings;
+        }
+        return null;
+    }
+
+    public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String aliasOrIndex) {
+        Map<String, Set<String>> routings = null;
+        List<String> paramRouting = null;
+        if (routing != null) {
+            paramRouting = Arrays.asList(routingPattern.split(routing));
+        }
+
+        ImmutableMap<String, ImmutableSet<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
+        if (indexToRoutingMap != null && !indexToRoutingMap.isEmpty()) {
+            // It's an alias
+            for (Map.Entry<String, ImmutableSet<String>> indexRouting : indexToRoutingMap.entrySet()) {
+                if (!indexRouting.getValue().isEmpty()) {
+                    // Routing alias
+                    Set<String> r = new THashSet<String>(indexRouting.getValue());
+                    if (paramRouting != null) {
+                        r.retainAll(paramRouting);
+                    }
+                    if (!r.isEmpty()) {
+                        if (routings == null) {
+                            routings = newHashMap();
+                        }
+                        routings.put(indexRouting.getKey(), r);
+                    }
+                } else {
+                    // Non-routing alias
+                    if (paramRouting != null) {
+                        Set<String> r = new THashSet<String>(paramRouting);
+                        if (routings == null) {
+                            routings = newHashMap();
+                        }
+                        routings.put(indexRouting.getKey(), r);
+                    }
+                }
+            }
+        } else {
+            // It's an index
+            if (paramRouting != null) {
+                Set<String> r = new THashSet<String>(paramRouting);
+                if (routings == null) {
+                    routings = newHashMap();
+                }
+                routings.put(aliasOrIndex, r);
+            }
+        }
+        return routings;
+    }
+
+
+    public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String[] aliasesOrIndices) {
+        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+            return resolveSearchRoutingAllIndices(routing);
+        }
+
+        Map<String, Set<String>> routings = null;
+        List<String> paramRouting = null;
+        // List of indices that don't require any routing
+        Set<String> norouting = newHashSet();
+        if (routing != null) {
+            paramRouting = Arrays.asList(routingPattern.split(routing));
+        }
+
+        if (aliasesOrIndices.length == 1) {
+            if (aliasesOrIndices[0].equals("_all")) {
+                return resolveSearchRoutingAllIndices(routing);
+            } else {
+                return resolveSearchRouting(routing, aliasesOrIndices[0]);
+            }
+        }
+
+        for (String aliasOrIndex : aliasesOrIndices) {
+            ImmutableMap<String, ImmutableSet<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
+            if (indexToRoutingMap != null && !indexToRoutingMap.isEmpty()) {
+                for (Map.Entry<String, ImmutableSet<String>> indexRouting : indexToRoutingMap.entrySet()) {
+                    if (!norouting.contains(indexRouting.getKey())) {
+                        if (!indexRouting.getValue().isEmpty()) {
+                            // Routing alias
+                            if (routings == null) {
+                                routings = newHashMap();
+                            }
+                            Set<String> r = routings.get(indexRouting.getKey());
+                            if (r == null) {
+                                r = new THashSet<String>();
+                                routings.put(indexRouting.getKey(), r);
+                            }
+                            r.addAll(indexRouting.getValue());
+                            if (paramRouting != null) {
+                                r.retainAll(paramRouting);
+                            }
+                            if (r.isEmpty()) {
+                                routings.remove(indexRouting.getKey());
+                            }
+                        } else {
+                            // Non-routing alias
+                            if (!norouting.contains(indexRouting.getKey())) {
+                                norouting.add(indexRouting.getKey());
+                                if (paramRouting != null) {
+                                    Set<String> r = new THashSet<String>(paramRouting);
+                                    if (routings == null) {
+                                        routings = newHashMap();
+                                    }
+                                    routings.put(indexRouting.getKey(), r);
+                                } else {
+                                    if (routings != null) {
+                                        routings.remove(indexRouting.getKey());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Index
+                if (!norouting.contains(aliasOrIndex)) {
+                    norouting.add(aliasOrIndex);
+                    if (paramRouting != null) {
+                        Set<String> r = new THashSet<String>(paramRouting);
+                        if (routings == null) {
+                            routings = newHashMap();
+                        }
+                        routings.put(aliasOrIndex, r);
+                    } else {
+                        if (routings != null) {
+                            routings.remove(aliasOrIndex);
+                        }
+                    }
+                }
+            }
+
+        }
+        if (routings == null || routings.isEmpty()) {
+            return null;
+        }
+        return routings;
     }
 
     /**

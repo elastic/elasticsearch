@@ -31,6 +31,8 @@ import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -71,8 +73,14 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<Object>(concreteIndices.length);
 
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+
         for (final String index : concreteIndices) {
-            IndexRequest indexRequest = newIndexRequestInstance(request, index);
+            Set<String> routing = null;
+            if (routingMap != null) {
+                routing = routingMap.get(index);
+            }
+            IndexRequest indexRequest = newIndexRequestInstance(request, index, routing);
             // no threading needed, all is done on the index replication one
             indexRequest.listenerThreaded(false);
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -103,7 +111,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     protected abstract String transportAction();
 
-    protected abstract IndexRequest newIndexRequestInstance(Request request, String index);
+    protected abstract IndexRequest newIndexRequestInstance(Request request, String index, Set<String> routing);
 
     protected abstract boolean accumulateExceptions();
 

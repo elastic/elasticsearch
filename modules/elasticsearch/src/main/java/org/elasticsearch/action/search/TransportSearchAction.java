@@ -34,6 +34,9 @@ import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.action.search.SearchType.*;
 
 /**
@@ -85,7 +88,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             try {
                 ClusterState clusterState = clusterService.state();
                 String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices());
-                GroupShardsIterator groupIt = clusterService.operationRouting().searchShards(clusterState, concreteIndices, searchRequest.queryHint(), searchRequest.routing(), searchRequest.preference());
+                Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
+                GroupShardsIterator groupIt = clusterService.operationRouting().searchShards(clusterState, searchRequest.indices(), concreteIndices, searchRequest.queryHint(), routingMap, searchRequest.preference());
                 if (groupIt.size() == 1) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);

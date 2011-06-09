@@ -21,11 +21,18 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -189,7 +196,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (previousClusterState != clusterState) {
                     if (clusterState.nodes().localNodeMaster()) {
                         // only the master controls the version numbers
-                        clusterState = new ClusterState(clusterState.version() + 1, clusterState);
+                        Builder builder = ClusterState.builder().state(clusterState).version(clusterState.version() + 1);
+                        if (previousClusterState.routingTable() != clusterState.routingTable()) {
+                            builder.routingTable(RoutingTable.builder().routingTable(clusterState.routingTable()).version(clusterState.routingTable().version() + 1));
+                        }
+                        clusterState = builder.build();
                     } else {
                         // we got this cluster state from the master, filter out based on versions (don't call listeners)
                         if (clusterState.version() < previousClusterState.version()) {

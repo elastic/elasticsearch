@@ -414,22 +414,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
-    void handleNewClusterStateFromMaster(final ClusterState clusterState) {
+    void handleNewClusterStateFromMaster(final ClusterState newState) {
         if (master) {
-            logger.warn("master should not receive new cluster state from [{}]", clusterState.nodes().masterNode());
+            logger.warn("master should not receive new cluster state from [{}]", newState.nodes().masterNode());
         } else {
-            if (clusterState.nodes().localNode() == null) {
-                logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", clusterState.nodes().masterNode());
+            if (newState.nodes().localNode() == null) {
+                logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newState.nodes().masterNode());
             } else {
-                clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + clusterState.nodes().masterNode() + "])", new ProcessedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newState.nodes().masterNode() + "])", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        latestDiscoNodes = clusterState.nodes();
+                        latestDiscoNodes = newState.nodes();
 
                         // check to see that we monitor the correct master of the cluster
                         if (masterFD.masterNode() == null || !masterFD.masterNode().equals(latestDiscoNodes.masterNode())) {
                             masterFD.restart(latestDiscoNodes.masterNode(), "new cluster stare received and we monitor the wrong master [" + masterFD.masterNode() + "]");
                         }
-                        return clusterState;
+
+                        ClusterState.Builder builder = ClusterState.builder().state(newState);
+                        // if the routing table did not change, use the original one
+                        if (newState.routingTable().version() == currentState.routingTable().version()) {
+                            builder.routingTable(currentState.routingTable());
+                        }
+
+                        return builder.build();
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {

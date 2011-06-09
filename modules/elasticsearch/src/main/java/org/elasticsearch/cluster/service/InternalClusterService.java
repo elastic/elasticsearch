@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -199,6 +200,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         Builder builder = ClusterState.builder().state(clusterState).version(clusterState.version() + 1);
                         if (previousClusterState.routingTable() != clusterState.routingTable()) {
                             builder.routingTable(RoutingTable.builder().routingTable(clusterState.routingTable()).version(clusterState.routingTable().version() + 1));
+                        }
+                        if (previousClusterState.metaData() != clusterState.metaData()) {
+                            builder.metaData(MetaData.builder().metaData(clusterState.metaData()).version(clusterState.metaData().version() + 1));
                         }
                         clusterState = builder.build();
                     } else {

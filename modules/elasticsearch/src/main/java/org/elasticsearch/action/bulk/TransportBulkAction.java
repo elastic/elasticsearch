@@ -138,6 +138,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
+                indexRequest.routing(clusterState.metaData().resolveIndexRouting(indexRequest.routing(), indexRequest.index()));
                 indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
                 if (allowIdGeneration) {
                     if (indexRequest.id() == null) {

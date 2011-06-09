@@ -26,10 +26,12 @@ import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.set.hash.THashSet;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.action.Actions.*;
 
@@ -42,17 +44,17 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
 
     private byte[] querySource;
     private String[] types = Strings.EMPTY_ARRAY;
-    @Nullable private String routing;
+    @Nullable private Set<String> routing;
     @Nullable private String[] filteringAliases;
 
-    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable String[] filteringAliases) {
+    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases) {
         this.index = index;
         this.timeout = request.timeout();
         this.querySource = request.querySource();
         this.types = request.types();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
-        this.routing = request.routing();
+        this.routing = routing;
         this.filteringAliases = filteringAliases;
     }
 
@@ -80,7 +82,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return this;
     }
 
-    String routing() {
+    Set<String> routing() {
         return this.routing;
     }
 
@@ -108,8 +110,12 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
                 types[i] = in.readUTF();
             }
         }
-        if (in.readBoolean()) {
-            routing = in.readUTF();
+        int routingSize = in.readVInt();
+        if (routingSize > 0) {
+            routing = new THashSet<String>(routingSize);
+            for (int i = 0; i < routingSize; i++) {
+                routing.add(in.readUTF());
+            }
         }
         int aliasesSize = in.readVInt();
         if (aliasesSize > 0) {
@@ -128,11 +134,13 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         for (String type : types) {
             out.writeUTF(type);
         }
-        if (routing == null) {
-            out.writeBoolean(false);
+        if (routing != null) {
+            out.writeVInt(routing.size());
+            for (String r : routing) {
+                out.writeUTF(r);
+            }
         } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
+            out.writeVInt(0);
         }
         if (filteringAliases != null) {
             out.writeVInt(filteringAliases.length);

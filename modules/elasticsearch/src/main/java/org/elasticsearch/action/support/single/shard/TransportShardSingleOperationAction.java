@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -103,13 +104,15 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
             nodes = clusterState.nodes();
 
-            // update to the concrete shard to use
+            // update to the concrete shard and find routing to use
+            String alias = request.index();
             request.index(clusterState.metaData().concreteIndex(request.index()));
+            String effectiveRouting = clusterState.metaData().resolveIndexRouting(request.routing(), alias);
 
             checkBlock(request, clusterState);
 
             this.shardIt = clusterService.operationRouting()
-                    .getShards(clusterState, request.index(), request.type(), request.id(), request.routing(), request.preference());
+                    .getShards(clusterState, request.index(), request.type(), request.id(), effectiveRouting, request.preference());
         }
 
         public void start() {

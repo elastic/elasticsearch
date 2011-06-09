@@ -196,7 +196,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    public String routing() {
+    @Override public String routing() {
         return this.routing;
     }
 

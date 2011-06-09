@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -61,7 +62,7 @@ public class TransportReplicationPingAction extends TransportIndicesReplicationO
         return TransportActions.Admin.Cluster.Ping.REPLICATION;
     }
 
-    @Override protected IndexReplicationPingRequest newIndexRequestInstance(ReplicationPingRequest request, String index) {
+    @Override protected IndexReplicationPingRequest newIndexRequestInstance(ReplicationPingRequest request, String index, Set<String> routing) {
         return new IndexReplicationPingRequest(request, index);
     }
 }

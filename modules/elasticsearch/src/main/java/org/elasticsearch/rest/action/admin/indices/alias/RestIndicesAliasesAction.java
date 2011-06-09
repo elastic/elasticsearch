@@ -35,6 +35,7 @@ import org.elasticsearch.rest.*;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
@@ -80,6 +81,9 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             String index = null;
                             String alias = null;
                             Map<String, Object> filter = null;
+                            String routing = null;
+                            String indexRouting = null;
+                            String searchRouting = null;
                             String currentFieldName = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -89,6 +93,12 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                         index = parser.text();
                                     } else if ("alias".equals(currentFieldName)) {
                                         alias = parser.text();
+                                    } else if ("routing".equals(currentFieldName)) {
+                                        routing = parser.text();
+                                    } else if ("indexRouting".equals(currentFieldName) || "index-routing".equals(currentFieldName)) {
+                                        indexRouting = parser.text();
+                                    } else if ("searchRouting".equals(currentFieldName) || "search-routing".equals(currentFieldName)) {
+                                        searchRouting = parser.text();
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("filter".equals(currentFieldName)) {
@@ -103,7 +113,17 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                 throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [alias] to be set");
                             }
                             if (type == AliasAction.Type.ADD) {
-                                indicesAliasesRequest.addAlias(index, alias, filter);
+                                AliasAction aliasAction = newAddAliasAction(index, alias).filter(filter);
+                                if (routing != null) {
+                                    aliasAction.routing(routing);
+                                }
+                                if (indexRouting != null) {
+                                    aliasAction.indexRouting(indexRouting);
+                                }
+                                if (searchRouting != null) {
+                                    aliasAction.searchRouting(searchRouting);
+                                }
+                                indicesAliasesRequest.addAliasAction(aliasAction);
                             } else if (type == AliasAction.Type.REMOVE) {
                                 indicesAliasesRequest.removeAlias(index, alias);
                             }

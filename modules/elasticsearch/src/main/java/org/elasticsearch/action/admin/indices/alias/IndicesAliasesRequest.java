@@ -130,6 +130,11 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public IndicesAliasesRequest addAliasAction(AliasAction action) {
+        aliasActions.add(action);
+        return this;
+    }
+
     List<AliasAction> aliasActions() {
         return this.aliasActions;
     }

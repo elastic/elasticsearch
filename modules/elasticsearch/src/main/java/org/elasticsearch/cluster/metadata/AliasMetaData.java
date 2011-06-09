@@ -40,9 +40,15 @@ public class AliasMetaData {
 
     private final CompressedString filter;
 
-    private AliasMetaData(String alias, CompressedString filter) {
+    private String indexRouting;
+
+    private String searchRouting;
+
+    private AliasMetaData(String alias, CompressedString filter, String indexRouting, String searchRouting) {
         this.alias = alias;
         this.filter = filter;
+        this.indexRouting = indexRouting;
+        this.searchRouting = searchRouting;
     }
 
     public String alias() {
@@ -61,6 +67,22 @@ public class AliasMetaData {
         return filter();
     }
 
+    public String getSearchRouting() {
+        return searchRouting();
+    }
+
+    public String searchRouting() {
+        return searchRouting;
+    }
+
+    public String getIndexRouting() {
+        return indexRouting();
+    }
+
+    public String indexRouting() {
+        return indexRouting;
+    }
+
     public static Builder newAliasMetaDataBuilder(String alias) {
         return new Builder(alias);
     }
@@ -71,6 +93,11 @@ public class AliasMetaData {
 
         private CompressedString filter;
 
+        private String indexRouting;
+
+        private String searchRouting;
+
+
         public Builder(String alias) {
             this.alias = alias;
         }
@@ -78,6 +105,8 @@ public class AliasMetaData {
         public Builder(AliasMetaData aliasMetaData) {
             this(aliasMetaData.alias());
             filter = aliasMetaData.filter();
+            indexRouting = aliasMetaData.indexRouting();
+            searchRouting = aliasMetaData.searchRouting();
         }
 
         public String alias() {
@@ -123,8 +152,24 @@ public class AliasMetaData {
             }
         }
 
+        public Builder routing(String routing) {
+            this.indexRouting = routing;
+            this.searchRouting = routing;
+            return this;
+        }
+
+        public Builder indexRouting(String indexRouting) {
+            this.indexRouting = indexRouting;
+            return this;
+        }
+
+        public Builder searchRouting(String searchRouting) {
+            this.searchRouting = searchRouting;
+            return this;
+        }
+
         public AliasMetaData build() {
-            return new AliasMetaData(alias, filter);
+            return new AliasMetaData(alias, filter, indexRouting, searchRouting);
         }
 
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -136,6 +181,12 @@ public class AliasMetaData {
                 Map<String, Object> filter = parser.mapOrdered();
                 parser.close();
                 builder.field("filter", filter);
+            }
+            if (aliasMetaData.indexRouting() != null) {
+                builder.field("index_routing", aliasMetaData.indexRouting());
+            }
+            if (aliasMetaData.searchRouting() != null) {
+                builder.field("search_routing", aliasMetaData.searchRouting());
             }
 
             builder.endObject();
@@ -158,6 +209,14 @@ public class AliasMetaData {
                         Map<String, Object> filter = parser.mapOrdered();
                         builder.filter(filter);
                     }
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if ("routing".equals(currentFieldName)) {
+                        builder.routing(parser.text());
+                    } else if ("index_routing".equals(currentFieldName) || "indexRouting".equals(currentFieldName)) {
+                        builder.indexRouting(parser.text());
+                    } else if ("search_routing".equals(currentFieldName) || "searchRouting".equals(currentFieldName)) {
+                        builder.searchRouting(parser.text());
+                    }
                 }
             }
             return builder.build();
@@ -171,6 +230,19 @@ public class AliasMetaData {
             } else {
                 out.writeBoolean(false);
             }
+            if (aliasMetaData.indexRouting() != null) {
+                out.writeBoolean(true);
+                out.writeUTF(aliasMetaData.indexRouting());
+            } else {
+                out.writeBoolean(false);
+            }
+            if (aliasMetaData.searchRouting() != null) {
+                out.writeBoolean(true);
+                out.writeUTF(aliasMetaData.searchRouting());
+            } else {
+                out.writeBoolean(false);
+            }
+
         }
 
         public static AliasMetaData readFrom(StreamInput in) throws IOException {
@@ -179,7 +251,15 @@ public class AliasMetaData {
             if (in.readBoolean()) {
                 filter = CompressedString.readCompressedString(in);
             }
-            return new AliasMetaData(alias, filter);
+            String indexRouting = null;
+            if (in.readBoolean()) {
+                indexRouting = in.readUTF();
+            }
+            String searchRouting = null;
+            if (in.readBoolean()) {
+                searchRouting = in.readUTF();
+            }
+            return new AliasMetaData(alias, filter, indexRouting, searchRouting);
         }
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -70,8 +71,8 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
         }
     }
 
-    @Override protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index) {
+    @Override protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.indices());
-        return new IndexDeleteByQueryRequest(request, index, filteringAliases);
+        return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases);
     }
 }

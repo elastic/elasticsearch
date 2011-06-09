@@ -178,7 +178,16 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
         long iValue = ipToLong(value);
-        long iSim = ipToLong(minSim);
+        long iSim;
+        try {
+          iSim = ipToLong(minSim);
+        } catch (ElasticSearchIllegalArgumentException e) {
+          try {
+            iSim = Long.parseLong(minSim);
+          } catch (NumberFormatException e1) {
+            iSim = (long) Double.parseDouble(minSim);
+          }
+        }
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
                 iValue + iSim,

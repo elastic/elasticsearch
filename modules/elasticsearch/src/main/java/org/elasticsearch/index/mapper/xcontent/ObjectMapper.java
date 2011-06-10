@@ -27,7 +27,12 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -553,7 +558,7 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
         }
     }
 
-    @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override public void merge(final XContentMapper mergeWith, final MergeContext mergeContext) throws MergeMappingException {
         if (!(mergeWith instanceof ObjectMapper)) {
             mergeContext.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;
@@ -569,9 +574,11 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                     // no mapping, simply add it if not simulating
                     if (!mergeContext.mergeFlags().simulate()) {
                         putMapper(mergeWithMapper);
-                        if (mergeWithMapper instanceof AbstractFieldMapper) {
-                            mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);
-                        }
+                        mergeWithMapper.traverse(new FieldMapperListener() {
+                            @Override public void fieldMapper(FieldMapper fieldMapper) {
+                                mergeContext.docMapper().addFieldMapper(fieldMapper);
+                            }
+                        });
                     }
                 } else {
                     if ((mergeWithMapper instanceof MultiFieldMapper) && !(mergeIntoMapper instanceof MultiFieldMapper)) {
@@ -581,9 +588,11 @@ public class ObjectMapper implements XContentMapper, IncludeInAllMapper {
                             putMapper(mergeWithMultiField);
                             // now, raise events for all mappers
                             for (XContentMapper mapper : mergeWithMultiField.mappers().values()) {
-                                if (mapper instanceof AbstractFieldMapper) {
-                                    mergeContext.docMapper().addFieldMapper((FieldMapper) mapper);
-                                }
+                                mapper.traverse(new FieldMapperListener() {
+                                    @Override public void fieldMapper(FieldMapper fieldMapper) {
+                                        mergeContext.docMapper().addFieldMapper(fieldMapper);
+                                    }
+                                });
                             }
                         }
                     } else {

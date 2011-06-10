@@ -44,11 +44,13 @@ public class Test1MergeMapperTests {
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // since we are simulating, we should not have the age mapping
         assertThat(stage1.mappers().smartName("age"), nullValue());
+        assertThat(stage1.mappers().smartName("obj1.prop1"), nullValue());
         // now merge, don't simulate
         mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
         // there is still merge failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // but we have the age in
         assertThat(stage1.mappers().smartName("age"), notNullValue());
+        assertThat(stage1.mappers().smartName("obj1.prop1"), notNullValue());
     }
 }

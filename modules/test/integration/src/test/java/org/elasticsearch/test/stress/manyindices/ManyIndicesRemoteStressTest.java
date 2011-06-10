@@ -19,9 +19,12 @@
 
 package org.elasticsearch.test.stress.manyindices;
 
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
@@ -40,26 +43,35 @@ public class ManyIndicesRemoteStressTest {
         int numberOfShards = 1;
         int numberOfReplicas = 1;
         int numberOfIndices = 1000;
-        int numberOfDocs = 0;
+        int numberOfDocs = 1;
 
-        Node node = NodeBuilder.nodeBuilder().client(true).node();
+        Client client;
+        Node node = null;
+        if (true) {
+            client = new TransportClient().addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
+        } else {
+            node = NodeBuilder.nodeBuilder().client(true).node();
+            client = node.client();
+        }
 
         for (int i = 0; i < numberOfIndices; i++) {
             logger.info("START index [{}] ...", i);
-            node.client().admin().indices().prepareCreate("index_" + i)
+            client.admin().indices().prepareCreate("index_" + i)
                     .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas))
                     .execute().actionGet();
 
             for (int j = 0; j < numberOfDocs; j++) {
-                node.client().prepareIndex("index_" + i, "type").setSource("field1", "test", "field2", 2, "field3", new Date()).execute().actionGet();
+                client.prepareIndex("index_" + i, "type").setSource("field1", "test", "field2", 2, "field3", new Date()).execute().actionGet();
             }
             logger.info("DONE  index [{}]", i);
         }
 
-        node.client().admin().indices().prepareGatewaySnapshot().execute().actionGet();
+        client.admin().indices().prepareGatewaySnapshot().execute().actionGet();
 
         logger.info("closing node...");
-        node.close();
+        if (node != null) {
+            node.close();
+        }
         logger.info("node closed");
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.dump.DumpContributorFactory;
 import org.elasticsearch.monitor.dump.DumpMonitorService;
@@ -82,6 +83,7 @@ public class MonitorModule extends AbstractModule {
             }
         } catch (Throwable e) {
             // no sigar
+            Loggers.getLogger(MonitorModule.class).debug("failed to load sigar", e);
         }
         if (!sigarLoaded) {
             // bind non sigar implementations

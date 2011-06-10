@@ -38,6 +38,8 @@ public class FsTranslogFile {
     private final AtomicLong lastPosition = new AtomicLong(0);
     private final AtomicLong lastWrittenPosition = new AtomicLong(0);
 
+    private volatile long lastSyncPosition = 0;
+
     public FsTranslogFile(ShardId shardId, long id, RafReference raf) throws IOException {
         this.shardId = shardId;
         this.id = id;
@@ -84,6 +86,12 @@ public class FsTranslogFile {
 
     public void sync() {
         try {
+            // check if we really need to sync here...
+            long last = lastWrittenPosition.get();
+            if (last == lastSyncPosition) {
+                return;
+            }
+            lastSyncPosition = last;
             raf.channel().force(false);
         } catch (Exception e) {
             // ignore

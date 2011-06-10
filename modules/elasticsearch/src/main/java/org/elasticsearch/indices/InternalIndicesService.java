@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -32,10 +33,16 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.index.*;
+import org.elasticsearch.index.CloseableIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.IndexServiceManagement;
+import org.elasticsearch.index.LocalNodeIdModule;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -73,6 +80,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
@@ -122,11 +132,15 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     @Override protected void doStop() throws ElasticSearchException {
         ImmutableSet<String> indices = ImmutableSet.copyOf(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
+
+        final ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
+        final ExecutorService shardsStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("shards_shutdown"));
+
         for (final String index : indices) {
-            threadPool.cached().execute(new Runnable() {
+            indicesStopExecutor.execute(new Runnable() {
                 @Override public void run() {
                     try {
-                        deleteIndex(index, false, "shutdown");
+                        deleteIndex(index, false, "shutdown", shardsStopExecutor);
                     } catch (Exception e) {
                         logger.warn("failed to delete index on stop [" + index + "]", e);
                     } finally {
@@ -139,6 +153,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             latch.await();
         } catch (InterruptedException e) {
             // ignore
+        } finally {
+            shardsStopExecutor.shutdown();
+            indicesStopExecutor.shutdown();
         }
     }
 
@@ -262,14 +279,14 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override public synchronized void cleanIndex(String index, String reason) throws ElasticSearchException {
-        deleteIndex(index, false, reason);
+        deleteIndex(index, false, reason, null);
     }
 
     @Override public synchronized void deleteIndex(String index, String reason) throws ElasticSearchException {
-        deleteIndex(index, true, reason);
+        deleteIndex(index, true, reason, null);
     }
 
-    private void deleteIndex(String index, boolean delete, String reason) throws ElasticSearchException {
+    private void deleteIndex(String index, boolean delete, String reason, @Nullable Executor executor) throws ElasticSearchException {
         Injector indexInjector;
         IndexService indexService;
         synchronized (this) {
@@ -295,7 +312,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             indexInjector.getInstance(closeable).close(delete);
         }
 
-        ((InternalIndexService) indexService).close(delete, reason);
+        ((InternalIndexService) indexService).close(delete, reason, executor);
 
         indexInjector.getInstance(PercolatorService.class).close();
         indexInjector.getInstance(IndexCache.class).close();

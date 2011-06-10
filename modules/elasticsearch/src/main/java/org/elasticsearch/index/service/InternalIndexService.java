@@ -22,6 +22,7 @@ package org.elasticsearch.index.service;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
@@ -33,7 +34,11 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.none.NoneGateway;
-import org.elasticsearch.index.*;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.CloseableIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexShardAlreadyExistsException;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -73,6 +78,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Maps.*;
@@ -216,14 +222,15 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexEngine;
     }
 
-    public void close(final boolean delete, final String reason) {
+    public void close(final boolean delete, final String reason, @Nullable Executor executor) {
         synchronized (this) {
             closed = true;
         }
         Set<Integer> shardIds = shardIds();
         final CountDownLatch latch = new CountDownLatch(shardIds.size());
         for (final int shardId : shardIds) {
-            threadPool.cached().execute(new Runnable() {
+            executor = executor == null ? threadPool.cached() : executor;
+            executor.execute(new Runnable() {
                 @Override public void run() {
                     try {
                         deleteShard(shardId, delete, !delete, delete, reason);

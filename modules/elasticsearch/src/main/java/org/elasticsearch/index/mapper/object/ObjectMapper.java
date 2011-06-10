@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
@@ -556,7 +555,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
-    @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    @Override public void merge(final Mapper mergeWith, final MergeContext mergeContext) throws MergeMappingException {
         if (!(mergeWith instanceof ObjectMapper)) {
             mergeContext.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;
@@ -572,9 +571,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     // no mapping, simply add it if not simulating
                     if (!mergeContext.mergeFlags().simulate()) {
                         putMapper(mergeWithMapper);
-                        if (mergeWithMapper instanceof AbstractFieldMapper) {
-                            mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);
-                        }
+                        mergeWithMapper.traverse(new FieldMapperListener() {
+                            @Override public void fieldMapper(FieldMapper fieldMapper) {
+                                mergeContext.docMapper().addFieldMapper(fieldMapper);
+                            }
+                        });
                     }
                 } else {
                     if ((mergeWithMapper instanceof MultiFieldMapper) && !(mergeIntoMapper instanceof MultiFieldMapper)) {
@@ -584,9 +585,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             putMapper(mergeWithMultiField);
                             // now, raise events for all mappers
                             for (Mapper mapper : mergeWithMultiField.mappers().values()) {
-                                if (mapper instanceof AbstractFieldMapper) {
-                                    mergeContext.docMapper().addFieldMapper((FieldMapper) mapper);
-                                }
+                                mapper.traverse(new FieldMapperListener() {
+                                    @Override public void fieldMapper(FieldMapper fieldMapper) {
+                                        mergeContext.docMapper().addFieldMapper(fieldMapper);
+                                    }
+                                });
                             }
                         }
                     } else {

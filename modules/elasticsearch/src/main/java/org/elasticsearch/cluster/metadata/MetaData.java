@@ -236,16 +236,18 @@ public class MetaData implements Iterable<IndexMetaData> {
         AliasMetaData aliasMd = indexAliases.values().iterator().next();
         if (aliasMd.indexRouting() != null) {
             if (routing != null) {
-                if (routing.equals(aliasMd.indexRouting())) {
-                    return routing;
-                } else {
+                if (!routing.equals(aliasMd.indexRouting())) {
                     throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
-            return aliasMd.indexRouting();
-        } else {
-            return routing;
+            routing = aliasMd.indexRouting();
         }
+        if (routing != null) {
+            if (routing.indexOf(',') != -1) {
+                throw new ElasticSearchIllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
+            }
+        }
+        return routing;
     }
 
     /**

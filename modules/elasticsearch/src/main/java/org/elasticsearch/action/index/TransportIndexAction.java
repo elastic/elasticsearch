@@ -107,7 +107,11 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 @Override public void onFailure(Throwable e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
-                        innerExecute(request, listener);
+                        try {
+                            innerExecute(request, listener);
+                        } catch (Exception e1) {
+                            listener.onFailure(e1);
+                        }
                     } else {
                         listener.onFailure(e);
                     }

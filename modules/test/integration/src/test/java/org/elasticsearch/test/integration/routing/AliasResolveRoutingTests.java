@@ -74,7 +74,7 @@ public class AliasResolveRoutingTests extends AbstractNodesTests {
 
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias10").routing("0")).execute().actionGet();
-        client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias110").routing("1,0")).execute().actionGet();
+        client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias110").searchRouting("1,0")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias12").routing("2")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias20").routing("0")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias21").routing("1")).execute().actionGet();
@@ -93,12 +93,6 @@ public class AliasResolveRoutingTests extends AbstractNodesTests {
         assertThat(clusterService.state().metaData().resolveIndexRouting("0", "alias10"), equalTo("0"));
         try {
             clusterService.state().metaData().resolveIndexRouting("1", "alias10");
-            assert false : "should fail";
-        } catch (ElasticSearchIllegalArgumentException e) {
-            // all is well, we can't have two mappings, one provided, and one in the alias
-        }
-        try {
-            clusterService.state().metaData().resolveIndexRouting(null, "alias110");
             assert false : "should fail";
         } catch (ElasticSearchIllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias

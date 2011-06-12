@@ -1,0 +1,83 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.rest.action.admin.indices.exists;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.StringRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
+
+import java.io.IOException;
+
+import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
+
+/**
+ * @author kimchy (Shay Banon)
+ */
+public class RestIndicesExistsAction extends BaseRestHandler {
+
+    private final SettingsFilter settingsFilter;
+
+    @Inject public RestIndicesExistsAction(Settings settings, Client client, RestController controller,
+                                           SettingsFilter settingsFilter) {
+        super(settings, client);
+        controller.registerHandler(HEAD, "/{index}", this);
+
+        this.settingsFilter = settingsFilter;
+    }
+
+    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+        IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitIndices(request.param("index")));
+        // we just send back a response, no need to fork a listener
+        indicesExistsRequest.listenerThreaded(false);
+        client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
+            @Override public void onResponse(IndicesExistsResponse response) {
+                try {
+                    if (response.exists()) {
+                        channel.sendResponse(new StringRestResponse(OK));
+                    } else {
+                        channel.sendResponse(new StringRestResponse(NOT_FOUND));
+                    }
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override public void onFailure(Throwable e) {
+                try {
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.error("Failed to send failure response", e1);
+                }
+            }
+        });
+    }
+}

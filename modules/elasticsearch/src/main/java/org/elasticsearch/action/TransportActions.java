@@ -57,6 +57,7 @@ public class TransportActions {
             public static final String REFRESH = "indices/refresh";
             public static final String OPTIMIZE = "indices/optimize";
             public static final String STATUS = "indices/status";
+            public static final String EXISTS = "indices/exists";
             public static final String ALIASES = "indices/aliases";
             public static final String UPDATE_SETTINGS = "indices/updateSettings";
             public static final String ANALYZE = "indices/analyze";

@@ -49,7 +49,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
     }
 
     @Override protected String transportAction() {
-        return TransportActions.Admin.Indices.CLOSE;
+        return TransportActions.Admin.Indices.EXISTS;
     }
 
     @Override protected IndicesExistsRequest newRequest() {

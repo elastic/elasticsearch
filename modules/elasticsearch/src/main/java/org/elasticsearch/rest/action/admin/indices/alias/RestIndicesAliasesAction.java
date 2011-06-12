@@ -30,12 +30,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
+import static org.elasticsearch.cluster.metadata.AliasAction.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
@@ -82,8 +87,11 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             String alias = null;
                             Map<String, Object> filter = null;
                             String routing = null;
+                            boolean routingSet = false;
                             String indexRouting = null;
+                            boolean indexRoutingSet = false;
                             String searchRouting = null;
+                            boolean searchRoutingSet = false;
                             String currentFieldName = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -94,11 +102,14 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                     } else if ("alias".equals(currentFieldName)) {
                                         alias = parser.text();
                                     } else if ("routing".equals(currentFieldName)) {
-                                        routing = parser.text();
+                                        routing = parser.textOrNull();
+                                        routingSet = true;
                                     } else if ("indexRouting".equals(currentFieldName) || "index-routing".equals(currentFieldName)) {
-                                        indexRouting = parser.text();
+                                        indexRouting = parser.textOrNull();
+                                        indexRoutingSet = true;
                                     } else if ("searchRouting".equals(currentFieldName) || "search-routing".equals(currentFieldName)) {
-                                        searchRouting = parser.text();
+                                        searchRouting = parser.textOrNull();
+                                        searchRoutingSet = true;
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("filter".equals(currentFieldName)) {
@@ -114,13 +125,13 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             }
                             if (type == AliasAction.Type.ADD) {
                                 AliasAction aliasAction = newAddAliasAction(index, alias).filter(filter);
-                                if (routing != null) {
+                                if (routingSet) {
                                     aliasAction.routing(routing);
                                 }
-                                if (indexRouting != null) {
+                                if (indexRoutingSet) {
                                     aliasAction.indexRouting(indexRouting);
                                 }
-                                if (searchRouting != null) {
+                                if (searchRoutingSet) {
                                     aliasAction.searchRouting(searchRouting);
                                 }
                                 indicesAliasesRequest.addAliasAction(aliasAction);

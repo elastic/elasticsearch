@@ -228,7 +228,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             isIndexed = mapper.indexed();
             isTokenized = mapper.indexed();
             omitTermFreqAndPositions = true;
-            omitNorms = true;
+            omitNorms = mapper.omitNorms();
 
             if (value != null) {
                 isStored = true;

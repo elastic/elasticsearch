@@ -30,12 +30,11 @@ import org.testng.annotations.Test;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 
-import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
-import static org.elasticsearch.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.collect.Sets.newHashSet;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.cluster.metadata.AliasAction.*;
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.collect.Sets.*;
+import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -92,7 +91,11 @@ public class AliasResolveRoutingTests extends AbstractNodesTests {
         assertThat(clusterService.state().metaData().resolveIndexRouting(null, "alias21"), equalTo("1"));
         assertThat(clusterService.state().metaData().resolveIndexRouting("3", "test1"), equalTo("3"));
         assertThat(clusterService.state().metaData().resolveIndexRouting("0", "alias10"), equalTo("0"));
-        assertThat(clusterService.state().metaData().resolveIndexRouting("1", "alias10"), nullValue());
+        try {
+            clusterService.state().metaData().resolveIndexRouting("1", "alias10");
+        } catch (ElasticSearchIllegalArgumentException e) {
+            // all is well, we can't have two mappings, one provided, and one in the alias
+        }
 
         try {
             clusterService.state().metaData().resolveIndexRouting(null, "alias0");

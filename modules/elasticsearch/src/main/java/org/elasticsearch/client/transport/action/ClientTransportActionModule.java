@@ -34,6 +34,7 @@ import org.elasticsearch.client.transport.action.admin.indices.cache.clear.Clien
 import org.elasticsearch.client.transport.action.admin.indices.close.ClientTransportCloseIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.create.ClientTransportCreateIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
+import org.elasticsearch.client.transport.action.admin.indices.exists.ClientTransportIndicesExistsAction;
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
 import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
 import org.elasticsearch.client.transport.action.admin.indices.mapping.delete.ClientTransportDeleteMappingAction;
@@ -72,6 +73,7 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportBulkAction.class).asEagerSingleton();
         bind(ClientTransportPercolateAction.class).asEagerSingleton();
 
+        bind(ClientTransportIndicesExistsAction.class).asEagerSingleton();
         bind(ClientTransportIndicesStatusAction.class).asEagerSingleton();
         bind(ClientTransportRefreshAction.class).asEagerSingleton();
         bind(ClientTransportFlushAction.class).asEagerSingleton();

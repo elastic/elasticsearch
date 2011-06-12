@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.document;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -119,6 +120,10 @@ public class DocumentActionsTests extends AbstractNodesTests {
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));
         assertThat(refreshResponse.failedShards(), equalTo(0));
+
+        logger.info("--> index exists?");
+        IndicesExistsResponse indicesExistsResponse = client1.admin().indices().prepareExists(getConcreteIndexName()).execute().actionGet();
+        assertThat(indicesExistsResponse.exists(), equalTo(true));
 
         logger.info("Clearing cache");
         ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test")).actionGet();

@@ -25,6 +25,7 @@ import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCac
 import org.elasticsearch.client.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.exists.IndicesExistsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
@@ -42,6 +43,10 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  * @author kimchy (shay.banon)
  */
 public abstract class AbstractIndicesAdminClient implements InternalIndicesAdminClient {
+
+    @Override public IndicesExistsRequestBuilder prepareExists(String... indices) {
+        return new IndicesExistsRequestBuilder(this, indices);
+    }
 
     @Override public IndicesAliasesRequestBuilder prepareAliases() {
         return new IndicesAliasesRequestBuilder(this);

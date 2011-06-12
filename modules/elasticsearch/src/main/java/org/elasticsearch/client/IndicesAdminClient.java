@@ -33,6 +33,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
@@ -61,6 +63,7 @@ import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCac
 import org.elasticsearch.client.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.exists.IndicesExistsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
@@ -80,6 +83,29 @@ import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTempla
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient {
+
+    /**
+     * Indices Exists.
+     *
+     * @param request The indices exists request
+     * @return The result future
+     * @see Requests#indicesExistsRequest(String...)
+     */
+    ActionFuture<IndicesExistsResponse> exists(IndicesExistsRequest request);
+
+    /**
+     * The status of one or more indices.
+     *
+     * @param request  The indices status request
+     * @param listener A listener to be notified with a result
+     * @see Requests#indicesExistsRequest(String...)
+     */
+    void exists(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener);
+
+    /**
+     * Indices exists.
+     */
+    IndicesExistsRequestBuilder prepareExists(String... indices);
 
     /**
      * The status of one or more indices.

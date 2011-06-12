@@ -21,7 +21,13 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -194,7 +200,7 @@ public class ShardsAllocation extends AbstractComponent {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),
-                                startedShard.primary(), INITIALIZING));
+                                startedShard.primary(), INITIALIZING, startedShard.version() + 1));
 
                         startedShard.relocate(lowRoutingNode.nodeId());
                         relocated = true;
@@ -276,7 +282,7 @@ public class ShardsAllocation extends AbstractComponent {
         }
 
         // allocate all the unassigned shards above the average per node.
-        for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
+        for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             MutableShardRouting shard = it.next();
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : routingNodes.sortedNodesLeastToHigh()) {
@@ -314,7 +320,7 @@ public class ShardsAllocation extends AbstractComponent {
         }
         Set<String> nodeIdsToRemove = newHashSet();
         for (RoutingNode routingNode : routingNodes) {
-            for (Iterator<MutableShardRouting> shardsIterator = routingNode.shards().iterator(); shardsIterator.hasNext();) {
+            for (Iterator<MutableShardRouting> shardsIterator = routingNode.shards().iterator(); shardsIterator.hasNext(); ) {
                 MutableShardRouting shardRoutingEntry = shardsIterator.next();
                 if (shardRoutingEntry.assignedToNode()) {
                     // we store the relocation state here since when we call de-assign node
@@ -476,7 +482,7 @@ public class ShardsAllocation extends AbstractComponent {
 
         // add the failed shard to the unassigned shards
         allocation.routingNodes().unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(),
-                null, failedShard.primary(), ShardRoutingState.UNASSIGNED));
+                null, failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
 
         return true;
     }

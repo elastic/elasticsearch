@@ -30,7 +30,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.collect.Lists.*;
@@ -69,6 +73,14 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     public String getIndex() {
         return index();
+    }
+
+    public IndexRoutingTable normalizeVersions() {
+        IndexRoutingTable.Builder builder = new Builder(this.index);
+        for (IndexShardRoutingTable shardTable : shards.values()) {
+            builder.addIndexShard(shardTable.normalizeVersions());
+        }
+        return builder.build();
     }
 
     public void validate(RoutingTableValidation validation, MetaData metaData) {
@@ -258,7 +270,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         public Builder initializeEmpty(IndexMetaData indexMetaData, boolean fromApi) {
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
-                    addShard(shardId, null, i == 0, ShardRoutingState.UNASSIGNED, fromApi);
+                    addShard(shardId, null, i == 0, ShardRoutingState.UNASSIGNED, 0, fromApi);
                 }
             }
             return this;
@@ -266,7 +278,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
         public Builder addReplica() {
             for (int shardId : shards.keySet()) {
-                addShard(shardId, null, false, ShardRoutingState.UNASSIGNED, false);
+                // version 0, will get updated when reroute will happen
+                addShard(shardId, null, false, ShardRoutingState.UNASSIGNED, 0, false);
             }
             return this;
         }
@@ -315,8 +328,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             return internalAddShard(new ImmutableShardRouting(shard), fromApi);
         }
 
-        public Builder addShard(int shardId, String nodeId, boolean primary, ShardRoutingState state, boolean fromApi) {
-            ImmutableShardRouting shard = new ImmutableShardRouting(index, shardId, nodeId, primary, state);
+        private Builder addShard(int shardId, String nodeId, boolean primary, ShardRoutingState state, long version, boolean fromApi) {
+            ImmutableShardRouting shard = new ImmutableShardRouting(index, shardId, nodeId, primary, state, version);
             return internalAddShard(shard, fromApi);
         }
 

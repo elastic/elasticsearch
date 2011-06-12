@@ -28,16 +28,22 @@ public class MutableShardRouting extends ImmutableShardRouting {
         super(copy);
     }
 
-    public MutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
-        super(index, shardId, currentNodeId, primary, state);
+    public MutableShardRouting(ShardRouting copy, long version) {
+        super(copy);
+        this.version = version;
+    }
+
+    public MutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
+        super(index, shardId, currentNodeId, primary, state, version);
     }
 
     public MutableShardRouting(String index, int shardId, String currentNodeId,
-                               String relocatingNodeId, boolean primary, ShardRoutingState state) {
-        super(index, shardId, currentNodeId, relocatingNodeId, primary, state);
+                               String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
+        super(index, shardId, currentNodeId, relocatingNodeId, primary, state, version);
     }
 
     public void assignToNode(String nodeId) {
+        version++;
         if (currentNodeId == null) {
             assert state == ShardRoutingState.UNASSIGNED;
 
@@ -53,12 +59,14 @@ public class MutableShardRouting extends ImmutableShardRouting {
     }
 
     public void relocate(String relocatingNodeId) {
+        version++;
         assert state == ShardRoutingState.STARTED;
         state = ShardRoutingState.RELOCATING;
         this.relocatingNodeId = relocatingNodeId;
     }
 
     public void cancelRelocation() {
+        version++;
         assert state == ShardRoutingState.RELOCATING;
         assert assignedToNode();
         assert relocatingNodeId != null;
@@ -68,6 +76,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
     }
 
     public void deassignNode() {
+        version++;
         assert state != ShardRoutingState.UNASSIGNED;
 
         state = ShardRoutingState.UNASSIGNED;
@@ -76,12 +85,14 @@ public class MutableShardRouting extends ImmutableShardRouting {
     }
 
     public void moveToStarted() {
+        version++;
         assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING;
         relocatingNodeId = null;
         state = ShardRoutingState.STARTED;
     }
 
     public void moveToPrimary() {
+        version++;
         if (primary) {
             throw new IllegalShardRoutingStateException(this, "Already primary, can't move to primary");
         }
@@ -89,6 +100,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
     }
 
     public void moveFromPrimary() {
+        version++;
         if (!primary) {
             throw new IllegalShardRoutingStateException(this, "Already primary, can't move to replica");
         }

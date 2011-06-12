@@ -60,6 +60,11 @@ public interface ShardRouting extends Streamable, Serializable {
     int getId();
 
     /**
+     * The routing version associated with the shard.
+     */
+    long version();
+
+    /**
      * The shard state.
      */
     ShardRoutingState state();

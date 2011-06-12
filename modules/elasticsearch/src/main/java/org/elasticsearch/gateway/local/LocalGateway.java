@@ -242,80 +242,86 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
 
         if (event.state().nodes().localNode().dataNode() && event.routingTableChanged()) {
-            executor.execute(new Runnable() {
-                @Override public void run() {
-                    LocalGatewayStartedShards.Builder builder = LocalGatewayStartedShards.builder();
-                    if (currentStartedShards != null) {
-                        builder.state(currentStartedShards);
-                    }
-                    builder.version(event.state().version());
-                    // remove from the current state all the shards that are primary and started somewhere, we won't need them anymore
-                    // and if they are still here, we will add them in the next phase
+            LocalGatewayStartedShards.Builder builder = LocalGatewayStartedShards.builder();
+            if (currentStartedShards != null) {
+                builder.state(currentStartedShards);
+            }
+            builder.version(event.state().version());
 
-                    // Also note, this works well when closing an index, since a closed index will have no routing shards entries
-                    // so they won't get removed (we want to keep the fact that those shards are allocated on this node if needed)
-                    for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
-                        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                            if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
-                                builder.remove(indexShardRoutingTable.shardId());
-                            }
-                        }
-                    }
-                    // remove deleted indices from the started shards
-                    for (ShardId shardId : builder.build().shards().keySet()) {
-                        if (!event.state().metaData().hasIndex(shardId.index().name())) {
-                            builder.remove(shardId);
-                        }
-                    }
-                    // now, add all the ones that are active and on this node
-                    RoutingNode routingNode = event.state().readOnlyRoutingNodes().node(event.state().nodes().localNodeId());
-                    if (routingNode != null) {
-                        // out node is not in play yet...
-                        for (MutableShardRouting shardRouting : routingNode) {
-                            if (shardRouting.active()) {
-                                builder.put(shardRouting.shardId(), event.state().version());
-                            }
-                        }
-                    }
+            boolean changed = false;
 
-                    try {
-                        File stateFile = new File(location, "shards-" + event.state().version());
-                        OutputStream fos = new FileOutputStream(stateFile);
-                        if (compress) {
-                            fos = new LZFOutputStream(fos);
-                        }
+            // remove from the current state all the shards that are primary and started somewhere, we won't need them anymore
+            // and if they are still here, we will add them in the next phase
 
-                        LocalGatewayStartedShards stateToWrite = builder.build();
-                        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, fos);
-                        if (prettyPrint) {
-                            xContentBuilder.prettyPrint();
-                        }
-                        xContentBuilder.startObject();
-                        LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
-                        xContentBuilder.endObject();
-                        xContentBuilder.close();
-
-                        fos.close();
-
-                        FileSystemUtils.syncFile(stateFile);
-
-                        currentStartedShards = stateToWrite;
-                    } catch (IOException e) {
-                        logger.warn("failed to write updated state", e);
-                        return;
-                    }
-
-                    // delete all the other files
-                    File[] files = location.listFiles(new FilenameFilter() {
-                        @Override public boolean accept(File dir, String name) {
-                            return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
-                        }
-                    });
-                    for (File file : files) {
-                        file.delete();
+            // Also note, this works well when closing an index, since a closed index will have no routing shards entries
+            // so they won't get removed (we want to keep the fact that those shards are allocated on this node if needed)
+            for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    if (indexShardRoutingTable.countWithState(ShardRoutingState.STARTED) == indexShardRoutingTable.size()) {
+                        changed |= builder.remove(indexShardRoutingTable.shardId());
                     }
                 }
-            });
+            }
+            // remove deleted indices from the started shards
+            for (ShardId shardId : builder.build().shards().keySet()) {
+                if (!event.state().metaData().hasIndex(shardId.index().name())) {
+                    changed |= builder.remove(shardId);
+                }
+            }
+            // now, add all the ones that are active and on this node
+            RoutingNode routingNode = event.state().readOnlyRoutingNodes().node(event.state().nodes().localNodeId());
+            if (routingNode != null) {
+                // out node is not in play yet...
+                for (MutableShardRouting shardRouting : routingNode) {
+                    if (shardRouting.active()) {
+                        changed |= builder.put(shardRouting.shardId(), shardRouting.version());
+                    }
+                }
+            }
+
+            // only write if something changed...
+            if (changed) {
+                final LocalGatewayStartedShards stateToWrite = builder.build();
+                executor.execute(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            File stateFile = new File(location, "shards-" + event.state().version());
+                            OutputStream fos = new FileOutputStream(stateFile);
+                            if (compress) {
+                                fos = new LZFOutputStream(fos);
+                            }
+
+                            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, fos);
+                            if (prettyPrint) {
+                                xContentBuilder.prettyPrint();
+                            }
+                            xContentBuilder.startObject();
+                            LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
+                            xContentBuilder.endObject();
+                            xContentBuilder.close();
+
+                            fos.close();
+
+                            FileSystemUtils.syncFile(stateFile);
+
+                            currentStartedShards = stateToWrite;
+                        } catch (IOException e) {
+                            logger.warn("failed to write updated state", e);
+                            return;
+                        }
+
+                        // delete all the other files
+                        File[] files = location.listFiles(new FilenameFilter() {
+                            @Override public boolean accept(File dir, String name) {
+                                return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
+                            }
+                        });
+                        for (File file : files) {
+                            file.delete();
+                        }
+                    }
+                });
+            }
         }
     }
 

@@ -317,6 +317,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         }
 
         public RoutingTable build() {
+            // normalize the versions right before we build it...
+            for (IndexRoutingTable indexRoutingTable : indicesRouting.values()) {
+                indicesRouting.put(indexRoutingTable.index(), indexRoutingTable.normalizeVersions());
+            }
             return new RoutingTable(version, indicesRouting);
         }
 

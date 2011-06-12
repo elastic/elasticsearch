@@ -54,7 +54,7 @@ public class ActionRequestValidationException extends ElasticSearchException {
         sb.append("Validation Failed: ");
         int index = 0;
         for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error);
+            sb.append(++index).append(": ").append(error).append(";");
         }
         return sb.toString();
     }

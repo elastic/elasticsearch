@@ -33,9 +33,9 @@ import org.elasticsearch.common.xcontent.XContentType
  */
 class GXContentBuilder {
 
-    static NODE_ELEMENT = "element"
+    static NODE_ELEMENT = 'element'
 
-    static int rootResolveStrategy = Closure.OWNER_FIRST; // the default in Closure
+    static int rootResolveStrategy = Closure.OWNER_FIRST // the default in Closure
 
     def root
 
@@ -48,26 +48,26 @@ class GXContentBuilder {
     }
 
     String buildAsString(Closure c) {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)
         def json = build(c)
-        builder.map(json);
-        return builder.string();
+        builder.map(json)
+        return builder.string()
     }
 
     byte[] buildAsBytes(Closure c) {
-        return buildAsBytes(c, XContentType.JSON);
+        return buildAsBytes(c, XContentType.JSON)
     }
 
     byte[] buildAsBytes(Closure c, XContentType contentType) {
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType)
         def json = build(c)
-        builder.map(json);
-        return builder.copiedBytes();
+        builder.map(json)
+        return builder.copiedBytes()
     }
 
     private buildRoot(Closure c) {
         c.delegate = this
-        c.resolveStrategy = rootResolveStrategy;
+        c.resolveStrategy = rootResolveStrategy
         root = [:]
         current = root
         def returnValue = c.call()
@@ -85,7 +85,6 @@ class GXContentBuilder {
         def prev = current
         def list = []
         try {
-
             current = list
             c.call(list)
         }
@@ -176,7 +175,6 @@ class GXContentBuilder {
                 else {
                     return it
                 }
-
             }
             current[propName] = value
         }
@@ -188,5 +186,4 @@ class GXContentBuilder {
     def getProperty(String propName) {
         current[propName]
     }
-
 }

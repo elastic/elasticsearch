@@ -29,13 +29,13 @@ import static org.elasticsearch.groovy.node.GNodeBuilder.*
 class GNodeBuilderTests extends GroovyTestCase {
 
     void testGNodeBuilder() {
-        GNodeBuilder nodeBuilder = nodeBuilder();
+        GNodeBuilder nodeBuilder = nodeBuilder()
         nodeBuilder.settings {
             node {
                 local = true
             }
             cluster {
-                name = "test"
+                name = 'test'
             }
         }
         GNode node = nodeBuilder.node()

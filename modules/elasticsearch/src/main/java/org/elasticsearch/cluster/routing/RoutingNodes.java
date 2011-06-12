@@ -24,7 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
@@ -71,7 +76,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
                             entries.add(new MutableShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(),
-                                    shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING));
+                                    shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version()));
                         }
                     } else {
                         unassigned.add(new MutableShardRouting(shard));

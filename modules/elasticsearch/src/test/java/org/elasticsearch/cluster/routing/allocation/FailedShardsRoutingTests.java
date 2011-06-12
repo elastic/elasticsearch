@@ -165,7 +165,7 @@ public class FailedShardsRoutingTests {
 
         logger.info("fail the first shard, will have no place to be rerouted to (single node), so stays unassigned");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING)).routingTable();
+        routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING, 0)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
@@ -181,7 +181,7 @@ public class FailedShardsRoutingTests {
         }
 
         logger.info("fail the shard again, see that nothing happens");
-        assertThat(strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING)).changed(), equalTo(false));
+        assertThat(strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING, 0)).changed(), equalTo(false));
     }
 
     @Test public void firstAllocationFailureTwoNodes() {
@@ -221,7 +221,7 @@ public class FailedShardsRoutingTests {
 
         logger.info("fail the first shard, will start INITIALIZING on the second node");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING)).routingTable();
+        routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING, 0)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
@@ -237,7 +237,7 @@ public class FailedShardsRoutingTests {
         }
 
         logger.info("fail the shard again, see that nothing happens");
-        assertThat(strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING)).changed(), equalTo(false));
+        assertThat(strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING, 0)).changed(), equalTo(false));
     }
 
     @Test public void rebalanceFailure() {

@@ -55,6 +55,40 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
+     * Normalizes all shard routings to the same version.
+     */
+    public IndexShardRoutingTable normalizeVersions() {
+        if (shards.isEmpty()) {
+            return this;
+        }
+        if (shards.size() == 1) {
+            return this;
+        }
+        long highestVersion = shards.get(0).version();
+        boolean requiresNormalization = false;
+        for (int i = 1; i < shards.size(); i++) {
+            if (shards.get(i).version() != highestVersion) {
+                requiresNormalization = true;
+            }
+            if (shards.get(i).version() > highestVersion) {
+                highestVersion = shards.get(i).version();
+            }
+        }
+        if (!requiresNormalization) {
+            return this;
+        }
+        List<ShardRouting> shardRoutings = new ArrayList<ShardRouting>(shards.size());
+        for (int i = 0; i < shards.size(); i++) {
+            if (shards.get(i).version() == highestVersion) {
+                shardRoutings.add(shards.get(i));
+            } else {
+                shardRoutings.add(new ImmutableShardRouting(shards.get(i), highestVersion));
+            }
+        }
+        return new IndexShardRoutingTable(shardId, ImmutableList.copyOf(shardRoutings), allocatedPostApi);
+    }
+
+    /**
      * Has this shard group primary shard been allocated post API creation. Will be set to
      * <tt>true</tt> if it was created because of recovery action.
      */

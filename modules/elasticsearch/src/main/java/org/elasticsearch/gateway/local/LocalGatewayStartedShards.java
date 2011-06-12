@@ -92,14 +92,23 @@ public class LocalGatewayStartedShards {
             return this;
         }
 
-        public Builder remove(ShardId shardId) {
-            this.shards.remove(shardId);
-            return this;
+        /**
+         * Returns <tt>true</tt> if something really changed.
+         */
+        public boolean remove(ShardId shardId) {
+            return shards.remove(shardId) != null;
         }
 
-        public Builder put(ShardId shardId, long version) {
+        /**
+         * Returns <tt>true</tt> if something really changed.
+         */
+        public boolean put(ShardId shardId, long version) {
+            Long lVersion = shards.get(shardId);
+            if (lVersion != null && lVersion == version) {
+                return false;
+            }
             this.shards.put(shardId, version);
-            return this;
+            return true;
         }
 
         public LocalGatewayStartedShards build() {

@@ -183,7 +183,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                     }
                     // we found a match
                     changed = true;
-                    node.add(shard);
+                    // make sure we create one with the version from the recovered state
+                    node.add(new MutableShardRouting(shard, highestVersion));
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -202,7 +203,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                     }
                     // we found a match
                     changed = true;
-                    node.add(shard);
+                    // make sure we create one with the version from the recovered state
+                    node.add(new MutableShardRouting(shard, highestVersion));
                     unassignedIterator.remove();
                 }
             } else {

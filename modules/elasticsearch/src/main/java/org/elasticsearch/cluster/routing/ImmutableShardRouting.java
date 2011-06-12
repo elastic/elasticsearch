@@ -45,6 +45,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     protected ShardRoutingState state;
 
+    protected long version;
+
     private transient ShardId shardIdentifier;
 
     private final transient ImmutableList<ShardRouting> asList;
@@ -54,23 +56,30 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     public ImmutableShardRouting(ShardRouting copy) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state());
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state(), copy.version());
         this.relocatingNodeId = copy.relocatingNodeId();
     }
 
+    public ImmutableShardRouting(ShardRouting copy, long version) {
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state(), copy.version());
+        this.relocatingNodeId = copy.relocatingNodeId();
+        this.version = version;
+    }
+
     public ImmutableShardRouting(String index, int shardId, String currentNodeId,
-                                 String relocatingNodeId, boolean primary, ShardRoutingState state) {
-        this(index, shardId, currentNodeId, primary, state);
+                                 String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
+        this(index, shardId, currentNodeId, primary, state, version);
         this.relocatingNodeId = relocatingNodeId;
     }
 
-    public ImmutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+    public ImmutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
         this.index = index;
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
         this.primary = primary;
         this.state = state;
         this.asList = ImmutableList.of((ShardRouting) this);
+        this.version = version;
     }
 
     @Override public String index() {
@@ -87,6 +96,10 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override public int getId() {
         return id();
+    }
+
+    @Override public long version() {
+        return this.version;
     }
 
     @Override public boolean unassigned() {
@@ -160,6 +173,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     @Override public void readFromThin(StreamInput in) throws IOException {
+        version = in.readLong();
         if (in.readBoolean()) {
             currentNodeId = in.readUTF();
         }
@@ -180,6 +194,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
      * Does not write index name and shard id
      */
     public void writeToThin(StreamOutput out) throws IOException {
+        out.writeLong(version);
         if (currentNodeId != null) {
             out.writeBoolean(true);
             out.writeUTF(currentNodeId);

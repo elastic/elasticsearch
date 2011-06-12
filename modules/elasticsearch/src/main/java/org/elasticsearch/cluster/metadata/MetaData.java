@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
-import static org.elasticsearch.common.collect.Maps.newHashMap;
+import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
@@ -231,7 +231,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return routing;
         }
         if (indexAliases.size() > 1) {
-            throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + indexAliases.keySet() + "], can't execute a single index op");
+            throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + indexAliases.keySet() + "], can't execute a single index op");
         }
         AliasMetaData aliasMd = indexAliases.values().iterator().next();
         if (aliasMd.indexRouting() != null) {
@@ -239,7 +239,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 if (routing.equals(aliasMd.indexRouting())) {
                     return routing;
                 } else {
-                    return null;
+                    throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
             return aliasMd.indexRouting();

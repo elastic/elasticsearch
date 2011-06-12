@@ -24,14 +24,14 @@ package org.elasticsearch.groovy.client
  */
 class GAdminClient {
 
-    private final GClient gClient;
+    private final GClient gClient
 
-    final GIndicesAdminClient indices;
+    final GIndicesAdminClient indices
 
-    final GClusterAdminClient cluster;
+    final GClusterAdminClient cluster
 
-    def GAdminClient(gClient) {
-        this.gClient = gClient;
+    GAdminClient(gClient) {
+        this.gClient = gClient
 
         this.indices = new GIndicesAdminClient(gClient)
         this.cluster = new GClusterAdminClient(gClient)

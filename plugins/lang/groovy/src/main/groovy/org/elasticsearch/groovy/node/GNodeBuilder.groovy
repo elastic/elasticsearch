@@ -27,43 +27,43 @@ import org.elasticsearch.node.Node
 import org.elasticsearch.node.internal.InternalNode
 
 /**
- * The node builder allow to build a         {@link GNode}         instance.
+ * The node builder allow to build a {@link GNode} instance.
  *
  * @author kimchy (shay.banon)
  */
-public class GNodeBuilder {
+class GNodeBuilder {
 
-    private final ImmutableSettings.Builder settingsBuilder = ImmutableSettings.settingsBuilder();
+    private final ImmutableSettings.Builder settingsBuilder = ImmutableSettings.settingsBuilder()
 
-    private boolean loadConfigSettings = true;
+    private boolean loadConfigSettings = true
 
-    public static GNodeBuilder nodeBuilder() {
+    static GNodeBuilder nodeBuilder() {
         new GNodeBuilder()
     }
 
-    public ImmutableSettings.Builder getSettings() {
-        return settingsBuilder;
+    ImmutableSettings.Builder getSettings() {
+        settingsBuilder
     }
 
-    def settings(Settings.Builder settings) {
+    ImmutableSettings.Builder settings(Settings.Builder settings) {
         settingsBuilder.put(settings.build())
     }
 
-    def settings(Settings settings) {
+    ImmutableSettings.Builder settings(Settings settings) {
         settingsBuilder.put(settings)
     }
 
-    def settings(Closure settings) {
+    ImmutableSettings.Builder settings(Closure settings) {
         byte[] settingsBytes = new GXContentBuilder().buildAsBytes(settings)
         settingsBuilder.put(new JsonSettingsLoader().load(settingsBytes))
     }
 
-    def build() {
+    GNode build() {
         Node node = new InternalNode(settingsBuilder.build(), loadConfigSettings)
         new GNode(node)
     }
 
-    def node() {
+    GNode node() {
         build().start()
     }
 }

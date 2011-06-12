@@ -43,7 +43,7 @@ class BuilderActionsTests {
                 local = true
             }
             gateway {
-                type = "none"
+                type = 'none'
             }
         }
 
@@ -55,45 +55,43 @@ class BuilderActionsTests {
         node.close()
     }
 
-
     @Test
     void testSimpleOperations() {
-        def indexR = node.client.prepareIndex("test", "type1", "1").setSource({
-            test = "value"
+        def indexR = node.client.prepareIndex('test', 'type1', '1').setSource({
+            test = 'value'
             complex {
-                value1 = "value1"
-                value2 = "value2"
+                value1 = 'value1'
+                value2 = 'value2'
             }
         }).gexecute()
 
-        assertThat indexR.response.index, equalTo("test")
-        assertThat indexR.response.type, equalTo("type1")
-        assertThat indexR.response.id, equalTo("1")
+        assertThat indexR.response.index, equalTo('test')
+        assertThat indexR.response.type, equalTo('type1')
+        assertThat indexR.response.id, equalTo('1')
 
         node.client.admin.indices.refresh {}.actionGet()
 
-        def countR = node.client.prepareCount("test").setQuery({
-            term(test: "value")
-        }).gexecute();
+        def countR = node.client.prepareCount('test').setQuery({
+            term(test: 'value')
+        }).gexecute()
 
         assertThat countR.response.count, equalTo(1l)
 
-        def searchR = node.client.prepareSearch("test").setQuery({
-            term(test: "value")
-        }).gexecute();
+        def searchR = node.client.prepareSearch('test').setQuery({
+            term(test: 'value')
+        }).gexecute()
 
         assertThat searchR.response.hits.totalHits, equalTo(1l)
 
-        def delete = node.client.prepareDelete("test", "type1", "1").gexecute()
-        assertThat delete.response.index, equalTo("test")
-        assertThat delete.response.type, equalTo("type1")
-        assertThat delete.response.id, equalTo("1")
+        def delete = node.client.prepareDelete('test', 'type1', '1').gexecute()
+        assertThat delete.response.index, equalTo('test')
+        assertThat delete.response.type, equalTo('type1')
+        assertThat delete.response.id, equalTo('1')
 
         def refresh = node.client.admin.indices.refresh {}
         assertThat refresh.response.failedShards, equalTo(0)
 
-        def get = node.client.prepareGet("test", "type1", "1").gexecute()
+        def get = node.client.prepareGet('test', 'type1', '1').gexecute()
         assertThat get.response.exists, equalTo(false)
-
     }
 }

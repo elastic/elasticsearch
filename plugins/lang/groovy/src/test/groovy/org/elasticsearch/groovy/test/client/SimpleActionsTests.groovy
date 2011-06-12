@@ -42,7 +42,7 @@ class SimpleActionsTests {
                 local = true
             }
             gateway {
-                type = "none"
+                type = 'none'
             }
         }
 
@@ -54,74 +54,73 @@ class SimpleActionsTests {
         node.close()
     }
 
-
     @Test
     void testSimpleOperations() {
         def value1 = new org.elasticsearch.groovy.common.xcontent.GXContentBuilder().buildAsString {
-            something = "test"
+            something = 'test'
         }
         println value1
 
         def indexR = node.client.index {
-            index "test"
-            type "type1"
-            id "1"
+            index 'test'
+            type 'type1'
+            id '1'
             source {
-                test = "value"
+                test = 'value'
                 complex {
-                    value1 = "value1"
-                    value2 = "value2"
+                    value1 = 'value1'
+                    value2 = 'value2'
                 }
             }
         }
-        assertThat indexR.response.index, equalTo("test")
-        assertThat indexR.response.type, equalTo("type1")
-        assertThat indexR.response.id, equalTo("1")
+        assertThat indexR.response.index, equalTo('test')
+        assertThat indexR.response.type, equalTo('type1')
+        assertThat indexR.response.id, equalTo('1')
 
         def delete = node.client.delete {
-            index "test"
-            type "type1"
-            id "1"
+            index 'test'
+            type 'type1'
+            id '1'
         }
-        assertThat delete.response.index, equalTo("test")
-        assertThat delete.response.type, equalTo("type1")
-        assertThat delete.response.id, equalTo("1")
+        assertThat delete.response.index, equalTo('test')
+        assertThat delete.response.type, equalTo('type1')
+        assertThat delete.response.id, equalTo('1')
 
         def refresh = node.client.admin.indices.refresh {}
         assertThat refresh.response.failedShards, equalTo(0)
 
         def get = node.client.get {
-            index "test"
-            type "type1"
-            id "1"
+            index 'test'
+            type 'type1'
+            id '1'
         }
         assertThat get.response.exists, equalTo(false)
 
         indexR = node.client.index {
-            index "test"
-            type "type1"
-            id "1"
+            index 'test'
+            type 'type1'
+            id '1'
             source {
-                test = "value"
+                test = 'value'
                 complex {
-                    value1 = "value1"
-                    value2 = "value2"
+                    value1 = 'value1'
+                    value2 = 'value2'
                 }
             }
         }
-        assertThat indexR.response.index, equalTo("test")
-        assertThat indexR.response.type, equalTo("type1")
-        assertThat indexR.response.id, equalTo("1")
+        assertThat indexR.response.index, equalTo('test')
+        assertThat indexR.response.type, equalTo('type1')
+        assertThat indexR.response.id, equalTo('1')
 
         refresh = node.client.admin.indices.refresh {}
         assertThat refresh.response.failedShards, equalTo(0)
 
         def count = node.client.count {
-            indices "test"
-            types "type1"
+            indices 'test'
+            types 'type1'
             query {
                 term {
-                    test = "value"
+                    test = 'value'
                 }
             }
         }
@@ -129,22 +128,22 @@ class SimpleActionsTests {
         assertThat count.response.count, equalTo(1l)
 
         def search = node.client.search {
-            indices "test"
-            types "type1"
+            indices 'test'
+            types 'type1'
             source {
                 query {
-                    term(test: "value")
+                    term(test: 'value')
                 }
             }
         }
         assertThat search.response.failedShards, equalTo(0)
         assertThat search.response.hits.totalHits, equalTo(1l)
-        assertThat search.response.hits[0].source.test, equalTo("value")
+        assertThat search.response.hits[0].source.test, equalTo('value')
 
         def deleteByQuery = node.client.deleteByQuery {
-            indices "test"
+            indices 'test'
             query {
-                term("test": "value")
+                term(test: 'value')
             }
         }
         assertThat deleteByQuery.response.indices.test.failedShards, equalTo(0)
@@ -153,9 +152,9 @@ class SimpleActionsTests {
         assertThat refresh.response.failedShards, equalTo(0)
 
         get = node.client.get {
-            index "test"
-            type "type1"
-            id "1"
+            index 'test'
+            type 'type1'
+            id '1'
         }
         assertThat get.response.exists, equalTo(false)
     }

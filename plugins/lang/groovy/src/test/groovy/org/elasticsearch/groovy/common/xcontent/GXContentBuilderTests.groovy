@@ -28,7 +28,7 @@ class GXContentBuilderTests extends GroovyTestCase {
         def builder = new GXContentBuilder()
 
         def result = builder.buildAsString {
-            rootprop = "something"
+            rootprop = 'something'
         }
 
         assertEquals '{"rootprop":"something"}', result.toString()
@@ -39,7 +39,7 @@ class GXContentBuilderTests extends GroovyTestCase {
 
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
-            rootprop = "something"
+            rootprop = 'something'
         }
 
         assertEquals '{"categories":["a","b","c"],"rootprop":"something"}', result.toString()
@@ -50,7 +50,7 @@ class GXContentBuilderTests extends GroovyTestCase {
 
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
-            rootprop = "something"
+            rootprop = 'something'
             test {
                 subprop = 10
             }
@@ -64,7 +64,7 @@ class GXContentBuilderTests extends GroovyTestCase {
 
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
-            rootprop = "something"
+            rootprop = 'something'
             test = {
                 subprop = 10
             }
@@ -77,9 +77,8 @@ class GXContentBuilderTests extends GroovyTestCase {
         def builder = new GXContentBuilder()
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
-            rootprop = "something"
+            rootprop = 'something'
             test subprop: 10, three: [1, 2, 3]
-
         }
 
         assertEquals '{"categories":["a","b","c"],"rootprop":"something","test":{"subprop":10,"three":[1,2,3]}}', result.toString()
@@ -89,7 +88,7 @@ class GXContentBuilderTests extends GroovyTestCase {
     void testArrayOfClosures() {
         def builder = new GXContentBuilder()
         def result = builder.buildAsString {
-            foo = [{ bar = "hello" }]
+            foo = [{ bar = 'hello' }]
         }
 
         assertEquals '{"foo":[{"bar":"hello"}]}', result.toString()
@@ -125,7 +124,7 @@ class GXContentBuilderTests extends GroovyTestCase {
         def results = ['one', 'two', 'three']
 
         def result = builder.buildAsString {
-            books = array {list ->
+            books = array { list ->
                 for (b in results) {
                     list << [title: b]
                 }

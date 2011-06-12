@@ -54,8 +54,8 @@ class GClient {
 
     static {
         BaseRequestBuilder.metaClass.gexecute = {
-            ListenableActionFuture future = delegate.execute();
-            return new GActionFuture(future);
+            ListenableActionFuture future = delegate.execute()
+            return new GActionFuture(future)
         }
 
         IndexRequest.metaClass.setSource = {Closure c ->
@@ -148,31 +148,31 @@ class GClient {
         }
     }
 
-    public static XContentType contentType = XContentType.SMILE;
+    public static XContentType contentType = XContentType.SMILE
 
-    public static XContentType indexContentType = XContentType.JSON;
+    public static XContentType indexContentType = XContentType.JSON
 
-    final Client client;
+    final Client client
 
     int resolveStrategy = Closure.DELEGATE_FIRST
 
     private final InternalClient internalClient
 
-    final GAdminClient admin;
+    final GAdminClient admin
 
-    def GClient(client) {
-        this.client = client;
-        this.internalClient = client;
+    GClient(client) {
+        this.client = client
+        this.internalClient = client
 
         this.admin = new GAdminClient(this)
     }
 
     IndexRequestBuilder prepareIndex(String index, String type) {
-        return client.prepareIndex(index, type);
+        return client.prepareIndex(index, type)
     }
 
     IndexRequestBuilder prepareIndex(String index, String type, String id) {
-        return client.prepareIndex(index, type, id);
+        return client.prepareIndex(index, type, id)
     }
 
     GActionFuture<IndexResponse> index(Closure c) {
@@ -184,7 +184,7 @@ class GClient {
     }
 
     GActionFuture<IndexResponse> index(IndexRequest request) {
-        GActionFuture<IndexResponse> future = new GActionFuture<IndexResponse>(internalClient.threadPool(), request);
+        GActionFuture<IndexResponse> future = new GActionFuture<IndexResponse>(internalClient.threadPool(), request)
         client.index(request, future)
         return future
     }
@@ -194,7 +194,7 @@ class GClient {
     }
 
     GetRequestBuilder prepareGet(String index, String type, String id) {
-        return client.prepareGet(index, type, id);
+        return client.prepareGet(index, type, id)
     }
 
     GActionFuture<GetResponse> get(Closure c) {
@@ -206,7 +206,7 @@ class GClient {
     }
 
     GActionFuture<GetResponse> get(GetRequest request) {
-        GActionFuture<GetResponse> future = new GActionFuture<GetResponse>(internalClient.threadPool(), request);
+        GActionFuture<GetResponse> future = new GActionFuture<GetResponse>(internalClient.threadPool(), request)
         client.get(request, future)
         return future
     }
@@ -228,7 +228,7 @@ class GClient {
     }
 
     GActionFuture<DeleteResponse> delete(DeleteRequest request) {
-        GActionFuture<DeleteResponse> future = new GActionFuture<DeleteResponse>(internalClient.threadPool(), request);
+        GActionFuture<DeleteResponse> future = new GActionFuture<DeleteResponse>(internalClient.threadPool(), request)
         client.delete(request, future)
         return future
     }
@@ -238,7 +238,7 @@ class GClient {
     }
 
     DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices) {
-        return client.prepareDeleteByQuery(indices);
+        return client.prepareDeleteByQuery(indices)
     }
 
     GActionFuture<DeleteByQueryResponse> deleteByQuery(Closure c) {
@@ -250,7 +250,7 @@ class GClient {
     }
 
     GActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
-        GActionFuture<DeleteByQueryResponse> future = new GActionFuture<DeleteByQueryResponse>(internalClient.threadPool(), request);
+        GActionFuture<DeleteByQueryResponse> future = new GActionFuture<DeleteByQueryResponse>(internalClient.threadPool(), request)
         client.deleteByQuery(request, future)
         return future
     }
@@ -272,7 +272,7 @@ class GClient {
     }
 
     GActionFuture<CountResponse> count(CountRequest request) {
-        GActionFuture<CountResponse> future = new GActionFuture<CountResponse>(internalClient.threadPool(), request);
+        GActionFuture<CountResponse> future = new GActionFuture<CountResponse>(internalClient.threadPool(), request)
         client.count(request, future)
         return future
     }
@@ -294,7 +294,7 @@ class GClient {
     }
 
     GActionFuture<SearchResponse> search(SearchRequest request) {
-        GActionFuture<SearchResponse> future = new GActionFuture<SearchResponse>(internalClient.threadPool(), request);
+        GActionFuture<SearchResponse> future = new GActionFuture<SearchResponse>(internalClient.threadPool(), request)
         client.search(request, future)
         return future
     }
@@ -312,7 +312,7 @@ class GClient {
     }
 
     GActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
-        GActionFuture<SearchResponse> future = new GActionFuture<SearchResponse>(internalClient.threadPool(), request);
+        GActionFuture<SearchResponse> future = new GActionFuture<SearchResponse>(internalClient.threadPool(), request)
         client.moreLikeThis(request, future)
         return future
     }

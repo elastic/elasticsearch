@@ -117,6 +117,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return connectedNodes.containsKey(node);
     }
 
+    @Override public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+        connectToNode(node);
+    }
+
     @Override public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
         synchronized (this) {
             if (connectedNodes.containsKey(node)) {

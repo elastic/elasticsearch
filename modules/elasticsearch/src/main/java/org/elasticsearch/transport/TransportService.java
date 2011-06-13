@@ -117,6 +117,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         transport.connectToNode(node);
     }
 
+    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+        transport.connectToNodeLight(node);
+    }
+
     public void disconnectFromNode(DiscoveryNode node) {
         transport.disconnectFromNode(node);
     }

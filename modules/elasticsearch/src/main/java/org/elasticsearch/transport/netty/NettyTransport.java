@@ -468,7 +468,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return connectedNodes.containsKey(node);
     }
 
+    @Override public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+        connectToNode(node, true);
+    }
+
     @Override public void connectToNode(DiscoveryNode node) {
+        connectToNode(node, false);
+    }
+
+    public void connectToNode(DiscoveryNode node, boolean light) {
         if (!lifecycle.started()) {
             throw new ElasticSearchIllegalStateException("Can't add nodes to a stopped transport");
         }
@@ -481,12 +489,16 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 return;
             }
 
-            nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
-            try {
-                connectToChannels(nodeChannels, node);
-            } catch (Exception e) {
-                nodeChannels.close();
-                throw e;
+            if (light) {
+                nodeChannels = connectToChannelsLight(node);
+            } else {
+                nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh]);
+                try {
+                    connectToChannels(nodeChannels, node);
+                } catch (Exception e) {
+                    nodeChannels.close();
+                    throw e;
+                }
             }
 
             NodeChannels existing = connectedNodes.putIfAbsent(node, nodeChannels);
@@ -505,6 +517,19 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         } catch (Exception e) {
             throw new ConnectTransportException(node, "General node connection failure", e);
         }
+    }
+
+    private NodeChannels connectToChannelsLight(DiscoveryNode node) {
+        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        ChannelFuture connect = clientBootstrap.connect(address);
+        connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+        if (!connect.isSuccess()) {
+            throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connect.getCause());
+        }
+        Channel[] channels = new Channel[1];
+        channels[0] = connect.getChannel();
+        channels[0].getCloseFuture().addListener(new ChannelCloseListener(node));
+        return new NodeChannels(channels, channels, channels);
     }
 
     private void connectToChannels(NodeChannels nodeChannels, DiscoveryNode node) {

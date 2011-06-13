@@ -36,14 +36,24 @@ import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -137,11 +147,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
-            @Override public void onPing(PingResponse[] pings) {
-                response.set(pings);
-                latch.countDown();
-            }
-        }, timeout);
+                    @Override public void onPing(PingResponse[] pings) {
+                        response.set(pings);
+                        latch.countDown();
+                    }
+                }, timeout);
         try {
             latch.await();
             return response.get();
@@ -195,7 +205,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     @Override public void run() {
                         try {
                             // connect to the node, see if we manage to do it, if not, bail
-                            transportService.connectToNode(nodeToSend);
+                            if (disconnect) {
+                                transportService.connectToNodeLight(nodeToSend);
+                            } else {
+                                transportService.connectToNode(nodeToSend);
+                            }
                             // we are connected, send the ping request
                             sendPingRequestToNode(id, timeout, pingRequest, latch, node, disconnect, nodeToSend);
                         } catch (ConnectTransportException e) {

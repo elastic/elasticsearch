@@ -27,10 +27,15 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
@@ -49,11 +54,12 @@ public class CompoundAnalysisTests {
     @Test public void testDefaultsCompoundAnalysis() throws Exception {
         Index index = new Index("test");
         Settings settings = getJsonSettings();
-
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings)).createInjector();
+                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
+                .createChildInjector(parentInjector);
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
@@ -72,10 +78,12 @@ public class CompoundAnalysisTests {
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         Index index = new Index("test");
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings)).createInjector();
+                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
+                .createChildInjector(parentInjector);
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 

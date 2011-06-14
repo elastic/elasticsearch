@@ -48,6 +48,8 @@ import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
@@ -278,6 +280,17 @@ public class IndicesAnalysisService extends AbstractComponent {
         }));
 
         // Token Filters
+        tokenFilterFactories.put("word_delimiter", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override public String name() {
+                return "word_delimiter";
+            }
+
+            @Override public TokenStream create(TokenStream tokenStream) {
+                return new WordDelimiterFilter(tokenStream, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
+                        1, 1, 0, 0, 0, 1, 0, 1, 1, null);
+            }
+        }));
+
         tokenFilterFactories.put("stop", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {
                 return "stop";
@@ -516,12 +529,20 @@ public class IndicesAnalysisService extends AbstractComponent {
         return charFilterFactoryFactory(name) != null;
     }
 
+    public Map<String, PreBuiltCharFilterFactoryFactory> charFilterFactories() {
+        return charFilterFactories;
+    }
+
     public CharFilterFactoryFactory charFilterFactoryFactory(String name) {
         return charFilterFactories.get(name);
     }
 
     public boolean hasTokenFilter(String name) {
         return tokenFilterFactoryFactory(name) != null;
+    }
+
+    public Map<String, PreBuiltTokenFilterFactoryFactory> tokenFilterFactories() {
+        return tokenFilterFactories;
     }
 
     public TokenFilterFactoryFactory tokenFilterFactoryFactory(String name) {
@@ -532,8 +553,16 @@ public class IndicesAnalysisService extends AbstractComponent {
         return tokenizerFactoryFactory(name) != null;
     }
 
+    public Map<String, PreBuiltTokenizerFactoryFactory> tokenizerFactories() {
+        return tokenizerFactories;
+    }
+
     public TokenizerFactoryFactory tokenizerFactoryFactory(String name) {
         return tokenizerFactories.get(name);
+    }
+
+    public Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories() {
+        return analyzerProviderFactories;
     }
 
     public PreBuiltAnalyzerProviderFactory analyzerProviderFactory(String name) {

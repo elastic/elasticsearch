@@ -22,12 +22,16 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,10 +47,11 @@ public class MapperTests {
     }
 
     public static AnalysisService newAnalysisService() {
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS), new EnvironmentModule(new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexNameModule(new Index("test")),
-                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS)).createInjector();
+                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }

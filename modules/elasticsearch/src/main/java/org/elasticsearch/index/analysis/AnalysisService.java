@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.util.Map;
 
@@ -47,11 +48,15 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     private final ImmutableMap<String, TokenFilterFactory> tokenFilters;
 
+    private final NamedAnalyzer defaultAnalyzer;
+    private final NamedAnalyzer defaultIndexAnalyzer;
+    private final NamedAnalyzer defaultSearchAnalyzer;
+
     public AnalysisService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null, null);
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null, null, null);
     }
 
-    @Inject public AnalysisService(Index index, @IndexSettings Settings indexSettings,
+    @Inject public AnalysisService(Index index, @IndexSettings Settings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
                                    @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
                                    @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
                                    @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
@@ -75,6 +80,22 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 tokenizers.put(Strings.toCamelCase(tokenizerName), tokenizerFactory);
             }
         }
+
+        if (indicesAnalysisService != null) {
+            for (Map.Entry<String, PreBuiltTokenizerFactoryFactory> entry : indicesAnalysisService.tokenizerFactories().entrySet()) {
+                String name = entry.getKey();
+                if (!tokenizers.containsKey(name)) {
+                    tokenizers.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                }
+                name = Strings.toCamelCase(entry.getKey());
+                if (!name.equals(entry.getKey())) {
+                    if (!tokenizers.containsKey(name)) {
+                        tokenizers.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                    }
+                }
+            }
+        }
+
         this.tokenizers = ImmutableMap.copyOf(tokenizers);
 
         Map<String, CharFilterFactory> charFilters = newHashMap();
@@ -94,6 +115,22 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 charFilters.put(Strings.toCamelCase(charFilterName), tokenFilterFactory);
             }
         }
+
+        if (indicesAnalysisService != null) {
+            for (Map.Entry<String, PreBuiltCharFilterFactoryFactory> entry : indicesAnalysisService.charFilterFactories().entrySet()) {
+                String name = entry.getKey();
+                if (!charFilters.containsKey(name)) {
+                    charFilters.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                }
+                name = Strings.toCamelCase(entry.getKey());
+                if (!name.equals(entry.getKey())) {
+                    if (!charFilters.containsKey(name)) {
+                        charFilters.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                    }
+                }
+            }
+        }
+
         this.charFilters = ImmutableMap.copyOf(charFilters);
 
         Map<String, TokenFilterFactory> tokenFilters = newHashMap();
@@ -113,6 +150,22 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 tokenFilters.put(Strings.toCamelCase(tokenFilterName), tokenFilterFactory);
             }
         }
+
+        // pre initialize the globally registered ones into the map
+        if (indicesAnalysisService != null) {
+            for (Map.Entry<String, PreBuiltTokenFilterFactoryFactory> entry : indicesAnalysisService.tokenFilterFactories().entrySet()) {
+                String name = entry.getKey();
+                if (!tokenFilters.containsKey(name)) {
+                    tokenFilters.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                }
+                name = Strings.toCamelCase(entry.getKey());
+                if (!name.equals(entry.getKey())) {
+                    if (!tokenFilters.containsKey(name)) {
+                        tokenFilters.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                    }
+                }
+            }
+        }
         this.tokenFilters = ImmutableMap.copyOf(tokenFilters);
 
         Map<String, AnalyzerProvider> analyzerProviders = newHashMap();
@@ -129,6 +182,20 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 AnalyzerProvider analyzerFactory = analyzerFactoryFactory.create(analyzerName, analyzerSettings);
                 analyzerProviders.put(analyzerName, analyzerFactory);
+            }
+        }
+        if (indicesAnalysisService != null) {
+            for (Map.Entry<String, PreBuiltAnalyzerProviderFactory> entry : indicesAnalysisService.analyzerProviderFactories().entrySet()) {
+                String name = entry.getKey();
+                if (!analyzerProviders.containsKey(name)) {
+                    analyzerProviders.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                }
+                name = Strings.toCamelCase(entry.getKey());
+                if (!name.equals(entry.getKey())) {
+                    if (!analyzerProviders.containsKey(name)) {
+                        analyzerProviders.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                    }
+                }
             }
         }
 
@@ -161,6 +228,11 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 analyzers.put(alias, analyzer);
             }
         }
+
+        defaultAnalyzer = analyzers.get("default");
+        defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : analyzers.get("default");
+        defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : analyzers.get("default");
+
         this.analyzers = ImmutableMap.copyOf(analyzers);
     }
 
@@ -184,15 +256,15 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     }
 
     public NamedAnalyzer defaultAnalyzer() {
-        return analyzers.get("default");
+        return defaultAnalyzer;
     }
 
     public NamedAnalyzer defaultIndexAnalyzer() {
-        return defaultAnalyzer();
+        return defaultIndexAnalyzer;
     }
 
     public NamedAnalyzer defaultSearchAnalyzer() {
-        return defaultAnalyzer();
+        return defaultSearchAnalyzer;
     }
 
     public TokenizerFactory tokenizer(String name) {

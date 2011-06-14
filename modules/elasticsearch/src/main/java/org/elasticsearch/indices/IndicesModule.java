@@ -26,7 +26,7 @@ import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.recovery.RecoverySource;
 import org.elasticsearch.index.shard.recovery.RecoveryTarget;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.cache.filter.IndicesNodeFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
@@ -45,7 +45,7 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new IndicesQueriesModule());
+        return ImmutableList.of(new IndicesQueriesModule(), new IndicesAnalysisModule());
     }
 
     @Override protected void configure() {
@@ -59,7 +59,6 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndexingMemoryBufferController.class).asEagerSingleton();
         bind(IndicesNodeFilterCache.class).asEagerSingleton();
-        bind(IndicesAnalysisService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
     }
 }

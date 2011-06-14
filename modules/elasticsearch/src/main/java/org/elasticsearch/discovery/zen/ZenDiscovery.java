@@ -84,7 +84,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final MembershipAction membership;
 
 
-    private final TimeValue initialPingTimeout;
+    private final TimeValue pingTimeout;
 
     // a flag that should be used only for testing
     private final boolean sendLeaveRequest;
@@ -114,10 +114,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.transportService = transportService;
         this.pingService = pingService;
 
-        this.initialPingTimeout = componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)));
+        // also support direct discovery.zen settings, for cases when it gets extended
+        this.pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3))));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
-        logger.debug("using ping_timeout [{}]", initialPingTimeout);
+        logger.debug("using ping_timeout [{}]", pingTimeout);
 
         this.electMaster = new ElectMasterService(settings);
 
@@ -281,7 +282,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 // send join request
                 ClusterState clusterState;
                 try {
-                    clusterState = membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
+                    clusterState = membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
                 } catch (Exception e) {
                     if (e instanceof ElasticSearchException) {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
@@ -497,7 +498,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private DiscoveryNode findMaster() {
-        ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(initialPingTimeout);
+        ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(pingTimeout);
         if (pingResponses == null) {
             return null;
         }

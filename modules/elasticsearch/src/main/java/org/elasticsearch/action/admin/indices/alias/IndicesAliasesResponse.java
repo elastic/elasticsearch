@@ -27,18 +27,36 @@ import org.elasticsearch.common.io.stream.Streamable;
 import java.io.IOException;
 
 /**
- * A response for a create index action.
+ * A response for a add/remove alias action.
  *
  * @author kimchy (shay.banon)
  */
 public class IndicesAliasesResponse implements ActionResponse, Streamable {
 
+    private boolean acknowledged;
+
     IndicesAliasesResponse() {
+
     }
 
+    IndicesAliasesResponse(boolean acknowledged) {
+        this.acknowledged = acknowledged;
+    }
+
+    public boolean acknowledged() {
+        return acknowledged;
+    }
+
+    public boolean getAcknowledged() {
+        return acknowledged();
+    }
+
+
     @Override public void readFrom(StreamInput in) throws IOException {
+        acknowledged = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(acknowledged);
     }
 }

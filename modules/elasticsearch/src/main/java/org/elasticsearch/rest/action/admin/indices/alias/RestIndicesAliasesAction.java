@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.*;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
@@ -64,6 +65,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
+            indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
             XContentParser parser = XContentFactory.xContent(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength())
                     .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
             XContentParser.Token token = parser.nextToken();
@@ -156,6 +158,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
+                            .field("acknowledged", response.acknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {

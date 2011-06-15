@@ -26,8 +26,10 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 
@@ -38,10 +40,11 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
 
     private AmazonEC2Client client;
 
-    @Inject public AwsEc2Service(Settings settings, SettingsFilter settingsFilter) {
+    @Inject public AwsEc2Service(Settings settings, SettingsFilter settingsFilter, NetworkService networkService) {
         super(settings);
-
         settingsFilter.addFilter(new AwsSettingsFilter());
+        // add specific ec2 name resolver
+        networkService.addCustomNameResolver(new Ec2NameResolver(settings));
     }
 
     public synchronized AmazonEC2 client() {

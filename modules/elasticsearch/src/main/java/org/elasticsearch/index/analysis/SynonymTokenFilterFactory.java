@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final SynonymMap synonymMap;
 
-    @Inject public SynonymTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, Map<String, TokenizerFactoryFactory> tokenizerFactories,
+    @Inject public SynonymTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, IndicesAnalysisService indicesAnalysisService, Map<String, TokenizerFactoryFactory> tokenizerFactories,
                                              @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
@@ -54,8 +55,16 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
         boolean expand = settings.getAsBoolean("expand", true);
 
-        TokenizerFactoryFactory tokenizerFactoryFactory = tokenizerFactories.get(settings.get("tokenizer", "whitespace"));
-        TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(settings.get("tokenizer", "whitespace"), settings);
+        String tokenizerName = settings.get("tokenizer", "whitespace");
+
+        TokenizerFactoryFactory tokenizerFactoryFactory = tokenizerFactories.get(tokenizerName);
+        if (tokenizerFactoryFactory == null) {
+            tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(tokenizerName);
+        }
+        if (tokenizerFactoryFactory == null) {
+            throw new ElasticSearchIllegalArgumentException("failed to fine tokenizer [" + tokenizerName + "] for synonym token filter");
+        }
+        TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, settings);
         synonymMap = new SynonymMap(ignoreCase);
         parseRules(rules, synonymMap, "=>", ",", expand, tokenizerFactory);
     }

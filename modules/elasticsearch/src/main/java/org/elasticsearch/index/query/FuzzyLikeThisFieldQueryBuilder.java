@@ -37,6 +37,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder {
     private Integer prefixLength;
     private Integer maxQueryTerms;
     private Boolean ignoreTF;
+    private String analyzer;
 
     /**
      * A fuzzy more like this query on the provided field.
@@ -75,6 +76,14 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the field.
+     */
+    public FuzzyLikeThisFieldQueryBuilder analyzer(String analyzer) {
+        this.analyzer = analyzer;
+        return this;
+    }
+
     public FuzzyLikeThisFieldQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -101,6 +110,9 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder {
         }
         if (boost != null) {
             builder.field("boost", boost);
+        }
+        if (analyzer != null) {
+            builder.field("analyzer", analyzer);
         }
         builder.endObject();
         builder.endObject();

@@ -43,6 +43,7 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder {
     private int maxWordLen = -1;
     private float boostTerms = -1;
     private float boost = -1;
+    private String analyzer;
 
     /**
      * A more like this query that runs against a specific field.
@@ -143,6 +144,14 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the fied.
+     */
+    public MoreLikeThisFieldQueryBuilder analyzer(String analyzer) {
+        this.analyzer = analyzer;
+        return this;
+    }
+
     public MoreLikeThisFieldQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -188,6 +197,9 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder {
         }
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (analyzer != null) {
+            builder.field("analyzer", analyzer);
         }
         builder.endObject();
         builder.endObject();

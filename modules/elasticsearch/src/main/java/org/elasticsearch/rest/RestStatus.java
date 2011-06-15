@@ -19,6 +19,11 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 public enum RestStatus {
     /**
      * The client SHOULD continue with its request. This interim response is used to inform the client that the
@@ -476,5 +481,13 @@ public enum RestStatus {
 
     public int getStatus() {
         return status;
+    }
+
+    public static RestStatus readFrom(StreamInput in) throws IOException {
+        return RestStatus.valueOf(in.readUTF());
+    }
+
+    public static void writeTo(StreamOutput out, RestStatus status) throws IOException {
+        out.writeUTF(status.name());
     }
 }

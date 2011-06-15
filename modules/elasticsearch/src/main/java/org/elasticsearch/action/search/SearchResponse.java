@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -65,6 +66,24 @@ public class SearchResponse implements ActionResponse, ToXContent {
         this.successfulShards = successfulShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+    }
+
+    public RestStatus status() {
+        if (shardFailures.length == 0) {
+            return RestStatus.OK;
+        }
+        if (successfulShards == 0 && totalShards > 0) {
+            RestStatus status = shardFailures[0].status();
+            if (shardFailures.length > 1) {
+                for (int i = 1; i < shardFailures.length; i++) {
+                    if (shardFailures[i].status().getStatus() >= 500) {
+                        status = shardFailures[i].status();
+                    }
+                }
+            }
+            return status;
+        }
+        return RestStatus.OK;
     }
 
     /**
@@ -216,6 +235,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
         static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
         static final XContentBuilderString FAILED = new XContentBuilderString("failed");
         static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString SHARD = new XContentBuilderString("shard");
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
@@ -242,6 +262,7 @@ public class SearchResponse implements ActionResponse, ToXContent {
                     builder.field(Fields.INDEX, shardFailure.shard().index());
                     builder.field(Fields.SHARD, shardFailure.shard().shardId());
                 }
+                builder.field(Fields.STATUS, shardFailure.status().getStatus());
                 builder.field(Fields.REASON, shardFailure.reason());
                 builder.endObject();
             }

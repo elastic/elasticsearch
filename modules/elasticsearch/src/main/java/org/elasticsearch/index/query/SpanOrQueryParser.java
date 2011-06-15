@@ -62,7 +62,7 @@ public class SpanOrQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         Query query = parseContext.parseInnerQuery();
                         if (!(query instanceof SpanQuery)) {
-                            throw new QueryParsingException(parseContext.index(), "spanNear [clauses] must be of type span query");
+                            throw new QueryParsingException(parseContext.index(), "spanOr [clauses] must be of type span query");
                         }
                         clauses.add((SpanQuery) query);
                     }

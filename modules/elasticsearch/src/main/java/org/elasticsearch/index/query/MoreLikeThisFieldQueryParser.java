@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Sets;
@@ -60,6 +61,7 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
         mltQuery.setSimilarity(parseContext.searchSimilarity());
+        Analyzer analyzer = null;
 
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -85,6 +87,8 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
                     mltQuery.setBoostTermsFactor(parser.floatValue());
                 } else if ("percent_terms_to_match".equals(currentFieldName) || "percentTermsToMatch".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(parser.floatValue());
+                } else if ("analyzer".equals(currentFieldName)) {
+                    analyzer = parseContext.analysisService().analyzer(parser.text());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("stop_words".equals(currentFieldName) || "stopWords".equals(currentFieldName)) {
@@ -109,12 +113,15 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
-                mltQuery.setAnalyzer(smartNameFieldMappers.mapper().searchAnalyzer());
+                if (analyzer == null) {
+                    analyzer = smartNameFieldMappers.mapper().searchAnalyzer();
+                }
             }
         }
-        if (mltQuery.getAnalyzer() == null) {
-            mltQuery.setAnalyzer(parseContext.mapperService().searchAnalyzer());
+        if (analyzer == null) {
+            analyzer = parseContext.mapperService().searchAnalyzer();
         }
+        mltQuery.setAnalyzer(analyzer);
         mltQuery.setMoreLikeFields(new String[]{fieldName});
         return wrapSmartNameQuery(mltQuery, smartNameFieldMappers, parseContext);
     }

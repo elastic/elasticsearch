@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Lists;
@@ -64,6 +65,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         float minSimilarity = 0.5f;
         int prefixLength = 0;
         boolean ignoreTF = false;
+        Analyzer analyzer = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -83,6 +85,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     minSimilarity = parser.floatValue();
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                     prefixLength = parser.intValue();
+                } else if ("analyzer".equals(currentFieldName)) {
+                    analyzer = parseContext.analysisService().analyzer(parser.text());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("fields".equals(currentFieldName)) {
@@ -98,7 +102,11 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'like_text' to be specified");
         }
 
-        FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, parseContext.mapperService().searchAnalyzer());
+        if (analyzer == null) {
+            analyzer = parseContext.mapperService().searchAnalyzer();
+        }
+
+        FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, analyzer);
         if (fields == null) {
             // add the default _all field
             query.addTerms(likeText, AllFieldMapper.NAME, minSimilarity, prefixLength);

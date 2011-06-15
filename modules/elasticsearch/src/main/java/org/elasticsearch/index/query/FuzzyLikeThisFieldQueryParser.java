@@ -65,6 +65,7 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         float minSimilarity = 0.5f;
         int prefixLength = 0;
         boolean ignoreTF = false;
+        Analyzer analyzer = null;
 
         XContentParser.Token token = parser.nextToken();
         assert token == XContentParser.Token.FIELD_NAME;
@@ -92,6 +93,8 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
                     minSimilarity = parser.floatValue();
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                     prefixLength = parser.intValue();
+                } else if ("analyzer".equals(currentFieldName)) {
+                    analyzer = parseContext.analysisService().analyzer(parser.text());
                 }
             }
         }
@@ -100,12 +103,13 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "fuzzy_like_This_field requires 'like_text' to be specified");
         }
 
-        Analyzer analyzer = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
-                analyzer = smartNameFieldMappers.mapper().searchAnalyzer();
+                if (analyzer == null) {
+                    analyzer = smartNameFieldMappers.mapper().searchAnalyzer();
+                }
             }
         }
         if (analyzer == null) {

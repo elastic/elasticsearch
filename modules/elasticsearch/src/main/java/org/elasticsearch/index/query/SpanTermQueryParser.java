@@ -74,6 +74,7 @@ public class SpanTermQueryParser implements QueryParser {
                     }
                 }
             }
+            parser.nextToken();
         } else {
             value = parser.text();
             // move to the next token

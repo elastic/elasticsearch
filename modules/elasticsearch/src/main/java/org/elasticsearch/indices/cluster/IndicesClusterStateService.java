@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
@@ -97,6 +98,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
+    private final NodeAliasesUpdatedAction nodeAliasesUpdatedAction;
+
     // a map of mappings type we have seen per index due to cluster state
     // we need this so we won't remove types automatically created as part of the indexing process
     private final ConcurrentMap<Tuple<String, String>, Boolean> seenMappings = ConcurrentCollections.newConcurrentMap();
@@ -109,7 +112,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                               ThreadPool threadPool, RecoveryTarget recoveryTarget, RecoverySource recoverySource,
                                               ShardStateAction shardStateAction,
                                               NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
-                                              NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction) {
+                                              NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction,
+                                              NodeAliasesUpdatedAction nodeAliasesUpdatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -121,6 +125,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingCreatedAction = nodeMappingCreatedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
+        this.nodeAliasesUpdatedAction = nodeAliasesUpdatedAction;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -372,26 +377,36 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         return requiresRefresh;
     }
 
+    private boolean aliasesChanged(ClusterChangedEvent event) {
+        return !event.state().metaData().aliases().equals(event.previousState().metaData().aliases());
+    }
+
     private void applyAliases(ClusterChangedEvent event) {
-        // go over and update aliases
-        for (IndexMetaData indexMetaData : event.state().metaData()) {
-            if (!indicesService.hasIndex(indexMetaData.index())) {
-                // we only create / update here
-                continue;
-            }
-            String index = indexMetaData.index();
-            IndexService indexService = indicesService.indexService(index);
-            IndexAliasesService indexAliasesService = indexService.aliasesService();
-            for (AliasMetaData aliasesMd : indexMetaData.aliases().values()) {
-                processAlias(index, aliasesMd.alias(), aliasesMd.filter(), indexAliasesService);
-            }
-            // go over and remove aliases
-            for (IndexAlias indexAlias : indexAliasesService) {
-                if (!indexMetaData.aliases().containsKey(indexAlias.alias())) {
-                    // we have it in our aliases, but not in the metadata, remove it
-                    indexAliasesService.remove(indexAlias.alias());
+        // check if aliases changed
+        if (aliasesChanged(event)) {
+            // go over and update aliases
+            for (IndexMetaData indexMetaData : event.state().metaData()) {
+                if (!indicesService.hasIndex(indexMetaData.index())) {
+                    // we only create / update here
+                    continue;
+                }
+                String index = indexMetaData.index();
+                IndexService indexService = indicesService.indexService(index);
+                IndexAliasesService indexAliasesService = indexService.aliasesService();
+                for (AliasMetaData aliasesMd : indexMetaData.aliases().values()) {
+                    processAlias(index, aliasesMd.alias(), aliasesMd.filter(), indexAliasesService);
+                }
+                // go over and remove aliases
+                for (IndexAlias indexAlias : indexAliasesService) {
+                    if (!indexMetaData.aliases().containsKey(indexAlias.alias())) {
+                        // we have it in our aliases, but not in the metadata, remove it
+                        indexAliasesService.remove(indexAlias.alias());
+                    }
                 }
             }
+            // Notify client that alias changes were applied
+            nodeAliasesUpdatedAction.nodeAliasesUpdated(
+                    new NodeAliasesUpdatedAction.NodeAliasesUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
         }
     }
 

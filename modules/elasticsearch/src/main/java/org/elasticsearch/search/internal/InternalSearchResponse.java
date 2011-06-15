@@ -43,6 +43,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private boolean timedOut;
 
+    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, false);
+
     private InternalSearchResponse() {
     }
 

@@ -20,12 +20,10 @@
 package org.elasticsearch.discovery.ec2;
 
 import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -39,31 +37,27 @@ import org.elasticsearch.transport.TransportService;
  */
 public class Ec2Discovery extends ZenDiscovery {
 
-	@Inject public Ec2Discovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
-			ClusterService clusterService, ZenPingService pingService, AwsEc2Service ec2Service, NetworkService networkService) {
-		super(settings, clusterName, threadPool, transportService, clusterService, pingService);
-		if (settings.getAsBoolean("cloud.enabled", true)) {
+    @Inject public Ec2Discovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
+                                ClusterService clusterService, ZenPingService pingService, AwsEc2Service ec2Service) {
+        super(settings, clusterName, threadPool, transportService, clusterService, pingService);
+        if (settings.getAsBoolean("cloud.enabled", true)) {
+            ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
+            UnicastZenPing unicastZenPing = null;
+            for (ZenPing zenPing : zenPings) {
+                if (zenPing instanceof UnicastZenPing) {
+                    unicastZenPing = (UnicastZenPing) zenPing;
+                    break;
+                }
+            }
 
-			// add ec2 hostname resolvers to NetworkService issue#940
-			networkService.addCustomNameResolver(new Ec2NameResolver());
-
-			ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
-			UnicastZenPing unicastZenPing = null;
-			for (ZenPing zenPing : zenPings) {
-				if (zenPing instanceof UnicastZenPing) {
-					unicastZenPing = (UnicastZenPing) zenPing;
-					break;
-				}
-			}
-
-			if (unicastZenPing != null) {
-				// update the unicast zen ping to add cloud hosts provider
-				// and, while we are at it, use only it and not the multicast for example
-				unicastZenPing.addHostsProvider(new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service.client()));
-				pingService.zenPings(ImmutableList.of(unicastZenPing));
-			} else {
-				logger.warn("failed to apply ec2 unicast discovery, no unicast ping found");
-			}
-		}
-	}
+            if (unicastZenPing != null) {
+                // update the unicast zen ping to add cloud hosts provider
+                // and, while we are at it, use only it and not the multicast for example
+                unicastZenPing.addHostsProvider(new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service.client()));
+                pingService.zenPings(ImmutableList.of(unicastZenPing));
+            } else {
+                logger.warn("failed to apply ec2 unicast discovery, no unicast ping found");
+            }
+        }
+    }
 }

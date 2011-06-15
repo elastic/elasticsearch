@@ -80,6 +80,7 @@ public class SpanTermQueryParser extends AbstractIndexComponent implements XCont
                     }
                 }
             }
+            parser.nextToken();
         } else {
             value = parser.text();
             // move to the next token

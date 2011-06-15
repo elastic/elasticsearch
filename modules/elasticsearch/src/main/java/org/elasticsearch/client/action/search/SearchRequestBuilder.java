@@ -479,7 +479,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
 
     /**
      * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consifer using
+     * than the search type will cause this source to be overridden, consider using
      * {@link #setExtraSource(String)}.
      */
     public SearchRequestBuilder setSource(String source) {

@@ -424,7 +424,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (!Strings.validFileName(request.index)) {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
-        if (state.metaData().aliases().contains(request.index)) {
+        if (state.metaData().aliases().containsKey(request.index)) {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "an alias with the same name already exists");
         }
     }

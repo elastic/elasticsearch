@@ -115,6 +115,16 @@ public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<Indi
         return this;
     }
 
+    /**
+     * Sets operation timeout.
+     *
+     * @param timeout
+     */
+    public IndicesAliasesRequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return this;
+    }
+
     @Override protected void doExecute(ActionListener<IndicesAliasesResponse> listener) {
         client.aliases(request, listener);
     }

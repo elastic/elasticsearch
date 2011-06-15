@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -38,6 +39,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.cluster.metadata.AliasAction.*;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * A request to add/remove aliases for one or more indices.
@@ -47,6 +49,8 @@ import static org.elasticsearch.cluster.metadata.AliasAction.*;
 public class IndicesAliasesRequest extends MasterNodeOperationRequest {
 
     private List<AliasAction> aliasActions = Lists.newArrayList();
+
+    private TimeValue timeout = TimeValue.timeValueSeconds(10);
 
     public IndicesAliasesRequest() {
 
@@ -139,6 +143,31 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
         return this.aliasActions;
     }
 
+    /**
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
+     */
+    TimeValue timeout() {
+        return timeout;
+    }
+
+    /**
+     * Timeout to wait till the alias operations get acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
+     */
+    public IndicesAliasesRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * Timeout to wait till the alias operations get acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
+     */
+    public IndicesAliasesRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, TimeValue.timeValueSeconds(10)));
+    }
+
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (aliasActions.isEmpty()) {
@@ -153,6 +182,7 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
         for (int i = 0; i < size; i++) {
             aliasActions.add(readAliasAction(in));
         }
+        timeout = readTimeValue(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -161,5 +191,6 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
         for (AliasAction aliasAction : aliasActions) {
             aliasAction.writeTo(out);
         }
+        timeout.writeTo(out);
     }
 }

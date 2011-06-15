@@ -188,11 +188,11 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.version;
     }
 
-    public ImmutableSet<String> aliases() {
-        return this.aliases.keySet();
+    public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> aliases() {
+        return this.aliases;
     }
 
-    public ImmutableSet<String> getAliases() {
+    public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> getAliases() {
         return aliases();
     }
 

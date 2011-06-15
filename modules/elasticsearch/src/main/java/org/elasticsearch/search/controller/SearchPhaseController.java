@@ -20,7 +20,11 @@
 package org.elasticsearch.search.controller;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ShardFieldDocSortedHitQueue;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Iterables;
@@ -256,7 +260,13 @@ public class SearchPhaseController extends AbstractComponent {
 
         boolean sorted = false;
         int sortScoreIndex = -1;
-        QuerySearchResult querySearchResult = Iterables.get(queryResults.values(), 0).queryResult();
+        QuerySearchResult querySearchResult;
+        try {
+            querySearchResult = Iterables.get(queryResults.values(), 0).queryResult();
+        } catch (IndexOutOfBoundsException e) {
+            // no results, return an empty response
+            return InternalSearchResponse.EMPTY;
+        }
 
         if (querySearchResult.topDocs() instanceof TopFieldDocs) {
             sorted = true;

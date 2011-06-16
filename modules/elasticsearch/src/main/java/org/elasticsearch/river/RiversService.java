@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.river.cluster.RiverClusterChangedEvent;
 import org.elasticsearch.river.cluster.RiverClusterService;
@@ -232,7 +233,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                         // this might happen if the state of the river index has not been propagated yet to this node, which
                         // should happen pretty fast since we managed to get the _meta in the RiversRouter
                         Throwable failure = ExceptionsHelper.unwrapCause(e);
-                        if ((failure instanceof NoShardAvailableActionException) || (failure instanceof ClusterBlockException)) {
+                        if ((failure instanceof NoShardAvailableActionException) || (failure instanceof ClusterBlockException) || (failure instanceof IndexMissingException)) {
                             logger.debug("failed to get _meta from [{}]/[{}], retrying...", e, routing.riverName().type(), routing.riverName().name());
                             final ActionListener<GetResponse> listener = this;
                             threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {

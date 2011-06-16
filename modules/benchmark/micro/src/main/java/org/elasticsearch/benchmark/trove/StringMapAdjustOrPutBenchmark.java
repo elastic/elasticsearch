@@ -76,10 +76,10 @@ public class StringMapAdjustOrPutBenchmark {
             if (REUSE) {
                 iMap.clear();
             } else {
-                map = new TObjectIntHashMap<String>();
+                iMap = new TObjectIntCustomHashMap<String>(new StringIdentityHashingStrategy());
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
-                iMap = new TObjectIntCustomHashMap<String>(new StringIdentityHashingStrategy());
+                iMap.adjustOrPutValue(values[(int) (i % NUMBER_OF_KEYS)], 1, 1);
             }
         }
         stopWatch.stop();
@@ -93,10 +93,10 @@ public class StringMapAdjustOrPutBenchmark {
             if (REUSE) {
                 iMap.clear();
             } else {
-                map = new TObjectIntHashMap<String>();
+                iMap = new TObjectIntCustomHashMap<String>(new IdentityHashingStrategy<String>());
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
-                iMap = new TObjectIntCustomHashMap<String>(new IdentityHashingStrategy<String>());
+                iMap.adjustOrPutValue(values[(int) (i % NUMBER_OF_KEYS)], 1, 1);
             }
         }
         stopWatch.stop();

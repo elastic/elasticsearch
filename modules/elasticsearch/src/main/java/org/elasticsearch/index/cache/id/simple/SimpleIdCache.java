@@ -149,7 +149,6 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
 
                     Map<String, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
 
-                    int t = 1;  // current term number (0 indicated null value)
                     String field = StringHelper.intern(ParentFieldMapper.NAME);
                     TermDocs termDocs = reader.termDocs();
                     TermEnum termEnum = reader.terms(new Term(field));
@@ -178,11 +177,11 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
                                         typeBuilder.parentIdsValues.add(idAsBytes);
                                         added = true;
                                     }
-                                    typeBuilder.parentIdsOrdinals[termDocs.doc()] = t;
+                                    typeBuilder.parentIdsOrdinals[termDocs.doc()] = typeBuilder.t;
                                 }
                             }
                             if (added) {
-                                t++;
+                                typeBuilder.t++;
                             }
                         } while (termEnum.next());
                     } finally {
@@ -241,6 +240,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, In
         final ExtTObjectIntHasMap<BytesWrap> idToDoc = new ExtTObjectIntHasMap<BytesWrap>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
         final ArrayList<BytesWrap> parentIdsValues = new ArrayList<BytesWrap>();
         final int[] parentIdsOrdinals;
+        int t = 1;  // current term number (0 indicated null value)
 
         TypeBuilder(IndexReader reader) {
             parentIdsOrdinals = new int[reader.maxDoc()];

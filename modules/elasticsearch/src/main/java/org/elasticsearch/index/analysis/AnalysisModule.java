@@ -330,6 +330,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("length", LengthTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("lowercase", LowerCaseTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("porter_stem", PorterStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("k_stem", KStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("standard", StandardTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("nGram", NGramTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("ngram", NGramTokenFilterFactory.class);

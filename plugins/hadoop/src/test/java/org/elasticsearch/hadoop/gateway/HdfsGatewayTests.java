@@ -28,6 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
@@ -63,6 +64,7 @@ public class HdfsGatewayTests {
 
     private Node buildNode() {
         Settings settings = settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
                 .put("gateway.type", "hdfs")
                 .put("gateway.hdfs.uri", "file:///")
 //                .put("gateway.hdfs.uri", "hdfs://training-vm.local:8022")

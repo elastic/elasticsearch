@@ -21,6 +21,7 @@ package org.elasticsearch.memcached.test;
 
 import net.spy.memcached.MemcachedClient;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.node.Node;
 import org.hamcrest.Matchers;
 import org.testng.annotations.AfterMethod;
@@ -48,7 +49,9 @@ public abstract class AbstractMemcachedActionsTests {
 
     @BeforeMethod
     public void setup() throws IOException {
-        node = nodeBuilder().settings(settingsBuilder().put("gateway.type", "none")).node();
+        node = nodeBuilder().settings(settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress())
+                .put("gateway.type", "none")).node();
         memcachedClient = createMemcachedClient();
     }
 

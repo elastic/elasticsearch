@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -41,7 +42,10 @@ public abstract class AbstractNodesTests {
 
     private Map<String, Client> clients = newHashMap();
 
-    private Settings defaultSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    private Settings defaultSettings = ImmutableSettings
+            .settingsBuilder()
+            .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
+            .build();
 
     public void putDefaultSettings(Settings.Builder settings) {
         putDefaultSettings(settings.build());

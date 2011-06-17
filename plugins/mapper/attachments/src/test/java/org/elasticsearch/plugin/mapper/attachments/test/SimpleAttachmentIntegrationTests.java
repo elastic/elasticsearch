@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.node.Node;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
@@ -51,7 +52,9 @@ public class SimpleAttachmentIntegrationTests {
     private Node node;
 
     @BeforeClass public void setupServer() {
-        node = nodeBuilder().local(true).settings(settingsBuilder().put("gateway.type", "none")).node();
+        node = nodeBuilder().local(true).settings(settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress())
+                .put("gateway.type", "none")).node();
     }
 
     @AfterClass public void closeServer() {

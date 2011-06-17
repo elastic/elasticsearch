@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -55,7 +56,10 @@ public class GroovyScriptSearchTests {
     private Client client;
 
     @BeforeMethod public void createNodes() throws Exception {
-        node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put("gateway.type", "none").put("number_of_shards", 1)).node();
+        node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress())
+                .put("gateway.type", "none")
+                .put("number_of_shards", 1)).node();
         client = node.client();
     }
 

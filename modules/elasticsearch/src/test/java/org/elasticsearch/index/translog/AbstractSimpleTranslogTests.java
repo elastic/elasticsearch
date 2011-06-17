@@ -106,7 +106,7 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot.estimatedTotalOperations(), equalTo(3));
         snapshot.release();
 
-        translog.add(new Translog.DeleteByQuery(new byte[]{4}, null, null));
+        translog.add(new Translog.DeleteByQuery(new byte[]{4}, null));
         snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(4));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(4));

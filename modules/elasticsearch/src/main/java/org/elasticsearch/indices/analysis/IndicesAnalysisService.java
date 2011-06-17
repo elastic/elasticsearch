@@ -34,6 +34,7 @@ import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.es.SpanishAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
@@ -338,6 +339,16 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new LowerCaseFilter(Lucene.ANALYZER_VERSION, tokenStream);
+            }
+        }));
+
+        tokenFilterFactories.put("kstem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override public String name() {
+                return "kstem";
+            }
+
+            @Override public TokenStream create(TokenStream tokenStream) {
+                return new KStemFilter(tokenStream);
             }
         }));
 

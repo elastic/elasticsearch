@@ -114,7 +114,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
         logger.info("--> aliasing index [test] with [alias1]");
         client1.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing against [alias1], should work now");
         IndexResponse indexResponse = client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
@@ -176,7 +175,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
         FilterBuilder filter = termFilter("user", "kimchy");
         client1.admin().indices().prepareAliases().addAlias("test", "alias1", filter).execute().actionGet();
-        Thread.sleep(300);
 
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
@@ -205,7 +203,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test", "foos", termFilter("name", "foo")).execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test", "bars", termFilter("name", "bar")).execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test", "tests", termFilter("name", "test")).execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing against [test]");
         client1.index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
@@ -262,7 +259,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing against [test1]");
         client1.index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
@@ -335,8 +331,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test1", "filter13", termFilter("name", "baz")).execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test3", "filter13", termFilter("name", "baz")).execute().actionGet();
 
-        Thread.sleep(300);
-
         logger.info("--> indexing against [test1]");
         client1.index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1")).refresh(true)).actionGet();
         client1.index(indexRequest("test1").type("type1").id("12").source(source("12", "bar test1")).refresh(true)).actionGet();
@@ -405,7 +399,6 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
         client1.admin().indices().prepareAliases().addAlias("test2", "tests", termFilter("name", "test")).execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing against [test1]");
         client1.index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();

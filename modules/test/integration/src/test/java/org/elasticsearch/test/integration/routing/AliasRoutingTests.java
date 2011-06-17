@@ -67,7 +67,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test", "alias0").routing("0")).execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
         client.prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -149,7 +148,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
                 .addAliasAction(newAddAliasAction("test", "alias1").routing("1"))
                 .addAliasAction(newAddAliasAction("test", "alias01").searchRouting("0,1"))
                 .execute().actionGet();
-        Thread.sleep(300);
 
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
@@ -257,8 +255,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
                 .addAliasAction(newAddAliasAction("test-a", "alias-ab").searchRouting("0"))
                 .addAliasAction(newAddAliasAction("test-b", "alias-ab").searchRouting("1"))
                 .execute().actionGet();
-        Thread.sleep(300);
-
 
         logger.info("--> indexing with id [1], and routing [0] using alias to test-a");
         client.prepareIndex("alias-a0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -364,7 +360,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test", "alias").routing("3"))
                 .execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing with id [0], and routing [3]");
         client.prepareIndex("alias", "type1", "0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -381,7 +376,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test", "alias").routing("4"))
                 .execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> verifying search with wrong routing should not find");
         for (int i = 0; i < 5; i++) {
@@ -393,7 +387,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test", "alias").searchRouting("3,4").indexRouting("4"))
                 .execute().actionGet();
-        Thread.sleep(300);
 
         logger.info("--> indexing with id [1], and routing [4]");
         client.prepareIndex("alias", "type1", "1").setSource("field", "value2").setRefresh(true).execute().actionGet();

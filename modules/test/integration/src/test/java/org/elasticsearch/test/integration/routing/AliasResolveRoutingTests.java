@@ -80,7 +80,6 @@ public class AliasResolveRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias21").routing("1")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias0").routing("0")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias0").routing("0")).execute().actionGet();
-        Thread.sleep(300);
 
         assertThat(clusterService.state().metaData().resolveIndexRouting(null, "test1"), nullValue());
         assertThat(clusterService.state().metaData().resolveIndexRouting(null, "alias"), nullValue());
@@ -124,7 +123,6 @@ public class AliasResolveRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias21").routing("1")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias0").routing("0")).execute().actionGet();
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias0").routing("0")).execute().actionGet();
-        Thread.sleep(300);
 
         assertThat(clusterService.state().metaData().resolveSearchRouting(null, "alias"), nullValue());
         assertThat(clusterService.state().metaData().resolveSearchRouting("0,1", "alias"), equalTo(newMap("test1", newSet("0", "1"))));

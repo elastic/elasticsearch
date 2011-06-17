@@ -21,6 +21,8 @@ package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.search.basic.TransportTwoNodesSearchTests;
@@ -33,7 +35,10 @@ public class ClientTransportTwoNodesSearchTests extends TransportTwoNodesSearchT
 
     @Override protected Client getClient() {
         TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-        TransportClient client = new TransportClient();
+        TransportClient client = new TransportClient(ImmutableSettings
+                .settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
+                .build());
         client.addTransportAddress(server1Address);
         return client;
     }

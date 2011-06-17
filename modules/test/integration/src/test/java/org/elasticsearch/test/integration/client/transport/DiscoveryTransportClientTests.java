@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -44,7 +45,10 @@ public class DiscoveryTransportClientTests extends AbstractNodesTests {
 
     public void testWithDiscovery() throws Exception {
         startNode("server1");
-        client = new TransportClient(ImmutableSettings.settingsBuilder().put("discovery.enabled", true).build());
+        client = new TransportClient(ImmutableSettings.settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
+                .put("discovery.enabled", true)
+                .build());
         // wait a bit so nodes will be discovered
         Thread.sleep(1000);
         client.admin().indices().create(createIndexRequest("test")).actionGet();

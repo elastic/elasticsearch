@@ -24,6 +24,7 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
@@ -57,7 +58,9 @@ public class SimpleThriftTests {
     private Rest.Client client;
 
     @BeforeMethod public void setup() throws IOException, TTransportException {
-        node = nodeBuilder().settings(settingsBuilder().put("gateway.type", "none")).node();
+        node = nodeBuilder().settings(settingsBuilder()
+                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress())
+                .put("gateway.type", "none")).node();
         transport = new TSocket("localhost", 9500);
         TProtocol protocol = new TBinaryProtocol(transport);
         client = new Rest.Client(protocol);

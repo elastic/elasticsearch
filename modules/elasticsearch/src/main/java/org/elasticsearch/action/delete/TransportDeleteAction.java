@@ -174,6 +174,8 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
 
+        indexShard.delete(delete);
+
         if (request.refresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
@@ -182,7 +184,6 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
             }
         }
 
-        indexShard.delete(delete);
     }
 
     @Override protected ShardIterator shards(ClusterState clusterState, DeleteRequest request) {

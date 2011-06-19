@@ -122,19 +122,20 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             }
         }
 
-        Set<String> removedSettings = Sets.newHashSet();
+        final Settings closeSettings = updatedSettingsBuilder.build();
+
+        final Set<String> removedSettings = Sets.newHashSet();
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
             if (!IndexMetaData.dynamicSettings().contains(key)) {
                 removedSettings.add(key);
             }
         }
         if (!removedSettings.isEmpty()) {
-            logger.warn("{} ignoring non dynamic index level settings: {}", indices, removedSettings);
             for (String removedSetting : removedSettings) {
                 updatedSettingsBuilder.remove(removedSetting);
             }
         }
-        final Settings settings = updatedSettingsBuilder.build();
+        final Settings openSettings = updatedSettingsBuilder.build();
 
         clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
@@ -143,14 +144,38 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     RoutingTable.Builder routingTableBuilder = newRoutingTableBuilder().routingTable(currentState.routingTable());
                     MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
 
-                    int updatedNumberOfReplicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
+                    int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
                     if (updatedNumberOfReplicas != -1) {
                         routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                         metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                        logger.info("Updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
+                        logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                     }
 
-                    metaDataBuilder.updateSettings(settings, actualIndices);
+                    // allow to change any settings to a close index, and only allow dynamic settings to be changed
+                    // on an open index
+                    Set<String> openIndices = Sets.newHashSet();
+                    Set<String> closeIndices = Sets.newHashSet();
+                    for (String index : actualIndices) {
+                        if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
+                            openIndices.add(index);
+                        } else {
+                            closeIndices.add(index);
+                        }
+                    }
+
+                    if (!openIndices.isEmpty()) {
+                        String[] indices = openIndices.toArray(new String[openIndices.size()]);
+                        if (!removedSettings.isEmpty()) {
+                            logger.warn("{} ignoring non dynamic index level settings for open indices: {}", indices, removedSettings);
+                        }
+                        metaDataBuilder.updateSettings(openSettings, indices);
+                    }
+
+                    if (!closeIndices.isEmpty()) {
+                        String[] indices = closeIndices.toArray(new String[closeIndices.size()]);
+                        metaDataBuilder.updateSettings(closeSettings, indices);
+                    }
+
 
                     return ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).build();
                 } catch (Exception e) {

@@ -11,7 +11,7 @@ dependencies {
 
     runtime 'com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru:1.2'
     runtime 'com.google.guava:guava:r09'
-    runtime 'org.elasticsearch:es-trove:3.0.0rc1'
+    runtime 'org.elasticsearch:es-trove:3.0.0rc2'
     runtime 'org.elasticsearch:es-jsr166y:20110209'
 
     runtime 'commons-codec:commons-codec:1.5'

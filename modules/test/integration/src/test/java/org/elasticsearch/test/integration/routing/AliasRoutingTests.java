@@ -86,7 +86,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> deleting with no routing, should not delete anything");
         client.prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
             assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
             assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
@@ -95,7 +94,6 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> deleting with routing alias, should delete");
         client.prepareDelete("alias0", "type1", "1").setRefresh(true).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
             assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
             assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(false));

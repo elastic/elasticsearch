@@ -384,6 +384,8 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("french_stem", FrenchStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("german_stem", GermanStemTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("russian_stem", RussianStemTokenFilterFactory.class);
+
+            tokenFiltersBindings.processTokenFilter("keyword_marker", KeywordMarkerTokenFilterFactory.class);
         }
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {

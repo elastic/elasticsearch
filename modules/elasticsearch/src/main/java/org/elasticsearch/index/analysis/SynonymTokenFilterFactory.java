@@ -75,7 +75,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     static void parseRules(List<String> rules, SynonymMap map, String mappingSep,
                            String synSep, boolean expansion, TokenizerFactory tokFactory) {
-        int count = 0;
+//        int count = 0;
         for (String rule : rules) {
             // To use regexes, we need an expression that specifies an odd number of chars.
             // This can't really be done with string.split(), and since we need to
@@ -106,7 +106,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             boolean includeOrig = false;
             for (List<String> fromToks : source) {
-                count++;
+//                count++;
                 for (List<String> toToks : target) {
                     map.add(fromToks,
                             SynonymMap.makeTokens(toToks),

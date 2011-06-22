@@ -10,6 +10,7 @@ include 'benchmark-micro'
 
 include 'plugins-cloud-aws'
 include 'plugins-hadoop'
+include 'plugins-zookeeper'
 include 'plugins-analysis-icu'
 include 'plugins-mapper-attachments'
 

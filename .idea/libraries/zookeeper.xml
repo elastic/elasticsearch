@@ -1,0 +1,15 @@
+<component name="libraryTable">
+  <library name="zookeeper">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.zookeeper/zookeeper/jars/zookeeper-3.3.3.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="file://$USER_HOME$/opt/zookeeper-3.3.3/src/java/test" />
+      <root url="file://$USER_HOME$/opt/zookeeper-3.3.3/src/java/systest" />
+      <root url="file://$USER_HOME$/opt/zookeeper-3.3.3/src/java/generated" />
+      <root url="file://$USER_HOME$/opt/zookeeper-3.3.3/src/java/lib" />
+      <root url="file://$USER_HOME$/opt/zookeeper-3.3.3/src/java/main" />
+    </SOURCES>
+  </library>
+</component>

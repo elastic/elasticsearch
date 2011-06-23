@@ -68,6 +68,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     public ShardSearchFailure(String reason, SearchShardTarget shardTarget) {
         this.shardTarget = shardTarget;
         this.reason = reason;
+        this.status = RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     /**

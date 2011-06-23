@@ -23,6 +23,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.zookeeper.ZooKeeperClient;
 import org.elasticsearch.zookeeper.ZooKeeperClientService;
+import org.elasticsearch.zookeeper.ZooKeeperEnvironment;
+import org.elasticsearch.zookeeper.ZooKeeperFactory;
 
 
 /**
@@ -31,6 +33,8 @@ import org.elasticsearch.zookeeper.ZooKeeperClientService;
 public class ZooKeeperDiscoveryModule extends AbstractModule {
 
     @Override protected void configure() {
+        bind(ZooKeeperEnvironment.class).asEagerSingleton();
+        bind(ZooKeeperFactory.class).asEagerSingleton();
         bind(Discovery.class).to(ZooKeeperDiscovery.class).asEagerSingleton();
         bind(ZooKeeperClient.class).to(ZooKeeperClientService.class).asEagerSingleton();
     }

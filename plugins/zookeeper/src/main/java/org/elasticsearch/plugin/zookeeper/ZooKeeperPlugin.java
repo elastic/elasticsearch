@@ -19,15 +19,9 @@
 
 package org.elasticsearch.plugin.zookeeper;
 
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.zookeeper.ZooKeeperSettingsLoader;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.zookeeper.ZooKeeperModule;
-
-import java.util.Collection;
-import java.util.Map;
 
 /**
  * @author imotov
@@ -46,14 +40,6 @@ public class ZooKeeperPlugin extends AbstractPlugin {
 
     @Override public String description() {
         return "ZooKeeper Plugin";
-    }
-
-    @Override public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = Lists.newArrayList();
-        if (settings.getAsBoolean("zookeeper.enabled", false)) {
-            modules.add(ZooKeeperModule.class);
-        }
-        return modules;
     }
 
     @Override public Settings additionalSettings() {

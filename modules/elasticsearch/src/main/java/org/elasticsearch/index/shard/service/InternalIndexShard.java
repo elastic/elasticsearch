@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
@@ -344,28 +343,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(new Engine.DeleteByQuery(query, querySource, filteringAliases, aliasFilter, types));
     }
 
-    @Override public byte[] get(String type, String id) throws ElasticSearchException {
+    @Override public Engine.GetResult get(Engine.Get get) throws ElasticSearchException {
         readAllowed();
-        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
-        Engine.Searcher searcher = engine.searcher();
-        try {
-            int docId = Lucene.docId(searcher.reader(), docMapper.uidMapper().term(type, id));
-            if (docId == Lucene.NO_DOC) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("get for [{}#{}] returned no result", type, id);
-                }
-                return null;
-            }
-            Document doc = searcher.reader().document(docId, docMapper.sourceMapper().fieldSelector());
-            if (logger.isTraceEnabled()) {
-                logger.trace("get for [{}#{}] returned [{}]", type, id, doc);
-            }
-            return docMapper.sourceMapper().value(doc);
-        } catch (IOException e) {
-            throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
-        } finally {
-            searcher.release();
-        }
+        return engine.get(get);
     }
 
     @Override public long count(float minScore, byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {

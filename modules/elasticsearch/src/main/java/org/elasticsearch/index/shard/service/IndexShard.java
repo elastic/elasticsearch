@@ -61,7 +61,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void deleteByQuery(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
 
-    byte[] get(String type, String id) throws ElasticSearchException;
+    Engine.GetResult get(Engine.Get get) throws ElasticSearchException;
 
     long count(float minScore, byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
 

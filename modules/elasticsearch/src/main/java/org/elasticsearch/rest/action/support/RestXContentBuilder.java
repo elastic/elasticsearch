@@ -67,8 +67,12 @@ public class RestXContentBuilder {
     }
 
     public static void restDocumentSource(byte[] source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (LZF.isCompressed(source)) {
-            BytesStreamInput siBytes = new BytesStreamInput(source);
+
+    }
+
+    public static void restDocumentSource(byte[] source, int offset, int length, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (LZF.isCompressed(source, offset, length)) {
+            BytesStreamInput siBytes = new BytesStreamInput(source, offset, length);
             LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
             XContentType contentType = XContentFactory.xContentType(siLzf);
             siLzf.resetToBufferStart();
@@ -85,7 +89,7 @@ public class RestXContentBuilder {
                 }
             }
         } else {
-            XContentType contentType = XContentFactory.xContentType(source);
+            XContentType contentType = XContentFactory.xContentType(source, offset, length);
             if (contentType == builder.contentType()) {
                 builder.rawField("_source", source);
             } else {

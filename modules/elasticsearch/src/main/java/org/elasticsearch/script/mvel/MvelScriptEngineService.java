@@ -165,6 +165,10 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
             resolver.createVariable(name, value);
         }
 
+        @Override public void setNextSource(Map<String, Object> source) {
+            lookup.source().setNextSource(source);
+        }
+
         @Override public Object run() {
             return script.getValue(null, resolver);
         }

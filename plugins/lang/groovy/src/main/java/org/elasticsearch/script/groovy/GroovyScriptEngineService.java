@@ -171,6 +171,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             script.getBinding().getVariables().put(name, value);
         }
 
+        @Override public void setNextSource(Map<String, Object> source) {
+            lookup.source().setNextSource(source);
+        }
+
         @Override public Object run() {
             return script.run();
         }

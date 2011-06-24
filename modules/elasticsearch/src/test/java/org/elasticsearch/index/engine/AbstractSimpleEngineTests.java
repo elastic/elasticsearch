@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
@@ -29,6 +31,7 @@ import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -136,7 +139,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // create a document
-        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        ParsedDocument doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -144,6 +147,16 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(searchResult, engineSearcherTotalHits(0));
         assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.release();
+
+        // but, we can still get it (in realtime)
+        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.source(), equalTo(new BytesHolder(B_1)));
+        assertThat(getResult.docIdAndVersion(), nullValue());
+
+        // but, not there non realtime
+        getResult = engine.get(new Engine.Get(false, newUid("1")));
+        assertThat(getResult.exists(), equalTo(false));
 
         // refresh and it should be there
         engine.refresh(new Engine.Refresh(true));
@@ -154,8 +167,13 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.release();
 
+        // also in non realtime
+        getResult = engine.get(new Engine.Get(false, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.docIdAndVersion(), notNullValue());
+
         // now do an update
-        doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test1")).add(field(SourceFieldMapper.NAME, B_2, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_2, false);
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
@@ -164,6 +182,12 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
         searchResult.release();
+
+        // but, we can still get it (in realtime)
+        getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.source(), equalTo(new BytesHolder(B_2)));
+        assertThat(getResult.docIdAndVersion(), nullValue());
 
         // refresh and it should be updated
         engine.refresh(new Engine.Refresh(true));
@@ -184,6 +208,10 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
         searchResult.release();
 
+        // but, get should not see it (in realtime)
+        getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(false));
+
         // refresh and it should be deleted
         engine.refresh(new Engine.Refresh(true));
 
@@ -194,7 +222,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // add it back
-        doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, B_1, false);
+        doc = new ParsedDocument("1", "1", "test", null, doc().add(uidField("1")).add(field("value", "test")).add(field(SourceFieldMapper.NAME, B_1, Field.Store.YES)).build(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -216,6 +244,13 @@ public abstract class AbstractSimpleEngineTests {
 
         // now flush
         engine.flush(new Engine.Flush());
+
+        // and, verify get (in real time)
+        getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.source(), nullValue());
+        assertThat(getResult.docIdAndVersion(), notNullValue());
+
 
         // make sure we can still work with the engine
         // now do an update

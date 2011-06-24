@@ -231,7 +231,8 @@ public class XContentFactory {
         if (length > 2 && data[offset] == SmileConstants.HEADER_BYTE_1 && data[offset + 1] == SmileConstants.HEADER_BYTE_2 && data[offset + 2] == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
-        for (int i = offset; i < length; i++) {
+        int size = offset + length;
+        for (int i = offset; i < size; i++) {
             if (data[i] == '{') {
                 return XContentType.JSON;
             }

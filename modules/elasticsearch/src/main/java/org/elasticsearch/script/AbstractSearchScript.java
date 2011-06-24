@@ -26,6 +26,8 @@ import org.elasticsearch.search.lookup.FieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.util.Map;
+
 /**
  * A base class for any script type that is used during the search process (custom score, facets, and so on).
  *
@@ -85,6 +87,10 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
 
     @Override public void setNextDocId(int doc) {
         lookup.setNextDocId(doc);
+    }
+
+    @Override public void setNextSource(Map<String, Object> source) {
+        lookup.source().setNextSource(source);
     }
 
     @Override public void setNextScore(float score) {

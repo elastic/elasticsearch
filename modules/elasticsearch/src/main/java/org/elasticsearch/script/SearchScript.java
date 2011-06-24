@@ -22,6 +22,8 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 
+import java.util.Map;
+
 /**
  * A search script.
  */
@@ -32,6 +34,8 @@ public interface SearchScript extends ExecutableScript {
     void setNextReader(IndexReader reader);
 
     void setNextDocId(int doc);
+
+    void setNextSource(Map<String, Object> source);
 
     void setNextScore(float score);
 

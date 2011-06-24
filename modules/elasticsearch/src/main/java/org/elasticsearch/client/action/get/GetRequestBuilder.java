@@ -99,6 +99,11 @@ public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetRespons
         return this;
     }
 
+    public GetRequestBuilder setRealtime(Boolean realtime) {
+        request.realtime(realtime);
+        return this;
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */

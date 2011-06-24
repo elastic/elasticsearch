@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -75,6 +76,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     void delete(Delete delete) throws EngineException;
 
     void delete(DeleteByQuery delete) throws EngineException;
+
+    GetResult get(Get get) throws EngineException;
 
     Searcher searcher() throws EngineException;
 
@@ -585,4 +588,70 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return aliasFilter;
         }
     }
+
+
+    static class Get {
+        private final boolean realtime;
+        private final Term uid;
+
+        public Get(boolean realtime, Term uid) {
+            this.realtime = realtime;
+            this.uid = uid;
+        }
+
+        public boolean realtime() {
+            return this.realtime;
+        }
+
+        public Term uid() {
+            return uid;
+        }
+    }
+
+    static class GetResult {
+        private final boolean exists;
+        private final long version;
+        private final BytesHolder source;
+        private final UidField.DocIdAndVersion docIdAndVersion;
+        private final Searcher searcher;
+
+        public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
+
+        public GetResult(boolean exists, long version, BytesHolder source) {
+            this.source = source;
+            this.exists = exists;
+            this.version = version;
+            this.docIdAndVersion = null;
+            this.searcher = null;
+        }
+
+        public GetResult(Searcher searcher, UidField.DocIdAndVersion docIdAndVersion) {
+            this.exists = true;
+            this.source = null;
+            this.version = docIdAndVersion.version;
+            this.docIdAndVersion = docIdAndVersion;
+            this.searcher = searcher;
+        }
+
+        public boolean exists() {
+            return exists;
+        }
+
+        public long version() {
+            return this.version;
+        }
+
+        public BytesHolder source() {
+            return source;
+        }
+
+        public Searcher searcher() {
+            return this.searcher;
+        }
+
+        public UidField.DocIdAndVersion docIdAndVersion() {
+            return docIdAndVersion;
+        }
+    }
+
 }

@@ -800,6 +800,11 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder rawField(String fieldName, byte[] content, int offset, int length) throws IOException {
+        generator.writeRawField(fieldName, content, offset, length, bos);
+        return this;
+    }
+
     public XContentBuilder rawField(String fieldName, InputStream content) throws IOException {
         generator.writeRawField(fieldName, content, bos);
         return this;

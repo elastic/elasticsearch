@@ -20,8 +20,11 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -87,7 +90,9 @@ public interface Translog extends IndexShardComponent {
     /**
      * Adds a create operation to the transaction log.
      */
-    void add(Operation operation) throws TranslogException;
+    Location add(Operation operation) throws TranslogException;
+
+    byte[] read(Location location);
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
@@ -119,6 +124,18 @@ public interface Translog extends IndexShardComponent {
      * <p>Can only be called by one thread.
      */
     void close(boolean delete);
+
+    static class Location {
+        public final long translogId;
+        public final long translogLocation;
+        public final int size;
+
+        public Location(long translogId, long translogLocation, int size) {
+            this.translogId = translogId;
+            this.translogLocation = translogLocation;
+            this.size = size;
+        }
+    }
 
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
@@ -200,6 +217,8 @@ public interface Translog extends IndexShardComponent {
         Type opType();
 
         long estimateSize();
+
+        BytesHolder readSource(BytesStreamInput in) throws IOException;
     }
 
     static class Create implements Operation {
@@ -256,6 +275,16 @@ public interface Translog extends IndexShardComponent {
 
         public long version() {
             return this.version;
+        }
+
+        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+            int version = in.readVInt(); // version
+            id = in.readUTF();
+            type = in.readUTF();
+
+            int length = in.readVInt();
+            int offset = in.position();
+            return new BytesHolder(in.underlyingBuffer(), offset, length);
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
@@ -357,6 +386,16 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
+        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+            int version = in.readVInt(); // version
+            id = in.readUTF();
+            type = in.readUTF();
+
+            int length = in.readVInt();
+            int offset = in.position();
+            return new BytesHolder(in.underlyingBuffer(), offset, length);
+        }
+
         @Override public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
@@ -432,6 +471,10 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
+        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+            throw new ElasticSearchIllegalStateException("trying to read doc source from delete operation");
+        }
+
         @Override public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
             uid = new Term(in.readUTF(), in.readUTF());
@@ -484,6 +527,10 @@ public interface Translog extends IndexShardComponent {
 
         public String[] types() {
             return this.types;
+        }
+
+        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+            throw new ElasticSearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {

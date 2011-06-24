@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.document;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -110,5 +111,28 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.source(), nullValue());
         assertThat(response.field("field1").values().get(0).toString(), equalTo("value1"));
         assertThat(response.field("field2"), nullValue());
+
+        logger.info("--> update doc 1");
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
+
+        logger.info("--> realtime get 1");
+        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.sourceAsMap().get("field1").toString(), equalTo("value1_1"));
+        assertThat(response.sourceAsMap().get("field2").toString(), equalTo("value2_1"));
+
+        logger.info("--> update doc 1 again");
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").execute().actionGet();
+
+        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.sourceAsMap().get("field1").toString(), equalTo("value1_2"));
+        assertThat(response.sourceAsMap().get("field2").toString(), equalTo("value2_2"));
+
+        DeleteResponse deleteResponse = client.prepareDelete("test", "type1", "1").execute().actionGet();
+        assertThat(deleteResponse.notFound(), equalTo(false));
+
+        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(response.exists(), equalTo(false));
     }
 }

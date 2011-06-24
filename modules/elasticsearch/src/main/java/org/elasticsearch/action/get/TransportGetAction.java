@@ -43,6 +43,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
 import org.elasticsearch.index.service.IndexService;
@@ -110,7 +111,28 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
-        DocumentMapper docMapper = indexService.mapperService().documentMapper(request.type());
+        String type = null;
+        Engine.GetResult get = null;
+        if (request.type() == null || request.type().equals("_all")) {
+            for (String typeX : indexService.mapperService().types()) {
+                get = indexShard.get(new Engine.Get(request.realtime(), UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, request.id()))));
+                if (get.exists()) {
+                    type = typeX;
+                    break;
+                }
+            }
+            if (get == null || !get.exists()) {
+                return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
+            }
+        } else {
+            type = request.type();
+            get = indexShard.get(new Engine.Get(request.realtime(), UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, request.id()))));
+            if (!get.exists()) {
+                return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
+            }
+        }
+
+        DocumentMapper docMapper = indexService.mapperService().documentMapper(type);
         if (docMapper == null) {
             return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
         }
@@ -119,12 +141,8 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
             indexShard.refresh(new Engine.Refresh(false));
         }
 
-        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), docMapper.uidMapper().term(request.type(), request.id())));
-        try {
-            if (!get.exists()) {
-                return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
-            }
 
+        try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
                 Map<String, GetField> fields = null;

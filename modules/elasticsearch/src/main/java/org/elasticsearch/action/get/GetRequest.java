@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A request to get a document (its source) from an index based on its type and id. Best created using
+ * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
  *
  * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
@@ -47,6 +48,7 @@ public class GetRequest extends SingleShardOperationRequest {
     Boolean realtime;
 
     GetRequest() {
+        type = "_all";
     }
 
     /**
@@ -54,7 +56,7 @@ public class GetRequest extends SingleShardOperationRequest {
      * must be set.
      */
     public GetRequest(String index) {
-        super(index, null, null);
+        super(index, "_all", null);
     }
 
     /**
@@ -79,7 +81,10 @@ public class GetRequest extends SingleShardOperationRequest {
     /**
      * Sets the type of the document to fetch.
      */
-    @Required public GetRequest type(String type) {
+    public GetRequest type(@Nullable String type) {
+        if (type == null) {
+            type = "_all";
+        }
         this.type = type;
         return this;
     }

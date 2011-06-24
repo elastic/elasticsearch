@@ -108,6 +108,10 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                         // we already handled this one...
                         continue;
                     }
+                    // Ignore any duration > 1hr; getLastGcInfo occasionally returns total crap
+                    if (lastGc.duration().hoursFrac() > 1) {
+                        continue;
+                    }
                     if (lastGc.duration().millis() > gcThreshold.millis()) {
                         logger.info("[gc][{}][{}] took [{}]/[{}], reclaimed [{}], leaving [{}] used, max [{}]", gc.name(), gc.getCollectionCount(), lastGc.duration(), gc.getCollectionTime(), lastGc.reclaimed(), lastGc.afterUsed(), lastGc.max());
                     } else if (logger.isDebugEnabled()) {

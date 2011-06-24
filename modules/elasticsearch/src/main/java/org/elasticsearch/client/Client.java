@@ -228,9 +228,9 @@ public interface Client {
     GetRequestBuilder prepareGet();
 
     /**
-     * Gets the document that was indexed from an index with a type and id.
+     * Gets the document that was indexed from an index with a type (optional) and id.
      */
-    GetRequestBuilder prepareGet(String index, String type, String id);
+    GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
 
     /**
      * A count of all the documents matching a specific query.

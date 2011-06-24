@@ -72,6 +72,12 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.sourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.sourceAsMap().get("field2").toString(), equalTo("value2"));
 
+        logger.info("--> realtime get 1 (no type)");
+        response = client.prepareGet("test", null, "1").execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.sourceAsMap().get("field2").toString(), equalTo("value2"));
+
         logger.info("--> non realtime get 1");
         response = client.prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
         assertThat(response.exists(), equalTo(false));

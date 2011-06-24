@@ -139,7 +139,26 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         this.trans = null;
     }
 
-    @Override public void add(Operation operation) throws TranslogException {
+    public byte[] read(Location location) {
+        FsTranslogFile trans = this.trans;
+        if (trans != null && trans.id() == location.translogId) {
+            try {
+                return trans.read(location);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        if (current.id() == location.translogId) {
+            try {
+                return current.read(location);
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        return null;
+    }
+
+    @Override public Location add(Operation operation) throws TranslogException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
             BytesStreamOutput out = cachedEntry.cachedBytes();
@@ -151,18 +170,19 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             out.seek(0);
             out.writeInt(size - 4);
 
-            current.add(out.unsafeByteArray(), 0, size);
+            Location location = current.add(out.unsafeByteArray(), 0, size);
             if (syncOnEachOperation) {
                 current.sync();
             }
             FsTranslogFile trans = this.trans;
             if (trans != null) {
                 try {
-                    trans.add(out.unsafeByteArray(), 0, size);
+                    location = trans.add(out.unsafeByteArray(), 0, size);
                 } catch (ClosedChannelException e) {
                     // ignore
                 }
             }
+            return location;
         } catch (Exception e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {

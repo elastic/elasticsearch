@@ -44,6 +44,8 @@ public class GetRequest extends SingleShardOperationRequest {
 
     private boolean refresh = false;
 
+    Boolean realtime;
+
     GetRequest() {
     }
 
@@ -140,6 +142,15 @@ public class GetRequest extends SingleShardOperationRequest {
         return this.refresh;
     }
 
+    public boolean realtime() {
+        return this.realtime == null ? true : this.realtime;
+    }
+
+    public GetRequest realtime(Boolean realtime) {
+        this.realtime = realtime;
+        return this;
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */
@@ -166,6 +177,12 @@ public class GetRequest extends SingleShardOperationRequest {
                 fields[i] = in.readUTF();
             }
         }
+        byte realtime = in.readByte();
+        if (realtime == 0) {
+            this.realtime = false;
+        } else if (realtime == 1) {
+            this.realtime = true;
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -178,6 +195,13 @@ public class GetRequest extends SingleShardOperationRequest {
             for (String field : fields) {
                 out.writeUTF(field);
             }
+        }
+        if (realtime == null) {
+            out.writeByte((byte) -1);
+        } else if (realtime == false) {
+            out.writeByte((byte) 0);
+        } else {
+            out.writeByte((byte) 1);
         }
     }
 

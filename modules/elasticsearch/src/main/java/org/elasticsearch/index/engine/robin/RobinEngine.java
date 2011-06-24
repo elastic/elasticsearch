@@ -30,6 +30,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -282,6 +284,54 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return new TimeValue(1, TimeUnit.SECONDS);
     }
 
+    public GetResult get(Get get) throws EngineException {
+        rwl.readLock().lock();
+        try {
+            if (get.realtime()) {
+                VersionValue versionValue = versionMap.get(get.uid().text());
+                if (versionValue != null) {
+                    if (versionValue.delete()) {
+                        return GetResult.NOT_EXISTS;
+                    }
+                    byte[] data = translog.read(versionValue.translogLocation());
+                    if (data != null) {
+                        try {
+                            BytesHolder source = TranslogStreams.readSource(data);
+                            return new GetResult(true, versionValue.version(), source);
+                        } catch (IOException e) {
+                            // switched on us, read it from the reader
+                        }
+                    }
+                }
+            }
+
+            // no version, get the version from the index, we know that we refresh on flush
+            Searcher searcher = searcher();
+            try {
+                UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(get.uid().text());
+                for (IndexReader reader : searcher.searcher().subReaders()) {
+                    BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, asyncLoadBloomFilter);
+                    // we know that its not there...
+                    if (!filter.isPresent(utf8.result, 0, utf8.length)) {
+                        continue;
+                    }
+                    UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(reader, get.uid());
+                    if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
+                        return new GetResult(searcher, docIdAndVersion);
+                    }
+                }
+            } catch (Exception e) {
+                searcher.release();
+                //TODO: A better exception goes here
+                throw new EngineException(shardId(), "failed to load document", e);
+            }
+
+            return GetResult.NOT_EXISTS;
+        } finally {
+            rwl.readLock().unlock();
+        }
+    }
+
     @Override public void create(Create create) throws EngineException {
         rwl.readLock().lock();
         try {
@@ -307,14 +357,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         synchronized (dirtyLock(create.uid())) {
             UidField uidField = create.uidField();
             if (create.origin() == Operation.Origin.RECOVERY) {
-                // on recovery, we get the actual version we want to use
-                if (create.version() != 0) {
-                    versionMap.put(create.uid().text(), new VersionValue(create.version(), false, threadPool.estimatedTimeInMillis()));
-                }
                 uidField.version(create.version());
                 // we use update doc and not addDoc since we might get duplicates when using transient translog
                 writer.updateDocument(create.uid(), create.doc(), create.analyzer());
-                translog.add(new Translog.Create(create));
+                Translog.Location translogLocation = translog.add(new Translog.Create(create));
+                // on recovery, we get the actual version we want to use
+                if (create.version() != 0) {
+                    versionMap.put(create.uid().text(), new VersionValue(create.version(), false, threadPool.estimatedTimeInMillis(), translogLocation));
+                }
             } else {
                 long currentVersion;
                 VersionValue versionValue = versionMap.get(create.uid().text());
@@ -381,12 +431,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     throw new DocumentAlreadyExistsEngineException(shardId, create.type(), create.id());
                 }
 
-                versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis()));
                 uidField.version(updatedVersion);
                 create.version(updatedVersion);
 
                 writer.addDocument(create.doc(), create.analyzer());
-                translog.add(new Translog.Create(create));
+                Translog.Location translogLocation = translog.add(new Translog.Create(create));
+
+                versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
             }
         }
     }
@@ -417,13 +468,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         synchronized (dirtyLock(index.uid())) {
             UidField uidField = index.uidField();
             if (index.origin() == Operation.Origin.RECOVERY) {
-                // on recovery, we get the actual version we want to use
-                if (index.version() != 0) {
-                    versionMap.put(index.uid().text(), new VersionValue(index.version(), false, threadPool.estimatedTimeInMillis()));
-                }
                 uidField.version(index.version());
                 writer.updateDocument(index.uid(), index.doc(), index.analyzer());
-                translog.add(new Translog.Index(index));
+                Translog.Location translogLocation = translog.add(new Translog.Index(index));
+                // on recovery, we get the actual version we want to use
+                if (index.version() != 0) {
+                    versionMap.put(index.uid().text(), new VersionValue(index.version(), false, threadPool.estimatedTimeInMillis(), translogLocation));
+                }
             } else {
                 long currentVersion;
                 VersionValue versionValue = versionMap.get(index.uid().text());
@@ -479,7 +530,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     updatedVersion = index.version();
                 }
 
-                versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis()));
                 uidField.version(updatedVersion);
                 index.version(updatedVersion);
 
@@ -489,7 +539,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 } else {
                     writer.updateDocument(index.uid(), index.doc(), index.analyzer());
                 }
-                translog.add(new Translog.Index(index));
+                Translog.Location translogLocation = translog.add(new Translog.Index(index));
+
+                versionMap.put(index.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
             }
         }
     }
@@ -518,13 +570,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
             if (delete.origin() == Operation.Origin.RECOVERY) {
+                writer.deleteDocuments(delete.uid());
+                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 // update the version with the exact version from recovery, assuming we have it
                 if (delete.version() != 0) {
-                    versionMap.put(delete.uid().text(), new VersionValue(delete.version(), true, threadPool.estimatedTimeInMillis()));
+                    versionMap.put(delete.uid().text(), new VersionValue(delete.version(), true, threadPool.estimatedTimeInMillis(), translogLocation));
                 }
-
-                writer.deleteDocuments(delete.uid());
-                translog.add(new Translog.Delete(delete));
             } else {
                 long currentVersion;
                 VersionValue versionValue = versionMap.get(delete.uid().text());
@@ -582,10 +633,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     // if its a delete on delete and we have the current delete version, return it
                     delete.version(versionValue.version()).notFound(true);
                 } else {
-                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis()));
                     delete.version(updatedVersion);
                     writer.deleteDocuments(delete.uid());
-                    translog.add(new Translog.Delete(delete));
+                    Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
                 }
             }
         }
@@ -614,6 +665,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } finally {
             rwl.readLock().unlock();
         }
+        //TODO: This is heavy, since we refresh, but we really have to...
+        refreshVersioningTable(System.currentTimeMillis());
     }
 
     @Override public Searcher searcher() throws EngineException {
@@ -765,39 +818,40 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     rwl.readLock().unlock();
                 }
             }
-
-
-            // we need to refresh in order to clear older version values
-            long time = threadPool.estimatedTimeInMillis(); // mark time here, before we refresh, and then delete all older values
-            refresh(new Refresh(true).force(true));
-            Searcher searcher = indexingSearcher.get();
-            if (searcher != null) {
-                indexingSearcher.set(null);
-            }
-            for (Map.Entry<String, VersionValue> entry : versionMap.entrySet()) {
-                String id = entry.getKey();
-                synchronized (dirtyLock(id)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-                    VersionValue versionValue = versionMap.get(id);
-                    if (versionValue == null) {
-                        continue;
-                    }
-                    if (time - versionValue.time() <= 0) {
-                        continue; // its a newer value, from after/during we refreshed, don't clear it
-                    }
-                    if (versionValue.delete()) {
-                        if ((time - versionValue.time()) > gcDeletesInMillis) {
-                            versionMap.remove(id);
-                        }
-                    } else {
-                        versionMap.remove(id);
-                    }
-                }
-            }
-            if (searcher != null) {
-                searcher.release();
-            }
+            refreshVersioningTable(threadPool.estimatedTimeInMillis());
         } finally {
             flushing.set(false);
+        }
+    }
+
+    private void refreshVersioningTable(long time) {
+        // we need to refresh in order to clear older version values
+        refresh(new Refresh(true).force(true));
+        Searcher searcher = indexingSearcher.get();
+        if (searcher != null) {
+            indexingSearcher.set(null);
+        }
+        for (Map.Entry<String, VersionValue> entry : versionMap.entrySet()) {
+            String id = entry.getKey();
+            synchronized (dirtyLock(id)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+                VersionValue versionValue = versionMap.get(id);
+                if (versionValue == null) {
+                    continue;
+                }
+                if (time - versionValue.time() <= 0) {
+                    continue; // its a newer value, from after/during we refreshed, don't clear it
+                }
+                if (versionValue.delete()) {
+                    if ((time - versionValue.time()) > gcDeletesInMillis) {
+                        versionMap.remove(id);
+                    }
+                } else {
+                    versionMap.remove(id);
+                }
+            }
+        }
+        if (searcher != null) {
+            searcher.release();
         }
     }
 
@@ -1160,11 +1214,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         private final long version;
         private final boolean delete;
         private final long time;
+        private final Translog.Location translogLocation;
 
-        VersionValue(long version, boolean delete, long time) {
+        VersionValue(long version, boolean delete, long time, Translog.Location translogLocation) {
             this.version = version;
             this.delete = delete;
             this.time = time;
+            this.translogLocation = translogLocation;
         }
 
         public long time() {
@@ -1177,6 +1233,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         public boolean delete() {
             return delete;
+        }
+
+        public Translog.Location translogLocation() {
+            return this.translogLocation;
         }
     }
 }

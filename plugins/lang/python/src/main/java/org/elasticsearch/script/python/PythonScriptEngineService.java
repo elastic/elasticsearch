@@ -155,6 +155,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
             lookup.setNextDocId(doc);
         }
 
+        @Override public void setNextSource(Map<String, Object> source) {
+            lookup.source().setNextSource(source);
+        }
+
         @Override public void setNextScore(float score) {
             pyVars.__setitem__("_score", Py.java2py(score));
         }

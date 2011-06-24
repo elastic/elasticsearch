@@ -72,6 +72,10 @@ public class BytesStreamInput extends StreamInput {
         return len;
     }
 
+    public byte[] underlyingBuffer() {
+        return buf;
+    }
+
     @Override public byte readByte() throws IOException {
         if (pos >= count) {
             throw new EOFException();

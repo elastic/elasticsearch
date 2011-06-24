@@ -32,7 +32,11 @@ import org.elasticsearch.script.javascript.support.NativeList;
 import org.elasticsearch.script.javascript.support.NativeMap;
 import org.elasticsearch.script.javascript.support.ScriptValueConverter;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.mozilla.javascript.*;
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Script;
+import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.WrapFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -220,6 +224,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
         @Override public void setNextVar(String name, Object value) {
             ScriptableObject.putProperty(scope, name, value);
+        }
+
+        @Override public void setNextSource(Map<String, Object> source) {
+            lookup.source().setNextSource(source);
         }
 
         @Override public Object run() {

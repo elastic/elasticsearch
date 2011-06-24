@@ -21,7 +21,11 @@ package org.elasticsearch.common.xcontent.json;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.jackson.JsonGenerator;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentString;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -206,6 +210,14 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeRaw("\" : ");
         flush();
         bos.write(content);
+    }
+
+    @Override public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
+        generator.writeRaw(", \"");
+        generator.writeRaw(fieldName);
+        generator.writeRaw("\" : ");
+        flush();
+        bos.write(content, offset, length);
     }
 
     @Override public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {

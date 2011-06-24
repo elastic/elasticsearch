@@ -29,6 +29,10 @@ public class LZF {
         return buffer.length >= 2 && buffer[0] == LZFChunk.BYTE_Z && buffer[1] == LZFChunk.BYTE_V;
     }
 
+    public static boolean isCompressed(final byte[] buffer, int offset, int length) {
+        return length >= 2 && buffer[offset] == LZFChunk.BYTE_Z && buffer[offset + 1] == LZFChunk.BYTE_V;
+    }
+
     public final static String SUFFIX = ".lzf";
 
     void process(String[] args) throws IOException {

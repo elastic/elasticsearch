@@ -65,17 +65,7 @@ public class SourceLookup implements Map {
             Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
             Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
             byte[] source = sourceField.getBinaryValue();
-            if (LZF.isCompressed(source)) {
-                BytesStreamInput siBytes = new BytesStreamInput(source);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                XContentType contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
-                parser = XContentFactory.xContent(contentType).createParser(siLzf);
-                this.source = parser.map();
-            } else {
-                parser = XContentFactory.xContent(source).createParser(source);
-                this.source = parser.map();
-            }
+            this.source = sourceAsMap(source, 0, source.length);
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
         } finally {
@@ -84,6 +74,29 @@ public class SourceLookup implements Map {
             }
         }
         return this.source;
+    }
+
+    public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) {
+        XContentParser parser = null;
+        try {
+            if (LZF.isCompressed(bytes, offset, length)) {
+                BytesStreamInput siBytes = new BytesStreamInput(bytes, offset, length);
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                XContentType contentType = XContentFactory.xContentType(siLzf);
+                siLzf.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(siLzf);
+                return parser.map();
+            } else {
+                parser = XContentFactory.xContent(bytes, offset, length).createParser(bytes, offset, length);
+                return parser.map();
+            }
+        } catch (Exception e) {
+            throw new ElasticSearchParseException("Failed to parse source to map", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
     }
 
     public void setNextReader(IndexReader reader) {
@@ -101,6 +114,10 @@ public class SourceLookup implements Map {
         }
         this.docId = docId;
         this.source = null;
+    }
+
+    public void setNextSource(Map<String, Object> source) {
+        this.source = source;
     }
 
     private final static Pattern dotPattern = Pattern.compile("\\.");

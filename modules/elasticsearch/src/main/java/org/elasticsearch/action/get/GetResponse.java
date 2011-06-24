@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZF;
@@ -28,8 +29,11 @@ import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -62,12 +66,14 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
 
     private Map<String, Object> sourceAsMap;
 
-    private byte[] source;
+    private BytesHolder source;
+
+    private byte[] sourceAsBytes;
 
     GetResponse() {
     }
 
-    GetResponse(String index, String type, String id, long version, boolean exists, byte[] source, Map<String, GetField> fields) {
+    GetResponse(String index, String type, String id, long version, boolean exists, BytesHolder source, Map<String, GetField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -157,9 +163,21 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (source == null) {
             return null;
         }
-        if (LZF.isCompressed(source)) {
+        if (sourceAsBytes != null) {
+            return sourceAsBytes;
+        }
+        this.sourceAsBytes = sourceRef().copyBytes();
+        return this.sourceAsBytes;
+    }
+
+    /**
+     * Returns bytes reference, also un compress the source if needed.
+     */
+    public BytesHolder sourceRef() {
+        if (LZF.isCompressed(source.bytes(), source.offset(), source.length())) {
             try {
-                this.source = LZFDecoder.decode(source);
+                // TODO decompress without doing an extra copy!
+                this.source = new BytesHolder(LZFDecoder.decode(source.copyBytes()));
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to decompress source", e);
             }
@@ -181,7 +199,8 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (source == null) {
             return null;
         }
-        return Unicode.fromBytes(source());
+        BytesHolder source = sourceRef();
+        return Unicode.fromBytes(source.bytes(), source.offset(), source.length());
     }
 
     /**
@@ -195,20 +214,9 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
-        byte[] source = source();
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            sourceAsMap = parser.map();
-            parser.close();
-            return sourceAsMap;
-        } catch (Exception e) {
-            throw new ElasticSearchParseException("Failed to parse source to map", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
+
+        sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
+        return sourceAsMap;
     }
 
     public Map<String, Object> getSource() {
@@ -258,7 +266,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
                 builder.field(Fields._VERSION, version);
             }
             if (source != null) {
-                RestXContentBuilder.restDocumentSource(source, builder, params);
+                RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
             }
 
             if (fields != null && !fields.isEmpty()) {
@@ -294,12 +302,10 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         version = in.readLong();
         exists = in.readBoolean();
         if (exists) {
-            int size = in.readVInt();
-            if (size > 0) {
-                source = new byte[size];
-                in.readFully(source);
+            if (in.readBoolean()) {
+                source = BytesHolder.readBytesHolder(in);
             }
-            size = in.readVInt();
+            int size = in.readVInt();
             if (size == 0) {
                 fields = ImmutableMap.of();
             } else {
@@ -320,10 +326,10 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         out.writeBoolean(exists);
         if (exists) {
             if (source == null) {
-                out.writeVInt(0);
+                out.writeBoolean(false);
             } else {
-                out.writeVInt(source.length);
-                out.writeBytes(source);
+                out.writeBoolean(true);
+                source.writeTo(out);
             }
             if (fields == null) {
                 out.writeVInt(0);

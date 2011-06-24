@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.common.BytesHolder;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -50,6 +52,30 @@ public class TranslogStreams {
         }
         operation.readFrom(in);
         return operation;
+    }
+
+    public static BytesHolder readSource(byte[] data) throws IOException {
+        BytesStreamInput in = new BytesStreamInput(data);
+        in.readInt(); // the size header
+        Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
+        Translog.Operation operation;
+        switch (type) {
+            case CREATE:
+                operation = new Translog.Create();
+                break;
+            case DELETE:
+                operation = new Translog.Delete();
+                break;
+            case DELETE_BY_QUERY:
+                operation = new Translog.DeleteByQuery();
+                break;
+            case SAVE:
+                operation = new Translog.Index();
+                break;
+            default:
+                throw new IOException("No type for [" + type + "]");
+        }
+        return operation.readSource(in);
     }
 
     public static void writeTranslogOperation(StreamOutput out, Translog.Operation op) throws IOException {

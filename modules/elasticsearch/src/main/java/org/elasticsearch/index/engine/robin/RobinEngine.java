@@ -23,6 +23,9 @@ import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
@@ -65,6 +68,10 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -156,6 +163,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private final CopyOnWriteArrayList<FailedEngineListener> failedEngineListeners = new CopyOnWriteArrayList<FailedEngineListener>();
 
     private final AtomicLong translogIdGenerator = new AtomicLong();
+
+    private SegmentInfos lastCommittedSegmentInfos;
 
     @Inject public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
                                IndexSettingsService indexSettingsService,
@@ -261,6 +270,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     indexingSearcher.set(null);
                     indexingSearcher.get().release();
                 }
+                SegmentInfos infos = new SegmentInfos();
+                infos.read(store.directory());
+                lastCommittedSegmentInfos = infos;
             } catch (IOException e) {
                 try {
                     indexWriter.rollback();
@@ -819,6 +831,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
             }
             refreshVersioningTable(threadPool.estimatedTimeInMillis());
+            try {
+                SegmentInfos infos = new SegmentInfos();
+                infos.read(store.directory());
+                lastCommittedSegmentInfos = infos;
+            } catch (Exception e) {
+                logger.warn("failed to read latest segment infos on flush", e);
+            }
         } finally {
             flushing.set(false);
         }
@@ -1013,6 +1032,78 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             phase1Snapshot.release();
             phase2Snapshot.release();
             phase3Snapshot.release();
+        }
+    }
+
+    @Override public List<Segment> segments() {
+        rwl.readLock().lock();
+        try {
+            IndexWriter indexWriter = this.indexWriter;
+            if (indexWriter == null) {
+                throw new EngineClosedException(shardId, failedEngine);
+            }
+            Map<String, Segment> segments = new HashMap<String, Segment>();
+
+            // first, go over and compute the search ones...
+            Searcher searcher = searcher();
+            try {
+                IndexReader[] readers = searcher.reader().getSequentialSubReaders();
+                for (IndexReader reader : readers) {
+                    assert reader instanceof SegmentReader;
+                    SegmentInfo info = Lucene.getSegmentInfo((SegmentReader) reader);
+                    assert !segments.containsKey(info.name);
+                    Segment segment = new Segment(info.name);
+                    segment.search = true;
+                    segment.docCount = reader.numDocs();
+                    segment.delDocCount = reader.numDeletedDocs();
+                    try {
+                        segment.sizeInBytes = info.sizeInBytes(true);
+                    } catch (IOException e) {
+                        logger.trace("failed to get size for [{}]", e, info.name);
+                    }
+                    segments.put(info.name, segment);
+                }
+            } finally {
+                searcher.release();
+            }
+
+            // now, correlate or add the committed ones...
+            if (lastCommittedSegmentInfos != null) {
+                SegmentInfos infos = lastCommittedSegmentInfos;
+                for (SegmentInfo info : infos) {
+                    Segment segment = segments.get(info.name);
+                    if (segment == null) {
+                        segment = new Segment(info.name);
+                        segment.search = false;
+                        segment.committed = true;
+                        segment.docCount = info.docCount;
+                        try {
+                            segment.delDocCount = indexWriter.numDeletedDocs(info);
+                        } catch (IOException e) {
+                            logger.trace("failed to get deleted docs for committed segment", e);
+                        }
+                        try {
+                            segment.sizeInBytes = info.sizeInBytes(true);
+                        } catch (IOException e) {
+                            logger.trace("failed to get size for [{}]", e, info.name);
+                        }
+                        segments.put(info.name, segment);
+                    } else {
+                        segment.committed = true;
+                    }
+                }
+            }
+
+            Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
+            Arrays.sort(segmentsArr, new Comparator<Segment>() {
+                @Override public int compare(Segment o1, Segment o2) {
+                    return (int) (o1.generation() - o2.generation());
+                }
+            });
+
+            return Arrays.asList(segmentsArr);
+        } finally {
+            rwl.readLock().unlock();
         }
     }
 

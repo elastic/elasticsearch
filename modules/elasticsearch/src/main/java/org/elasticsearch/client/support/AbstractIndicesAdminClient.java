@@ -33,6 +33,7 @@ import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingReque
 import org.elasticsearch.client.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -98,6 +99,10 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
 
     @Override public IndicesStatusRequestBuilder prepareStatus(String... indices) {
         return new IndicesStatusRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public IndicesSegmentsRequestBuilder prepareSegments(String... indices) {
+        return new IndicesSegmentsRequestBuilder(this).setIndices(indices);
     }
 
     @Override public UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {

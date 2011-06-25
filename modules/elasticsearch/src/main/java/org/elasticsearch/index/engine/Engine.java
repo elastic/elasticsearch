@@ -44,6 +44,8 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
+import java.util.List;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -80,6 +82,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     GetResult get(Get get) throws EngineException;
 
     Searcher searcher() throws EngineException;
+
+    List<Segment> segments();
 
     /**
      * Returns <tt>true</tt> if a refresh is really needed.

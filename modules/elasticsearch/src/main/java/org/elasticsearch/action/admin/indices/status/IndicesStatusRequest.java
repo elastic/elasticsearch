@@ -80,10 +80,12 @@ public class IndicesStatusRequest extends BroadcastOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(recovery);
+        out.writeBoolean(snapshot);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recovery = in.readBoolean();
+        snapshot = in.readBoolean();
     }
 }

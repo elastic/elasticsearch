@@ -23,6 +23,8 @@ import org.apache.lucene.analysis.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.search.*;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -382,6 +385,27 @@ public class Lucene {
             }
         } else {
             throw new IOException("Can't write type [" + type + "]");
+        }
+    }
+
+    private static final Field segmentReaderSegmentInfoField;
+
+    static {
+        Field segmentReaderSegmentInfoFieldX = null;
+        try {
+            segmentReaderSegmentInfoFieldX = SegmentReader.class.getDeclaredField("si");
+            segmentReaderSegmentInfoFieldX.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        }
+        segmentReaderSegmentInfoField = segmentReaderSegmentInfoFieldX;
+    }
+
+    public static SegmentInfo getSegmentInfo(SegmentReader reader) {
+        try {
+            return (SegmentInfo) segmentReaderSegmentInfoField.get(reader);
+        } catch (IllegalAccessException e) {
+            return null;
         }
     }
 

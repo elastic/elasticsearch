@@ -49,6 +49,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
@@ -71,6 +73,7 @@ import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingReque
 import org.elasticsearch.client.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -129,6 +132,29 @@ public interface IndicesAdminClient {
      * The status of one or more indices.
      */
     IndicesStatusRequestBuilder prepareStatus(String... indices);
+
+    /**
+     * The segments of one or more indices.
+     *
+     * @param request The indices segments request
+     * @return The result future
+     * @see Requests#indicesSegmentsRequest(String...)
+     */
+    ActionFuture<IndicesSegmentResponse> segments(IndicesSegmentsRequest request);
+
+    /**
+     * The segments of one or more indices.
+     *
+     * @param request  The indices segments request
+     * @param listener A listener to be notified with a result
+     * @see Requests#indicesSegmentsRequest(String...)
+     */
+    void segments(IndicesSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener);
+
+    /**
+     * The segments of one or more indices.
+     */
+    IndicesSegmentsRequestBuilder prepareSegments(String... indices);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.

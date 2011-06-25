@@ -44,6 +44,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
@@ -95,6 +96,7 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportReplicationPingAction.class).asEagerSingleton();
 
         bind(TransportIndicesStatusAction.class).asEagerSingleton();
+        bind(TransportIndicesSegmentsAction.class).asEagerSingleton();
         bind(TransportCreateIndexAction.class).asEagerSingleton();
         bind(TransportDeleteIndexAction.class).asEagerSingleton();
         bind(TransportOpenIndexAction.class).asEagerSingleton();

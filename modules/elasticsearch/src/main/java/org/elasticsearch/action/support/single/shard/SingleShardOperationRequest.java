@@ -33,10 +33,6 @@ import java.io.IOException;
 public abstract class SingleShardOperationRequest implements ActionRequest {
 
     protected String index;
-    protected String type;
-    protected String id;
-    protected String routing;
-    protected String preference;
 
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
@@ -44,22 +40,14 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
     protected SingleShardOperationRequest() {
     }
 
-    public SingleShardOperationRequest(String index, String type, String id) {
+    public SingleShardOperationRequest(String index) {
         this.index = index;
-        this.type = type;
-        this.id = id;
     }
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = Actions.addValidationError("index is missing", validationException);
-        }
-        if (type == null) {
-            validationException = Actions.addValidationError("type is missing", validationException);
-        }
-        if (id == null) {
-            validationException = Actions.addValidationError("id is missing", validationException);
         }
         return validationException;
     }
@@ -71,22 +59,6 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
     SingleShardOperationRequest index(String index) {
         this.index = index;
         return this;
-    }
-
-    public String type() {
-        return type;
-    }
-
-    public String id() {
-        return id;
-    }
-
-    public String routing() {
-        return this.routing;
-    }
-
-    public String preference() {
-        return this.preference;
     }
 
     /**
@@ -118,33 +90,11 @@ public abstract class SingleShardOperationRequest implements ActionRequest {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
-        type = in.readUTF();
-        id = in.readUTF();
-        if (in.readBoolean()) {
-            routing = in.readUTF();
-        }
-        if (in.readBoolean()) {
-            preference = in.readUTF();
-        }
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
-        out.writeUTF(type);
-        out.writeUTF(id);
-        if (routing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(routing);
-        }
-        if (preference == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(preference);
-        }
     }
 
 }

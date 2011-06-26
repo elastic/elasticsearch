@@ -35,10 +35,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -86,6 +89,8 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     }
 
+    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+
     private class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
@@ -104,15 +109,11 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
             nodes = clusterState.nodes();
 
-            // update to the concrete shard and find routing to use
-            String alias = request.index();
             request.index(clusterState.metaData().concreteIndex(request.index()));
-            String effectiveRouting = clusterState.metaData().resolveIndexRouting(request.routing(), alias);
 
             checkBlock(request, clusterState);
 
-            this.shardIt = clusterService.operationRouting()
-                    .getShards(clusterState, request.index(), request.type(), request.id(), effectiveRouting, request.preference());
+            this.shardIt = shards(clusterState, request);
         }
 
         public void start() {
@@ -121,7 +122,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (logger.isTraceEnabled() && e != null) {
-                logger.trace(shardRouting.shortSummary() + ": Failed to get [" + request.type() + "#" + request.id() + "]", e);
+                logger.trace(shardRouting.shortSummary() + ": Failed to execute [{}]", e, request);
             }
             perform(e);
         }
@@ -193,10 +194,10 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             if (!shardIt.hasNextActive()) {
                 Exception failure = lastException;
                 if (failure == null) {
-                    failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request.type() + "#" + request.id() + "]");
+                    failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(shardIt.shardId() + ": Failed to get [" + request.type() + "#" + request.id() + "]", failure);
+                        logger.debug(shardIt.shardId() + ": Failed to get [{}]", failure, request);
                     }
                 }
                 listener.onFailure(failure);

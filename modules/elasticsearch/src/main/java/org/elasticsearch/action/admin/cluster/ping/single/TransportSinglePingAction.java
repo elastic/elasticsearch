@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,6 +49,11 @@ public class TransportSinglePingAction extends TransportShardSingleOperationActi
 
     @Override protected String transportShardAction() {
         return "/cluster/ping/single/shard";
+    }
+
+    @Override protected ShardIterator shards(ClusterState clusterState, SinglePingRequest request) throws ElasticSearchException {
+        return clusterService.operationRouting()
+                .indexShards(clusterService.state(), request.index(), request.type, request.id, null);
     }
 
     @Override protected SinglePingResponse shardOperation(SinglePingRequest request, int shardId) throws ElasticSearchException {

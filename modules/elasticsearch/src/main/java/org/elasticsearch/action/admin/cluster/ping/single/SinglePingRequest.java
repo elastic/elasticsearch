@@ -30,12 +30,17 @@ import java.io.IOException;
  */
 public class SinglePingRequest extends SingleShardOperationRequest {
 
+    protected String type;
+    protected String id;
+
     public SinglePingRequest(String index) {
-        super(index, null, null);
+        super(index);
     }
 
     public SinglePingRequest(String index, String type, String id) {
-        super(index, type, id);
+        super(index);
+        this.type = type;
+        this.id = id;
     }
 
     public SinglePingRequest() {
@@ -68,10 +73,13 @@ public class SinglePingRequest extends SingleShardOperationRequest {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        type = in.readUTF();
+        id = in.readUTF();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeUTF(type);
+        out.writeUTF(id);
     }
-
 }

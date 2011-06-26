@@ -32,6 +32,8 @@ import org.elasticsearch.action.support.single.shard.TransportShardSingleOperati
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
@@ -100,10 +102,19 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
     }
 
+    @Override protected ShardIterator shards(ClusterState clusterState, GetRequest request) {
+        return clusterService.operationRouting()
+                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+    }
+
     @Override protected void doExecute(GetRequest request, ActionListener<GetResponse> listener) {
         if (request.realtime == null) {
             request.realtime = this.realtime;
         }
+        // update the routing (request#index here is possibly an alias)
+        MetaData metaData = clusterService.state().metaData();
+        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
+
         super.doExecute(request, listener);
     }
 

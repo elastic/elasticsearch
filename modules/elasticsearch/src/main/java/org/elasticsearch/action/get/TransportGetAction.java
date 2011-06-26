@@ -104,7 +104,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override protected ShardIterator shards(ClusterState clusterState, GetRequest request) {
         return clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+                .getShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference());
     }
 
     @Override protected void doExecute(GetRequest request, ActionListener<GetResponse> listener) {

@@ -36,6 +36,8 @@ public class TransportActions {
 
     public static final String GET = "indices/get";
 
+    public static final String MULTI_GET = "indices/mget";
+
     public static final String SEARCH = "indices/search";
 
     public static final String SEARCH_SCROLL = "indices/searchScroll";

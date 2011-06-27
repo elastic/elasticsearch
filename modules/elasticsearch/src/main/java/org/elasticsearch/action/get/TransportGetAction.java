@@ -22,9 +22,6 @@ package org.elasticsearch.action.get;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
@@ -35,12 +32,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.BytesHolder;
-import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.bloom.BloomFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.bloom.BloomCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -122,36 +117,37 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
-        String type = null;
+        if (request.refresh() && !request.realtime()) {
+            indexShard.refresh(new Engine.Refresh(false));
+        }
+
+        return load(logger, scriptService, indexService, indexShard, request.index(), request.type(), request.id(), request.fields(), request.realtime());
+    }
+
+    public static GetResponse load(ESLogger logger, ScriptService scriptService, IndexService indexService, IndexShard indexShard, String index, String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
         Engine.GetResult get = null;
-        if (request.type() == null || request.type().equals("_all")) {
+        if (type == null || type.equals("_all")) {
             for (String typeX : indexService.mapperService().types()) {
-                get = indexShard.get(new Engine.Get(request.realtime(), UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, request.id()))));
+                get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, id))));
                 if (get.exists()) {
                     type = typeX;
                     break;
                 }
             }
             if (get == null || !get.exists()) {
-                return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
+                return new GetResponse(index, type, id, -1, false, null, null);
             }
         } else {
-            type = request.type();
-            get = indexShard.get(new Engine.Get(request.realtime(), UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, request.id()))));
+            get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id))));
             if (!get.exists()) {
-                return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
+                return new GetResponse(index, type, id, -1, false, null, null);
             }
         }
 
         DocumentMapper docMapper = indexService.mapperService().documentMapper(type);
         if (docMapper == null) {
-            return new GetResponse(request.index(), request.type(), request.id(), -1, false, null, null);
+            return new GetResponse(index, type, id, -1, false, null, null);
         }
-
-        if (request.refresh() && !request.realtime()) {
-            indexShard.refresh(new Engine.Refresh(false));
-        }
-
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
@@ -159,13 +155,13 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 Map<String, GetField> fields = null;
                 byte[] source = null;
                 UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-                FieldSelector fieldSelector = buildFieldSelectors(docMapper, request.fields());
+                FieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
                 if (fieldSelector != null) {
                     Document doc;
                     try {
                         doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
                     } catch (IOException e) {
-                        throw new ElasticSearchException("Failed to get type [" + request.type() + "] and id [" + request.id() + "]", e);
+                        throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
                     }
                     source = extractSource(doc, docMapper);
 
@@ -203,9 +199,9 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 }
 
                 // now, go and do the script thingy if needed
-                if (request.fields() != null && request.fields().length > 0) {
+                if (gFields != null && gFields.length > 0) {
                     SearchLookup searchLookup = null;
-                    for (String field : request.fields()) {
+                    for (String field : gFields) {
                         String script = null;
                         if (field.contains("_source.") || field.contains("doc[")) {
                             script = field;
@@ -244,7 +240,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                     }
                 }
 
-                return new GetResponse(request.index(), request.type(), request.id(), get.version(), get.exists(), source == null ? null : new BytesHolder(source), fields);
+                return new GetResponse(index, type, id, get.version(), get.exists(), source == null ? null : new BytesHolder(source), fields);
             } else {
                 BytesHolder source = get.source();
                 assert source != null;
@@ -253,10 +249,10 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 boolean sourceRequested = false;
 
                 // we can only load scripts that can run against the source
-                if (request.fields() != null && request.fields().length > 0) {
+                if (gFields != null && gFields.length > 0) {
                     Map<String, Object> sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
                     SearchLookup searchLookup = null;
-                    for (String field : request.fields()) {
+                    for (String field : gFields) {
                         if (field.equals("_source")) {
                             sourceRequested = true;
                             continue;
@@ -305,7 +301,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                     sourceRequested = true;
                 }
 
-                return new GetResponse(request.index(), request.type(), request.id(), get.version(), get.exists(), sourceRequested ? source : null, fields);
+                return new GetResponse(index, type, id, get.version(), get.exists(), sourceRequested ? source : null, fields);
             }
         } finally {
             if (get.searcher() != null) {
@@ -314,7 +310,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         }
     }
 
-    private FieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {
+    private static FieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {
         if (fields == null) {
             return docMapper.sourceMapper().fieldSelector();
         }
@@ -338,7 +334,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         return fieldSelector;
     }
 
-    private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
+    private static byte[] extractSource(Document doc, DocumentMapper documentMapper) {
         byte[] source = null;
         Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
         if (sourceField != null) {
@@ -346,23 +342,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
             doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;
-    }
-
-    private UidField.DocIdAndVersion loadCurrentVersionFromIndex(BloomCache bloomCache, Engine.Searcher searcher, Term uid) {
-        UnicodeUtil.UTF8Result utf8 = Unicode.fromStringAsUtf8(uid.text());
-        for (IndexReader reader : searcher.searcher().subReaders()) {
-            BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
-            // we know that its not there...
-            if (!filter.isPresent(utf8.result, 0, utf8.length)) {
-                continue;
-            }
-            UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(reader, uid);
-            // not null if it exists
-            if (docIdAndVersion != null) {
-                return docIdAndVersion;
-            }
-        }
-        return null;
     }
 
     @Override protected GetRequest newRequest() {

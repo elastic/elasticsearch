@@ -35,7 +35,10 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -44,7 +47,11 @@ import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
@@ -71,6 +78,8 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     private final TransportGetAction getAction;
 
+    private final TransportMultiGetAction multiGetAction;
+
     private final TransportCountAction countAction;
 
     private final TransportSearchAction searchAction;
@@ -83,7 +92,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Inject public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
                               TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
-                              TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
+                              TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportMultiGetAction multiGetAction, TransportCountAction countAction,
                               TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
                               TransportMoreLikeThisAction moreLikeThisAction, TransportPercolateAction percolateAction) {
         this.threadPool = threadPool;
@@ -93,6 +102,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
         this.bulkAction = bulkAction;
         this.deleteByQueryAction = deleteByQueryAction;
         this.getAction = getAction;
+        this.multiGetAction = multiGetAction;
         this.countAction = countAction;
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
@@ -150,6 +160,14 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Override public void get(GetRequest request, ActionListener<GetResponse> listener) {
         getAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request) {
+        return multiGetAction.execute(request);
+    }
+
+    @Override public void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener) {
+        multiGetAction.execute(request, listener);
     }
 
     @Override public ActionFuture<CountResponse> count(CountRequest request) {

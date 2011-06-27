@@ -72,6 +72,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return preferenceShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), preference);
     }
 
+    @Override public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
+        return preferenceShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), preference);
+    }
+
     @Override public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
         return indexRoutingTable(clusterState, index).groupByShardsIt();
     }
@@ -167,6 +171,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String type, String id, String routing) {
         int shardId = shardId(clusterState, index, type, id, routing);
+        return shards(clusterState, index, shardId);
+    }
+
+    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, int shardId) {
         IndexShardRoutingTable indexShard = indexRoutingTable(clusterState, index).shard(shardId);
         if (indexShard == null) {
             throw new IndexShardMissingException(new ShardId(index, shardId));

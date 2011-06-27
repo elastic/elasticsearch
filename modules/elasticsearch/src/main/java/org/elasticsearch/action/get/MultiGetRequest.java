@@ -1,0 +1,291 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.get;
+
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.Actions;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class MultiGetRequest implements ActionRequest {
+
+    /**
+     * A single get item.
+     */
+    public static class Item implements Streamable {
+        private String index;
+        private String type;
+        private String id;
+        private String routing;
+
+        Item() {
+
+        }
+
+        /**
+         * Constructs a single get item.
+         *
+         * @param index The index name
+         * @param type  The type (can be null)
+         * @param id    The id
+         */
+        public Item(String index, @Nullable String type, String id) {
+            this.index = index;
+            this.type = type;
+            this.id = id;
+        }
+
+        public String index() {
+            return this.index;
+        }
+
+        public String type() {
+            return this.type;
+        }
+
+        public String id() {
+            return this.id;
+        }
+
+        /**
+         * The routing associated with this document.
+         */
+        public Item routing(String routing) {
+            this.routing = routing;
+            return this;
+        }
+
+        public String routing() {
+            return this.routing;
+        }
+
+        public static Item readItem(StreamInput in) throws IOException {
+            Item item = new Item();
+            item.readFrom(in);
+            return item;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            index = in.readUTF();
+            if (in.readBoolean()) {
+                type = in.readUTF();
+            }
+            id = in.readUTF();
+            if (in.readBoolean()) {
+                routing = in.readUTF();
+            }
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeUTF(index);
+            if (type == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(type);
+            }
+            out.writeUTF(id);
+            if (routing == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(routing);
+            }
+        }
+    }
+
+    private boolean listenerThreaded = false;
+
+    String preference;
+    Boolean realtime;
+    boolean refresh;
+
+    List<Item> items = new ArrayList<Item>();
+
+    public MultiGetRequest add(Item item) {
+        items.add(item);
+        return this;
+    }
+
+    public MultiGetRequest add(String index, @Nullable String type, String id) {
+        items.add(new Item(index, type, id));
+        return this;
+    }
+
+    @Override public boolean listenerThreaded() {
+        return listenerThreaded;
+    }
+
+    @Override public MultiGetRequest listenerThreaded(boolean listenerThreaded) {
+        this.listenerThreaded = listenerThreaded;
+        return this;
+    }
+
+    @Override public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+        if (items.isEmpty()) {
+            validationException = Actions.addValidationError("no documents to get", validationException);
+        } else {
+            for (int i = 0; i < items.size(); i++) {
+                Item item = items.get(i);
+                if (item.index() == null) {
+                    validationException = Actions.addValidationError("index is missing for doc " + i, validationException);
+                }
+                if (item.id() == null) {
+                    validationException = Actions.addValidationError("id is missing for doc " + i, validationException);
+                }
+            }
+        }
+        return validationException;
+    }
+
+    /**
+     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
+     * a custom value, which guarantees that the same order will be used across different requests.
+     */
+    public MultiGetRequest preference(String preference) {
+        this.preference = preference;
+        return this;
+    }
+
+    public String preference() {
+        return this.preference;
+    }
+
+    public boolean realtime() {
+        return this.realtime == null ? true : this.realtime;
+    }
+
+    public MultiGetRequest realtime(Boolean realtime) {
+        this.realtime = realtime;
+        return this;
+    }
+
+    public boolean refresh() {
+        return this.refresh;
+    }
+
+    public MultiGetRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
+    public void add(@Nullable String defaultIndex, @Nullable String defaultType, byte[] data, int from, int length) throws Exception {
+        XContentParser parser = XContentFactory.xContent(data, from, length).createParser(data, from, length);
+        try {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("docs".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token != XContentParser.Token.START_OBJECT) {
+                                throw new ElasticSearchIllegalArgumentException("docs array element should include an object");
+                            }
+                            String index = defaultIndex;
+                            String type = defaultType;
+                            String id = null;
+                            String routing = null;
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token.isValue()) {
+                                    if ("_index".equals(currentFieldName)) {
+                                        index = parser.text();
+                                    } else if ("_type".equals(currentFieldName)) {
+                                        type = parser.text();
+                                    } else if ("_id".equals(currentFieldName)) {
+                                        id = parser.text();
+                                    } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+                                        routing = parser.text();
+                                    }
+                                }
+                            }
+                            add(new Item(index, type, id).routing(routing));
+                        }
+                    } else if ("ids".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (!token.isValue()) {
+                                throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
+                            }
+                            add(new Item(defaultIndex, defaultType, parser.text()));
+                        }
+                    }
+                }
+            }
+        } finally {
+            parser.close();
+        }
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            preference = in.readUTF();
+        }
+        refresh = in.readBoolean();
+        byte realtime = in.readByte();
+        if (realtime == 0) {
+            this.realtime = false;
+        } else if (realtime == 1) {
+            this.realtime = true;
+        }
+
+        int size = in.readVInt();
+        items = new ArrayList<Item>(size);
+        for (int i = 0; i < size; i++) {
+            items.add(Item.readItem(in));
+        }
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        if (preference == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(preference);
+        }
+        out.writeBoolean(refresh);
+        if (realtime == null) {
+            out.writeByte((byte) -1);
+        } else if (realtime == false) {
+            out.writeByte((byte) 0);
+        } else {
+            out.writeByte((byte) 1);
+        }
+
+        out.writeVInt(items.size());
+        for (Item item : items) {
+            item.writeTo(out);
+        }
+    }
+}

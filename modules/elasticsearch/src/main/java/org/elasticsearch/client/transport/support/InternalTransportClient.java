@@ -32,6 +32,8 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
@@ -49,6 +51,7 @@ import org.elasticsearch.client.transport.action.count.ClientTransportCountActio
 import org.elasticsearch.client.transport.action.delete.ClientTransportDeleteAction;
 import org.elasticsearch.client.transport.action.deletebyquery.ClientTransportDeleteByQueryAction;
 import org.elasticsearch.client.transport.action.get.ClientTransportGetAction;
+import org.elasticsearch.client.transport.action.get.ClientTransportMultiGetAction;
 import org.elasticsearch.client.transport.action.index.ClientTransportIndexAction;
 import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThisAction;
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
@@ -78,6 +81,8 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     private final ClientTransportGetAction getAction;
 
+    private final ClientTransportMultiGetAction multiGetAction;
+
     private final ClientTransportDeleteByQueryAction deleteByQueryAction;
 
     private final ClientTransportCountAction countAction;
@@ -92,7 +97,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     @Inject public InternalTransportClient(Settings settings, ThreadPool threadPool,
                                            TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
-                                           ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction,
+                                           ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction, ClientTransportMultiGetAction multiGetAction,
                                            ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                            ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
                                            ClientTransportMoreLikeThisAction moreLikeThisAction, ClientTransportPercolateAction percolateAction) {
@@ -104,6 +109,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.deleteAction = deleteAction;
         this.bulkAction = bulkAction;
         this.getAction = getAction;
+        this.multiGetAction = multiGetAction;
         this.deleteByQueryAction = deleteByQueryAction;
         this.countAction = countAction;
         this.searchAction = searchAction;
@@ -204,6 +210,23 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 getAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<MultiGetResponse> multiGet(final MultiGetRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<MultiGetResponse>>() {
+            @Override public ActionFuture<MultiGetResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return multiGetAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void multiGet(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                multiGetAction.execute(node, request, listener);
                 return null;
             }
         });

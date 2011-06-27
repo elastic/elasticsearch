@@ -32,6 +32,8 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
@@ -282,6 +284,14 @@ public class TransportClient extends AbstractClient {
 
     @Override public void get(GetRequest request, ActionListener<GetResponse> listener) {
         internalClient.get(request, listener);
+    }
+
+    @Override public ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request) {
+        return internalClient.multiGet(request);
+    }
+
+    @Override public void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener) {
+        internalClient.multiGet(request, listener);
     }
 
     @Override public ActionFuture<CountResponse> count(CountRequest request) {

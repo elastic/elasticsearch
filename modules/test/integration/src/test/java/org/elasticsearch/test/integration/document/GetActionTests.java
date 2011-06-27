@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -134,5 +135,46 @@ public class GetActionTests extends AbstractNodesTests {
 
         response = client.prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.exists(), equalTo(false));
+    }
+
+    @Test public void simpleMultiGetTests() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // fine
+        }
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
+
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        MultiGetResponse response = client.prepareMultiGet().add("test", "type1", "1").execute().actionGet();
+        assertThat(response.responses().length, equalTo(1));
+        assertThat(response.responses()[0].response().exists(), equalTo(false));
+
+        for (int i = 0; i < 10; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+
+        response = client.prepareMultiGet()
+                .add("test", "type1", "1")
+                .add("test", "type1", "15")
+                .add("test", "type1", "3")
+                .add("test", "type1", "9")
+                .add("test", "type1", "11")
+                .execute().actionGet();
+        assertThat(response.responses().length, equalTo(5));
+        assertThat(response.responses()[0].id(), equalTo("1"));
+        assertThat(response.responses()[0].response().exists(), equalTo(true));
+        assertThat(response.responses()[0].response().sourceAsMap().get("field").toString(), equalTo("value1"));
+        assertThat(response.responses()[1].id(), equalTo("15"));
+        assertThat(response.responses()[1].response().exists(), equalTo(false));
+        assertThat(response.responses()[2].id(), equalTo("3"));
+        assertThat(response.responses()[2].response().exists(), equalTo(true));
+        assertThat(response.responses()[3].id(), equalTo("9"));
+        assertThat(response.responses()[3].response().exists(), equalTo(true));
+        assertThat(response.responses()[4].id(), equalTo("11"));
+        assertThat(response.responses()[4].response().exists(), equalTo(false));
     }
 }

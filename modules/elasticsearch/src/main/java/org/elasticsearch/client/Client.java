@@ -31,6 +31,8 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
@@ -44,6 +46,7 @@ import org.elasticsearch.client.action.count.CountRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.client.action.get.GetRequestBuilder;
+import org.elasticsearch.client.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
@@ -231,6 +234,21 @@ public interface Client {
      * Gets the document that was indexed from an index with a type (optional) and id.
      */
     GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
+
+    /**
+     * Multi get documents.
+     */
+    ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request);
+
+    /**
+     * Multi get documents.
+     */
+    void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener);
+
+    /**
+     * Multi get documents.
+     */
+    MultiGetRequestBuilder prepareMultiGet();
 
     /**
      * A count of all the documents matching a specific query.

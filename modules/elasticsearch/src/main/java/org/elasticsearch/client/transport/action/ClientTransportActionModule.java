@@ -52,6 +52,7 @@ import org.elasticsearch.client.transport.action.count.ClientTransportCountActio
 import org.elasticsearch.client.transport.action.delete.ClientTransportDeleteAction;
 import org.elasticsearch.client.transport.action.deletebyquery.ClientTransportDeleteByQueryAction;
 import org.elasticsearch.client.transport.action.get.ClientTransportGetAction;
+import org.elasticsearch.client.transport.action.get.ClientTransportMultiGetAction;
 import org.elasticsearch.client.transport.action.index.ClientTransportIndexAction;
 import org.elasticsearch.client.transport.action.percolate.ClientTransportPercolateAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
@@ -68,6 +69,7 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportDeleteAction.class).asEagerSingleton();
         bind(ClientTransportDeleteByQueryAction.class).asEagerSingleton();
         bind(ClientTransportGetAction.class).asEagerSingleton();
+        bind(ClientTransportMultiGetAction.class).asEagerSingleton();
         bind(ClientTransportCountAction.class).asEagerSingleton();
         bind(ClientTransportSearchAction.class).asEagerSingleton();
         bind(ClientTransportSearchScrollAction.class).asEagerSingleton();

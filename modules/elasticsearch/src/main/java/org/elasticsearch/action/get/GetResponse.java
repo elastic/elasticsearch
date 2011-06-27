@@ -247,6 +247,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString EXISTS = new XContentBuilderString("exists");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
@@ -256,6 +257,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
             builder.field(Fields._INDEX, index);
             builder.field(Fields._TYPE, type);
             builder.field(Fields._ID, id);
+            builder.field(Fields.EXISTS, false);
             builder.endObject();
         } else {
             builder.startObject();
@@ -265,6 +267,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
             if (version != -1) {
                 builder.field(Fields._VERSION, version);
             }
+            builder.field(Fields.EXISTS, true);
             if (source != null) {
                 RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
             }

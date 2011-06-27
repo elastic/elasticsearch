@@ -59,6 +59,8 @@ import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportShardDeleteByQueryAction;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
+import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
@@ -123,6 +125,9 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportIndexDeleteAction.class).asEagerSingleton();
         bind(TransportShardDeleteAction.class).asEagerSingleton();
         bind(TransportCountAction.class).asEagerSingleton();
+
+        bind(TransportMultiGetAction.class).asEagerSingleton();
+        bind(TransportShardMultiGetAction.class).asEagerSingleton();
 
         bind(TransportBulkAction.class).asEagerSingleton();
         bind(TransportShardBulkAction.class).asEagerSingleton();

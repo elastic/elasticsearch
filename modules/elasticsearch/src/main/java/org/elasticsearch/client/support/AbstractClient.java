@@ -24,6 +24,7 @@ import org.elasticsearch.client.action.count.CountRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.client.action.get.GetRequestBuilder;
+import org.elasticsearch.client.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
@@ -70,6 +71,10 @@ public abstract class AbstractClient implements InternalClient {
 
     @Override public GetRequestBuilder prepareGet(String index, String type, String id) {
         return prepareGet().setIndex(index).setType(type).setId(id);
+    }
+
+    @Override public MultiGetRequestBuilder prepareMultiGet() {
+        return new MultiGetRequestBuilder(this);
     }
 
     @Override public SearchRequestBuilder prepareSearch(String... indices) {

@@ -91,7 +91,7 @@ public class RestXContentBuilder {
         } else {
             XContentType contentType = XContentFactory.xContentType(source, offset, length);
             if (contentType == builder.contentType()) {
-                builder.rawField("_source", source);
+                builder.rawField("_source", source, offset, length);
             } else {
                 XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
                 try {

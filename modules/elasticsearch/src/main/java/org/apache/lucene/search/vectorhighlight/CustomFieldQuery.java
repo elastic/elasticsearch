@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -103,6 +104,12 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof FilteredQuery) {
             flatten(((FilteredQuery) sourceQuery).getQuery(), flatQueries);
             flatten(((FilteredQuery) sourceQuery).getFilter(), flatQueries);
+        } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
+        	try {
+        		flatten(sourceQuery.rewrite(reader.get()), flatQueries);
+			} catch (IOException e) {
+				// ignore
+			}
         } else {
             super.flatten(sourceQuery, flatQueries);
         }

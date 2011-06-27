@@ -67,7 +67,7 @@ public class RestXContentBuilder {
     }
 
     public static void restDocumentSource(byte[] source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-
+        restDocumentSource(source, 0, source.length, builder, params);
     }
 
     public static void restDocumentSource(byte[] source, int offset, int length, XContentBuilder builder, ToXContent.Params params) throws IOException {

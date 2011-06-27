@@ -105,11 +105,11 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((FilteredQuery) sourceQuery).getQuery(), flatQueries);
             flatten(((FilteredQuery) sourceQuery).getFilter(), flatQueries);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
-        	try {
-        		flatten(sourceQuery.rewrite(reader.get()), flatQueries);
-			} catch (IOException e) {
-				// ignore
-			}
+            try {
+                flatten(sourceQuery.rewrite(reader.get()), flatQueries);
+            } catch (IOException e) {
+                // ignore
+            }
         } else {
             super.flatten(sourceQuery, flatQueries);
         }

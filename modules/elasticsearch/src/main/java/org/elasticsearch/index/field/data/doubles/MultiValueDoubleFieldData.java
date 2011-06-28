@@ -144,8 +144,16 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     }
 
     @Override public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
+        boolean found = false;
         for (int[] ordinal : ordinals) {
-            proc.onOrdinal(docId, ordinal[docId]);
+            int loc = ordinal[docId];
+            if (loc != 0) {
+                found = true;
+                proc.onOrdinal(docId, ordinal[docId]);
+            }
+        }
+        if (!found) {
+            proc.onOrdinal(docId, 0);
         }
     }
 

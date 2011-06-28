@@ -28,7 +28,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.lucene.Directories.*;
+import static org.apache.lucene.index.IndexReader.*;
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.MatcherAssert.*;

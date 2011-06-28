@@ -39,6 +39,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
     TIntArrayList locations;
     List<String> types;
     List<String> ids;
+    List<String[]> fields;
 
     MultiGetShardRequest() {
 
@@ -50,6 +51,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
         locations = new TIntArrayList();
         types = new ArrayList<String>();
         ids = new ArrayList<String>();
+        fields = new ArrayList<String[]>();
     }
 
     public int shardId() {
@@ -88,10 +90,11 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
         return this;
     }
 
-    public void add(int location, @Nullable String type, String id) {
-        locations.add(location);
-        types.add(type);
-        ids.add(id);
+    public void add(int location, @Nullable String type, String id, String[] fields) {
+        this.locations.add(location);
+        this.types.add(type);
+        this.ids.add(id);
+        this.fields.add(fields);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
@@ -100,6 +103,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
         locations = new TIntArrayList(size);
         types = new ArrayList<String>(size);
         ids = new ArrayList<String>(size);
+        fields = new ArrayList<String[]>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {
@@ -108,6 +112,16 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
                 types.add(null);
             }
             ids.add(in.readUTF());
+            int size1 = in.readVInt();
+            if (size1 > 0) {
+                String[] fields = new String[size1];
+                for (int j = 0; j < size1; j++) {
+                    fields[j] = in.readUTF();
+                }
+                this.fields.add(fields);
+            } else {
+                fields.add(null);
+            }
         }
 
         if (in.readBoolean()) {
@@ -134,6 +148,14 @@ public class MultiGetShardRequest extends SingleShardOperationRequest {
                 out.writeUTF(types.get(i));
             }
             out.writeUTF(ids.get(i));
+            if (fields.get(i) == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(fields.get(i).length);
+                for (String field : fields.get(i)) {
+                    out.writeUTF(field);
+                }
+            }
         }
 
         if (preference == null) {

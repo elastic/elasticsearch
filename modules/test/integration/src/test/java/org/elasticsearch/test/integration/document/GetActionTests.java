@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -176,5 +177,15 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.responses()[3].response().exists(), equalTo(true));
         assertThat(response.responses()[4].id(), equalTo("11"));
         assertThat(response.responses()[4].response().exists(), equalTo(false));
+
+        // multi get with specific field
+        response = client.prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "type1", "1").fields("field"))
+                .add(new MultiGetRequest.Item("test", "type1", "3").fields("field"))
+                .execute().actionGet();
+
+        assertThat(response.responses().length, equalTo(2));
+        assertThat(response.responses()[0].response().source(), nullValue());
+        assertThat(response.responses()[0].response().field("field").values().get(0).toString(), equalTo("value1"));
     }
 }

@@ -67,7 +67,7 @@ public class TransportMultiGetAction extends BaseAction<MultiGetRequest, MultiGe
 
                 shardRequests.put(shardId, shardRequest);
             }
-            shardRequest.add(i, item.type(), item.id());
+            shardRequest.add(i, item.type(), item.id(), item.fields());
         }
 
         final MultiGetItemResponse[] responses = new MultiGetItemResponse[request.items.size()];

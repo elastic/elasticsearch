@@ -102,9 +102,10 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
         for (int i = 0; i < request.locations.size(); i++) {
             String type = request.types.get(i);
             String id = request.ids.get(i);
+            String[] fields = request.fields.get(i);
 
             try {
-                GetResponse getResponse = TransportGetAction.load(logger, scriptService, indexService, indexShard, request.index(), type, id, null, request.realtime());
+                GetResponse getResponse = TransportGetAction.load(logger, scriptService, indexService, indexShard, request.index(), type, id, fields, request.realtime());
                 response.add(request.locations.get(i), getResponse);
             } catch (Exception e) {
                 response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(e)));

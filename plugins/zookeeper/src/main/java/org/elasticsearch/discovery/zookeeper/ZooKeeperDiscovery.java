@@ -209,7 +209,7 @@ public class ZooKeeperDiscovery extends AbstractLifecycleComponent<Discovery> im
             if (!initial || register()) {
                 // Check if node should propose itself as a master
                 if (localNode.isMasterNode()) {
-                    electMaster(initial);
+                    electMaster();
                 } else {
                     findMaster(initial);
                 }
@@ -259,7 +259,7 @@ public class ZooKeeperDiscovery extends AbstractLifecycleComponent<Discovery> im
         }
     }
 
-    private void electMaster(boolean initial) {
+    private void electMaster() {
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
@@ -277,7 +277,7 @@ public class ZooKeeperDiscovery extends AbstractLifecycleComponent<Discovery> im
             byte[] electedMasterId = zooKeeperClient.getOrCreateTransientNode(environment.masterNodePath(), masterId, nodeListener);
             String electedMasterIdStr = new String(electedMasterId);
             if (localNode.id().equals(electedMasterIdStr)) {
-                becomeMaster(initial);
+                becomeMaster();
             } else {
                 addMaster();
             }
@@ -323,17 +323,15 @@ public class ZooKeeperDiscovery extends AbstractLifecycleComponent<Discovery> im
         });
     }
 
-    private void becomeMaster(final boolean initial) throws InterruptedException {
+    private void becomeMaster() throws InterruptedException {
         this.master = true;
         clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder();
-                if (initial) {
+                // Make sure that the current node is present
+                builder.putAll(currentState.nodes());
+                if (currentState.nodes().localNode() == null) {
                     builder.put(localNode);
-                } else {
-                    builder.putAll(currentState.nodes());
-                    // we are not removing previous master here.
-                    // it will be removed in handleUpdateNodeList() call below
                 }
                 // update the fact that we are the master...
                 builder.localNodeId(localNode.id()).masterNodeId(localNode.id());
@@ -355,6 +353,7 @@ public class ZooKeeperDiscovery extends AbstractLifecycleComponent<Discovery> im
         if (!lifecycle.started()) {
             return;
         }
+        master = false;
         asyncJoinCluster(true);
     }
 
@@ -426,6 +425,8 @@ public class ZooKeeperDiscovery extends AbstractLifecycleComponent<Discovery> im
             } else {
                 logger.trace("Received new state, but not part of the state");
             }
+        } else {
+            logger.warn("Received new state, but node is master");
         }
     }
 

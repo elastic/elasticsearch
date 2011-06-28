@@ -532,13 +532,12 @@ public class ZooKeeperDiscoveryTests extends AbstractZooKeeperTests {
             clusterStateListener = new ClusterStateListener() {
                 @Override public void clusterChanged(ClusterChangedEvent event) {
                     if (checkCondition(event)) {
-                        logger.info("New state {}", state);
+                        logger.info("clusterChangedEvent {} state {} ", event.source(), state);
                         state = event.state();
                         clusterService(id).remove(this);
                         latchNode.countDown();
                     } else {
-                        logger.info("New state {} ignored", state);
-
+                        logger.info("Event {} with new state {} is ignored", event.source(), state);
                     }
                 }
             };
@@ -560,6 +559,7 @@ public class ZooKeeperDiscoveryTests extends AbstractZooKeeperTests {
     }
 
     private void expireSession(String id) {
+        logger.info("Disconnecting node {} from ZooKeeper", id);
         embeddedZooKeeperService.expireSession(zooKeeperClient(id).sessionId());
     }
 

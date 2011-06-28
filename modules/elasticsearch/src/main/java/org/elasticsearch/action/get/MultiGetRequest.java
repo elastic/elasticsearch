@@ -44,6 +44,7 @@ public class MultiGetRequest implements ActionRequest {
         private String type;
         private String id;
         private String routing;
+        private String[] fields;
 
         Item() {
 
@@ -86,6 +87,15 @@ public class MultiGetRequest implements ActionRequest {
             return this.routing;
         }
 
+        public Item fields(String... fields) {
+            this.fields = fields;
+            return this;
+        }
+
+        public String[] fields() {
+            return this.fields;
+        }
+
         public static Item readItem(StreamInput in) throws IOException {
             Item item = new Item();
             item.readFrom(in);
@@ -100,6 +110,13 @@ public class MultiGetRequest implements ActionRequest {
             id = in.readUTF();
             if (in.readBoolean()) {
                 routing = in.readUTF();
+            }
+            int size = in.readVInt();
+            if (size > 0) {
+                fields = new String[size];
+                for (int i = 0; i < size; i++) {
+                    fields[i] = in.readUTF();
+                }
             }
         }
 
@@ -117,6 +134,14 @@ public class MultiGetRequest implements ActionRequest {
             } else {
                 out.writeBoolean(true);
                 out.writeUTF(routing);
+            }
+            if (fields == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(fields.length);
+                for (String field : fields) {
+                    out.writeUTF(field);
+                }
             }
         }
     }
@@ -216,6 +241,7 @@ public class MultiGetRequest implements ActionRequest {
                             String type = defaultType;
                             String id = null;
                             String routing = null;
+                            List<String> fields = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
@@ -229,9 +255,16 @@ public class MultiGetRequest implements ActionRequest {
                                     } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                                         routing = parser.text();
                                     }
+                                } else if (token == XContentParser.Token.START_ARRAY) {
+                                    if ("fields".equals(currentFieldName)) {
+                                        fields = new ArrayList<String>();
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                            fields.add(parser.text());
+                                        }
+                                    }
                                 }
                             }
-                            add(new Item(index, type, id).routing(routing));
+                            add(new Item(index, type, id).routing(routing).fields(fields == null ? null : fields.toArray(new String[fields.size()])));
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

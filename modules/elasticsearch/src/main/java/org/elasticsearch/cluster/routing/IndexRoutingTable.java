@@ -107,6 +107,11 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
                 validation.addIndexFailure(index(), "Shard [" + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected [" + indexMetaData.numberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
             }
+            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                if (!shardRouting.index().equals(index())) {
+                    validation.addIndexFailure(index(), "shard routing has an index [" + shardRouting.index() + "] that is different than the routing table");
+                }
+            }
         }
     }
 

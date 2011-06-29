@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -74,19 +73,16 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             @Override public ClusterState execute(ClusterState currentState) {
                 final DeleteIndexListener listener = new DeleteIndexListener(request, userListener);
                 try {
-                    if (!currentState.metaData().hasIndex(request.index)) {
+                    if (!currentState.metaData().hasConcreteIndex(request.index)) {
                         listener.onFailure(new IndexMissingException(new Index(request.index)));
                         return currentState;
                     }
 
                     logger.info("[{}] deleting index", request.index);
 
-                    RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
-                    for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
-                        if (!indexRoutingTable.index().equals(request.index)) {
-                            routingTableBuilder.add(indexRoutingTable);
-                        }
-                    }
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
+                    routingTableBuilder.remove(request.index);
+
                     MetaData newMetaData = newMetaDataBuilder()
                             .metaData(currentState.metaData())
                             .remove(request.index)

@@ -36,8 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.routing.RoutingTable.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -141,7 +139,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
                     String[] actualIndices = currentState.metaData().concreteIndices(indices);
-                    RoutingTable.Builder routingTableBuilder = newRoutingTableBuilder().routingTable(currentState.routingTable());
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                     MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
 
                     int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);

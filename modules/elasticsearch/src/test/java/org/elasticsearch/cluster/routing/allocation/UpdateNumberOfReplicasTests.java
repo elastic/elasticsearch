@@ -13,7 +13,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
-import static org.elasticsearch.cluster.routing.RoutingTable.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -83,7 +82,7 @@ public class UpdateNumberOfReplicasTests {
         logger.info("add another replica");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = newRoutingTableBuilder().routingTable(routingTable).updateNumberOfReplicas(2).build();
+        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(2).build();
         metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(2).build();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
 
@@ -135,7 +134,7 @@ public class UpdateNumberOfReplicasTests {
         logger.info("now remove a replica");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = newRoutingTableBuilder().routingTable(routingTable).updateNumberOfReplicas(1).build();
+        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(1).build();
         metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
 

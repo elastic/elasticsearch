@@ -46,7 +46,7 @@ import static org.elasticsearch.common.collect.Maps.*;
 @Immutable
 public class RoutingTable implements Iterable<IndexRoutingTable> {
 
-    public static final RoutingTable EMPTY_ROUTING_TABLE = newRoutingTableBuilder().build();
+    public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 
     private final long version;
 
@@ -201,10 +201,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
     }
 
     public static Builder builder() {
-        return new Builder();
-    }
-
-    public static Builder newRoutingTableBuilder() {
         return new Builder();
     }
 

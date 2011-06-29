@@ -392,8 +392,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         clusterBlocks = ClusterBlocks.builder().blocks(clusterBlocks).addGlobalBlock(NO_MASTER_BLOCK).build();
                         // if this is a data node, clean the metadata and routing, since we want to recreate the indices and shards
                         if (currentState.nodes().localNode().dataNode()) {
+                            // TODO, what happens with versioning here?
                             metaData = MetaData.newMetaDataBuilder().build();
-                            routingTable = RoutingTable.newRoutingTableBuilder().build();
+                            routingTable = RoutingTable.builder().build();
                         }
                         masterFD.stop("no master elected since master left (reason = " + reason + ")");
                         asyncJoinCluster();

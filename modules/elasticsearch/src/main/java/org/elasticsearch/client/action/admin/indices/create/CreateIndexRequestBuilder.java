@@ -56,6 +56,14 @@ public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateI
     }
 
     /**
+     * Allows to set the settings using a json builder.
+     */
+    public CreateIndexRequestBuilder setSettings(XContentBuilder builder) {
+        request.settings(builder);
+        return this;
+    }
+
+    /**
      * The settings to crete the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(String source) {

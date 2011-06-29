@@ -137,6 +137,18 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     /**
+     * Allows to set the settings using a json builder.
+     */
+    public CreateIndexRequest settings(XContentBuilder builder) {
+        try {
+            settings(builder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate json settings from builder", e);
+        }
+        return this;
+    }
+
+    /**
      * The settings to crete the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(Map source) {

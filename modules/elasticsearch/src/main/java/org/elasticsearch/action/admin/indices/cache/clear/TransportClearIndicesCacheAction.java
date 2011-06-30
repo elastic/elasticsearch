@@ -57,7 +57,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override protected String transportAction() {

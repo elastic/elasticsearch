@@ -45,7 +45,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override protected String transportAction() {

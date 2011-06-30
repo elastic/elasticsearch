@@ -47,7 +47,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override protected String transportAction() {

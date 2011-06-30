@@ -51,7 +51,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override protected String transportAction() {

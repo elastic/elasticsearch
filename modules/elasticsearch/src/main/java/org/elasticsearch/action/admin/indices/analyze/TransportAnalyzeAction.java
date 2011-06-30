@@ -58,7 +58,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.INDEX;
     }
 
     @Override protected AnalyzeRequest newRequest() {

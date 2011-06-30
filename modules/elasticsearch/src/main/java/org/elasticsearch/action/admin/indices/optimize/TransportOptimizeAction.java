@@ -60,7 +60,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MERGE;
     }
 
     @Override protected String transportAction() {

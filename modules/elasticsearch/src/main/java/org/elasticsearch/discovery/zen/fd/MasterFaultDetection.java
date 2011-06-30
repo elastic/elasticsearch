@@ -30,7 +30,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -298,6 +304,10 @@ public class MasterFaultDetection extends AbstractComponent {
                             synchronized (masterNodeMutex) {
                                 // check if the master node did not get switched on us...
                                 if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
+                                    if (exp.getCause() instanceof NoLongerMasterException) {
+                                        logger.debug("[master] pinging a master {} that is no longer a master", masterNode, pingRetryCount, pingRetryTimeout);
+                                        notifyMasterFailure(masterToPing, "no longer master");
+                                    }
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
                                     logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
@@ -319,6 +329,12 @@ public class MasterFaultDetection extends AbstractComponent {
         }
     }
 
+    private static class NoLongerMasterException extends ElasticSearchIllegalStateException {
+        @Override public Throwable fillInStackTrace() {
+            return null;
+        }
+    }
+
     private class MasterPingRequestHandler extends BaseTransportRequestHandler<MasterPingRequest> {
 
         public static final String ACTION = "discovery/zen/fd/masterPing";
@@ -333,6 +349,10 @@ public class MasterFaultDetection extends AbstractComponent {
             // this can happen if the master got "kill -9" and then another node started using the same port
             if (!request.masterNodeId.equals(nodes.localNodeId())) {
                 throw new ElasticSearchIllegalStateException("Got ping as master with id [" + request.masterNodeId + "], but not master and no id");
+            }
+            // if we are no longer master, fail...
+            if (!nodes.localNodeMaster()) {
+                throw new NoLongerMasterException();
             }
             // send a response, and note if we are connected to the master or not
             channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));

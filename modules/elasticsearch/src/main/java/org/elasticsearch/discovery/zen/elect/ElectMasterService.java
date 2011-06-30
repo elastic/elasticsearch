@@ -36,8 +36,24 @@ public class ElectMasterService extends AbstractComponent {
 
     private final NodeComparator nodeComparator = new NodeComparator();
 
+    private final int minimumMasterNodes;
+
     public ElectMasterService(Settings settings) {
         super(settings);
+        this.minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
+    }
+
+    public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+        if (minimumMasterNodes < 1) {
+            return true;
+        }
+        int count = 0;
+        for (DiscoveryNode node : nodes) {
+            if (node.masterNode()) {
+                count++;
+            }
+        }
+        return count >= minimumMasterNodes;
     }
 
     /**
@@ -77,7 +93,7 @@ public class ElectMasterService extends AbstractComponent {
             return null;
         }
         // clean non master nodes
-        for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext();) {
+        for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next();
             if (!node.masterNode()) {
                 it.remove();

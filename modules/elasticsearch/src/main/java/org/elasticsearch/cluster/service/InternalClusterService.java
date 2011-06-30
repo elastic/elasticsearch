@@ -40,6 +40,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -80,7 +81,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 
-    private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder();
+    private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder().addGlobalBlock(Discovery.NO_MASTER_BLOCK);
 
     private volatile ScheduledFuture reconnectToNodes;
 

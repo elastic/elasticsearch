@@ -35,7 +35,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -149,6 +153,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         synchronized (mutex) {
+            // we need to clean the shards and indices we have on this node, since we
+            // are going to recover them again once state persistence is disabled (no master / not recovered)
+            // TODO: this feels a bit hacky here, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
+            if (event.state().blocks().disableStatePersistence()) {
+                for (final String index : indicesService.indices()) {
+                    IndexService indexService = indicesService.indexService(index);
+                    for (Integer shardId : indexService.shardIds()) {
+                        logger.debug("[{}][{}] removing shard (disabled block persistence)", index, shardId);
+                        try {
+                            indexService.removeShard(shardId, "removing shard (disabled block persistence)");
+                        } catch (Exception e) {
+                            logger.warn("[{}] failed to remove shard (disabled block persistence)", e, index);
+                        }
+                    }
+                    indicesService.cleanIndex(index, "cleaning index (disabled block persistence)");
+                }
+                return;
+            }
+
             applyNewIndices(event);
             applyMappings(event);
             applyAliases(event);

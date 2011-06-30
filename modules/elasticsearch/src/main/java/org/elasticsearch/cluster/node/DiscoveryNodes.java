@@ -210,6 +210,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         return new Delta(previousMasterNode, newMasterNode, localNodeId, ImmutableList.copyOf(removed), ImmutableList.copyOf(added));
     }
 
+    @Override public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        for (DiscoveryNode node : this) {
+            sb.append(node).append(',');
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("nodes: \n");

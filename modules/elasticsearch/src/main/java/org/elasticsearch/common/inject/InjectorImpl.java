@@ -57,7 +57,7 @@ class InjectorImpl implements Injector, Lookups {
     /**
      * Just-in-time binding cache. Guarded by state.lock()
      */
-    final Map<Key<?>, BindingImpl<?>> jitBindings = Maps.newHashMap();
+    Map<Key<?>, BindingImpl<?>> jitBindings = Maps.newHashMap();
 
     Lookups lookups = new DeferredLookups(this);
 
@@ -723,7 +723,7 @@ class InjectorImpl implements Injector, Lookups {
     /**
      * Cached constructor injectors for each type
      */
-    final ConstructorInjectorStore constructors = new ConstructorInjectorStore(this);
+    ConstructorInjectorStore constructors = new ConstructorInjectorStore(this);
 
     /**
      * Cached field and method injectors for each type.
@@ -830,4 +830,11 @@ class InjectorImpl implements Injector, Lookups {
                 .toString();
     }
 
+    // ES_GUICE: clear caches
+    public void clearCache() {
+        state.clearBlacklisted();
+        constructors = new ConstructorInjectorStore(this);
+        membersInjectorStore = new MembersInjectorStore(this, state.getTypeListenerBindings());
+        jitBindings = Maps.newHashMap();
+    }
 }

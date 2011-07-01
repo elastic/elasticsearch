@@ -21,7 +21,7 @@ package org.elasticsearch.index.field.data.bytes;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 
@@ -32,31 +32,47 @@ import java.io.IOException;
  */
 public class ByteFieldDataType implements FieldDataType<ByteFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+    @Override public ExtendedFieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
         if (missing == null) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new ByteFieldDataComparator(numHits, fieldname, cache);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.BYTE;
                 }
             };
         }
         if (missing.equals("_last")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new ByteFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Byte.MIN_VALUE : Byte.MAX_VALUE);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.BYTE;
                 }
             };
         }
         if (missing.equals("_first")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new ByteFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Byte.MAX_VALUE : Byte.MIN_VALUE);
                 }
+
+                @Override public int reducedType() {
+                    return SortField.BYTE;
+                }
             };
         }
-        return new FieldComparatorSource() {
+        return new ExtendedFieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new ByteFieldDataMissingComparator(numHits, fieldname, cache, Byte.parseByte(missing));
+            }
+
+            @Override public int reducedType() {
+                return SortField.BYTE;
             }
         };
     }

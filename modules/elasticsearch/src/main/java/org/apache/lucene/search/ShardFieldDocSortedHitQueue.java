@@ -20,8 +20,10 @@
 package org.apache.lucene.search;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.search.controller.ShardFieldDoc;
 
+import java.io.IOException;
 import java.text.Collator;
 import java.util.Locale;
 
@@ -35,8 +37,9 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
 
     // used in the case where the fields are sorted by locale
     // based strings
-    volatile Collator[] collators = null;
+    //volatile Collator[] collators = null;
 
+    FieldComparator[] comparators = null;
 
     /**
      * Creates a hit queue sorted by the given list of fields.
@@ -61,7 +64,15 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
      */
     public void setFields(SortField[] fields) {
         this.fields = fields;
-        this.collators = hasCollators(fields);
+        //this.collators = hasCollators(fields);
+        try {
+            comparators = new FieldComparator[fields.length];
+            for (int fieldIDX = 0; fieldIDX < fields.length; fieldIDX++) {
+                comparators[fieldIDX] = fields[fieldIDX].getComparator(1, fieldIDX);
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalStateException("failed to get comparator", e);
+        }
     }
 
 
@@ -115,16 +126,14 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
                     c = (s2 == null) ? 0 : -1;
                 } else if (s2 == null) {
                     c = 1;
-                } else if (fields[i].getLocale() == null) {
+                } else { //if (fields[i].getLocale() == null) {
                     c = s1.compareTo(s2);
-                } else {
-                    c = collators[i].compare(s1, s2);
                 }
+//                } else {
+//                    c = collators[i].compare(s1, s2);
+//                }
             } else {
-                c = docA.fields[i].compareTo(docB.fields[i]);
-                if (type == SortField.SCORE) {
-                    c = -c;
-                }
+                c = comparators[i].compareValues(docA.fields[i], docB.fields[i]);
             }
             // reverse sort
             if (fields[i].getReverse()) {

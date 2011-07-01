@@ -21,7 +21,7 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -33,13 +33,17 @@ import java.io.IOException;
  */
 public class StringFieldDataType implements FieldDataType<StringFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+    @Override public ExtendedFieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
         if (missing != null) {
             throw new ElasticSearchIllegalArgumentException("Sorting on string type field does not support missing parameter");
         }
-        return new FieldComparatorSource() {
+        return new ExtendedFieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new StringOrdValFieldDataComparator(numHits, fieldname, sortPos, reversed, cache);
+            }
+
+            @Override public int reducedType() {
+                return SortField.STRING;
             }
         };
     }

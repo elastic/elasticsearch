@@ -21,7 +21,7 @@ package org.elasticsearch.index.field.data.floats;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 
@@ -32,31 +32,47 @@ import java.io.IOException;
  */
 public class FloatFieldDataType implements FieldDataType<FloatFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+    @Override public ExtendedFieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
         if (missing == null) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new FloatFieldDataComparator(numHits, fieldname, cache);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.FLOAT;
                 }
             };
         }
         if (missing.equals("_last")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.FLOAT;
                 }
             };
         }
         if (missing.equals("_first")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new FloatFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
                 }
+
+                @Override public int reducedType() {
+                    return SortField.FLOAT;
+                }
             };
         }
-        return new FieldComparatorSource() {
+        return new ExtendedFieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new FloatFieldDataMissingComparator(numHits, fieldname, cache, Float.parseFloat(missing));
+            }
+
+            @Override public int reducedType() {
+                return SortField.FLOAT;
             }
         };
     }

@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.strings.StringOrdValFieldDataComparator;
@@ -35,10 +35,14 @@ public class GeoPointFieldDataType implements FieldDataType<GeoPointFieldData> {
 
     public static final GeoPointFieldDataType TYPE = new GeoPointFieldDataType();
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
-        return new FieldComparatorSource() {
+    @Override public ExtendedFieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+        return new ExtendedFieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new StringOrdValFieldDataComparator(numHits, fieldname, sortPos, reversed, cache);
+            }
+
+            @Override public int reducedType() {
+                return SortField.STRING;
             }
         };
     }

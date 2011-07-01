@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -51,6 +52,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     private volatile int maxMergeAtOnceExplicit;
     private volatile ByteSizeValue maxMergedSegment;
     private volatile double segmentsPerTier;
+    private volatile double reclaimDeletesWeight;
     private boolean asyncMerge;
 
     private final ApplySettings applySettings = new ApplySettings();
@@ -68,9 +70,10 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
         this.maxMergedSegment = componentSettings.getAsBytesSize("max_merge_segment", new ByteSizeValue(5, ByteSizeUnit.GB));
         this.segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", 10d);
+        this.reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", 2.0d);
 
-        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merge_segment[{}], segments_per_tier[{}], async_merge[{}]",
-                expungeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, asyncMerge);
+        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merge_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}], async_merge[{}]",
+                expungeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight, asyncMerge);
 
         indexSettingsService.addListener(applySettings);
     }
@@ -90,6 +93,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
+        mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
         return mergePolicy;
     }
 
@@ -105,6 +109,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 "index.merge.policy.max_merge_at_once_explicit",
                 "index.merge.policy.max_merged_segment",
                 "index.merge.policy.segments_per_tier",
+                "index.merge.policy.reclaim_deletes_weight",
                 "index.compound_format"
         );
     }
@@ -162,6 +167,15 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 TieredMergePolicyProvider.this.segmentsPerTier = segmentsPerTier;
                 for (CustomTieredMergePolicyProvider policy : policies) {
                     policy.setSegmentsPerTier(segmentsPerTier);
+                }
+            }
+
+            double reclaimDeletesWeight = settings.getAsDouble("index.merge.policy.reclaim_deletes_weight", TieredMergePolicyProvider.this.reclaimDeletesWeight);
+            if (reclaimDeletesWeight != TieredMergePolicyProvider.this.reclaimDeletesWeight) {
+                logger.info("updating [reclaim_deletes_weight] from [{}] to [{}]", TieredMergePolicyProvider.this.reclaimDeletesWeight, reclaimDeletesWeight);
+                TieredMergePolicyProvider.this.reclaimDeletesWeight = reclaimDeletesWeight;
+                for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setReclaimDeletesWeight(reclaimDeletesWeight);
                 }
             }
 
@@ -234,11 +248,11 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             return super.findMergesToExpungeDeletes(segmentInfos);
         }
 
-        @Override public MergePolicy.MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxNumSegments, Set<SegmentInfo> segmentsToOptimize) throws IOException {
+        @Override public MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToOptimize) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
-            return super.findMergesForOptimize(infos, maxNumSegments, segmentsToOptimize);
+            return super.findMergesForOptimize(infos, maxSegmentCount, segmentsToOptimize);
         }
     }
 }

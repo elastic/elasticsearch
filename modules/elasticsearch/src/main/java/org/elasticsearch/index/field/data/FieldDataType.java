@@ -48,7 +48,15 @@ public interface FieldDataType<T extends FieldData> {
         public static final DoubleFieldDataType DOUBLE = new DoubleFieldDataType();
     }
 
-    FieldComparatorSource newFieldComparatorSource(FieldDataCache cache, @Nullable String missing);
+    ExtendedFieldComparatorSource newFieldComparatorSource(FieldDataCache cache, @Nullable String missing);
 
     T load(IndexReader reader, String fieldName) throws IOException;
+
+    // we need this extended source we we have custom comparators to reuse our field data
+    // in this case, we need to reduce type that will be used when search results are reduced
+    // on another node (we don't have the custom source them...)
+    public abstract class ExtendedFieldComparatorSource extends FieldComparatorSource {
+
+        public abstract int reducedType();
+    }
 }

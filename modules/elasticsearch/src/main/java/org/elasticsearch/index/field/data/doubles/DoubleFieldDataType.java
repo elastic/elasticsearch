@@ -21,7 +21,7 @@ package org.elasticsearch.index.field.data.doubles;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 
@@ -32,31 +32,47 @@ import java.io.IOException;
  */
 public class DoubleFieldDataType implements FieldDataType<DoubleFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+    @Override public ExtendedFieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
         if (missing == null) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new DoubleFieldDataComparator(numHits, fieldname, cache);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.DOUBLE;
                 }
             };
         }
         if (missing.equals("_last")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.DOUBLE;
                 }
             };
         }
         if (missing.equals("_first")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
                 }
+
+                @Override public int reducedType() {
+                    return SortField.DOUBLE;
+                }
             };
         }
-        return new FieldComparatorSource() {
+        return new ExtendedFieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new DoubleFieldDataMissingComparator(numHits, fieldname, cache, Double.parseDouble(missing));
+            }
+
+            @Override public int reducedType() {
+                return SortField.DOUBLE;
             }
         };
     }

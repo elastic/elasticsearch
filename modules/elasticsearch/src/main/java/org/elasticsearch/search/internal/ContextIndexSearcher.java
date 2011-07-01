@@ -130,11 +130,11 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
         }
     }
 
-    @Override protected Weight createWeight(Query query) throws IOException {
+    @Override public Weight createNormalizedWeight(Query query) throws IOException {
         if (dfSource == null) {
-            return super.createWeight(query);
+            return super.createNormalizedWeight(query);
         }
-        return query.weight(dfSource);
+        return dfSource.createNormalizedWeight(query);
     }
 
     // override from the Searcher to allow to control if scores will be tracked or not

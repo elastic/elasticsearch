@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -198,7 +199,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
             return super.findMergesToExpungeDeletes(segmentInfos);
         }
 
-        @Override public MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxNumSegments, Set<SegmentInfo> segmentsToOptimize) throws IOException {
+        @Override public MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxNumSegments, Map<SegmentInfo, Boolean> segmentsToOptimize) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }

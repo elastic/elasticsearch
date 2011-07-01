@@ -34,7 +34,7 @@ public class ShardFieldDoc extends FieldDoc implements ShardDoc {
         this.shardTarget = shardTarget;
     }
 
-    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score, Comparable[] fields) {
+    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score, Object[] fields) {
         super(doc, score, fields);
         this.shardTarget = shardTarget;
     }

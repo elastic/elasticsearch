@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.field.data.FieldDataType;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -189,7 +190,11 @@ public class Lucene {
                     out.writeBoolean(true);
                     out.writeUTF(sortField.getField());
                 }
-                out.writeVInt(sortField.getType());
+                if (sortField.getComparatorSource() != null) {
+                    out.writeVInt(((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
+                } else {
+                    out.writeVInt(sortField.getType());
+                }
                 out.writeBoolean(sortField.getReverse());
             }
 
@@ -201,7 +206,7 @@ public class Lucene {
                 }
                 FieldDoc fieldDoc = (FieldDoc) doc;
                 out.writeVInt(fieldDoc.fields.length);
-                for (Comparable field : fieldDoc.fields) {
+                for (Object field : fieldDoc.fields) {
                     if (field == null) {
                         out.writeByte((byte) 0);
                     } else {

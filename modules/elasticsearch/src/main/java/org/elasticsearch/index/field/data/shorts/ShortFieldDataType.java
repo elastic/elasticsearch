@@ -21,7 +21,7 @@ package org.elasticsearch.index.field.data.shorts;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 
@@ -32,31 +32,47 @@ import java.io.IOException;
  */
 public class ShortFieldDataType implements FieldDataType<ShortFieldData> {
 
-    @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
+    @Override public ExtendedFieldComparatorSource newFieldComparatorSource(final FieldDataCache cache, final String missing) {
         if (missing == null) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new ShortFieldDataComparator(numHits, fieldname, cache);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.SHORT;
                 }
             };
         }
         if (missing.equals("_last")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new ShortFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Short.MIN_VALUE : Short.MAX_VALUE);
+                }
+
+                @Override public int reducedType() {
+                    return SortField.SHORT;
                 }
             };
         }
         if (missing.equals("_first")) {
-            return new FieldComparatorSource() {
+            return new ExtendedFieldComparatorSource() {
                 @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                     return new ShortFieldDataMissingComparator(numHits, fieldname, cache, reversed ? Short.MAX_VALUE : Short.MIN_VALUE);
                 }
+
+                @Override public int reducedType() {
+                    return SortField.SHORT;
+                }
             };
         }
-        return new FieldComparatorSource() {
+        return new ExtendedFieldComparatorSource() {
             @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new ShortFieldDataMissingComparator(numHits, fieldname, cache, Short.parseShort(missing));
+            }
+
+            @Override public int reducedType() {
+                return SortField.SHORT;
             }
         };
     }

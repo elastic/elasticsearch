@@ -88,6 +88,9 @@ interface State {
             return true;
         }
 
+        @Override public void clearBlacklisted() {
+        }
+
         public Object lock() {
             throw new UnsupportedOperationException();
         }
@@ -149,4 +152,7 @@ interface State {
      * to be used when reading mutable data (ie. just-in-time bindings, and binding blacklists).
      */
     Object lock();
+
+    // ES_GUICE: clean blacklist keys
+    void clearBlacklisted();
 }

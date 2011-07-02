@@ -81,6 +81,7 @@ public class MultiGetShardResponse implements ActionResponse {
             if (responses.get(i) == null) {
                 out.writeBoolean(false);
             } else {
+                out.writeBoolean(true);
                 responses.get(i).writeTo(out);
             }
             if (failures.get(i) == null) {

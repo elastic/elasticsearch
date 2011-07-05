@@ -137,6 +137,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.fragmentCharSize(parser.intValue());
                                     } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
                                         field.numberOfFragments(parser.intValue());
+                                    } else if ("fragment_offset".equals(fieldName) || "fragmentOffset".equals(fieldName)) {
+                                        field.fragmentOffset(parser.intValue());
                                     } else if ("highlight_filter".equals(fieldName) || "highlightFilter".equals(fieldName)) {
                                         field.highlightFilter(parser.booleanValue());
                                     } else if ("score".equals(fieldName)) {

@@ -108,7 +108,7 @@ uploadArchives {
         pom.project {
             inceptionYear '2009'
             name 'elasticsearch-plugins-analysis-icu'
-            description 'Attachments Plugin for ElasticSearch'
+            description 'ICU Analysis Plugin for ElasticSearch'
             licenses {
                 license {
                     name 'The Apache Software License, Version 2.0'

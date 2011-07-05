@@ -404,4 +404,37 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch "));
         }
     }
+
+     @Test public void testFastVectorHighlighterOffsetParameter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource("title", "This is a test on the highlighting bug present in elasticsearch").setRefresh(true).execute().actionGet();
+        }
+
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "bug"))
+                .addHighlightedField("title", 50, 1, 10)
+                .execute().actionGet();
+
+        assertThat(search.hits().totalHits(), equalTo(5l));
+        assertThat(search.hits().hits().length, equalTo(5));
+        assertThat(search.getFailedShards(), equalTo(0));
+
+        for (SearchHit hit : search.hits()) {
+            // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
+            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("hlighting <em>bug</em> present in elasticsearch "));
+        }
+    }
 }

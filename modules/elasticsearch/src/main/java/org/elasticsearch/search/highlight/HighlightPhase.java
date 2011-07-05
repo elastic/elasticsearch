@@ -223,13 +223,18 @@ public class HighlightPhase implements SearchHitPhase {
         FragmentsBuilder fragmentsBuilder;
         if (field.numberOfFragments() == 0) {
             fragListBuilder = new SingleFragListBuilder();
+
             if (fieldMapper.stored()) {
                 fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
             } else {
                 fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldMapper, searchContext, field.preTags(), field.postTags());
             }
         } else {
-            fragListBuilder = new SimpleFragListBuilder();
+            if(field.fragmentOffset() == -1)
+                fragListBuilder = new SimpleFragListBuilder();
+            else
+                fragListBuilder = new MarginFragListBuilder(field.fragmentOffset());
+
             if (field.scoreOrdered()) {
                 if (fieldMapper.stored()) {
                     fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags());

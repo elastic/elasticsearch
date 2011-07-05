@@ -103,7 +103,7 @@ uploadArchives {
         pom.project {
             inceptionYear '2009'
             name 'elasticsearch-plugins-river-wikipedia'
-            description 'Attachments Plugin for ElasticSearch'
+            description 'Wikipedia River Plugin for ElasticSearch'
             licenses {
                 license {
                     name 'The Apache Software License, Version 2.0'

@@ -440,6 +440,20 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return this;
     }
 
+     /**
+     * Adds a field to be highlighted with a provided fragment size (in characters),
+     * a provided (maximum) number of fragments and an offset for the highlight.
+     *
+     * @param name              The field to highlight
+     * @param fragmentSize      The size of a fragment in characters
+     * @param numberOfFragments The (maximum) number of fragments
+     */
+    public SearchRequestBuilder addHighlightedField(String name, int fragmentSize, int numberOfFragments,
+                                                    int fragmentOffset) {
+        highlightBuilder().field(name, fragmentSize, numberOfFragments, fragmentOffset);
+        return this;
+    }
+
     /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
      * are <tt>styled</tt> and <tt>default</tt>.

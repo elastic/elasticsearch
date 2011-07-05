@@ -90,6 +90,23 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+     /**
+     * Adds a field to be highlighted with a provided fragment size (in characters), and
+     * a provided (maximum) number of fragments.
+     *
+     * @param name              The field to highlight
+     * @param fragmentSize      The size of a fragment in characters
+     * @param numberOfFragments The (maximum) number of fragments
+     * @param fragmentOffset    The offset from the start of the fragment to the start of the highlight
+     */
+    public HighlightBuilder field(String name, int fragmentSize, int numberOfFragments, int fragmentOffset) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments).fragmentOffset(fragmentOffset));
+        return this;
+    }
+
     /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
      * are <tt>styled</tt> and <tt>default</tt>.
@@ -151,6 +168,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.numOfFragments() != -1) {
                     builder.field("number_of_fragments", field.numOfFragments());
                 }
+                if (field.fragmentOffset() != -1) {
+                    builder.field("fragment_offset", field.fragmentOffset());
+                }
                 builder.endObject();
             }
             builder.endObject();
@@ -162,7 +182,9 @@ public class HighlightBuilder implements ToXContent {
     private static class Field {
         private final String name;
         private int fragmentSize = -1;
+        private int fragmentOffset = -1;
         private int numOfFragments = -1;
+
 
         private Field(String name) {
             this.name = name;
@@ -178,6 +200,15 @@ public class HighlightBuilder implements ToXContent {
 
         public Field fragmentSize(int fragmentSize) {
             this.fragmentSize = fragmentSize;
+            return this;
+        }
+
+        public int fragmentOffset() {
+            return fragmentOffset;
+        }
+
+        public Field fragmentOffset(int fragmentOffset) {
+            this.fragmentOffset = fragmentOffset;
             return this;
         }
 

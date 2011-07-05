@@ -44,6 +44,8 @@ public class SearchContextHighlight {
 
         private int numberOfFragments = -1;
 
+        private int fragmentOffset = -1;
+
         private String[] preTags;
 
         private String[] postTags;
@@ -74,6 +76,14 @@ public class SearchContextHighlight {
 
         public void numberOfFragments(int numberOfFragments) {
             this.numberOfFragments = numberOfFragments;
+        }
+
+        public int fragmentOffset() {
+            return fragmentOffset;
+        }
+
+        public void fragmentOffset(int fragmentOffset) {
+            this.fragmentOffset = fragmentOffset;
         }
 
         public String[] preTags() {

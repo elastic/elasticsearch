@@ -47,9 +47,9 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
@@ -65,9 +65,9 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
     @Test public void testGeoHashValue() throws Exception {
@@ -83,8 +83,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 }

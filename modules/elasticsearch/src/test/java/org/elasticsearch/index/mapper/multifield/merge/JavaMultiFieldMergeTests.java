@@ -49,7 +49,7 @@ public class JavaMultiFieldMergeTests {
         assertThat(docMapper.mappers().fullName("name.indexed"), nullValue());
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json");
-        Document doc = docMapper.parse(json).doc();
+        Document doc = docMapper.parse(json).masterDoc();
         Field f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -73,7 +73,7 @@ public class JavaMultiFieldMergeTests {
         assertThat(docMapper.mappers().fullName("name.not_indexed3"), nullValue());
 
         json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json");
-        doc = docMapper.parse(json).doc();
+        doc = docMapper.parse(json).masterDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

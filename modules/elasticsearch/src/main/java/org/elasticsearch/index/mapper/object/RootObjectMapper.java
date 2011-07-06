@@ -98,7 +98,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
 
-        @Override protected ObjectMapper createMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+        @Override protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+            assert !nested.isNested();
             FormatDateTimeFormatter[] dates = null;
             if (dateTimeFormatters == null) {
                 dates = new FormatDateTimeFormatter[0];
@@ -170,7 +171,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
                      FormatDateTimeFormatter[] dateTimeFormatters, DynamicTemplate dynamicTemplates[]) {
-        super(name, enabled, dynamic, pathType, mappers);
+        super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
         this.dynamicTemplates = dynamicTemplates;
         this.dateTimeFormatters = dateTimeFormatters;
     }

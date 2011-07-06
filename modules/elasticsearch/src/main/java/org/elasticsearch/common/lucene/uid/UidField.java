@@ -59,16 +59,21 @@ public class UidField extends AbstractField {
             if (!uid.next()) {
                 return null; // no doc
             }
-            docId = uid.doc();
-            uid.nextPosition();
-            if (!uid.isPayloadAvailable()) {
-                return new DocIdAndVersion(docId, -2, reader);
-            }
-            if (uid.getPayloadLength() < 8) {
-                return new DocIdAndVersion(docId, -2, reader);
-            }
-            byte[] payload = uid.getPayload(new byte[8], 0);
-            return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), reader);
+            // Note, only master docs uid have version payload, so we can use that info to not
+            // take them into account
+            do {
+                docId = uid.doc();
+                uid.nextPosition();
+                if (!uid.isPayloadAvailable()) {
+                    continue;
+                }
+                if (uid.getPayloadLength() < 8) {
+                    continue;
+                }
+                byte[] payload = uid.getPayload(new byte[8], 0);
+                return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), reader);
+            } while (uid.next());
+            return new DocIdAndVersion(docId, -2, reader);
         } catch (Exception e) {
             return new DocIdAndVersion(docId, -2, reader);
         } finally {
@@ -93,15 +98,20 @@ public class UidField extends AbstractField {
             if (!uid.next()) {
                 return -1;
             }
-            uid.nextPosition();
-            if (!uid.isPayloadAvailable()) {
-                return -2;
-            }
-            if (uid.getPayloadLength() < 8) {
-                return -2;
-            }
-            byte[] payload = uid.getPayload(new byte[8], 0);
-            return Numbers.bytesToLong(payload);
+            // Note, only master docs uid have version payload, so we can use that info to not
+            // take them into account
+            do {
+                uid.nextPosition();
+                if (!uid.isPayloadAvailable()) {
+                    continue;
+                }
+                if (uid.getPayloadLength() < 8) {
+                    continue;
+                }
+                byte[] payload = uid.getPayload(new byte[8], 0);
+                return Numbers.bytesToLong(payload);
+            } while (uid.next());
+            return -2;
         } catch (Exception e) {
             return -2;
         } finally {
@@ -131,6 +141,10 @@ public class UidField extends AbstractField {
 
     @Override public void setOmitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
         // never allow to set this, since we want payload!
+    }
+
+    public String uid() {
+        return this.uid;
     }
 
     public void setUid(String uid) {

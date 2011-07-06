@@ -278,7 +278,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("index {}", create.doc());
+            logger.trace("index {}", create.docs());
         }
         engine.create(create);
         return create.parsedDoc();
@@ -298,7 +298,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("index {}", index.doc());
+            logger.trace("index {}", index.docs());
         }
         engine.index(index);
         return index.parsedDoc();
@@ -332,7 +332,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private void innerDeleteByQuery(byte[] querySource, String[] filteringAliases, String... types) {
         Query query = queryParserService.parse(querySource).query();
-        query = filterByTypesIfNeeded(query, types);
+        query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
 
@@ -359,7 +359,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // wrap it in filter, cache it, and constant score it
         // Don't cache it, since it might be very different queries each time...
 //        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
-        query = filterByTypesIfNeeded(query, types);
+        query = filterQueryIfNeeded(query, types);
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
         Engine.Searcher searcher = engine.searcher();
         try {
@@ -561,9 +561,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private Query filterByTypesIfNeeded(Query query, String[] types) {
-        if (types != null && types.length > 0) {
-            query = new FilteredQuery(query, indexCache.filter().cache(mapperService.typesFilter(types)));
+    private Query filterQueryIfNeeded(Query query, String[] types) {
+        Filter searchFilter = mapperService.searchFilter(types);
+        if (searchFilter != null) {
+            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter));
         }
         return query;
     }

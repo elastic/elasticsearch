@@ -48,12 +48,12 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lat").getBinaryValue(), nullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.doc().getFieldable("point.geohash"), nullValue());
-        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lat").getBinaryValue(), nullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon").getBinaryValue(), nullValue());
+        assertThat(doc.masterDoc().getFieldable("point.geohash"), nullValue());
+        assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonValuesStored() throws Exception {
@@ -69,12 +69,12 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFieldable("point.geohash"), nullValue());
-        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.masterDoc().getFieldable("point.geohash"), nullValue());
+        assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testArrayLatLonValues() throws Exception {
@@ -93,14 +93,14 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldables("point.lat").length, equalTo(2));
-        assertThat(doc.doc().getFieldables("point.lon").length, equalTo(2));
-        assertThat(doc.doc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.doc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
-        assertThat(doc.doc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
-        assertThat(doc.doc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.doc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
+        assertThat(doc.masterDoc().getFieldables("point.lat").length, equalTo(2));
+        assertThat(doc.masterDoc().getFieldables("point.lon").length, equalTo(2));
+        assertThat(doc.masterDoc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.masterDoc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.masterDoc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
+        assertThat(doc.masterDoc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
+        assertThat(doc.masterDoc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
@@ -116,9 +116,9 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonInOneValueStored() throws Exception {
@@ -134,11 +134,11 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonInOneValueArray() throws Exception {
@@ -157,14 +157,14 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldables("point.lat").length, equalTo(2));
-        assertThat(doc.doc().getFieldables("point.lon").length, equalTo(2));
-        assertThat(doc.doc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.doc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
-        assertThat(doc.doc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
-        assertThat(doc.doc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.doc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
+        assertThat(doc.masterDoc().getFieldables("point.lat").length, equalTo(2));
+        assertThat(doc.masterDoc().getFieldables("point.lon").length, equalTo(2));
+        assertThat(doc.masterDoc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.masterDoc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.masterDoc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
+        assertThat(doc.masterDoc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
+        assertThat(doc.masterDoc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
     @Test public void testGeoHashValue() throws Exception {
@@ -180,9 +180,9 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().get("point"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().get("point"), notNullValue());
     }
 
     @Test public void testLonLatArray() throws Exception {
@@ -198,11 +198,11 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lat").getBinaryValue(), nullValue());
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon").getBinaryValue(), nullValue());
-        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lat").getBinaryValue(), nullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon").getBinaryValue(), nullValue());
+        assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLonLatArrayStored() throws Exception {
@@ -218,11 +218,11 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.doc().getFieldable("point.lon"), notNullValue());
-        assertThat(doc.doc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldable("point.lat"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lat").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.masterDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("point.lon").getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLonLatArrayArrayStored() throws Exception {
@@ -241,13 +241,13 @@ public class LatLonMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldables("point.lat").length, equalTo(2));
-        assertThat(doc.doc().getFieldables("point.lon").length, equalTo(2));
-        assertThat(doc.doc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
-        assertThat(doc.doc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
-        assertThat(doc.doc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
-        assertThat(doc.doc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
-        assertThat(doc.doc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
-        assertThat(doc.doc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
+        assertThat(doc.masterDoc().getFieldables("point.lat").length, equalTo(2));
+        assertThat(doc.masterDoc().getFieldables("point.lon").length, equalTo(2));
+        assertThat(doc.masterDoc().getFieldables("point.lat")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.2)));
+        assertThat(doc.masterDoc().getFieldables("point.lon")[0].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.3)));
+        assertThat(doc.masterDoc().getFieldables("point")[0].stringValue(), equalTo("1.2,1.3"));
+        assertThat(doc.masterDoc().getFieldables("point.lat")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.4)));
+        assertThat(doc.masterDoc().getFieldables("point.lon")[1].getBinaryValue(), equalTo(Numbers.doubleToBytes(1.5)));
+        assertThat(doc.masterDoc().getFieldables("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 }

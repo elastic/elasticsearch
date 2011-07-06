@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -288,6 +289,9 @@ public class AttachmentMapper implements Mapper {
         titleMapper.traverse(fieldMapperListener);
         authorMapper.traverse(fieldMapperListener);
         keywordsMapper.traverse(fieldMapperListener);
+    }
+
+    @Override public void traverse(ObjectMapperListener objectMapperListener) {
     }
 
     @Override public void close() {

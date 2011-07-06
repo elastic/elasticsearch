@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -374,6 +375,9 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             latMapper.traverse(fieldMapperListener);
             lonMapper.traverse(fieldMapperListener);
         }
+    }
+
+    @Override public void traverse(ObjectMapperListener objectMapperListener) {
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

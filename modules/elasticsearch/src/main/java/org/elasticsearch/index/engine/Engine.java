@@ -304,7 +304,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         ParsedDocument parsedDoc();
 
-        Document doc();
+        List<Document> docs();
 
         DocumentMapper docMapper();
     }
@@ -382,8 +382,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.parent();
         }
 
-        public Document doc() {
-            return this.doc.doc();
+        public List<Document> docs() {
+            return this.doc.docs();
         }
 
         public Analyzer analyzer() {
@@ -395,7 +395,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public UidField uidField() {
-            return (UidField) doc().getFieldable(UidFieldMapper.NAME);
+            return (UidField) doc.masterDoc().getFieldable(UidFieldMapper.NAME);
         }
     }
 
@@ -456,8 +456,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.versionType;
         }
 
-        public Document doc() {
-            return this.doc.doc();
+        public List<Document> docs() {
+            return this.doc.docs();
         }
 
         public Analyzer analyzer() {
@@ -485,7 +485,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public UidField uidField() {
-            return (UidField) doc().getFieldable(UidFieldMapper.NAME);
+            return (UidField) doc.masterDoc().getFieldable(UidFieldMapper.NAME);
         }
     }
 

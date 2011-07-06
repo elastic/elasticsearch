@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -112,6 +113,9 @@ public class AnalyzerMapper implements Mapper, InternalMapper {
     }
 
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
+    }
+
+    @Override public void traverse(ObjectMapperListener objectMapperListener) {
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

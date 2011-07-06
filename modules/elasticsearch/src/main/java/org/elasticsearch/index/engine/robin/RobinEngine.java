@@ -371,7 +371,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             if (create.origin() == Operation.Origin.RECOVERY) {
                 uidField.version(create.version());
                 // we use update doc and not addDoc since we might get duplicates when using transient translog
-                writer.updateDocument(create.uid(), create.doc(), create.analyzer());
+                if (create.docs().size() > 1) {
+                    writer.updateDocuments(create.uid(), create.docs(), create.analyzer());
+                } else {
+                    writer.updateDocument(create.uid(), create.docs().get(0), create.analyzer());
+                }
                 Translog.Location translogLocation = translog.add(new Translog.Create(create));
                 // on recovery, we get the actual version we want to use
                 if (create.version() != 0) {
@@ -446,7 +450,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 uidField.version(updatedVersion);
                 create.version(updatedVersion);
 
-                writer.addDocument(create.doc(), create.analyzer());
+                if (create.docs().size() > 1) {
+                    writer.addDocuments(create.docs(), create.analyzer());
+                } else {
+                    writer.addDocument(create.docs().get(0), create.analyzer());
+                }
                 Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
                 versionMap.put(create.uid().text(), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
@@ -481,7 +489,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             UidField uidField = index.uidField();
             if (index.origin() == Operation.Origin.RECOVERY) {
                 uidField.version(index.version());
-                writer.updateDocument(index.uid(), index.doc(), index.analyzer());
+                if (index.docs().size() > 1) {
+                    writer.updateDocuments(index.uid(), index.docs(), index.analyzer());
+                } else {
+                    writer.updateDocument(index.uid(), index.docs().get(0), index.analyzer());
+                }
                 Translog.Location translogLocation = translog.add(new Translog.Index(index));
                 // on recovery, we get the actual version we want to use
                 if (index.version() != 0) {
@@ -547,9 +559,17 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                 if (currentVersion == -1) {
                     // document does not exists, we can optimize for create
-                    writer.addDocument(index.doc(), index.analyzer());
+                    if (index.docs().size() > 1) {
+                        writer.addDocuments(index.docs(), index.analyzer());
+                    } else {
+                        writer.addDocument(index.docs().get(0), index.analyzer());
+                    }
                 } else {
-                    writer.updateDocument(index.uid(), index.doc(), index.analyzer());
+                    if (index.docs().size() > 1) {
+                        writer.updateDocuments(index.uid(), index.docs(), index.analyzer());
+                    } else {
+                        writer.updateDocument(index.uid(), index.docs().get(0), index.analyzer());
+                    }
                 }
                 Translog.Location translogLocation = translog.add(new Translog.Index(index));
 

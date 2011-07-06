@@ -101,5 +101,7 @@ public interface Mapper extends ToXContent {
 
     void traverse(FieldMapperListener fieldMapperListener);
 
+    void traverse(ObjectMapperListener objectMapperListener);
+
     void close();
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.query.type.nested.NestedQueryBuilder;
 
 /**
  * A static factory for simple "import static" usage.
@@ -470,6 +471,10 @@ public abstract class QueryBuilders {
      */
     public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query) {
         return new HasChildQueryBuilder(type, query);
+    }
+
+    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {
+        return new NestedQueryBuilder(path, query);
     }
 
     /**

@@ -27,7 +27,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,6 +47,8 @@ public class ParseContext {
     private XContentParser parser;
 
     private Document document;
+
+    private List<Document> documents = new ArrayList<Document>();
 
     private Analyzer analyzer;
 
@@ -86,6 +90,12 @@ public class ParseContext {
     public void reset(XContentParser parser, Document document, String type, byte[] source, boolean flyweight, DocumentMapper.ParseListener listener) {
         this.parser = parser;
         this.document = document;
+        if (document != null) {
+            this.documents = new ArrayList<Document>();
+            this.documents.add(document);
+        } else {
+            this.documents = null;
+        }
         this.analyzer = null;
         this.uid = null;
         this.id = null;
@@ -145,8 +155,22 @@ public class ParseContext {
         return this.listener;
     }
 
+    public List<Document> docs() {
+        return this.documents;
+    }
+
     public Document doc() {
         return this.document;
+    }
+
+    public void addDoc(Document doc) {
+        this.documents.add(doc);
+    }
+
+    public Document switchDoc(Document doc) {
+        Document prev = this.document;
+        this.document = doc;
+        return prev;
     }
 
     public RootObjectMapper root() {

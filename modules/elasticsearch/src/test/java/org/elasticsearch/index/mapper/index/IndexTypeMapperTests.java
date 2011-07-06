@@ -50,8 +50,8 @@ public class IndexTypeMapperTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().get("_index"), equalTo("test"));
-        assertThat(doc.doc().get("field"), equalTo("value"));
+        assertThat(doc.masterDoc().get("_index"), equalTo("test"));
+        assertThat(doc.masterDoc().get("field"), equalTo("value"));
     }
 
     @Test public void explicitDisabledIndexMapperTests() throws Exception {
@@ -68,8 +68,8 @@ public class IndexTypeMapperTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().get("_index"), nullValue());
-        assertThat(doc.doc().get("field"), equalTo("value"));
+        assertThat(doc.masterDoc().get("_index"), nullValue());
+        assertThat(doc.masterDoc().get("field"), equalTo("value"));
     }
 
     @Test public void defaultDisabledIndexMapperTests() throws Exception {
@@ -85,7 +85,7 @@ public class IndexTypeMapperTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().get("_index"), nullValue());
-        assertThat(doc.doc().get("field"), equalTo("value"));
+        assertThat(doc.masterDoc().get("_index"), nullValue());
+        assertThat(doc.masterDoc().get("field"), equalTo("value"));
     }
 }

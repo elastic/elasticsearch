@@ -73,17 +73,26 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                        } 
+                        else {
                             if ("from".equals(fieldName)) {
-                                entry.fromAsString = parser.text();
+                            	if (token == XContentParser.Token.VALUE_STRING) {
+                            		entry.fromAsString = parser.text();
+                            	}
+                            	else if (token.isValue()) {
+                            		entry.from = parser.doubleValue();
+                            	}
                             } else if ("to".equals(fieldName)) {
-                                entry.toAsString = parser.text();
-                            }
-                        } else if (token.isValue()) {
-                            if ("from".equals(fieldName)) {
-                                entry.from = parser.doubleValue();
-                            } else if ("to".equals(fieldName)) {
-                                entry.to = parser.doubleValue();
+                            	if (token == XContentParser.Token.VALUE_STRING) {
+                            		entry.toAsString = parser.text();
+                            	}
+                            	else if (token.isValue()) {
+                            		entry.to = parser.doubleValue();
+                            	}
+                            } else if ("include_lower".equals(fieldName)) {
+                            	entry.includeLower = parser.booleanValue();
+                            } else if ("include_upper".equals(fieldName)) {
+                            	entry.includeUpper = parser.booleanValue();
                             }
                         }
                     }

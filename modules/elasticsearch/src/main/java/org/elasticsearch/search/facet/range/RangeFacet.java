@@ -52,7 +52,9 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
         String fromAsString;
 
         String toAsString;
-
+        boolean includeLower = true;
+        boolean includeUpper = false;
+        
         long count;
         long totalCount;
 

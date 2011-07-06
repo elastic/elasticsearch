@@ -89,8 +89,34 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Adds a range entry with explicit from, to, includeLower and includeUpper.
+     *
+     * @param from The from range limit
+     * @param to   The to range limit
+     * @param includeLower Should the lower bound be included
+     * @param includeUpper Should the upper bound be included
+     */
+    public RangeFacetBuilder addRange(double from, double to, boolean includeLower, boolean includeUpper) {
+        entries.add(new Entry(from, to, includeLower, includeUpper));
+        return this;
+    }
+
     public RangeFacetBuilder addRange(String from, String to) {
         entries.add(new Entry(from, to));
+        return this;
+    }
+
+    /**
+     * Adds a range entry with explicit from, to, includeLower and includeUpper.
+     *
+     * @param from The from range limit
+     * @param to   The to range limit
+     * @param includeLower Should the lower bound be included
+     * @param includeUpper Should the upper bound be included
+     */
+    public RangeFacetBuilder addRange(String from, String to, boolean includeLower, boolean includeUpper) {
+        entries.add(new Entry(from, to, includeLower, includeUpper));
         return this;
     }
 
@@ -181,6 +207,12 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
             } else if (!Double.isInfinite(entry.to)) {
                 builder.field("to", entry.to);
             }
+            if (entry.includeLower!=null) {
+            	builder.field("include_lower", entry.includeLower);
+            }
+            if (entry.includeUpper!=null) {
+            	builder.field("include_upper", entry.includeUpper);
+            }
             builder.endObject();
         }
         builder.endArray();
@@ -196,18 +228,35 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
     static class Entry {
         double from = Double.NEGATIVE_INFINITY;
         double to = Double.POSITIVE_INFINITY;
-
+        
         String fromAsString;
         String toAsString;
 
+        Boolean includeLower = null;
+        Boolean includeUpper = null;
+        
         Entry(String fromAsString, String toAsString) {
             this.fromAsString = fromAsString;
             this.toAsString = toAsString;
         }
 
+        Entry(String fromAsString, String toAsString, boolean includeLower, boolean includeUpper) {
+            this.fromAsString = fromAsString;
+            this.toAsString = toAsString;
+            this.includeLower = includeLower;
+            this.includeUpper = includeUpper;
+        }
+
         Entry(double from, double to) {
             this.from = from;
             this.to = to;
+        }
+
+        Entry(double from, double to, boolean includeLower, boolean includeUpper) {
+            this.from = from;
+            this.to = to;
+            this.includeLower = includeLower;
+            this.includeUpper = includeUpper;
         }
     }
 }

@@ -97,7 +97,7 @@ public class RangeFacetCollector extends AbstractFacetCollector {
                 if (entry.foundInDoc) {
                     continue;
                 }
-                if (value >= entry.getFrom() && value < entry.getTo()) {
+                if (isMatchingValue(entry, value)) {
                     entry.foundInDoc = true;
                     entry.count++;
                     entry.totalCount++;
@@ -110,6 +110,20 @@ public class RangeFacetCollector extends AbstractFacetCollector {
                     }
                 }
             }
+        }
+        
+        private boolean isMatchingValue(RangeFacet.Entry entry, double value) {
+        	boolean result = false;
+        	if (entry.includeLower && entry.includeUpper) {
+        		result = (value >= entry.getFrom() && value <= entry.getTo());
+        	} else if (entry.includeLower && !entry.includeUpper) {
+        		result = (value >= entry.getFrom() && value < entry.getTo());        		
+        	} else if (!entry.includeLower && entry.includeUpper) {
+        		result = (value > entry.getFrom() && value <= entry.getTo());
+	    	} else if (!entry.includeLower && !entry.includeUpper) {
+        		result = (value > entry.getFrom() && value < entry.getTo());
+	    	}
+        	return result;
         }
     }
 }

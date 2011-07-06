@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.engine.robin;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.ExtendedIndexSearcher;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
@@ -581,7 +585,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Override public Searcher searcher() throws EngineException {
         AcquirableResource<ReaderSearcherHolder> holder;
-        for (; ;) {
+        for (; ; ) {
             holder = this.nrtResource;
             if (holder.acquire()) {
                 break;
@@ -945,7 +949,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private Object dirtyLock(Term uid) {
-        return dirtyLocks[Math.abs(uid.hashCode()) % dirtyLocks.length];
+        int hash = uid.text().hashCode();
+        // abs returns Integer.MIN_VALUE, so we need to protect against it...
+        if (hash == Integer.MIN_VALUE) {
+            hash = 0;
+        }
+        return dirtyLocks[Math.abs(hash) % dirtyLocks.length];
     }
 
     private long loadCurrentVersionFromIndex(Term uid) {

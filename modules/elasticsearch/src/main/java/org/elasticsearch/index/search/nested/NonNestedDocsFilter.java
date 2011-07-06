@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.type.nested;
+package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;

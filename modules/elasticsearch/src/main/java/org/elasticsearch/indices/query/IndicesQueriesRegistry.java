@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.type.nested.NestedQueryParser;
 
 import java.util.Map;
 

@@ -84,8 +84,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser())
                 .put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
-                .put(ObjectMapper.OBJECT_AND_NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
-                .put(ObjectMapper.ROOT_AND_NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(MultiFieldMapper.CONTENT_TYPE, new MultiFieldMapper.TypeParser())
                 .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser())
                 .immutableMap();

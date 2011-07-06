@@ -94,7 +94,7 @@ public class NestedQueryParser implements QueryParser {
                 }
             }
         }
-        if (query == null || filter == null) {
+        if (query == null && filter == null) {
             throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
         }
         if (path == null) {
@@ -104,6 +104,8 @@ public class NestedQueryParser implements QueryParser {
         if (filter != null) {
             query = new DeletionAwareConstantScoreQuery(filter);
         }
+
+        query.setBoost(boost);
 
         MapperService.SmartNameObjectMapper mapper = parseContext.mapperService().smartNameObjectMapper(path);
         if (mapper == null) {
@@ -136,7 +138,6 @@ public class NestedQueryParser implements QueryParser {
         parentFilterContext.set(currentParentFilterContext);
 
         BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, scoreMode);
-        joinQuery.setBoost(boost);
         return joinQuery;
     }
 

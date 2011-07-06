@@ -42,7 +42,7 @@ public class NestedMappingTests {
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested(), equalTo(ObjectMapper.Nested.NESTED));
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -91,9 +91,13 @@ public class NestedMappingTests {
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested(), equalTo(ObjectMapper.Nested.NESTED));
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
+        assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
         ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
-        assertThat(nested2Mapper.nested(), equalTo(ObjectMapper.Nested.NESTED));
+        assertThat(nested2Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
+        assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -130,7 +134,7 @@ public class NestedMappingTests {
     @Test public void multiObjectAndNested1() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
-                .startObject("nested2").field("type", "object_and_nested")
+                .startObject("nested2").field("type", "nested").field("include_in_parent", true)
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
@@ -138,9 +142,13 @@ public class NestedMappingTests {
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested(), equalTo(ObjectMapper.Nested.NESTED));
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
+        assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
         ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
-        assertThat(nested2Mapper.nested(), equalTo(ObjectMapper.Nested.OBJECT_AND_NESTED));
+        assertThat(nested2Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
+        assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -176,8 +184,8 @@ public class NestedMappingTests {
 
     @Test public void multiObjectAndNested2() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("nested1").field("type", "object_and_nested").startObject("properties")
-                .startObject("nested2").field("type", "object_and_nested")
+                .startObject("nested1").field("type", "nested").field("include_in_parent", true).startObject("properties")
+                .startObject("nested2").field("type", "nested").field("include_in_parent", true)
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
@@ -185,9 +193,13 @@ public class NestedMappingTests {
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested(), equalTo(ObjectMapper.Nested.OBJECT_AND_NESTED));
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(true));
+        assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
         ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
-        assertThat(nested2Mapper.nested(), equalTo(ObjectMapper.Nested.OBJECT_AND_NESTED));
+        assertThat(nested2Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
+        assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -224,7 +236,7 @@ public class NestedMappingTests {
     @Test public void multiRootAndNested1() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
-                .startObject("nested2").field("type", "root_and_nested")
+                .startObject("nested2").field("type", "nested").field("include_in_root", true)
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
@@ -232,9 +244,13 @@ public class NestedMappingTests {
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested(), equalTo(ObjectMapper.Nested.NESTED));
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
+        assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
         ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
-        assertThat(nested2Mapper.nested(), equalTo(ObjectMapper.Nested.ROOT_AND_NESTED));
+        assertThat(nested2Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
+        assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(true));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

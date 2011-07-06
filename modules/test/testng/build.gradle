@@ -11,7 +11,7 @@ sourceSets.main.resources.srcDirs 'src/main/java'
 sourceSets.test.resources.srcDirs 'src/test/java'
 
 dependencies {
-    compile('org.testng:testng:5.10:jdk15') { transitive = false }
+    compile('org.testng:testng:6.1.1') { transitive = false }
     compile('log4j:log4j:1.2.15') { transitive = false }
 }
 

@@ -39,8 +39,8 @@ public class DoubleIndexingDocTest {
                 .endObject()
                 .copiedBytes());
 
-        writer.addDocument(doc.doc(), doc.analyzer());
-        writer.addDocument(doc.doc(), doc.analyzer());
+        writer.addDocument(doc.masterDoc(), doc.analyzer());
+        writer.addDocument(doc.masterDoc(), doc.analyzer());
 
         IndexReader reader = writer.getReader();
         IndexSearcher searcher = new IndexSearcher(reader);

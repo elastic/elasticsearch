@@ -22,6 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * The result of parsing a document.
  *
@@ -37,7 +40,7 @@ public class ParsedDocument {
 
     private final String routing;
 
-    private final Document document;
+    private final List<Document> documents;
 
     private final Analyzer analyzer;
 
@@ -48,11 +51,15 @@ public class ParsedDocument {
     private String parent;
 
     public ParsedDocument(String uid, String id, String type, String routing, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
+        this(uid, id, type, routing, Arrays.asList(document), analyzer, source, mappersAdded);
+    }
+
+    public ParsedDocument(String uid, String id, String type, String routing, List<Document> documents, Analyzer analyzer, byte[] source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
         this.routing = routing;
-        this.document = document;
+        this.documents = documents;
         this.source = source;
         this.analyzer = analyzer;
         this.mappersAdded = mappersAdded;
@@ -74,8 +81,12 @@ public class ParsedDocument {
         return this.routing;
     }
 
-    public Document doc() {
-        return this.document;
+    public Document masterDoc() {
+        return documents.get(documents.size() - 1);
+    }
+
+    public List<Document> docs() {
+        return this.documents;
     }
 
     public Analyzer analyzer() {
@@ -104,7 +115,7 @@ public class ParsedDocument {
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Document ").append("uid[").append(uid).append("] doc [").append(document).append("]");
+        sb.append("Document ").append("uid[").append(uid).append("] doc [").append(documents).append("]");
         return sb.toString();
     }
 }

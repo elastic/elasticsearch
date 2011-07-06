@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -168,8 +169,9 @@ public class QueryPhase implements SearchPhase {
             searchContext.queryResult().size(searchContext.size());
 
             Query query = searchContext.query();
-            if (searchContext.types().length > 0) {
-                query = new FilteredQuery(query, searchContext.filterCache().cache(searchContext.mapperService().typesFilter(searchContext.types())));
+            Filter searchFilter = searchContext.mapperService().searchFilter(searchContext.types());
+            if (searchFilter != null) {
+                query = new FilteredQuery(query, searchContext.filterCache().cache(searchFilter));
             }
 
             TopDocs topDocs;

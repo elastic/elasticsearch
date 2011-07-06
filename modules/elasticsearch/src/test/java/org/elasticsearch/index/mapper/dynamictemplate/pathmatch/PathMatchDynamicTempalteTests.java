@@ -39,7 +39,7 @@ public class PathMatchDynamicTempalteTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        Document doc = docMapper.parse(json).doc();
+        Document doc = docMapper.parse(json).masterDoc();
 
         Field f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

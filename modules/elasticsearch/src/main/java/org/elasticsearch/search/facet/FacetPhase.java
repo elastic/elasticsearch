@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.facet;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
@@ -100,8 +105,9 @@ public class FacetPhase implements SearchPhase {
             for (Map.Entry<Filter, List<Collector>> entry : filtersByCollector.entrySet()) {
                 Filter filter = entry.getKey();
                 Query query = new DeletionAwareConstantScoreQuery(filter);
-                if (context.types().length > 0) {
-                    query = new FilteredQuery(query, context.filterCache().cache(context.mapperService().typesFilter(context.types())));
+                Filter searchFilter = context.mapperService().searchFilter(context.types());
+                if (searchFilter != null) {
+                    query = new FilteredQuery(query, context.filterCache().cache(searchFilter));
                 }
                 try {
                     context.searcher().search(query, MultiCollector.wrap(entry.getValue().toArray(new Collector[entry.getValue().size()])));

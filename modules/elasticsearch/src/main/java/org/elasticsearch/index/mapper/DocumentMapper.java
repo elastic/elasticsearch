@@ -28,11 +28,14 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,10 +44,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
 
@@ -301,7 +307,13 @@ public class DocumentMapper implements ToXContent {
 
     private volatile DocumentFieldMappers fieldMappers;
 
+    private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
+
     private final List<FieldMapperListener> fieldMapperListeners = newArrayList();
+
+    private final List<ObjectMapperListener> objectMapperListeners = newArrayList();
+
+    private boolean hasNestedObjects = false;
 
     private final Filter typeFilter;
 
@@ -374,6 +386,19 @@ public class DocumentMapper implements ToXContent {
 
         this.fieldMappers = new DocumentFieldMappers(this, tempFieldMappers);
 
+        final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
+        rootObjectMapper.traverse(new ObjectMapperListener() {
+            @Override public void objectMapper(ObjectMapper objectMapper) {
+                objectMappers.put(objectMapper.fullPath(), objectMapper);
+            }
+        });
+        this.objectMappers = ImmutableMap.copyOf(objectMappers);
+        for (ObjectMapper objectMapper : objectMappers.values()) {
+            if (objectMapper.nested().isNested()) {
+                hasNestedObjects = true;
+            }
+        }
+
         refreshSource();
     }
 
@@ -441,8 +466,16 @@ public class DocumentMapper implements ToXContent {
         return this.typeFilter;
     }
 
+    public boolean hasNestedObjects() {
+        return hasNestedObjects;
+    }
+
     public DocumentFieldMappers mappers() {
         return this.fieldMappers;
+    }
+
+    public ImmutableMap<String, ObjectMapper> objectMappers() {
+        return this.objectMappers;
     }
 
     public ParsedDocument parse(byte[] source) throws MapperParsingException {
@@ -539,6 +572,15 @@ public class DocumentMapper implements ToXContent {
                     }
                 } else {
                     uidFieldMapper.parse(context);
+                    if (context.docs().size() > 1) {
+                        UidField uidField = (UidField) context.doc().getFieldable(UidFieldMapper.NAME);
+                        assert uidField != null;
+                        // we need to go over the docs and add it...
+                        for (int i = 1; i < context.docs().size(); i++) {
+                            // we don't need to add it as a full uid field in nested docs, since we don't need versioning
+                            context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                        }
+                    }
                 }
             }
             if (context.parsedIdState() != ParseContext.ParsedIdState.PARSED) {
@@ -568,7 +610,11 @@ public class DocumentMapper implements ToXContent {
                 parser.close();
             }
         }
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), context.doc(), context.analyzer(),
+        // reverse the order of docs for nested docs support, parent should be last
+        if (context.docs().size() > 1) {
+            Collections.reverse(context.docs());
+        }
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), context.docs(), context.analyzer(),
                 context.source(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null, false, null);
@@ -601,15 +647,35 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-    public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
-        DocumentMapper xContentMergeWith = (DocumentMapper) mergeWith;
-        MergeContext mergeContext = new MergeContext(this, mergeFlags);
-        rootObjectMapper.merge(xContentMergeWith.rootObjectMapper, mergeContext);
+    public void addObjectMapper(ObjectMapper objectMapper) {
+        synchronized (mutex) {
+            objectMappers = MapBuilder.newMapBuilder(objectMappers).put(objectMapper.fullPath(), objectMapper).immutableMap();
+            for (ObjectMapperListener objectMapperListener : objectMapperListeners) {
+                objectMapperListener.objectMapper(objectMapper);
+            }
+            if (objectMapper.nested().isNested()) {
+                hasNestedObjects = true;
+            }
+        }
+    }
 
-        allFieldMapper.merge(xContentMergeWith.allFieldMapper, mergeContext);
-        analyzerMapper.merge(xContentMergeWith.analyzerMapper, mergeContext);
-        sourceFieldMapper.merge(xContentMergeWith.sourceFieldMapper, mergeContext);
-        sizeFieldMapper.merge(xContentMergeWith.sizeFieldMapper, mergeContext);
+    public void addObjectMapperListener(ObjectMapperListener objectMapperListener, boolean includeExisting) {
+        synchronized (mutex) {
+            objectMapperListeners.add(objectMapperListener);
+            if (includeExisting) {
+                rootObjectMapper.traverse(objectMapperListener);
+            }
+        }
+    }
+
+    public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
+        MergeContext mergeContext = new MergeContext(this, mergeFlags);
+        rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);
+
+        allFieldMapper.merge(mergeWith.allFieldMapper, mergeContext);
+        analyzerMapper.merge(mergeWith.analyzerMapper, mergeContext);
+        sourceFieldMapper.merge(mergeWith.sourceFieldMapper, mergeContext);
+        sizeFieldMapper.merge(mergeWith.sizeFieldMapper, mergeContext);
 
         if (!mergeFlags.simulate()) {
             // let the merge with attributes to override the attributes
@@ -646,33 +712,33 @@ public class DocumentMapper implements ToXContent {
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         rootObjectMapper.toXContent(builder, params, new ToXContent() {
-                    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
-                            if (!indexAnalyzer.name().equals("default")) {
-                                // same analyzers, output it once
-                                builder.field("analyzer", indexAnalyzer.name());
-                            }
-                        } else {
-                            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-                                if (!indexAnalyzer.name().equals("default")) {
-                                    builder.field("index_analyzer", indexAnalyzer.name());
-                                }
-                            }
-                            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-                                if (!searchAnalyzer.name().equals("default")) {
-                                    builder.field("search_analyzer", searchAnalyzer.name());
-                                }
-                            }
-                        }
-
-                        if (meta != null && !meta.isEmpty()) {
-                            builder.field("_meta", meta());
-                        }
-                        return builder;
+            @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
+                    if (!indexAnalyzer.name().equals("default")) {
+                        // same analyzers, output it once
+                        builder.field("analyzer", indexAnalyzer.name());
                     }
-                    // no need to pass here id and boost, since they are added to the root object mapper
-                    // in the constructor
-                }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper, sizeFieldMapper);
+                } else {
+                    if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+                        if (!indexAnalyzer.name().equals("default")) {
+                            builder.field("index_analyzer", indexAnalyzer.name());
+                        }
+                    }
+                    if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+                        if (!searchAnalyzer.name().equals("default")) {
+                            builder.field("search_analyzer", searchAnalyzer.name());
+                        }
+                    }
+                }
+
+                if (meta != null && !meta.isEmpty()) {
+                    builder.field("_meta", meta());
+                }
+                return builder;
+            }
+            // no need to pass here id and boost, since they are added to the root object mapper
+            // in the constructor
+        }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper, sizeFieldMapper);
         return builder;
     }
 }

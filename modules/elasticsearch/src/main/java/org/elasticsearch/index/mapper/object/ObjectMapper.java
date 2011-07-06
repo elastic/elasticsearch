@@ -19,16 +19,24 @@
 
 package org.elasticsearch.index.mapper.object;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
@@ -51,9 +59,13 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "object";
+    public static final String NESTED_CONTENT_TYPE = "nested";
+    public static final String OBJECT_AND_NESTED_CONTENT_TYPE = "object_and_nested";
+    public static final String ROOT_AND_NESTED_CONTENT_TYPE = "root_and_nested";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
+        public static final Nested NESTED = Nested.NO;
         public static final Dynamic DYNAMIC = null; // not set, inherited from father
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
@@ -64,9 +76,36 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         STRICT
     }
 
+    public static enum Nested {
+        NO {
+            @Override public boolean isNested() {
+                return false;
+            }
+        },
+        NESTED {
+            @Override public boolean isNested() {
+                return true;
+            }
+        },
+        OBJECT_AND_NESTED {
+            @Override public boolean isNested() {
+                return true;
+            }
+        },
+        ROOT_AND_NESTED {
+            @Override public boolean isNested() {
+                return true;
+            }
+        };
+
+        public abstract boolean isNested();
+    }
+
     public static class Builder<T extends Builder, Y extends ObjectMapper> extends Mapper.Builder<T, Y> {
 
         protected boolean enabled = Defaults.ENABLED;
+
+        protected Nested nested = Defaults.NESTED;
 
         protected Dynamic dynamic = Defaults.DYNAMIC;
 
@@ -88,6 +127,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         public T dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
+            return builder;
+        }
+
+        public T nested(Nested nested) {
+            this.nested = nested;
             return builder;
         }
 
@@ -116,18 +160,17 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 Mapper mapper = builder.build(context);
                 mappers.put(mapper.name(), mapper);
             }
-            ObjectMapper objectMapper = createMapper(name, enabled, dynamic, pathType, mappers);
-
             context.path().pathType(origPathType);
             context.path().remove();
 
+            ObjectMapper objectMapper = createMapper(name, context.path().fullPathAsText(name), enabled, nested, dynamic, pathType, mappers);
             objectMapper.includeInAllIfNotSet(includeInAll);
 
             return (Y) objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
-            return new ObjectMapper(name, enabled, dynamic, pathType, mappers);
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers);
         }
     }
 
@@ -149,7 +192,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     }
                 } else if (fieldName.equals("type")) {
                     String type = fieldNode.toString();
-                    if (!type.equals("object")) {
+                    if (type.equals(CONTENT_TYPE)) {
+                        builder.nested = Nested.NO;
+                    } else if (type.equals(NESTED_CONTENT_TYPE)) {
+                        builder.nested = Nested.NESTED;
+                    } else if (type.equals(OBJECT_AND_NESTED_CONTENT_TYPE)) {
+                        builder.nested = Nested.OBJECT_AND_NESTED;
+                    } else if (type.equals(ROOT_AND_NESTED_CONTENT_TYPE)) {
+                        builder.nested = Nested.ROOT_AND_NESTED;
+                    } else {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                     }
                 } else if (fieldName.equals("enabled")) {
@@ -206,7 +257,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private final String name;
 
+    private final String fullPath;
+
     private final boolean enabled;
+
+    private final Nested nested;
+
+    private final String nestedTypePath;
+
+    private final Filter nestedTypeFilter;
 
     private final Dynamic dynamic;
 
@@ -218,23 +277,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private final Object mutex = new Object();
 
-    protected ObjectMapper(String name) {
-        this(name, Defaults.ENABLED, Defaults.DYNAMIC, Defaults.PATH_TYPE);
-    }
-
-
-    protected ObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType) {
-        this(name, enabled, dynamic, pathType, null);
-    }
-
-    ObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
         this.name = name;
+        this.fullPath = fullPath;
         this.enabled = enabled;
+        this.nested = nested;
         this.dynamic = dynamic;
         this.pathType = pathType;
         if (mappers != null) {
             this.mappers = copyOf(mappers);
         }
+        this.nestedTypePath = "__" + fullPath;
+        this.nestedTypeFilter = new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(nestedTypePath));
     }
 
     @Override public String name() {
@@ -266,6 +320,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
+    public Nested nested() {
+        return this.nested;
+    }
+
+    public Filter nestedTypeFilter() {
+        return this.nestedTypeFilter;
+    }
+
     public ObjectMapper putMapper(Mapper mapper) {
         if (mapper instanceof AllFieldMapper.IncludeInAll) {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
@@ -282,6 +344,21 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
+    @Override public void traverse(ObjectMapperListener objectMapperListener) {
+        objectMapperListener.objectMapper(this);
+        for (Mapper mapper : mappers.values()) {
+            mapper.traverse(objectMapperListener);
+        }
+    }
+
+    public String fullPath() {
+        return this.fullPath;
+    }
+
+    public String nestedTypePath() {
+        return nestedTypePath;
+    }
+
     public final Dynamic dynamic() {
         return this.dynamic;
     }
@@ -292,6 +369,30 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             return;
         }
         XContentParser parser = context.parser();
+
+        Document restoreDoc = null;
+        if (nested.isNested()) {
+            Document nestedDoc = new Document();
+            // pre add the uid field if possible (id was already provided)
+            Fieldable uidField = (Fieldable) context.doc().getFieldable(UidFieldMapper.NAME);
+            if (uidField != null) {
+                // we don't need to add it as a full uid field in nested docs, since we don't need versioning
+                // we also rely on this for UidField#loadVersion
+
+                // this is a deeply nested field
+                if (uidField.stringValue() != null) {
+                    nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                } else {
+                    nestedDoc.add(new Field(UidFieldMapper.NAME, ((UidField) uidField).uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                }
+            }
+            // the type of the nested doc starts with __, so we can identify that its a nested one in filters
+            // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
+            // across types (for example, with similar nested objects)
+            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePath, Field.Store.NO, Field.Index.NOT_ANALYZED));
+            restoreDoc = context.switchDoc(nestedDoc);
+            context.addDoc(nestedDoc);
+        }
 
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
@@ -328,6 +429,28 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         // restore the enable path flag
         context.path().pathType(origPathType);
+        if (nested.isNested()) {
+            Document nestedDoc = context.switchDoc(restoreDoc);
+            if (nested == Nested.OBJECT_AND_NESTED) {
+                // copy over all the fields to the parent doc...
+                for (Fieldable field : nestedDoc.getFields()) {
+                    if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
+                        continue;
+                    } else {
+                        context.doc().add(field);
+                    }
+                }
+            } else if (nested == Nested.ROOT_AND_NESTED) {
+                // copy over all the fields to the root doc...
+                for (Fieldable field : nestedDoc.getFields()) {
+                    if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
+                        continue;
+                    } else {
+                        context.docs().get(0).add(field);
+                    }
+                }
+            }
+        }
     }
 
     private void serializeNullValue(ParseContext context, String lastFieldName) throws IOException {
@@ -374,6 +497,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         objectMapper.traverse(new FieldMapperListener() {
                             @Override public void fieldMapper(FieldMapper fieldMapper) {
                                 context.docMapper().addFieldMapper(fieldMapper);
+                            }
+                        });
+                        objectMapper.traverse(new ObjectMapperListener() {
+                            @Override public void objectMapper(ObjectMapper objectMapper) {
+                                context.docMapper().addObjectMapper(objectMapper);
                             }
                         });
 
@@ -576,6 +704,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                                 mergeContext.docMapper().addFieldMapper(fieldMapper);
                             }
                         });
+                        mergeWithMapper.traverse(new ObjectMapperListener() {
+                            @Override public void objectMapper(ObjectMapper objectMapper) {
+                                mergeContext.docMapper().addObjectMapper(objectMapper);
+                            }
+                        });
                     }
                 } else {
                     if ((mergeWithMapper instanceof MultiFieldMapper) && !(mergeIntoMapper instanceof MultiFieldMapper)) {
@@ -588,6 +721,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                                 mapper.traverse(new FieldMapperListener() {
                                     @Override public void fieldMapper(FieldMapper fieldMapper) {
                                         mergeContext.docMapper().addFieldMapper(fieldMapper);
+                                    }
+                                });
+                                mapper.traverse(new ObjectMapperListener() {
+                                    @Override public void objectMapper(ObjectMapper objectMapper) {
+                                        mergeContext.docMapper().addObjectMapper(objectMapper);
                                     }
                                 });
                             }
@@ -617,7 +755,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     public void toXContent(XContentBuilder builder, Params params, ToXContent custom, Mapper... additionalMappers) throws IOException {
         builder.startObject(name);
-        if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
+        if (nested.isNested()) {
+            if (nested == Nested.NESTED) {
+                builder.field("type", NESTED_CONTENT_TYPE);
+            } else if (nested == Nested.OBJECT_AND_NESTED) {
+                builder.field("type", OBJECT_AND_NESTED_CONTENT_TYPE);
+            } else if (nested == Nested.ROOT_AND_NESTED) {
+                builder.field("type", ROOT_AND_NESTED_CONTENT_TYPE);
+            }
+        } else if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
         // grr, ugly! on root, dynamic defaults to TRUE, on childs, it defaults to null to

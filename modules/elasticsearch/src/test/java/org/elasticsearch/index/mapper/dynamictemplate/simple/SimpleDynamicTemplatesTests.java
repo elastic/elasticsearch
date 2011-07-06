@@ -39,7 +39,7 @@ public class SimpleDynamicTemplatesTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        Document doc = docMapper.parse(json).doc();
+        Document doc = docMapper.parse(json).masterDoc();
 
         Field f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -94,7 +94,7 @@ public class SimpleDynamicTemplatesTests {
         docMapper = MapperTests.newParser().parse(docMapper.mappingSource().string());
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        Document doc = docMapper.parse(json).doc();
+        Document doc = docMapper.parse(json).masterDoc();
 
         Field f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

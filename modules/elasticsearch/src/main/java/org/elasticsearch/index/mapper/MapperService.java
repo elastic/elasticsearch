@@ -44,6 +44,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.type.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -84,10 +86,13 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private volatile ImmutableMap<String, FieldMappers> nameFieldMappers = ImmutableMap.of();
     private volatile ImmutableMap<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
     private volatile ImmutableMap<String, FieldMappers> fullNameFieldMappers = ImmutableMap.of();
+    private volatile ImmutableMap<String, ObjectMappers> objectMappers = ImmutableMap.of();
+    private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
 
     private final InternalFieldMapperListener fieldMapperListener = new InternalFieldMapperListener();
+    private final InternalObjectMapperListener objectMapperListener = new InternalObjectMapperListener();
 
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
 
@@ -179,6 +184,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             remove(mapper.type()); // first remove it (in case its an update, we need to remove the aggregated mappers)
             mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
             mapper.addFieldMapperListener(fieldMapperListener, true);
+            mapper.addObjectMapperListener(objectMapperListener, true);
         }
     }
 
@@ -220,6 +226,18 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                         fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().fullName()).immutableMap();
                     } else {
                         fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().fullName(), mappers).immutableMap();
+                    }
+                }
+            }
+
+            for (ObjectMapper mapper : docMapper.objectMappers().values()) {
+                ObjectMappers mappers = objectMappers.get(mapper.fullPath());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        objectMappers = newMapBuilder(objectMappers).remove(mapper.fullPath()).immutableMap();
+                    } else {
+                        objectMappers = newMapBuilder(objectMappers).put(mapper.fullPath(), mappers).immutableMap();
                     }
                 }
             }
@@ -265,10 +283,18 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     /**
-     * A filter to filter based on several types. Will not throw types missing failure, and will
-     * simply filter it out also.
+     * A filter for search. If a filter is required, will return it, otherwise, will return <tt>null</tt>.
      */
-    public Filter typesFilter(String... types) {
+    public Filter searchFilter(String... types) {
+        if (types == null || types.length == 0) {
+            if (hasNested) {
+                return NonNestedDocsFilter.INSTANCE;
+            } else {
+                return null;
+            }
+        }
+        // if we filter by types, we don't need to filter by non nested docs
+        // since they have different types (starting with __)
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
             if (docMapper == null) {
@@ -361,6 +387,33 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     public FieldMappers fullName(String fullName) {
         return fullNameFieldMappers.get(fullName);
+    }
+
+    /**
+     * Returns objects mappers based on the full path of the object.
+     */
+    public ObjectMappers objectMapper(String path) {
+        return objectMappers.get(path);
+    }
+
+    public SmartNameObjectMapper smartNameObjectMapper(String smartName) {
+        int dotIndex = smartName.indexOf('.');
+        if (dotIndex != -1) {
+            String possibleType = smartName.substring(0, dotIndex);
+            DocumentMapper possibleDocMapper = mappers.get(possibleType);
+            if (possibleDocMapper != null) {
+                String possiblePath = smartName.substring(dotIndex + 1);
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
+                if (mapper != null) {
+                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                }
+            }
+        }
+        ObjectMappers mappers = objectMapper(smartName);
+        if (mappers != null) {
+            return new SmartNameObjectMapper(mappers.mapper(), null);
+        }
+        return null;
     }
 
     /**
@@ -482,6 +535,32 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
+    }
+
+    public static class SmartNameObjectMapper {
+        private final ObjectMapper mapper;
+        private final DocumentMapper docMapper;
+
+        public SmartNameObjectMapper(ObjectMapper mapper, @Nullable DocumentMapper docMapper) {
+            this.mapper = mapper;
+            this.docMapper = docMapper;
+        }
+
+        public boolean hasMapper() {
+            return mapper != null;
+        }
+
+        public ObjectMapper mapper() {
+            return mapper;
+        }
+
+        public boolean hasDocMapper() {
+            return docMapper != null;
+        }
+
+        public DocumentMapper docMapper() {
+            return docMapper;
+        }
     }
 
     public static class SmartNameFieldMappers {
@@ -625,7 +704,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    private class InternalFieldMapperListener implements FieldMapperListener {
+    class InternalFieldMapperListener implements FieldMapperListener {
         @Override public void fieldMapper(FieldMapper fieldMapper) {
             synchronized (mutex) {
                 FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
@@ -652,6 +731,22 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     mappers = mappers.concat(fieldMapper);
                 }
                 fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(fieldMapper.names().fullName(), mappers).immutableMap();
+            }
+        }
+    }
+
+    class InternalObjectMapperListener implements ObjectMapperListener {
+        @Override public void objectMapper(ObjectMapper objectMapper) {
+            ObjectMappers mappers = objectMappers.get(objectMapper.fullPath());
+            if (mappers == null) {
+                mappers = new ObjectMappers(objectMapper);
+            } else {
+                mappers = mappers.concat(objectMapper);
+            }
+            objectMappers = newMapBuilder(objectMappers).put(objectMapper.fullPath(), mappers).immutableMap();
+            // update the hasNested flag
+            if (objectMapper.nested().isNested()) {
+                hasNested = true;
             }
         }
     }

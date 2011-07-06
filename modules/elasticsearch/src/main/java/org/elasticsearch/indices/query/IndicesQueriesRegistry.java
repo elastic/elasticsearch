@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.type.nested.NestedQueryParser;
 
 import java.util.Map;
 
@@ -38,6 +39,7 @@ public class IndicesQueriesRegistry {
     @Inject public IndicesQueriesRegistry(Settings settings) {
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         addQueryParser(queryParsers, new TextQueryParser());
+        addQueryParser(queryParsers, new NestedQueryParser());
         addQueryParser(queryParsers, new HasChildQueryParser());
         addQueryParser(queryParsers, new TopChildrenQueryParser());
         addQueryParser(queryParsers, new DisMaxQueryParser());

@@ -45,6 +45,6 @@ public class SimpleDateMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.doc().getFieldable("date_field").tokenStreamValue(), notNullValue());
+        assertThat(doc.masterDoc().getFieldable("date_field").tokenStreamValue(), notNullValue());
     }
 }

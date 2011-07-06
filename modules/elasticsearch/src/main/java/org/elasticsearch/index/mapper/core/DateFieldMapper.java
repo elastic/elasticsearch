@@ -215,9 +215,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 includeLower, includeUpper);
     }
 
+    @Override protected boolean customBoost() {
+        return true;
+    }
+
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         String dateAsString = null;
-        long value = -1;
+        Long value = null;
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue instanceof Number) {
@@ -229,18 +234,40 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 }
             }
         } else {
-            XContentParser.Token token = context.parser().currentToken();
+            XContentParser parser = context.parser();
+            XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 dateAsString = nullValue;
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                value = context.parser().longValue();
+                value = parser.longValue();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                            if (token == XContentParser.Token.VALUE_NULL) {
+                                dateAsString = nullValue;
+                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                                value = parser.longValue();
+                            } else {
+                                dateAsString = parser.text();
+                            }
+                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        }
+                    }
+                }
             } else {
-                dateAsString = context.parser().text();
+                dateAsString = parser.text();
             }
         }
 
-        if (value != -1) {
-            return new LongFieldMapper.CustomLongNumericField(this, value);
+        if (value != null) {
+            LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value);
+            field.setBoost(boost);
+            return field;
         }
 
         if (dateAsString == null) {
@@ -251,7 +278,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         value = parseStringValue(dateAsString);
-        return new LongFieldMapper.CustomLongNumericField(this, value);
+        LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value);
+        field.setBoost(boost);
+        return field;
     }
 
     @Override public FieldDataType fieldDataType() {

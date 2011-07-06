@@ -1182,7 +1182,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private Object dirtyLock(String id) {
-        return dirtyLocks[Math.abs(id.hashCode()) % dirtyLocks.length];
+        int hash = id.hashCode();
+        // abs returns Integer.MIN_VALUE, so we need to protect against it...
+        if (hash == Integer.MIN_VALUE) {
+            hash = 0;
+        }
+        return dirtyLocks[Math.abs(hash) % dirtyLocks.length];
     }
 
     private Object dirtyLock(Term uid) {

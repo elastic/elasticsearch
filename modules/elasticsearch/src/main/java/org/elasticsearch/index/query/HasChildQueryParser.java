@@ -26,7 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.query.type.child.HasChildFilter;
+import org.elasticsearch.index.search.child.HasChildFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

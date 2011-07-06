@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.type.child;
+package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;

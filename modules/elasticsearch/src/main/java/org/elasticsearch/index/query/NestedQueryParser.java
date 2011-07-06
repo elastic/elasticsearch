@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.type.nested;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
@@ -30,9 +30,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.search.nested.BlockJoinQuery;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
 

@@ -17,11 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.type.nested;
+package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.BaseQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 

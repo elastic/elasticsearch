@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.query.type.nested.NestedQueryBuilder;
 
 /**
  * A static factory for simple "import static" usage.

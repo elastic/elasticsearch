@@ -175,8 +175,13 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 includeLower, includeUpper);
     }
 
+    @Override protected boolean customBoost() {
+        return true;
+    }
+
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         long value;
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
@@ -191,7 +196,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 context.allEntries().addText(names.fullName(), Long.toString(value), boost);
             }
         } else {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            XContentParser parser = context.parser();
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 if (nullValue == null) {
                     return null;
                 }
@@ -199,14 +205,38 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentParser.Token token;
+                String currentFieldName = null;
+                Long objValue = nullValue;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                objValue = parser.longValue();
+                            }
+                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        }
+                    }
+                }
+                if (objValue == null) {
+                    // no value
+                    return null;
+                }
+                value = objValue;
             } else {
-                value = context.parser().longValue();
+                value = parser.longValue();
                 if (context.includeInAll(includeInAll)) {
-                    context.allEntries().addText(names.fullName(), context.parser().text(), boost);
+                    context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }
             }
         }
-        return new CustomLongNumericField(this, value);
+        CustomLongNumericField field = new CustomLongNumericField(this, value);
+        field.setBoost(boost);
+        return field;
     }
 
     @Override public FieldDataType fieldDataType() {

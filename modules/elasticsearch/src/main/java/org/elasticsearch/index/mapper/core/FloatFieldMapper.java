@@ -170,8 +170,13 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                 includeLower, includeUpper);
     }
 
+    @Override protected boolean customBoost() {
+        return true;
+    }
+
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         float value;
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
@@ -186,7 +191,8 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                 context.allEntries().addText(names.fullName(), Float.toString(value), boost);
             }
         } else {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            XContentParser parser = context.parser();
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 if (nullValue == null) {
                     return null;
                 }
@@ -194,15 +200,39 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                 if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentParser.Token token;
+                String currentFieldName = null;
+                Float objValue = nullValue;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                objValue = parser.floatValue();
+                            }
+                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        }
+                    }
+                }
+                if (objValue == null) {
+                    // no value
+                    return null;
+                }
+                value = objValue;
             } else {
-                value = context.parser().floatValue();
+                value = parser.floatValue();
                 if (context.includeInAll(includeInAll)) {
-                    context.allEntries().addText(names.fullName(), context.parser().text(), boost);
+                    context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }
             }
         }
 
-        return new CustomFloatNumericField(this, value);
+        CustomFloatNumericField field = new CustomFloatNumericField(this, value);
+        field.setBoost(boost);
+        return field;
     }
 
     @Override public FieldDataType fieldDataType() {

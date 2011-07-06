@@ -155,6 +155,10 @@ public class ParseContext {
         return this.listener;
     }
 
+    public Document rootDoc() {
+        return documents.get(0);
+    }
+
     public List<Document> docs() {
         return this.documents;
     }

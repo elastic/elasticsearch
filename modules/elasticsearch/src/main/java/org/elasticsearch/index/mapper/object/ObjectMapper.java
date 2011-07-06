@@ -60,8 +60,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
-    public static final String OBJECT_AND_NESTED_CONTENT_TYPE = "object_and_nested";
-    public static final String ROOT_AND_NESTED_CONTENT_TYPE = "root_and_nested";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
@@ -76,29 +74,37 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         STRICT
     }
 
-    public static enum Nested {
-        NO {
-            @Override public boolean isNested() {
-                return false;
-            }
-        },
-        NESTED {
-            @Override public boolean isNested() {
-                return true;
-            }
-        },
-        OBJECT_AND_NESTED {
-            @Override public boolean isNested() {
-                return true;
-            }
-        },
-        ROOT_AND_NESTED {
-            @Override public boolean isNested() {
-                return true;
-            }
-        };
+    public static class Nested {
 
-        public abstract boolean isNested();
+        public static final Nested NO = new Nested(false, false, false);
+
+        public static Nested newNested(boolean includeInParent, boolean includeInRoot) {
+            return new Nested(true, includeInParent, includeInRoot);
+        }
+
+        private final boolean nested;
+
+        private final boolean includeInParent;
+
+        private final boolean includeInRoot;
+
+        private Nested(boolean nested, boolean includeInParent, boolean includeInRoot) {
+            this.nested = nested;
+            this.includeInParent = includeInParent;
+            this.includeInRoot = includeInRoot;
+        }
+
+        public boolean isNested() {
+            return nested;
+        }
+
+        public boolean isIncludeInParent() {
+            return includeInParent;
+        }
+
+        public boolean isIncludeInRoot() {
+            return includeInRoot;
+        }
     }
 
     public static class Builder<T extends Builder, Y extends ObjectMapper> extends Mapper.Builder<T, Y> {
@@ -179,6 +185,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             Map<String, Object> objectNode = node;
             ObjectMapper.Builder builder = createBuilder(name);
 
+            boolean nested = false;
+            boolean nestedIncludeInParent = false;
+            boolean nestedIncludeInRoot = false;
             for (Map.Entry<String, Object> entry : objectNode.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -195,14 +204,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     if (type.equals(CONTENT_TYPE)) {
                         builder.nested = Nested.NO;
                     } else if (type.equals(NESTED_CONTENT_TYPE)) {
-                        builder.nested = Nested.NESTED;
-                    } else if (type.equals(OBJECT_AND_NESTED_CONTENT_TYPE)) {
-                        builder.nested = Nested.OBJECT_AND_NESTED;
-                    } else if (type.equals(ROOT_AND_NESTED_CONTENT_TYPE)) {
-                        builder.nested = Nested.ROOT_AND_NESTED;
+                        nested = true;
                     } else {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                     }
+                } else if (fieldName.equals("include_in_parent")) {
+                    nestedIncludeInParent = nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("include_in_root")) {
+                    nestedIncludeInRoot = nodeBooleanValue(fieldNode);
                 } else if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("path")) {
@@ -215,6 +224,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     processField(builder, fieldName, fieldNode);
                 }
             }
+
+            if (nested) {
+                builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
+            }
+
             return builder;
         }
 
@@ -431,8 +445,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         context.path().pathType(origPathType);
         if (nested.isNested()) {
             Document nestedDoc = context.switchDoc(restoreDoc);
-            if (nested == Nested.OBJECT_AND_NESTED) {
-                // copy over all the fields to the parent doc...
+            if (nested.isIncludeInParent()) {
                 for (Fieldable field : nestedDoc.getFields()) {
                     if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                         continue;
@@ -440,13 +453,16 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         context.doc().add(field);
                     }
                 }
-            } else if (nested == Nested.ROOT_AND_NESTED) {
-                // copy over all the fields to the root doc...
-                for (Fieldable field : nestedDoc.getFields()) {
-                    if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
-                        continue;
-                    } else {
-                        context.docs().get(0).add(field);
+            }
+            if (nested.isIncludeInRoot()) {
+                // don't add it twice, if its included in parent, and we are handling the master doc...
+                if (!(nested.isIncludeInParent() && context.doc() == context.rootDoc())) {
+                    for (Fieldable field : nestedDoc.getFields()) {
+                        if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
+                            continue;
+                        } else {
+                            context.rootDoc().add(field);
+                        }
                     }
                 }
             }
@@ -756,12 +772,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     public void toXContent(XContentBuilder builder, Params params, ToXContent custom, Mapper... additionalMappers) throws IOException {
         builder.startObject(name);
         if (nested.isNested()) {
-            if (nested == Nested.NESTED) {
-                builder.field("type", NESTED_CONTENT_TYPE);
-            } else if (nested == Nested.OBJECT_AND_NESTED) {
-                builder.field("type", OBJECT_AND_NESTED_CONTENT_TYPE);
-            } else if (nested == Nested.ROOT_AND_NESTED) {
-                builder.field("type", ROOT_AND_NESTED_CONTENT_TYPE);
+            builder.field("type", NESTED_CONTENT_TYPE);
+            if (nested.isIncludeInParent()) {
+                builder.field("include_in_parent", true);
+            }
+            if (nested.isIncludeInRoot()) {
+                builder.field("include_in_root", true);
             }
         } else if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);

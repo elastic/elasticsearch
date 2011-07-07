@@ -34,7 +34,7 @@ dependencies {
 
     compile 'org.slf4j:slf4j-api:1.5.11'
     compile('org.slf4j:slf4j-log4j12:1.5.11') { transitive = false }
-    compile('log4j:log4j:1.2.15') { transitive = false }
+    compile('log4j:log4j:1.2.16') { transitive = false }
 
     compile('net.java.dev.jna:jna:3.2.7') { transitive = false }
 

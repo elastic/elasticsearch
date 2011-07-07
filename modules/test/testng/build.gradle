@@ -12,7 +12,7 @@ sourceSets.test.resources.srcDirs 'src/test/java'
 
 dependencies {
     compile('org.testng:testng:6.1.1') { transitive = false }
-    compile('log4j:log4j:1.2.15') { transitive = false }
+    compile('log4j:log4j:1.2.16') { transitive = false }
 }
 
 eclipseClasspath {

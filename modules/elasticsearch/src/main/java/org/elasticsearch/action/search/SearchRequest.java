@@ -145,7 +145,7 @@ public class SearchRequest implements ActionRequest {
     /**
      * Sets the indices the search will be executed on.
      */
-    public SearchRequest indices(String[] indices) {
+    public SearchRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

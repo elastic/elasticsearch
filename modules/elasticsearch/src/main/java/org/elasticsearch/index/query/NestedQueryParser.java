@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -52,6 +53,7 @@ public class NestedQueryParser implements QueryParser {
         Query query = null;
         Filter filter = null;
         float boost = 1.0f;
+        String scope = null;
         String path = null;
         BlockJoinQuery.ScoreMode scoreMode = BlockJoinQuery.ScoreMode.Avg;
 
@@ -77,6 +79,8 @@ public class NestedQueryParser implements QueryParser {
                     path = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_scope".equals(currentFieldName)) {
+                    scope = parser.text();
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(scoreMode)) {
                     String sScoreMode = parser.text();
                     if ("avg".equals(sScoreMode)) {
@@ -137,6 +141,11 @@ public class NestedQueryParser implements QueryParser {
         parentFilterContext.set(currentParentFilterContext);
 
         BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, scoreMode);
+
+        if (scope != null) {
+            SearchContext.current().addNestedQuery(scope, joinQuery);
+        }
+
         return joinQuery;
     }
 

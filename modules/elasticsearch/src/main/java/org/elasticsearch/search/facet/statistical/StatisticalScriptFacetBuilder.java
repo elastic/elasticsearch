@@ -62,6 +62,15 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
+     * Sets the nested path the facet will execute on. A match (root object) will then cause all the
+     * nested objects matching the path to be computed into the facet.
+     */
+    public StatisticalScriptFacetBuilder nested(String nested) {
+        this.nested = nested;
+        return this;
+    }
+
+    /**
      * The language of the script.
      */
     public StatisticalScriptFacetBuilder lang(String lang) {

@@ -59,6 +59,15 @@ public class QueryFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Sets the nested path the facet will execute on. A match (root object) will then cause all the
+     * nested objects matching the path to be computed into the facet.
+     */
+    public QueryFacetBuilder nested(String nested) {
+        this.nested = nested;
+        return this;
+    }
+
     public QueryFacetBuilder query(QueryBuilder query) {
         this.query = query;
         return this;

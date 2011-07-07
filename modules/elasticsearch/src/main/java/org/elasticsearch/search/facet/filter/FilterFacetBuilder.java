@@ -58,6 +58,15 @@ public class FilterFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Sets the nested path the facet will execute on. A match (root object) will then cause all the
+     * nested objects matching the path to be computed into the facet.
+     */
+    public FilterFacetBuilder nested(String nested) {
+        this.nested = nested;
+        return this;
+    }
+
     public FilterFacetBuilder filter(FilterBuilder filter) {
         this.filter = filter;
         return this;

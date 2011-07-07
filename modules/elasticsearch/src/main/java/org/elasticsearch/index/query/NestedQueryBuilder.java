@@ -33,6 +33,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder {
 
     private float boost = 1.0f;
 
+    private String scope;
+
     public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
         this.queryBuilder = queryBuilder;
@@ -43,6 +45,11 @@ public class NestedQueryBuilder extends BaseQueryBuilder {
      */
     public NestedQueryBuilder scoreMode(String scoreMode) {
         this.scoreMode = scoreMode;
+        return this;
+    }
+
+    public NestedQueryBuilder scope(String scope) {
+        this.scope = scope;
         return this;
     }
 
@@ -62,6 +69,9 @@ public class NestedQueryBuilder extends BaseQueryBuilder {
         builder.field("path", path);
         if (scoreMode != null) {
             builder.field("score_mode", scoreMode);
+        }
+        if (scope != null) {
+            builder.field("_scope", scope);
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);

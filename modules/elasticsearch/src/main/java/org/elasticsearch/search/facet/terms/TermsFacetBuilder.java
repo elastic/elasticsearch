@@ -84,6 +84,15 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
+     * Sets the nested path the facet will execute on. A match (root object) will then cause all the
+     * nested objects matching the path to be computed into the facet.
+     */
+    public TermsFacetBuilder nested(String nested) {
+        this.nested = nested;
+        return this;
+    }
+
+    /**
      * The field the terms will be collected from.
      */
     public TermsFacetBuilder field(String field) {

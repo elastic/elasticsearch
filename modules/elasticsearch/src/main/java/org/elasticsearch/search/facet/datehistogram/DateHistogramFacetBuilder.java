@@ -150,6 +150,16 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Sets the nested path the facet will execute on. A match (root object) will then cause all the
+     * nested objects matching the path to be computed into the facet.
+     */
+    public DateHistogramFacetBuilder nested(String nested) {
+        this.nested = nested;
+        return this;
+    }
+
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (keyFieldName == null) {
             throw new SearchSourceBuilderException("field must be set on date histogram facet for facet [" + name + "]");

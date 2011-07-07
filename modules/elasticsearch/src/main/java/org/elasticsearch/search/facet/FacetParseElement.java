@@ -23,6 +23,10 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.search.nested.NestedChildrenCollector;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -72,6 +76,7 @@ public class FacetParseElement implements SearchParseElement {
                 String facetFieldName = null;
                 Filter filter = null;
                 boolean cacheFilter = true;
+                String nestedPath = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         facetFieldName = parser.currentName();
@@ -90,10 +95,12 @@ public class FacetParseElement implements SearchParseElement {
                             if (parser.booleanValue()) {
                                 scope = ContextIndexSearcher.Scopes.GLOBAL;
                             }
-                        } else if ("scope".equals(facetFieldName)) {
+                        } else if ("scope".equals(facetFieldName) || "_scope".equals(facetFieldName)) {
                             scope = parser.text();
                         } else if ("cache_filter".equals(facetFieldName) || "cacheFilter".equals(facetFieldName)) {
                             cacheFilter = parser.booleanValue();
+                        } else if ("nested".equals(facetFieldName)) {
+                            nestedPath = parser.text();
                         }
                     }
                 }
@@ -102,6 +109,22 @@ public class FacetParseElement implements SearchParseElement {
                         filter = context.filterCache().cache(filter);
                     }
                     facet.setFilter(filter);
+                }
+
+                if (nestedPath != null) {
+                    // its a nested facet, wrap the collector with a facet one...
+                    MapperService.SmartNameObjectMapper mapper = context.mapperService().smartNameObjectMapper(nestedPath);
+                    if (mapper == null) {
+                        throw new SearchParseException(context, "facet nested path [" + nestedPath + "] not found");
+                    }
+                    ObjectMapper objectMapper = mapper.mapper();
+                    if (objectMapper == null) {
+                        throw new SearchParseException(context, "facet nested path [" + nestedPath + "] not found");
+                    }
+                    if (!objectMapper.nested().isNested()) {
+                        throw new SearchParseException(context, "facet nested path [" + nestedPath + "] is not nested");
+                    }
+                    facet = new NestedChildrenCollector(facet, context.filterCache().cache(NonNestedDocsFilter.INSTANCE), context.filterCache().cache(objectMapper.nestedTypeFilter()));
                 }
 
                 if (facetCollectors == null) {

@@ -21,18 +21,11 @@ package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Searcher;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.lucene.docset.OpenBitDocSet;
+import org.elasticsearch.common.lucene.search.NoopCollector;
 
 import java.io.IOException;
 import java.util.Set;
@@ -77,8 +70,7 @@ import java.util.Set;
  * @lucene.experimental
  */
 
-// LUCENE MONITOR: Track, additions include:
-// --
+// LUCENE MONITOR: Track CHANGE
 public class BlockJoinQuery extends Query {
 
     public static enum ScoreMode {None, Avg, Max, Total}
@@ -87,6 +79,13 @@ public class BlockJoinQuery extends Query {
 
     private final Filter parentsFilter;
     private final Query childQuery;
+
+    private Collector childCollector = NoopCollector.NOOP_COLLECTOR;
+
+    public BlockJoinQuery setCollector(Collector collector) {
+        this.childCollector = collector;
+        return this;
+    }
 
     // If we are rewritten, this is the original childQuery we
     // were passed; we use this for .equals() and
@@ -114,7 +113,7 @@ public class BlockJoinQuery extends Query {
 
     @Override
     public Weight createWeight(Searcher searcher) throws IOException {
-        return new BlockJoinWeight(this, childQuery.createWeight(searcher), parentsFilter, scoreMode);
+        return new BlockJoinWeight(this, childQuery.createWeight(searcher), parentsFilter, scoreMode, childCollector);
     }
 
     private static class BlockJoinWeight extends Weight {
@@ -122,13 +121,15 @@ public class BlockJoinQuery extends Query {
         private final Weight childWeight;
         private final Filter parentsFilter;
         private final ScoreMode scoreMode;
+        private final Collector childCollector;
 
-        public BlockJoinWeight(Query joinQuery, Weight childWeight, Filter parentsFilter, ScoreMode scoreMode) {
+        public BlockJoinWeight(Query joinQuery, Weight childWeight, Filter parentsFilter, ScoreMode scoreMode, Collector childCollector) {
             super();
             this.joinQuery = joinQuery;
             this.childWeight = childWeight;
             this.parentsFilter = parentsFilter;
             this.scoreMode = scoreMode;
+            this.childCollector = childCollector;
         }
 
         @Override
@@ -183,7 +184,13 @@ public class BlockJoinQuery extends Query {
                 throw new IllegalStateException("parentFilter must return OpenBitSet; got " + parents);
             }
 
-            return new BlockJoinScorer(this, childScorer, (OpenBitSet) parents, firstChildDoc, scoreMode);
+            // CHANGE:
+            if (childCollector != null) {
+                childCollector.setNextReader(reader, 0);
+                childCollector.setScorer(childScorer);
+            }
+
+            return new BlockJoinScorer(this, childScorer, (OpenBitSet) parents, firstChildDoc, scoreMode, childCollector);
         }
 
         @Override
@@ -203,6 +210,7 @@ public class BlockJoinQuery extends Query {
         private final Scorer childScorer;
         private final OpenBitSet parentBits;
         private final ScoreMode scoreMode;
+        private final Collector childCollector;
         private int parentDoc;
         private float parentScore;
         private int nextChildDoc;
@@ -211,12 +219,13 @@ public class BlockJoinQuery extends Query {
         private float[] pendingChildScores;
         private int childDocUpto;
 
-        public BlockJoinScorer(Weight weight, Scorer childScorer, OpenBitSet parentBits, int firstChildDoc, ScoreMode scoreMode) {
+        public BlockJoinScorer(Weight weight, Scorer childScorer, OpenBitSet parentBits, int firstChildDoc, ScoreMode scoreMode, Collector childCollector) {
             super(weight);
             //System.out.println("Q.init firstChildDoc=" + firstChildDoc);
             this.parentBits = parentBits;
             this.childScorer = childScorer;
             this.scoreMode = scoreMode;
+            this.childCollector = childCollector;
             if (scoreMode != ScoreMode.None) {
                 pendingChildScores = new float[5];
             }
@@ -292,6 +301,10 @@ public class BlockJoinQuery extends Query {
                     maxScore = Math.max(childScore, maxScore);
                     totalScore += childScore;
                 }
+
+                // CHANGE:
+                childCollector.collect(nextChildDoc);
+
                 childDocUpto++;
                 nextChildDoc = childScorer.nextDoc();
             } while (nextChildDoc < parentDoc);
@@ -368,7 +381,7 @@ public class BlockJoinQuery extends Query {
             return new BlockJoinQuery(childQuery,
                     childRewrite,
                     parentsFilter,
-                    scoreMode);
+                    scoreMode).setCollector(childCollector);
         } else {
             return this;
         }
@@ -415,6 +428,6 @@ public class BlockJoinQuery extends Query {
     public Object clone() {
         return new BlockJoinQuery((Query) origChildQuery.clone(),
                 parentsFilter,
-                scoreMode);
+                scoreMode).setCollector(childCollector);
     }
 }

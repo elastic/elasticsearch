@@ -118,10 +118,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.pingService = pingService;
 
         // also support direct discovery.zen settings, for cases when it gets extended
-        this.pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3))));
+        this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
-        logger.debug("using ping_timeout [{}]", pingTimeout);
+        logger.debug("using ping.timeout [{}]", pingTimeout);
 
         this.electMaster = new ElectMasterService(settings);
 

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -32,9 +33,11 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.File;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -74,6 +77,34 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             IndexService indexService = indicesService.indexService(indexRoutingTable.index());
             if (indexService == null) {
                 // not allocated on this node yet...
+                // checking if the index was completely relocated to another nodes but left unused shards
+                for (Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
+                    if (indexRoutingTable != null) {
+                        IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardEntry.getKey());
+                        if (indexShardRoutingTable != null) {
+                            boolean shardCanBeDeleted = true;
+                            for (ShardRouting routing : indexShardRoutingTable) {
+                                // The shard is not yet started - we cannot make determination if it's used or not yet
+                                if (!routing.started()) {
+                                    shardCanBeDeleted = false;
+                                    break;
+                                }
+                                String localNodeId = clusterService.localNode().id();
+                                // Check if shard is active on the current node or is getting relocated to the current node
+                                if (localNodeId.equals(routing.currentNodeId()) || localNodeId.equals(routing.relocatingNodeId())) {
+                                    // Shard is used locally - keep it
+                                    shardCanBeDeleted = false;
+                                    break;
+                                }
+                            }
+                            if (shardCanBeDeleted) {
+                                ShardId shardId = shardEntry.getValue().getShardId();
+                                logger.debug("[{}] deleting shard that is no longer used", shardId);
+                                FileSystemUtils.deleteRecursively(nodeEnv.shardLocation(shardId));
+                            }
+                        }
+                    }
+                }
                 continue;
             }
             // if the store is not persistent, don't bother trying to check if it can be deleted

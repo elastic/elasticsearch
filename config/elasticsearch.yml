@@ -24,6 +24,7 @@
 # Unicast Discovery (disable multicast)
 #discovery:
 #  zen:
+#    minimum_master_nodes: 1
 #    ping.timeout: 3s
 #    ping.multicast.enabled: false
 #    ping.unicast.hosts: ["host1", "host2"]

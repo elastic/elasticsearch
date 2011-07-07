@@ -20,7 +20,12 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesResult;
+import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.InstanceState;
+import com.amazonaws.services.ec2.model.Reservation;
+import com.amazonaws.services.ec2.model.Tag;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -83,6 +88,10 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
             availabilityZones.addAll(Strings.commaDelimitedListToSet(componentSettings.get("availability_zones")));
         }
         this.availabilityZones = ImmutableSet.copyOf(availabilityZones);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags, groups, bindAnyGroup, availabilityZones);
+        }
     }
 
     @Override public List<DiscoveryNode> buildDynamicNodes() {

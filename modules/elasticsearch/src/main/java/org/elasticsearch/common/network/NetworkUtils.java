@@ -26,8 +26,20 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.os.OsUtils;
 
 import java.lang.reflect.Method;
-import java.net.*;
-import java.util.*;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -123,8 +135,13 @@ public abstract class NetworkUtils {
         }
 
         for (NetworkInterface intf : intfsList) {
-            if (!intf.isUp() || intf.isLoopback())
+            try {
+                if (!intf.isUp() || intf.isLoopback())
+                    continue;
+            } catch (Exception e) {
+                // might happen when calling on a network interface that does not exists
                 continue;
+            }
             address = getFirstNonLoopbackAddress(intf, ip_version);
             if (address != null) {
                 return address;
@@ -145,7 +162,7 @@ public abstract class NetworkUtils {
         if (intf == null)
             throw new IllegalArgumentException("Network interface pointer is null");
 
-        for (Enumeration addresses = intf.getInetAddresses(); addresses.hasMoreElements();) {
+        for (Enumeration addresses = intf.getInetAddresses(); addresses.hasMoreElements(); ) {
             InetAddress address = (InetAddress) addresses.nextElement();
             if (!address.isLoopbackAddress()) {
                 if ((address instanceof Inet4Address && ipVersion == StackType.IPv4) ||
@@ -229,7 +246,7 @@ public abstract class NetworkUtils {
     public static List<NetworkInterface> getAllAvailableInterfaces() throws SocketException {
         List<NetworkInterface> allInterfaces = new ArrayList<NetworkInterface>(10);
         NetworkInterface intf;
-        for (Enumeration en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
+        for (Enumeration en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements(); ) {
             intf = (NetworkInterface) en.nextElement();
             allInterfaces.add(intf);
         }

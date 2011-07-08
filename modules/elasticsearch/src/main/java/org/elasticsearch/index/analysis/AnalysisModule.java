@@ -366,6 +366,10 @@ public class AnalysisModule extends AbstractModule {
     }
 
     private static class ExtendedProcessor extends AnalysisBinderProcessor {
+        @Override public void processCharFilters(CharFiltersBindings charFiltersBindings) {
+            charFiltersBindings.processCharFilter("mapping", MappingCharFilterFactory.class);
+        }
+
         @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
             tokenFiltersBindings.processTokenFilter("snowball", SnowballTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer", StemmerTokenFilterFactory.class);

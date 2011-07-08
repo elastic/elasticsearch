@@ -21,11 +21,15 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.search.type.TransportSearchCountAction;
+import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchScanAction;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
@@ -85,8 +89,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
             try {
                 ClusterState clusterState = clusterService.state();
                 searchRequest.indices(clusterState.metaData().concreteIndices(searchRequest.indices()));
-                GroupShardsIterator groupIt = clusterService.operationRouting().searchShards(clusterState, searchRequest.indices(), searchRequest.queryHint(), searchRequest.routing(), searchRequest.preference());
-                if (groupIt.size() == 1) {
+                int count = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), searchRequest.queryHint(), searchRequest.routing(), searchRequest.preference());
+                if (count == 1) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);
                 }

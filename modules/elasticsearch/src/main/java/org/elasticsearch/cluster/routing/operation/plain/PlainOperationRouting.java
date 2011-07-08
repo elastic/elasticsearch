@@ -98,6 +98,43 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return new GroupShardsIterator(set);
     }
 
+    @Override public int searchShardsCount(ClusterState clusterState, String[] indices, @Nullable String queryHint, @Nullable String routing, @Nullable String preference) throws IndexMissingException {
+        if (indices == null || indices.length == 0) {
+            indices = clusterState.metaData().concreteAllIndices();
+        }
+
+        String[] routings = null;
+        if (routing != null) {
+            routings = routingPattern.split(routing);
+        }
+
+        if (routings != null && routings.length > 0) {
+            // we use set here and not list since we might get duplicates
+            HashSet<ShardId> set = new HashSet<ShardId>();
+            for (String index : indices) {
+                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                for (String r : routings) {
+                    int shardId = shardId(clusterState, index, null, null, r);
+                    IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+                    if (indexShard == null) {
+                        throw new IndexShardMissingException(new ShardId(index, shardId));
+                    }
+                    // we might get duplicates, but that's ok, they will override one another
+                    set.add(indexShard.shardId());
+                }
+            }
+            return set.size();
+        } else {
+            // we use list here since we know we are not going to create duplicates
+            int count = 0;
+            for (String index : indices) {
+                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                count += indexRouting.shards().size();
+            }
+            return count;
+        }
+    }
+
     @Override public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, @Nullable String queryHint, @Nullable String routing, @Nullable String preference) throws IndexMissingException {
         if (indices == null || indices.length == 0) {
             indices = clusterState.metaData().concreteAllIndices();

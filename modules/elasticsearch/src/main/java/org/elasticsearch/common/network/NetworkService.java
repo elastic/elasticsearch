@@ -59,7 +59,7 @@ public class NetworkService extends AbstractComponent {
 
         public static final ByteSizeValue TCP_DEFAULT_SEND_BUFFER_SIZE = new ByteSizeValue(32, ByteSizeUnit.KB);
         public static final ByteSizeValue TCP_DEFAULT_RECEIVE_BUFFER_SIZE = new ByteSizeValue(32, ByteSizeUnit.KB);
-        public static final TimeValue TCP_DEFAULT_CONNECT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+        public static final TimeValue TCP_DEFAULT_CONNECT_TIMEOUT = new TimeValue(2, TimeUnit.SECONDS);
     }
 
     /**

@@ -127,9 +127,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             int count = 0;
             for (String index : concreteIndices) {
                 IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                for (IndexShardRoutingTable indexShard : indexRouting) {
-                    count++;
-                }
+                count += indexRouting.shards().size();
             }
             return count;
         }

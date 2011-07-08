@@ -69,6 +69,13 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
+
+        // check on no data, see it works
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
@@ -93,7 +100,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3));
 
         // check that _all is working on nested docs
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         searchResponse = client.prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(0l));

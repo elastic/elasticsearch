@@ -94,6 +94,12 @@ public class AnalysisModuleTests {
 //        html = (HtmlStripCharFilterFactory) custom2.charFilters()[1];
 //        assertThat(html.readAheadLimit(), equalTo(1024));
 
+        // verify characters  mapping
+        analyzer = analysisService.analyzer("custom5").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom5 = (CustomAnalyzer) analyzer;
+        assertThat(custom5.tokenFilters()[0], instanceOf(MappingCharFilterFactory.class));
+
         // verify aliases
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));

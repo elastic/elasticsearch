@@ -53,12 +53,27 @@ public class SearchPreferenceTests extends AbstractNodesTests {
         return client("server1");
     }
 
+    @Test public void noPreferenceRandom() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 1)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        String firstNodeId = searchResponse.hits().getAt(0).shard().nodeId();
+
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        String secondNodeId = searchResponse.hits().getAt(0).shard().nodeId();
+
+        assertThat(firstNodeId, not(equalTo(secondNodeId)));
+    }
+
     @Test public void simplePreferenceTests() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
+
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 

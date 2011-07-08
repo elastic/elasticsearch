@@ -21,11 +21,15 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.search.type.TransportSearchCountAction;
+import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
+import org.elasticsearch.action.search.type.TransportSearchScanAction;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
@@ -89,8 +93,8 @@ public class TransportSearchAction extends BaseAction<SearchRequest, SearchRespo
                 ClusterState clusterState = clusterService.state();
                 String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices());
                 Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
-                GroupShardsIterator groupIt = clusterService.operationRouting().searchShards(clusterState, searchRequest.indices(), concreteIndices, searchRequest.queryHint(), routingMap, searchRequest.preference());
-                if (groupIt.size() == 1) {
+                int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, searchRequest.queryHint(), routingMap, searchRequest.preference());
+                if (shardCount == 1) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);
                 }

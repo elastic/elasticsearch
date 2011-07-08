@@ -476,6 +476,10 @@ public abstract class QueryBuilders {
         return new NestedQueryBuilder(path, query);
     }
 
+    public static NestedQueryBuilder nestedQuery(String path, FilterBuilder filter) {
+        return new NestedQueryBuilder(path, filter);
+    }
+
     /**
      * A filer for a field based on several terms matching on any of them.
      *

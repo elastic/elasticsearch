@@ -29,10 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.IOException;
-import java.io.Reader;
 import java.util.regex.Pattern;
 
+@AnalysisSettingsRequired
 public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Pattern pattern;
@@ -42,14 +41,14 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
     @Inject public PatternReplaceTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
-        String sPattern = settings.get("pattern", "");
+        String sPattern = settings.get("pattern", null);
         if (sPattern == null) {
             throw new ElasticSearchIllegalArgumentException("pattern is missing for [" + name + "] token filter of type 'pattern_replace'");
         }
 
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
 
-        String sReplacement = settings.get("replacement", "");
+        String sReplacement = settings.get("replacement", null);
         if (sReplacement == null) {
             throw new ElasticSearchIllegalArgumentException("replacement is missing for [" + name + "] token filter of type 'pattern_replace'");
         }

@@ -98,7 +98,7 @@ public class AnalysisModuleTests {
         analyzer = analysisService.analyzer("custom5").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom5 = (CustomAnalyzer) analyzer;
-        assertThat(custom5.tokenFilters()[0], instanceOf(MappingCharFilterFactory.class));
+        assertThat(custom5.charFilters()[0], instanceOf(MappingCharFilterFactory.class));
 
         // verify aliases
         analyzer = analysisService.analyzer("alias1").analyzer();

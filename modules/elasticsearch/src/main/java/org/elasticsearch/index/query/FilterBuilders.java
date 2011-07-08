@@ -42,6 +42,14 @@ public abstract class FilterBuilders {
         return new LimitFilterBuilder(limit);
     }
 
+    public static NestedFilterBuilder nestedFilter(String path, QueryBuilder query) {
+        return new NestedFilterBuilder(path, query);
+    }
+
+    public static NestedFilterBuilder nestedFilter(String path, FilterBuilder filter) {
+        return new NestedFilterBuilder(path, filter);
+    }
+
     /**
      * Creates a new ids filter with the provided doc/mapping types.
      *

@@ -23,55 +23,54 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class NestedQueryBuilder extends BaseQueryBuilder {
+public class NestedFilterBuilder extends BaseFilterBuilder {
 
     private final QueryBuilder queryBuilder;
     private final FilterBuilder filterBuilder;
 
     private final String path;
 
-    private String scoreMode;
-
-    private float boost = 1.0f;
-
     private String scope;
 
-    public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
+    private Boolean cache;
+    private String filterName;
+
+    public NestedFilterBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
         this.queryBuilder = queryBuilder;
         this.filterBuilder = null;
     }
 
-    public NestedQueryBuilder(String path, FilterBuilder filterBuilder) {
+    public NestedFilterBuilder(String path, FilterBuilder filterBuilder) {
         this.path = path;
         this.queryBuilder = null;
         this.filterBuilder = filterBuilder;
     }
 
-    /**
-     * The score mode.
-     */
-    public NestedQueryBuilder scoreMode(String scoreMode) {
-        this.scoreMode = scoreMode;
-        return this;
-    }
 
-    public NestedQueryBuilder scope(String scope) {
+    public NestedFilterBuilder scope(String scope) {
         this.scope = scope;
         return this;
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
      */
-    public NestedQueryBuilder boost(float boost) {
-        this.boost = boost;
+    public NestedFilterBuilder cache(boolean cache) {
+        this.cache = cache;
+        return this;
+    }
+
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public NestedFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
         return this;
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NestedQueryParser.NAME);
+        builder.startObject(NestedFilterParser.NAME);
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
@@ -80,14 +79,14 @@ public class NestedQueryBuilder extends BaseQueryBuilder {
             filterBuilder.toXContent(builder, params);
         }
         builder.field("path", path);
-        if (scoreMode != null) {
-            builder.field("score_mode", scoreMode);
-        }
         if (scope != null) {
             builder.field("_scope", scope);
         }
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
         }
         builder.endObject();
     }

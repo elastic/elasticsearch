@@ -308,9 +308,11 @@ public class InternalSearchHit implements SearchHit {
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (explanation() != null) {
+            builder.field("_shard", shard.shardId());
+            builder.field("_node", shard.nodeId());
+        }
         builder.field(Fields._INDEX, shard.index());
-//        builder.field("_shard", shard.shardId());
-//        builder.field("_node", shard.nodeId());
         builder.field(Fields._TYPE, type);
         builder.field(Fields._ID, id);
         if (version != -1) {

@@ -100,6 +100,41 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return new GroupShardsIterator(set);
     }
 
+    @Override public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            concreteIndices = clusterState.metaData().concreteAllIndices();
+        }
+        if (routing != null) {
+            HashSet<ShardId> set = new HashSet<ShardId>();
+            for (String index : concreteIndices) {
+                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                Set<String> effectiveRouting = routing.get(index);
+                if (effectiveRouting != null) {
+                    for (String r : effectiveRouting) {
+                        int shardId = shardId(clusterState, index, null, null, r);
+                        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+                        if (indexShard == null) {
+                            throw new IndexShardMissingException(new ShardId(index, shardId));
+                        }
+                        // we might get duplicates, but that's ok, its an estimated count? (we just want to know if its 1 or not)
+                        set.add(indexShard.shardId());
+                    }
+                }
+            }
+            return set.size();
+        } else {
+            // we use list here since we know we are not going to create duplicates
+            int count = 0;
+            for (String index : concreteIndices) {
+                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                for (IndexShardRoutingTable indexShard : indexRouting) {
+                    count++;
+                }
+            }
+            return count;
+        }
+    }
+
     @Override public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable String queryHint, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllIndices();

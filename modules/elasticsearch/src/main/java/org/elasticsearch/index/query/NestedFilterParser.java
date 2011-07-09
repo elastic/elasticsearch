@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
@@ -60,10 +58,10 @@ public class NestedFilterParser implements FilterParser {
         String filterName = null;
 
         // we need a late binding filter so we can inject a parent nested filter inner nested queries
-        LateBindingParentFilter currentParentFilterContext = parentFilterContext.get();
+        NestedQueryParser.LateBindingParentFilter currentParentFilterContext = NestedQueryParser.parentFilterContext.get();
 
-        LateBindingParentFilter usAsParentFilter = new LateBindingParentFilter();
-        parentFilterContext.set(usAsParentFilter);
+        NestedQueryParser.LateBindingParentFilter usAsParentFilter = new NestedQueryParser.LateBindingParentFilter();
+        NestedQueryParser.parentFilterContext.set(usAsParentFilter);
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -131,7 +129,7 @@ public class NestedFilterParser implements FilterParser {
         }
 
         // restore the thread local one...
-        parentFilterContext.set(currentParentFilterContext);
+        NestedQueryParser.parentFilterContext.set(currentParentFilterContext);
 
         BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, BlockJoinQuery.ScoreMode.None);
 
@@ -147,28 +145,5 @@ public class NestedFilterParser implements FilterParser {
             parseContext.addNamedFilter(filterName, joinFilter);
         }
         return joinFilter;
-    }
-
-    static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<LateBindingParentFilter>();
-
-    static class LateBindingParentFilter extends Filter {
-
-        Filter filter;
-
-        @Override public int hashCode() {
-            return filter.hashCode();
-        }
-
-        @Override public boolean equals(Object obj) {
-            return filter.equals(obj);
-        }
-
-        @Override public String toString() {
-            return filter.toString();
-        }
-
-        @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            return filter.getDocIdSet(reader);
-        }
     }
 }

@@ -72,6 +72,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final transient int totalNumberOfShards;
 
     private final String[] allIndices;
+    private final String[] allOpenIndices;
 
     private final ImmutableMap<String, ImmutableMap<String, AliasMetaData>> aliases;
 
@@ -98,6 +99,14 @@ public class MetaData implements Iterable<IndexMetaData> {
             allIndicesLst.add(indexMetaData.index());
         }
         allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
+
+        List<String> allOpenIndices = Lists.newArrayList();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                allOpenIndices.add(indexMetaData.index());
+            }
+        }
+        this.allOpenIndices = allOpenIndices.toArray(new String[allOpenIndices.size()]);
 
         // build aliases map
         MapBuilder<String, MapBuilder<String, AliasMetaData>> tmpAliasesMap = newMapBuilder();
@@ -207,18 +216,26 @@ public class MetaData implements Iterable<IndexMetaData> {
         return concreteAllIndices();
     }
 
+    public String[] concreteAllOpenIndices() {
+        return allOpenIndices;
+    }
+
+    public String[] getConcreteAllOpenIndices() {
+        return allOpenIndices;
+    }
+
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndices(String[] indices) throws IndexMissingException {
-        return concreteIndices(indices, false);
+        return concreteIndices(indices, false, false);
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndicesIgnoreMissing(String[] indices) {
-        return concreteIndices(indices, true);
+        return concreteIndices(indices, true, false);
     }
 
     /**
@@ -404,18 +421,18 @@ public class MetaData implements Iterable<IndexMetaData> {
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
-    public String[] concreteIndices(String[] indices, boolean ignoreMissing) throws IndexMissingException {
+    public String[] concreteIndices(String[] indices, boolean ignoreMissing, boolean allOnlyOpen) throws IndexMissingException {
         if (indices == null || indices.length == 0) {
-            return concreteAllIndices();
+            return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
         }
         // optimize for single element index (common case)
         if (indices.length == 1) {
             String index = indices[0];
             if (index.length() == 0) {
-                return concreteAllIndices();
+                return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
             }
             if (index.equals("_all")) {
-                return concreteAllIndices();
+                return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
             }
             // if a direct index name, just return the array provided
             if (this.indices.containsKey(index)) {

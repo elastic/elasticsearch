@@ -20,7 +20,12 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchOperationThreading;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -105,7 +110,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
             nodes = clusterState.nodes();
 
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices());
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), false, true);
 
             for (String index : concreteIndices) {
                 clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);

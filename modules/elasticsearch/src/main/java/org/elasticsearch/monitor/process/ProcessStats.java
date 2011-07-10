@@ -37,11 +37,11 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
     long timestamp = -1;
 
+    long openFileDescriptors;
+
     Cpu cpu = null;
 
     Mem mem = null;
-
-    Fd fd;
 
     ProcessStats() {
     }
@@ -70,17 +70,10 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         return mem();
     }
 
-    public Fd fd() {
-        return fd;
-    }
-
-    public Fd getFd() {
-        return fd();
-    }
-
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("process");
         builder.field("timestamp", timestamp);
+        builder.field("open_file_descriptors", openFileDescriptors);
         if (cpu != null) {
             builder.startObject("cpu");
             builder.field("percent", cpu.percent());
@@ -102,11 +95,6 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
             builder.field("total_virtual_in_bytes", mem.totalVirtual().bytes());
             builder.endObject();
         }
-        if (fd != null) {
-            builder.startObject("fd");
-            builder.field("total", fd.total());
-            builder.endObject();
-        }
         builder.endObject();
         return builder;
     }
@@ -119,19 +107,18 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
+        openFileDescriptors = in.readLong();
         if (in.readBoolean()) {
             cpu = Cpu.readCpu(in);
         }
         if (in.readBoolean()) {
             mem = Mem.readMem(in);
         }
-        if (in.readBoolean()) {
-            fd = Fd.readFd(in);
-        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
+        out.writeLong(openFileDescriptors);
         if (cpu == null) {
             out.writeBoolean(false);
         } else {
@@ -143,47 +130,6 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         } else {
             out.writeBoolean(true);
             mem.writeTo(out);
-        }
-        if (fd == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            fd.writeTo(out);
-        }
-    }
-
-    public static class Fd implements Streamable, Serializable {
-
-        long total = -1;
-
-        Fd() {
-        }
-
-        public static Fd readFd(StreamInput in) throws IOException {
-            Fd fd = new Fd();
-            fd.readFrom(in);
-            return fd;
-        }
-
-        @Override public void readFrom(StreamInput in) throws IOException {
-            total = in.readLong();
-        }
-
-        @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(total);
-        }
-
-        /**
-         * Get the Total number of open file descriptors.
-         *
-         * <p>Supported Platforms: AIX, HPUX, Linux, Solaris, Win32.
-         */
-        public long total() {
-            return total;
-        }
-
-        public long getTotal() {
-            return total();
         }
     }
 

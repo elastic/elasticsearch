@@ -127,6 +127,9 @@ public abstract class TransportSearchHelper {
         for (int i = 0; i < contextSize; i++) {
             String element = elements[index++];
             int sep = element.indexOf(':');
+            if (sep == -1) {
+                throw new ElasticSearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+            }
             context[i] = new Tuple<String, Long>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }
         Map<String, String> attributes;

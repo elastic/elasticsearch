@@ -47,4 +47,23 @@ public class SimpleDateMappingTests {
 
         assertThat(doc.masterDoc().getFieldable("date_field").tokenStreamValue(), notNullValue());
     }
+
+    @Test public void testDateDetection() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .field("date_detection", false)
+                .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "2010-01-01")
+                .field("date_field_x", "2010-01-01")
+                .endObject()
+                .copiedBytes());
+
+        assertThat(doc.masterDoc().get("date_field"), nullValue());
+        assertThat(doc.masterDoc().get("date_field_x"), equalTo("2010-01-01"));
+    }
 }

@@ -591,19 +591,21 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // check if it fits one of the date formats
                 boolean resolved = false;
                 // a safe check since "1" gets parsed as well
-                if (text.contains(":") || text.contains("-") || text.contains("/")) {
-                    for (FormatDateTimeFormatter dateTimeFormatter : context.root().dateTimeFormatters()) {
-                        try {
-                            dateTimeFormatter.parser().parseMillis(text);
-                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
-                            if (builder == null) {
-                                builder = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter);
+                if (context.root().dateDetection()) {
+                    if (text.contains(":") || text.contains("-") || text.contains("/")) {
+                        for (FormatDateTimeFormatter dateTimeFormatter : context.root().dateTimeFormatters()) {
+                            try {
+                                dateTimeFormatter.parser().parseMillis(text);
+                                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
+                                if (builder == null) {
+                                    builder = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter);
+                                }
+                                mapper = builder.build(builderContext);
+                                resolved = true;
+                                break;
+                            } catch (Exception e) {
+                                // failure to parse this, continue
                             }
-                            mapper = builder.build(builderContext);
-                            resolved = true;
-                            break;
-                        } catch (Exception e) {
-                            // failure to parse this, continue
                         }
                     }
                 }

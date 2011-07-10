@@ -37,12 +37,15 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
 
     private long id;
 
+    private long maxFileDescriptors = -1;
+
     ProcessInfo() {
 
     }
 
-    public ProcessInfo(long id) {
+    public ProcessInfo(long id, long maxFileDescriptors) {
         this.id = id;
+        this.maxFileDescriptors = maxFileDescriptors;
     }
 
     public long refreshInterval() {
@@ -67,10 +70,19 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
         return id();
     }
 
+    public long maxFileDescriptors() {
+        return this.maxFileDescriptors;
+    }
+
+    public long getMaxFileDescriptors() {
+        return maxFileDescriptors;
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("process");
         builder.field("refresh_interval", refreshInterval);
         builder.field("id", id);
+        builder.field("max_file_descriptors", maxFileDescriptors);
         builder.endObject();
         return builder;
     }
@@ -84,10 +96,12 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
     @Override public void readFrom(StreamInput in) throws IOException {
         refreshInterval = in.readLong();
         id = in.readLong();
+        maxFileDescriptors = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeLong(id);
+        out.writeLong(maxFileDescriptors);
     }
 }

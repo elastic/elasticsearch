@@ -23,7 +23,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.sigar.SigarService;
-import org.hyperic.sigar.*;
+import org.hyperic.sigar.ProcCpu;
+import org.hyperic.sigar.ProcMem;
+import org.hyperic.sigar.Sigar;
+import org.hyperic.sigar.SigarException;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,13 +41,14 @@ public class SigarProcessProbe extends AbstractComponent implements ProcessProbe
     }
 
     @Override public synchronized ProcessInfo processInfo() {
-        return new ProcessInfo(sigarService.sigar().getPid());
+        return new ProcessInfo(sigarService.sigar().getPid(), JmxProcessProbe.getMaxFileDescriptorCount());
     }
 
     @Override public synchronized ProcessStats processStats() {
         Sigar sigar = sigarService.sigar();
         ProcessStats stats = new ProcessStats();
         stats.timestamp = System.currentTimeMillis();
+        stats.openFileDescriptors = JmxProcessProbe.getOpenFileDescriptorCount();
 
         try {
             ProcCpu cpu = sigar.getProcCpu(sigar.getPid());
@@ -62,16 +66,6 @@ public class SigarProcessProbe extends AbstractComponent implements ProcessProbe
             stats.mem.totalVirtual = mem.getSize();
             stats.mem.resident = mem.getResident();
             stats.mem.share = mem.getShare();
-        } catch (SigarException e) {
-            // ignore
-        }
-
-        try {
-            ProcFd fd = sigar.getProcFd(sigar.getPid());
-            if (fd.getTotal() != Sigar.FIELD_NOTIMPL) {
-                stats.fd = new ProcessStats.Fd();
-                stats.fd.total = fd.getTotal();
-            }
         } catch (SigarException e) {
             // ignore
         }

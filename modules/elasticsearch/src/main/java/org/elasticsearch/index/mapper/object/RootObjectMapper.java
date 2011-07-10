@@ -256,7 +256,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         if (dateDetection != Defaults.DATE_DETECTION) {
-            builder.field("date_detection", Defaults.DATE_DETECTION);
+            builder.field("date_detection", dateDetection);
         }
     }
 }

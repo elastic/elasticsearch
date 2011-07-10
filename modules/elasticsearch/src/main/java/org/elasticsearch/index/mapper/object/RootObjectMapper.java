@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
@@ -50,7 +51,7 @@ public class RootObjectMapper extends ObjectMapper {
                         DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
                         Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd")
                 };
-        public static final boolean DATE_DETECTION = false;
+        public static final boolean DATE_DETECTION = true;
     }
 
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
@@ -166,7 +167,7 @@ public class RootObjectMapper extends ObjectMapper {
                     ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
                 }
             } else if (fieldName.equals("date_detection")) {
-
+                ((Builder) builder).dateDetection = nodeBooleanValue(fieldNode);
             }
         }
     }

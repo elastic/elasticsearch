@@ -87,4 +87,8 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         handler.handleException(exp);
         setException(exp);
     }
+
+    @Override public String toString() {
+        return "future(" + handler.toString() + ")";
+    }
 }

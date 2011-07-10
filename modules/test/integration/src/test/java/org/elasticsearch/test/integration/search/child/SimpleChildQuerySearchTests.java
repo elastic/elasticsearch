@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.child;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -29,6 +30,8 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -59,11 +62,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     }
 
     @Test public void simpleChildQuery() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
+
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -85,12 +85,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                 .setQuery(idsQuery("child").ids("c1"))
                 .addFields("_parent")
                 .execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("c1"));
@@ -101,12 +96,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                 .setQuery(termQuery("child._parent", "p1"))
                 .addFields("_parent")
                 .execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -120,12 +110,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch("test")
                 .setQuery(topChildrenQuery("child", termQuery("c_field", "yellow")))
                 .execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
@@ -142,12 +127,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -167,23 +147,13 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -192,12 +162,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // HAS CHILD FILTER
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
@@ -214,12 +179,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -227,11 +187,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     }
 
     @Test public void simpleChildQueryWithFlush() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
+
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -257,12 +214,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // TOP CHILDREN QUERY
 
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
@@ -279,12 +231,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -293,34 +240,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // HAS CHILD QUERY
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -329,34 +261,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // HAS CHILD FILTER
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -364,11 +281,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     }
 
     @Test public void simpleChildQueryWithFlushAnd3Shards() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
+
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -394,12 +308,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // TOP CHILDREN QUERY
 
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
@@ -416,12 +325,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -430,34 +334,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // HAS CHILD QUERY
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -466,34 +355,19 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // HAS CHILD FILTER
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -501,11 +375,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     }
 
     @Test public void testScopedFacet() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
+
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -526,12 +397,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                 .setQuery(topChildrenQuery("child", boolQuery().should(termQuery("c_field", "red")).should(termQuery("c_field", "yellow"))).scope("child1"))
                 .addFacet(termsFacet("facet1").field("c_field").scope("child1"))
                 .execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.hits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -547,11 +413,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
     }
 
     @Test public void testDeletedParent() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
+
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -583,12 +446,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).sourceAsString(), containsString("\"p_value1\""));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
@@ -600,27 +458,42 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         searchResponse = client.prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
         assertThat(searchResponse.hits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
 
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("p1"));
         assertThat(searchResponse.hits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
+    }
+
+    @Test public void testDfsSearchType() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client.prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client.prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
+        client.prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
+        client.prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client.prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
+        client.prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*")))))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
     }
 }

@@ -131,10 +131,11 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     }
 
     @Override public Weight createNormalizedWeight(Query query) throws IOException {
-        if (dfSource == null) {
-            return super.createNormalizedWeight(query);
+        // if its the main query, use we have dfs data, only then do it
+        if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
+            return dfSource.createNormalizedWeight(query);
         }
-        return dfSource.createNormalizedWeight(query);
+        return super.createNormalizedWeight(query);
     }
 
     // override from the Searcher to allow to control if scores will be tracked or not

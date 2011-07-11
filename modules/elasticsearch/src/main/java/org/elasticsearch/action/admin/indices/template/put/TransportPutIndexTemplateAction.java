@@ -94,7 +94,6 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
                     @Override public void onFailure(Throwable t) {
                         failureRef.set(t);
                         latch.countDown();
-                        ;
                     }
                 });
 

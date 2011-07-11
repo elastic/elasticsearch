@@ -25,10 +25,12 @@ import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,11 +48,17 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
 
     private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
 
+    @Nullable private HttpServer httpServer;
+
     @Inject public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                             ClusterService clusterService, TransportService transportService,
                                             MonitorService monitorService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.monitorService = monitorService;
+    }
+
+    public void setHttpServer(@Nullable HttpServer httpServer) {
+        this.httpServer = httpServer;
     }
 
     public synchronized void putNodeAttribute(String key, String value) {
@@ -104,7 +112,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
                 monitorService.osService().info(), monitorService.processService().info(),
                 monitorService.jvmService().info(), monitorService.networkService().info(),
-                transportService.info());
+                transportService.info(), httpServer == null ? null : httpServer.info());
     }
 
     @Override protected boolean accumulateExceptions() {

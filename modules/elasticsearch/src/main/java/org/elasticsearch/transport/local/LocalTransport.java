@@ -144,6 +144,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
+    @Override public TransportStats stats() {
+        return new TransportStats(0);
+    }
+
     @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {

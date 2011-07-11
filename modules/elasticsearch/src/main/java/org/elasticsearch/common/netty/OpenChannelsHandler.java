@@ -19,10 +19,19 @@
 
 package org.elasticsearch.common.netty;
 
-import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelEvent;
+import org.elasticsearch.common.netty.channel.ChannelFuture;
+import org.elasticsearch.common.netty.channel.ChannelFutureListener;
+import org.elasticsearch.common.netty.channel.ChannelHandler;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.channel.ChannelState;
+import org.elasticsearch.common.netty.channel.ChannelStateEvent;
+import org.elasticsearch.common.netty.channel.ChannelUpstreamHandler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
@@ -31,10 +40,14 @@ import java.util.Set;
 public class OpenChannelsHandler implements ChannelUpstreamHandler {
 
     private Set<Channel> openChannels = ConcurrentCollections.newConcurrentSet();
+    private AtomicLong openChannelsCount = new AtomicLong();
 
     private final ChannelFutureListener remover = new ChannelFutureListener() {
         public void operationComplete(ChannelFuture future) throws Exception {
-            openChannels.remove(future.getChannel());
+            boolean removed = openChannels.remove(future.getChannel());
+            if (removed) {
+                openChannelsCount.decrementAndGet();
+            }
         }
     };
 
@@ -44,11 +57,16 @@ public class OpenChannelsHandler implements ChannelUpstreamHandler {
             if (evt.getState() == ChannelState.OPEN) {
                 boolean added = openChannels.add(ctx.getChannel());
                 if (added) {
+                    openChannelsCount.incrementAndGet();
                     ctx.getChannel().getCloseFuture().addListener(remover);
                 }
             }
         }
         ctx.sendUpstream(e);
+    }
+
+    public long numberOfOpenChannels() {
+        return openChannelsCount.get();
     }
 
     public void close() {

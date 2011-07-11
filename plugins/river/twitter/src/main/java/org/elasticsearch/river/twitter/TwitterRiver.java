@@ -437,9 +437,11 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                 }
                 if (status.getAnnotations() != null) {
                     builder.startObject("annotation");
-                    for (Annotation ann : status.getAnnotations().getAnnotations()) {
+                    List<Annotation> annotations = status.getAnnotations().getAnnotations();
+                    for (Annotation ann : annotations) {
                         builder.startObject(ann.getType());
-                        for (Map.Entry<String, String> entry : ann.getAttributes().entrySet()) {
+                        Map<String, String> attributes = ann.getAttributes();
+                        for (Map.Entry<String, String> entry : attributes.entrySet()) {
                             builder.field(entry.getKey(), entry.getValue());
                         }
                         builder.endObject();

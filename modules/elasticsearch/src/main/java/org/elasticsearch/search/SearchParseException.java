@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -32,5 +33,9 @@ public class SearchParseException extends SearchContextException {
 
     public SearchParseException(SearchContext context, String msg, Throwable cause) {
         super(context, "Parse Failure [" + msg + "]", cause);
+    }
+
+    @Override public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

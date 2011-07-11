@@ -105,6 +105,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return new TransportInfo(boundAddress());
     }
 
+    public TransportStats stats() {
+        return transport.stats();
+    }
+
     public BoundTransportAddress boundAddress() {
         return transport.boundAddress();
     }

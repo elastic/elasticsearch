@@ -65,6 +65,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
@@ -436,6 +437,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     TransportAddress wrapAddress(SocketAddress socketAddress) {
         return new InetSocketTransportAddress((InetSocketAddress) socketAddress);
+    }
+
+    @Override public TransportStats stats() {
+        return new TransportStats(serverOpenChannels.numberOfOpenChannels());
     }
 
     @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {

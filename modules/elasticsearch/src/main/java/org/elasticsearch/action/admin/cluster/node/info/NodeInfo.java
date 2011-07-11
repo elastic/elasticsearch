@@ -21,11 +21,13 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.network.NetworkInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -56,12 +58,14 @@ public class NodeInfo extends NodeOperationResponse {
 
     private TransportInfo transport;
 
+    private HttpInfo http;
+
     NodeInfo() {
     }
 
     public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> attributes, Settings settings,
                     OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network,
-                    TransportInfo transport) {
+                    TransportInfo transport, @Nullable HttpInfo http) {
         super(node);
         this.attributes = attributes;
         this.settings = settings;
@@ -164,6 +168,14 @@ public class NodeInfo extends NodeOperationResponse {
         return transport();
     }
 
+    public HttpInfo http() {
+        return http;
+    }
+
+    public HttpInfo getHttp() {
+        return http();
+    }
+
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
         NodeInfo nodeInfo = new NodeInfo();
         nodeInfo.readFrom(in);
@@ -193,6 +205,9 @@ public class NodeInfo extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             transport = TransportInfo.readTransportInfo(in);
+        }
+        if (in.readBoolean()) {
+            http = HttpInfo.readHttpInfo(in);
         }
     }
 
@@ -233,6 +248,12 @@ public class NodeInfo extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             transport.writeTo(out);
+        }
+        if (http == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            http.writeTo(out);
         }
     }
 }

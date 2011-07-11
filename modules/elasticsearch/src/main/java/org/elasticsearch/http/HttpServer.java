@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -55,12 +56,16 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     private final boolean disableSites;
 
     @Inject public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
-                              RestController restController, TransportNodesInfoAction nodesInfoAction) {
+                              RestController restController,
+                              TransportNodesInfoAction nodesInfoAction, TransportNodesStatsAction nodesStatsAction) {
         super(settings);
         this.environment = environment;
         this.transport = transport;
         this.restController = restController;
         this.nodesInfoAction = nodesInfoAction;
+        this.nodesInfoAction.setHttpServer(this);
+
+        nodesStatsAction.setHttpServer(this);
 
         this.disableSites = componentSettings.getAsBoolean("disable_sites", false);
 
@@ -95,6 +100,14 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     @Override protected void doClose() throws ElasticSearchException {
         transport.close();
+    }
+
+    public HttpInfo info() {
+        return new HttpInfo(transport.boundAddress());
+    }
+
+    public HttpStats stats() {
+        return transport.stats();
     }
 
     public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {

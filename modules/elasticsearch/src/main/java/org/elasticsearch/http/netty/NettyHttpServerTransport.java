@@ -24,10 +24,19 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
-import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.channel.ChannelPipeline;
+import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
+import org.elasticsearch.common.netty.channel.Channels;
+import org.elasticsearch.common.netty.channel.ExceptionEvent;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.oio.OioServerSocketChannelFactory;
-import org.elasticsearch.common.netty.handler.codec.http.*;
+import org.elasticsearch.common.netty.handler.codec.http.HttpChunkAggregator;
+import org.elasticsearch.common.netty.handler.codec.http.HttpContentCompressor;
+import org.elasticsearch.common.netty.handler.codec.http.HttpContentDecompressor;
+import org.elasticsearch.common.netty.handler.codec.http.HttpRequestDecoder;
+import org.elasticsearch.common.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.common.netty.handler.timeout.ReadTimeoutException;
 import org.elasticsearch.common.netty.logging.InternalLogger;
 import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
@@ -40,8 +49,12 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.http.*;
+import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpServerAdapter;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 
@@ -247,6 +260,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;
+    }
+
+    @Override public HttpStats stats() {
+        return new HttpStats(serverOpenChannels.numberOfOpenChannels());
     }
 
     void dispatchRequest(HttpRequest request, HttpChannel channel) {

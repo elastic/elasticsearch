@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.template.put;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
@@ -29,7 +30,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -76,11 +83,17 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
                 putRequest.order(XContentMapValues.nodeIntegerValue(source.get("order"), putRequest.order()));
             }
             if (source.containsKey("settings")) {
+                if (!(source.get("settings") instanceof Map)) {
+                    throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
+                }
                 putRequest.settings((Map<String, Object>) source.get("settings"));
             }
             if (source.containsKey("mappings")) {
                 Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
                 for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+                    if (!(entry.getValue() instanceof Map)) {
+                        throw new ElasticSearchIllegalArgumentException("Malformed mappings section for type [" + entry.getKey() + "], should include an inner object describing the mapping");
+                    }
                     putRequest.mapping(entry.getKey(), (Map<String, Object>) entry.getValue());
                 }
             }
@@ -89,8 +102,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
                 channel.sendResponse(new XContentThrowableRestResponse(request, e));
             } catch (IOException e1) {
                 logger.warn("Failed to send response", e1);
-                return;
             }
+            return;
         }
 
         putRequest.template(request.param("template", putRequest.template()));

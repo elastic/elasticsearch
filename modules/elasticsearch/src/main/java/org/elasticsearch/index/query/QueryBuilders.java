@@ -611,6 +611,10 @@ public abstract class QueryBuilders {
         return new PrefixFilterBuilder(name, prefix);
     }
 
+    public static JSONQueryBuilder json(String jsonString) {
+        return new JSONQueryBuilder(jsonString);
+    }
+
     private QueryBuilders() {
 
     }

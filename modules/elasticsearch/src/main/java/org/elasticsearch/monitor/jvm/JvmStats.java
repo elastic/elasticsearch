@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,11 +48,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class JvmStats implements Streamable, Serializable, ToXContent {
 
+    private static boolean enableLastGc;
+
+    public static boolean isLastGcEnabled() {
+        return enableLastGc;
+    }
+
     private final static RuntimeMXBean runtimeMXBean;
     private final static MemoryMXBean memoryMXBean;
     private final static ThreadMXBean threadMXBean;
 
-    private static boolean sunGc;
     private static Method getLastGcInfoMethod;
     private static Method getMemoryUsageBeforeGcMethod;
     private static Method getMemoryUsageAfterGcMethod;
@@ -64,28 +70,32 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         memoryMXBean = ManagementFactory.getMemoryMXBean();
         threadMXBean = ManagementFactory.getThreadMXBean();
 
-        try {
-            Class sunGcClass = Class.forName("com.sun.management.GarbageCollectorMXBean");
-            Class gcInfoClass = Class.forName("com.sun.management.GcInfo");
+        boolean enableLastGc = Booleans.parseBoolean(System.getProperty("monitory.jvm.enable_last_gc"), false);
+        if (enableLastGc) {
+            try {
+                Class sunGcClass = Class.forName("com.sun.management.GarbageCollectorMXBean");
+                Class gcInfoClass = Class.forName("com.sun.management.GcInfo");
 
-            getLastGcInfoMethod = sunGcClass.getDeclaredMethod("getLastGcInfo");
-            getLastGcInfoMethod.setAccessible(true);
+                getLastGcInfoMethod = sunGcClass.getDeclaredMethod("getLastGcInfo");
+                getLastGcInfoMethod.setAccessible(true);
 
-            getMemoryUsageBeforeGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageBeforeGc");
-            getMemoryUsageBeforeGcMethod.setAccessible(true);
-            getMemoryUsageAfterGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageAfterGc");
-            getMemoryUsageAfterGcMethod.setAccessible(true);
-            getStartTimeMethod = gcInfoClass.getDeclaredMethod("getStartTime");
-            getStartTimeMethod.setAccessible(true);
-            getEndTimeMethod = gcInfoClass.getDeclaredMethod("getEndTime");
-            getEndTimeMethod.setAccessible(true);
-            getDurationMethod = gcInfoClass.getDeclaredMethod("getDuration");
-            getDurationMethod.setAccessible(true);
+                getMemoryUsageBeforeGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageBeforeGc");
+                getMemoryUsageBeforeGcMethod.setAccessible(true);
+                getMemoryUsageAfterGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageAfterGc");
+                getMemoryUsageAfterGcMethod.setAccessible(true);
+                getStartTimeMethod = gcInfoClass.getDeclaredMethod("getStartTime");
+                getStartTimeMethod.setAccessible(true);
+                getEndTimeMethod = gcInfoClass.getDeclaredMethod("getEndTime");
+                getEndTimeMethod.setAccessible(true);
+                getDurationMethod = gcInfoClass.getDeclaredMethod("getDuration");
+                getDurationMethod.setAccessible(true);
 
-            sunGc = true;
-        } catch (Throwable ex) {
-            sunGc = false;
+            } catch (Throwable ex) {
+                enableLastGc = false;
+            }
         }
+
+        JvmStats.enableLastGc = false;
     }
 
     public static JvmStats jvmStats() {
@@ -111,7 +121,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             stats.gc.collectors[i].name = gcMxBean.getName();
             stats.gc.collectors[i].collectionCount = gcMxBean.getCollectionCount();
             stats.gc.collectors[i].collectionTime = gcMxBean.getCollectionTime();
-            if (sunGc) {
+            if (enableLastGc) {
                 try {
                     Object lastGcInfo = getLastGcInfoMethod.invoke(gcMxBean);
                     if (lastGcInfo != null) {

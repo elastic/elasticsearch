@@ -36,6 +36,7 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,9 +87,18 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Analyzer analyzer = null;
         String field = "contents";
-        if (request.analyzer() != null) {
+        String dtype = null;
+        if (request.field()!=null) field = request.field();
+        if (request.type()!=null) dtype = request.type();
+        if (request.field()!=null || request.type()!=null) {
+            final DocumentMapper mapper = indexService.mapperService().documentMapper(dtype);
+            if (mapper!=null) {
+                analyzer = mapper.mappers().indexAnalyzer();
+            }
+        }
+        if (analyzer==null && request.analyzer() != null) {
             analyzer = indexService.analysisService().analyzer(request.analyzer());
-        } else {
+        } else if (analyzer==null) {
             analyzer = indexService.analysisService().defaultIndexAnalyzer();
         }
         if (analyzer == null) {

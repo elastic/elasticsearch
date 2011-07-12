@@ -63,6 +63,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
+        analyzeRequest.type(request.param("type"));
+        analyzeRequest.field(request.param("field"));
         client.admin().indices().analyze(analyzeRequest, new ActionListener<AnalyzeResponse>() {
             @Override public void onResponse(AnalyzeResponse response) {
                 try {

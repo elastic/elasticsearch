@@ -42,8 +42,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
 
     private String analyzer;
 
-    private String type;
-
     private String field;
 
     AnalyzeRequest() {
@@ -83,15 +81,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
         return this.analyzer;
     }
 
-    public AnalyzeRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    public String type() {
-        return this.type;
-    }
-
     public AnalyzeRequest field(String field) {
         this.field = field;
         return this;
@@ -129,9 +118,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
             analyzer = in.readUTF();
         }
         if (in.readBoolean()) {
-            type = in.readUTF();
-        }
-        if (in.readBoolean()) {
             field = in.readUTF();
         }
     }
@@ -141,12 +127,11 @@ public class AnalyzeRequest extends SingleCustomOperationRequest {
         out.writeUTF(index);
         out.writeUTF(text);
         writeOption(out, analyzer);
-        writeOption(out, type);
         writeOption(out, field);
     }
 
     private void writeOption(StreamOutput out, String value) throws IOException {
-        if (value==null) {
+        if (value == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);

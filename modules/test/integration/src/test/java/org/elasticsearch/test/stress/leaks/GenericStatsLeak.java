@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.stress.leaks;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.network.NetworkService;
 import org.elasticsearch.monitor.os.OsService;
@@ -29,7 +30,11 @@ import org.elasticsearch.node.internal.InternalNode;
 public class GenericStatsLeak {
 
     public static void main(String[] args) {
-        InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().node();
+        InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder()
+                .put("monitor.os.refresh_interval", 0)
+                .put("monitor.process.refresh_interval", 0)
+                .put("monitor.network.refresh_interval", 0)
+        ).node();
 
         JvmService jvmService = node.injector().getInstance(JvmService.class);
         OsService osService = node.injector().getInstance(OsService.class);

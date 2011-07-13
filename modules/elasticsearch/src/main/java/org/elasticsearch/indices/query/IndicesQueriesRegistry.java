@@ -67,7 +67,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new MoreLikeThisFieldQueryParser());
         addQueryParser(queryParsers, new FuzzyLikeThisQueryParser());
         addQueryParser(queryParsers, new FuzzyLikeThisFieldQueryParser());
-        addQueryParser(queryParsers, new JSONQueryParser());
+        addQueryParser(queryParsers, new WrapperQueryParser());
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
 
         Map<String, FilterParser> filterParsers = Maps.newHashMap();

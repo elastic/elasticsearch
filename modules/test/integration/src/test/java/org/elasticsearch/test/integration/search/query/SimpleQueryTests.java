@@ -23,8 +23,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.JSONQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -291,15 +291,15 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
 
-        JSONQueryBuilder json = new JSONQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
-        SearchResponse searchResponse = client.prepareSearch().setQuery(json).execute().actionGet();
+        WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
+        SearchResponse searchResponse = client.prepareSearch().setQuery(wrapper).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
         BoolQueryBuilder bool = new BoolQueryBuilder();
-        bool.must(json);
+        bool.must(wrapper);
         bool.must(new TermQueryBuilder("field2", "value2_1"));
 
-        searchResponse = client.prepareSearch().setQuery(json).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(wrapper).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
     }

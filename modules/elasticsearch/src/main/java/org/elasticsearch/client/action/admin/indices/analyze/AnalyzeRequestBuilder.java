@@ -61,9 +61,4 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
         request.field(field);
         return this;
     }
-
-    public AnalyzeRequestBuilder type(String type) {
-        request.type(type);
-        return this;
-    }
 }

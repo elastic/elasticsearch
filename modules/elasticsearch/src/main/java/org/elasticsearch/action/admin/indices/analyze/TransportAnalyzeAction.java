@@ -36,7 +36,7 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,19 +86,20 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Override protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Analyzer analyzer = null;
-        String field = "contents";
-        String dtype = null;
-        if (request.field()!=null) field = request.field();
-        if (request.type()!=null) dtype = request.type();
-        if (request.field()!=null || request.type()!=null) {
-            final DocumentMapper mapper = indexService.mapperService().documentMapper(dtype);
-            if (mapper!=null) {
-                analyzer = mapper.mappers().indexAnalyzer();
+        String field = null;
+        if (request.field() != null) {
+            FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
+            if (fieldMapper != null) {
+                analyzer = fieldMapper.indexAnalyzer();
+                field = fieldMapper.names().indexName();
             }
         }
-        if (analyzer==null && request.analyzer() != null) {
+        if (field == null) {
+            field = "_all";
+        }
+        if (analyzer == null && request.analyzer() != null) {
             analyzer = indexService.analysisService().analyzer(request.analyzer());
-        } else if (analyzer==null) {
+        } else if (analyzer == null) {
             analyzer = indexService.analysisService().defaultIndexAnalyzer();
         }
         if (analyzer == null) {

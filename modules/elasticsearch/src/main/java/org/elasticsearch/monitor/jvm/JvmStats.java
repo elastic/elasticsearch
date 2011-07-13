@@ -70,7 +70,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         memoryMXBean = ManagementFactory.getMemoryMXBean();
         threadMXBean = ManagementFactory.getThreadMXBean();
 
-        boolean enableLastGc = Booleans.parseBoolean(System.getProperty("monitory.jvm.enable_last_gc"), false);
+        boolean enableLastGc = Booleans.parseBoolean(System.getProperty("monitor.jvm.enable_last_gc"), false);
         if (enableLastGc) {
             try {
                 Class sunGcClass = Class.forName("com.sun.management.GarbageCollectorMXBean");

@@ -134,9 +134,11 @@ public class PluginManager {
                 }
             } else {
                 System.out.println("Using plugin from local fs: " + pluginFile.getAbsolutePath());
+                downloaded = true;
             }
         } else {
             System.out.println("Using plugin from local fs: " + pluginFile.getAbsolutePath());
+            downloaded = true;
         }
 
         if (!downloaded) {

@@ -25,18 +25,13 @@ package org.elasticsearch.index.query;
  * Time: 11:30
  */
 
-import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.jackson.JsonParser;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
 import java.io.IOException;
 
 /**
- * A Query builder which allows building a query thanks to a JSON string. This is useful when you want
+ * A Query builder which allows building a query thanks to a JSON string or binary data. This is useful when you want
  * to use the Java Builder API but still have JSON query strings at hand that you want to combine with other
  * query builders.
  *
@@ -44,31 +39,37 @@ import java.io.IOException;
  * <pre>
  * {@code
  *      BoolQueryBuilder bool = new BoolQueryBuilder();
- *      bool.must(new JSONQueryBuilder("{\"term\": {\"field\":\"value\"}}");
+ *      bool.must(new WrapperQueryBuilder("{\"term\": {\"field\":\"value\"}}");
  *      bool.must(new TermQueryBuilder("field2","value2");
  * }
  * </pre>
  *
  * @author Cedric Champeau
  */
-public class JSONQueryBuilder extends BaseQueryBuilder {
+public class WrapperQueryBuilder extends BaseQueryBuilder {
 
-    private final String jsonQuery;
+    private final byte[] source;
+    private final int offset;
+    private final int length;
 
     /**
      * Builds a JSONQueryBuilder using the provided JSON query string.
-     * @param jsonQuery
      */
-    public JSONQueryBuilder(String jsonQuery) {
-        this.jsonQuery = jsonQuery;
+    public WrapperQueryBuilder(String source) {
+        this.source = source.getBytes(Charsets.UTF_8);
+        this.offset = 0;
+        this.length = source.length();
+    }
+
+    public WrapperQueryBuilder(byte[] source, int offset, int length) {
+        this.source = source;
+        this.offset = offset;
+        this.length = length;
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(JSONQueryParser.NAME);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonQuery);
-        parser.nextToken();
-        builder.field("value");
-        builder.copyCurrentStructure(parser);
+        builder.startObject(WrapperQueryParser.NAME);
+        builder.field("query", source, offset, length);
         builder.endObject();
     }
 }

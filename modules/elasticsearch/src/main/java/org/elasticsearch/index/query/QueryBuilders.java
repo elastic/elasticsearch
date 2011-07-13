@@ -611,8 +611,18 @@ public abstract class QueryBuilders {
         return new PrefixFilterBuilder(name, prefix);
     }
 
-    public static JSONQueryBuilder json(String jsonString) {
-        return new JSONQueryBuilder(jsonString);
+    /**
+     * A Query builder which allows building a query thanks to a JSON string or binary data.
+     */
+    public static WrapperQueryBuilder wrapperQuery(String source) {
+        return new WrapperQueryBuilder(source);
+    }
+
+    /**
+     * A Query builder which allows building a query thanks to a JSON string or binary data.
+     */
+    public static WrapperQueryBuilder wrapperQuery(byte[] source, int offset, int length) {
+        return new WrapperQueryBuilder(source, offset, length);
     }
 
     private QueryBuilders() {

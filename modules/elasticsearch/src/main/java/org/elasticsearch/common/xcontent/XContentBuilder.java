@@ -438,6 +438,12 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(String name, byte[] value, int offset, int length) throws IOException {
+        field(name);
+        generator.writeBinary(value, offset, length);
+        return this;
+    }
+
     public XContentBuilder field(String name, Map<String, Object> value) throws IOException {
         field(name);
         value(value);
@@ -480,24 +486,6 @@ public final class XContentBuilder {
     public XContentBuilder field(XContentBuilderString name, String... value) throws IOException {
         startArray(name);
         for (String o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder field(String name, Object... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, Object... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
             value(o);
         }
         endArray();
@@ -902,6 +890,14 @@ public final class XContentBuilder {
             return nullValue();
         }
         generator.writeBinary(value);
+        return this;
+    }
+
+    public XContentBuilder value(byte[] value, int offset, int length) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        generator.writeBinary(value, offset, length);
         return this;
     }
 

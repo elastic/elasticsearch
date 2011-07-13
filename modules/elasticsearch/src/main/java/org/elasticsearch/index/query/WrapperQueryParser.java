@@ -21,39 +21,41 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 /**
  * Query parser for JSON Queries.
- *
- * @author Cedric Champeau
  */
-public class JSONQueryParser implements QueryParser {
+public class WrapperQueryParser implements QueryParser {
 
-    public static final String NAME = "json";
+    public static final String NAME = "wrapper";
 
-    @Inject public JSONQueryParser() {
+    @Inject public WrapperQueryParser() {
     }
 
     @Override public String[] names() {
-        return new String[] {NAME};
+        return new String[]{NAME};
     }
 
     @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        System.out.println("parseContext = " + parseContext);
         XContentParser parser = parseContext.parser();
-        XContentParser.Token token;
-        Query query = null;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && "value".equals(currentFieldName)) {
-                query = parseContext.parseInnerQuery();
-            }
+
+        XContentParser.Token token = parser.nextToken();
+        assert token == XContentParser.Token.FIELD_NAME;
+        String fieldName = parser.currentName();
+        assert fieldName.equals("query");
+        parser.nextToken();
+
+        byte[] querySource = parser.binaryValue();
+        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
+        try {
+            return SearchContext.current().queryParserService().parse(qSourceParser).query();
+        } finally {
+            qSourceParser.close();
         }
-        return query;
     }
 }

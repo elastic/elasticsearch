@@ -99,6 +99,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             }
         }
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
+            request.beforeLocalFork(); // we fork on another thread...
             createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
                 @Override public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);

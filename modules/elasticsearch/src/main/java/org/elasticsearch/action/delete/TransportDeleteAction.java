@@ -71,24 +71,25 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         return ThreadPool.Names.INDEX;
     }
 
-    @Override protected void doExecute(final DeleteRequest deleteRequest, final ActionListener<DeleteResponse> listener) {
-        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(deleteRequest.index())) {
-            createIndexAction.execute(new CreateIndexRequest(deleteRequest.index()), new ActionListener<CreateIndexResponse>() {
+    @Override protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
+            request.beforeLocalFork();
+            createIndexAction.execute(new CreateIndexRequest(request.index()), new ActionListener<CreateIndexResponse>() {
                 @Override public void onResponse(CreateIndexResponse result) {
-                    innerExecute(deleteRequest, listener);
+                    innerExecute(request, listener);
                 }
 
                 @Override public void onFailure(Throwable e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
-                        innerExecute(deleteRequest, listener);
+                        innerExecute(request, listener);
                     } else {
                         listener.onFailure(e);
                     }
                 }
             });
         } else {
-            innerExecute(deleteRequest, listener);
+            innerExecute(request, listener);
         }
     }
 

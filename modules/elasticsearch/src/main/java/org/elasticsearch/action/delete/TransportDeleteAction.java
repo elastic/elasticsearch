@@ -73,6 +73,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override protected void doExecute(final DeleteRequest deleteRequest, final ActionListener<DeleteResponse> listener) {
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(deleteRequest.index())) {
+            deleteRequest.beforeLocalFork();
             createIndexAction.execute(new CreateIndexRequest(deleteRequest.index()), new ActionListener<CreateIndexResponse>() {
                 @Override public void onResponse(CreateIndexResponse result) {
                     innerExecute(deleteRequest, listener);

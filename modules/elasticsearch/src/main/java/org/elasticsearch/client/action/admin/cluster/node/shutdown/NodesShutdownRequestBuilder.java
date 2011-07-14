@@ -60,6 +60,14 @@ public class NodesShutdownRequestBuilder extends BaseClusterRequestBuilder<Nodes
     }
 
     /**
+     * Should the JVM be exited as well or not. Defaults to <tt>true</tt>.
+     */
+    public NodesShutdownRequestBuilder setExit(boolean exit) {
+        request.exit(exit);
+        return this;
+    }
+
+    /**
      * Sets the master node timeout in case the master has not yet been discovered.
      */
     public NodesShutdownRequestBuilder setMasterNodeTimeout(TimeValue timeout) {

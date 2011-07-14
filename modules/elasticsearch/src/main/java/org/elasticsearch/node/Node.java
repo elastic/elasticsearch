@@ -57,4 +57,9 @@ public interface Node {
      * Closes the node (and {@link #stop}s if its running).
      */
     void close();
+
+    /**
+     * Returns <tt>true</tt> if the node is closed.
+     */
+    boolean isClosed();
 }

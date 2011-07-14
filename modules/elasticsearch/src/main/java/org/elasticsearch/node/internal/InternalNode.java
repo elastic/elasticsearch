@@ -320,6 +320,10 @@ public final class InternalNode implements Node {
         logger.info("{{}}[{}]: closed", Version.full(), JvmInfo.jvmInfo().pid());
     }
 
+    @Override public boolean isClosed() {
+        return lifecycle.closed();
+    }
+
     public Injector injector() {
         return this.injector;
     }

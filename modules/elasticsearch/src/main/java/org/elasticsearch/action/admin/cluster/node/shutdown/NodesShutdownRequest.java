@@ -39,6 +39,8 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
 
     TimeValue delay = TimeValue.timeValueSeconds(1);
 
+    boolean exit = true;
+
     NodesShutdownRequest() {
     }
 
@@ -70,6 +72,21 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
         return delay(TimeValue.parseTimeValue(delay, null));
     }
 
+    /**
+     * Should the JVM be exited as well or not. Defaults to <tt>true</tt>.
+     */
+    public NodesShutdownRequest exit(boolean exit) {
+        this.exit = exit;
+        return this;
+    }
+
+    /**
+     * Should the JVM be exited as well or not. Defaults to <tt>true</tt>.
+     */
+    public boolean exit() {
+        return exit;
+    }
+
     @Override public ActionRequestValidationException validate() {
         return null;
     }
@@ -84,6 +101,7 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
                 nodesIds[i] = in.readUTF();
             }
         }
+        exit = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -97,5 +115,6 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest {
                 out.writeUTF(nodeId);
             }
         }
+        out.writeBoolean(exit);
     }
 }

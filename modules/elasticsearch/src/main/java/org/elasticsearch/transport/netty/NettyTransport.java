@@ -579,6 +579,28 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 nodeChannels.high[i] = connectHigh[i].getChannel();
                 nodeChannels.high[i].getCloseFuture().addListener(new ChannelCloseListener(node));
             }
+
+            if (nodeChannels.low.length == 0) {
+                if (nodeChannels.med.length > 0) {
+                    nodeChannels.low = nodeChannels.med;
+                } else {
+                    nodeChannels.low = nodeChannels.high;
+                }
+            }
+            if (nodeChannels.med.length == 0) {
+                if (nodeChannels.high.length > 0) {
+                    nodeChannels.med = nodeChannels.high;
+                } else {
+                    nodeChannels.med = nodeChannels.low;
+                }
+            }
+            if (nodeChannels.high.length == 0) {
+                if (nodeChannels.med.length > 0) {
+                    nodeChannels.high = nodeChannels.med;
+                } else {
+                    nodeChannels.high = nodeChannels.low;
+                }
+            }
         } catch (RuntimeException e) {
             // clean the futures
             for (ChannelFuture future : ImmutableList.<ChannelFuture>builder().add(connectLow).add(connectMed).add(connectHigh).build()) {

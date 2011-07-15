@@ -52,8 +52,6 @@ REM space for a full heap dump.
 REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
 
-set JAVA_OPTS=%JAVA_OPTS% -Djline.enabled=false
-
 set ES_CLASSPATH=%CLASSPATH%;%ES_HOME%/lib/elasticsearch-0.16.0-SNAPSHOT.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"
 

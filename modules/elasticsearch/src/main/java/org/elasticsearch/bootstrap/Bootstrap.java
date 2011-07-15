@@ -142,6 +142,11 @@ public class Bootstrap {
         Bootstrap bootstrap = new Bootstrap();
         String pidFile = System.getProperty("es-pidfile");
 
+        // enable jline by default when running form "main"
+        if (System.getProperty("jline.enabled") == null) {
+            System.setProperty("jline.enabled", "true");
+        }
+
         boolean foreground = System.getProperty("es-foreground") != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {

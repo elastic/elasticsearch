@@ -17,8 +17,6 @@ JAVA_OPTS="$JAVA_OPTS -Xmx${ES_MAX_MEM}"
 # reduce the per-thread stack size
 JAVA_OPTS="$JAVA_OPTS -Xss128k"
 
-JAVA_OPTS="$JAVA_OPTS -Djline.enabled=true"
-
 # Enable aggressive optimizations in the JVM
 #    - Disabled by default as it might cause the JVM to crash
 # JAVA_OPTS="$JAVA_OPTS -XX:+AggressiveOpts"

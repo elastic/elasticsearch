@@ -136,6 +136,15 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
     ant.delete { fileset(dir: explodedDistLibDir, includes: "jarjar-*.jar") } // no need jackson, we jarjar it
     ant.delete { fileset(dir: explodedDistLibDir, includes: "sigar-*.jar") } // no need sigar directly under lib...
 
+    // move relevant jars to ext
+    //    ant.move(todir: "$explodedDistLibDir/ext") {
+    //        fileset(dir: explodedDistLibDir) {
+    //            include(name: '*jline*')
+    //            include(name: '*log4j*')
+    //            include(name: '*jna*')
+    //        }
+    //    }
+
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
 }
 

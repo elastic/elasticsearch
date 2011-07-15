@@ -111,6 +111,7 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
     int requiredSize;
 
     long missing;
+    long total;
 
     Collection<ShortEntry> entries = ImmutableList.of();
 
@@ -119,12 +120,13 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
     InternalShortTermsFacet() {
     }
 
-    public InternalShortTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<ShortEntry> entries, long missing) {
+    public InternalShortTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<ShortEntry> entries, long missing, long total) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
         this.missing = missing;
+        this.total = total;
     }
 
     @Override public String name() {
@@ -166,6 +168,26 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
+    @Override public long totalCount() {
+        return this.total;
+    }
+
+    @Override public long getTotalCount() {
+        return totalCount();
+    }
+
+    @Override public long otherCount() {
+        long other = total;
+        for (Entry entry : entries) {
+            other -= entry.count();
+        }
+        return other;
+    }
+
+    @Override public long getOtherCount() {
+        return otherCount();
+    }
+
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
@@ -173,21 +195,24 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         InternalShortTermsFacet first = (InternalShortTermsFacet) facets.get(0);
         TShortIntHashMap aggregated = CacheRecycler.popShortIntMap();
         long missing = 0;
+        long total = 0;
         for (Facet facet : facets) {
             InternalShortTermsFacet mFacet = (InternalShortTermsFacet) facet;
             missing += mFacet.missingCount();
+            total += mFacet.totalCount();
             for (ShortEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
             }
         }
 
         BoundedTreeSet<ShortEntry> ordered = new BoundedTreeSet<ShortEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TShortIntIterator it = aggregated.iterator(); it.hasNext();) {
+        for (TShortIntIterator it = aggregated.iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new ShortEntry(it.key(), it.value()));
         }
         first.entries = ordered;
         first.missing = missing;
+        first.total = total;
 
         CacheRecycler.pushShortIntMap(aggregated);
 
@@ -197,6 +222,8 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString MISSING = new XContentBuilderString("missing");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString OTHER = new XContentBuilderString("other");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -206,6 +233,8 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
+        builder.field(Fields.TOTAL, total);
+        builder.field(Fields.OTHER, otherCount());
         builder.startArray(Fields.TERMS);
         for (ShortEntry entry : entries) {
             builder.startObject();
@@ -229,6 +258,7 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
+        total = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<ShortEntry>(size);
@@ -242,6 +272,7 @@ public class InternalShortTermsFacet extends InternalTermsFacet {
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
+        out.writeVLong(total);
 
         out.writeVInt(entries.size());
         for (ShortEntry entry : entries) {

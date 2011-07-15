@@ -139,11 +139,11 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
         TDoubleIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushDoubleIntMap(facets);
-            return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), aggregator.missing());
+            return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TDoubleIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TDoubleIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
                 }
@@ -152,15 +152,15 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalDoubleTermsFacet.DoubleEntry) ordered.pop();
                 }
                 CacheRecycler.pushDoubleIntMap(facets);
-                return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+                return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
                 BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), size);
-                for (TDoubleIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TDoubleIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushDoubleIntMap(facets);
-                return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
+                return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }
@@ -212,6 +212,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
         private final TDoubleIntHashMap facets;
 
         private int missing;
+        private int total;
 
         public StaticAggregatorValueProc(TDoubleIntHashMap facets) {
             this.facets = facets;
@@ -223,6 +224,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         @Override public void onValue(int docId, double value) {
             facets.adjustOrPutValue(value, 1, 1);
+            total++;
         }
 
         @Override public void onMissing(int docId) {
@@ -235,6 +237,10 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         public final int missing() {
             return this.missing;
+        }
+
+        public int total() {
+            return this.total;
         }
     }
 }

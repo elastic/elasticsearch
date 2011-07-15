@@ -114,6 +114,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     int requiredSize;
 
     long missing;
+    long total;
 
     Collection<LongEntry> entries = ImmutableList.of();
 
@@ -122,12 +123,13 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     InternalLongTermsFacet() {
     }
 
-    public InternalLongTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<LongEntry> entries, long missing) {
+    public InternalLongTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<LongEntry> entries, long missing, long total) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
         this.missing = missing;
+        this.total = total;
     }
 
     @Override public String name() {
@@ -169,6 +171,26 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
+    @Override public long totalCount() {
+        return this.total;
+    }
+
+    @Override public long getTotalCount() {
+        return totalCount();
+    }
+
+    @Override public long otherCount() {
+        long other = total;
+        for (Entry entry : entries) {
+            other -= entry.count();
+        }
+        return other;
+    }
+
+    @Override public long getOtherCount() {
+        return otherCount();
+    }
+
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
@@ -176,22 +198,24 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         InternalLongTermsFacet first = (InternalLongTermsFacet) facets.get(0);
         TLongIntHashMap aggregated = CacheRecycler.popLongIntMap();
         long missing = 0;
-
+        long total = 0;
         for (Facet facet : facets) {
             InternalLongTermsFacet mFacet = (InternalLongTermsFacet) facet;
             missing += mFacet.missingCount();
+            total += mFacet.totalCount();
             for (LongEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
             }
         }
 
         BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TLongIntIterator it = aggregated.iterator(); it.hasNext();) {
+        for (TLongIntIterator it = aggregated.iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new LongEntry(it.key(), it.value()));
         }
         first.entries = ordered;
         first.missing = missing;
+        first.total = total;
 
         CacheRecycler.pushLongIntMap(aggregated);
 
@@ -201,6 +225,8 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString MISSING = new XContentBuilderString("missing");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString OTHER = new XContentBuilderString("other");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -210,6 +236,8 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
+        builder.field(Fields.TOTAL, total);
+        builder.field(Fields.OTHER, otherCount());
         builder.startArray(Fields.TERMS);
         for (LongEntry entry : entries) {
             builder.startObject();
@@ -233,6 +261,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
+        total = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<LongEntry>(size);
@@ -246,6 +275,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
+        out.writeVLong(total);
 
         out.writeVInt(entries.size());
         for (LongEntry entry : entries) {

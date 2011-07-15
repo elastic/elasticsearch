@@ -448,6 +448,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             TermsFacet facet = searchResponse.facets().facet("facet1");
             assertThat(facet.name(), equalTo("facet1"));
+            assertThat(facet.getTotalCount(), equalTo(2l));
+            assertThat(facet.getOtherCount(), equalTo(0l));
             assertThat(facet.entries().size(), equalTo(1));
             assertThat(facet.entries().get(0).term(), equalTo("111"));
             assertThat(facet.entries().get(0).count(), equalTo(2));

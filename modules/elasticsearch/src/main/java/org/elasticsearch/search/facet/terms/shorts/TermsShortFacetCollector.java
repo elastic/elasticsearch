@@ -139,11 +139,11 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
         TShortIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushShortIntMap(facets);
-            return new InternalShortTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalShortTermsFacet.ShortEntry>of(), aggregator.missing());
+            return new InternalShortTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalShortTermsFacet.ShortEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TShortIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TShortIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalShortTermsFacet.ShortEntry(it.key(), it.value()));
                 }
@@ -152,15 +152,15 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalShortTermsFacet.ShortEntry) ordered.pop();
                 }
                 CacheRecycler.pushShortIntMap(facets);
-                return new InternalShortTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+                return new InternalShortTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
                 BoundedTreeSet<InternalShortTermsFacet.ShortEntry> ordered = new BoundedTreeSet<InternalShortTermsFacet.ShortEntry>(comparatorType.comparator(), size);
-                for (TShortIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TShortIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalShortTermsFacet.ShortEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushShortIntMap(facets);
-                return new InternalShortTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
+                return new InternalShortTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }
@@ -213,6 +213,8 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
 
         private int missing;
 
+        private int total;
+
         public StaticAggregatorValueProc(TShortIntHashMap facets) {
             this.facets = facets;
         }
@@ -223,6 +225,7 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
 
         @Override public void onValue(int docId, short value) {
             facets.adjustOrPutValue(value, 1, 1);
+            total++;
         }
 
         @Override public void onMissing(int docId) {
@@ -235,6 +238,10 @@ public class TermsShortFacetCollector extends AbstractFacetCollector {
 
         public final int missing() {
             return this.missing;
+        }
+
+        public final int total() {
+            return this.total;
         }
     }
 }

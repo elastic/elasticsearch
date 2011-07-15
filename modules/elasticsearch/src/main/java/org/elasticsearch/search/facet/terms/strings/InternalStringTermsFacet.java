@@ -111,6 +111,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     long missing;
 
+    long total;
+
     Collection<StringEntry> entries = ImmutableList.of();
 
     ComparatorType comparatorType;
@@ -118,12 +120,13 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     InternalStringTermsFacet() {
     }
 
-    public InternalStringTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<StringEntry> entries, long missing) {
+    public InternalStringTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<StringEntry> entries, long missing, long total) {
         this.name = name;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
         this.missing = missing;
+        this.total = total;
     }
 
     @Override public String name() {
@@ -165,6 +168,26 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         return missingCount();
     }
 
+    @Override public long totalCount() {
+        return this.total;
+    }
+
+    @Override public long getTotalCount() {
+        return totalCount();
+    }
+
+    @Override public long otherCount() {
+        long other = total;
+        for (Entry entry : entries) {
+            other -= entry.count();
+        }
+        return other;
+    }
+
+    @Override public long getOtherCount() {
+        return otherCount();
+    }
+
     private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
         @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
             return new ThreadLocals.CleanableValue<TObjectIntHashMap<String>>(new TObjectIntHashMap<String>());
@@ -180,27 +203,32 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
         aggregated.clear();
         long missing = 0;
+        long total = 0;
         for (Facet facet : facets) {
             InternalStringTermsFacet mFacet = (InternalStringTermsFacet) facet;
             missing += mFacet.missingCount();
+            total += mFacet.totalCount();
             for (InternalStringTermsFacet.StringEntry entry : mFacet.entries) {
                 aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
             }
         }
 
         BoundedTreeSet<StringEntry> ordered = new BoundedTreeSet<StringEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TObjectIntIterator<String> it = aggregated.iterator(); it.hasNext();) {
+        for (TObjectIntIterator<String> it = aggregated.iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new StringEntry(it.key(), it.value()));
         }
         first.entries = ordered;
         first.missing = missing;
+        first.total = total;
         return first;
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString MISSING = new XContentBuilderString("missing");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString OTHER = new XContentBuilderString("other");
         static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         static final XContentBuilderString TERM = new XContentBuilderString("term");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -210,6 +238,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         builder.startObject(name);
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
+        builder.field(Fields.TOTAL, total);
+        builder.field(Fields.OTHER, otherCount());
         builder.startArray(Fields.TERMS);
         for (Entry entry : entries) {
             builder.startObject();
@@ -233,6 +263,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
+        total = in.readVLong();
 
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
@@ -246,6 +277,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
+        out.writeVLong(total);
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {

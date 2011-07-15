@@ -68,6 +68,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
     private ReaderAggregator current;
 
     long missing;
+    long total;
 
     private final TByteHashSet excluded;
 
@@ -118,6 +119,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         if (current != null) {
             missing += current.counts[0];
+            total += current.total - current.counts[0];
             if (current.values.length > 1) {
                 aggregators.add(current);
             }
@@ -133,6 +135,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         if (current != null) {
             missing += current.counts[0];
+            total += current.total - current.counts[0];
             // if we have values for this one, add it
             if (current.values.length > 1) {
                 aggregators.add(current);
@@ -183,7 +186,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
                 CacheRecycler.pushIntArray(aggregator.counts);
             }
 
-            return new InternalByteTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing);
+            return new InternalByteTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
         BoundedTreeSet<InternalByteTermsFacet.ByteEntry> ordered = new BoundedTreeSet<InternalByteTermsFacet.ByteEntry>(comparatorType.comparator(), size);
@@ -215,7 +218,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
             CacheRecycler.pushIntArray(aggregator.counts);
         }
 
-        return new InternalByteTermsFacet(facetName, comparatorType, size, ordered, missing);
+        return new InternalByteTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
 
     public static class ReaderAggregator implements FieldData.OrdinalInDocProc {
@@ -225,6 +228,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
 
         int position = 0;
         byte current;
+        int total;
 
         public ReaderAggregator(ByteFieldData fieldData) {
             this.values = fieldData.values();
@@ -233,6 +237,7 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
 
         @Override public void onOrdinal(int docId, int ordinal) {
             counts[ordinal]++;
+            total++;
         }
 
         public boolean nextPosition() {

@@ -155,6 +155,26 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     long getMissingCount();
 
     /**
+     * The total count of terms.
+     */
+    long totalCount();
+
+    /**
+     * The total count of terms.
+     */
+    long getTotalCount();
+
+    /**
+     * The count of terms other than the one provided by the entries.
+     */
+    long otherCount();
+
+    /**
+     * The count of terms other than the one provided by the entries.
+     */
+    long getOtherCount();
+
+    /**
      * The terms and counts.
      */
     List<? extends TermsFacet.Entry> entries();

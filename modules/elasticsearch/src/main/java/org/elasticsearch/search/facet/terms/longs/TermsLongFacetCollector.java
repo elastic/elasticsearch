@@ -43,7 +43,11 @@ import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -145,11 +149,11 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         TLongIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushLongIntMap(facets);
-            return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), aggregator.missing());
+            return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TLongIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
                 }
@@ -158,15 +162,15 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalLongTermsFacet.LongEntry) ordered.pop();
                 }
                 CacheRecycler.pushLongIntMap(facets);
-                return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+                return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
                 BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), size);
-                for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TLongIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushLongIntMap(facets);
-                return new InternalLongTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
+                return new InternalLongTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }
@@ -218,6 +222,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         private final TLongIntHashMap facets;
 
         private int missing;
+        private int total;
 
         public StaticAggregatorValueProc(TLongIntHashMap facets) {
             this.facets = facets;
@@ -229,6 +234,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         @Override public void onValue(int docId, long value) {
             facets.adjustOrPutValue(value, 1, 1);
+            total++;
         }
 
         @Override public void onMissing(int docId) {
@@ -241,6 +247,10 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         public final int missing() {
             return this.missing;
+        }
+
+        public final int total() {
+            return this.total;
         }
     }
 }

@@ -139,11 +139,11 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
         TIntIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushIntIntMap(facets);
-            return new InternalIntTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of(), aggregator.missing());
+            return new InternalIntTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalIntTermsFacet.IntEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TIntIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TIntIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalIntTermsFacet.IntEntry(it.key(), it.value()));
                 }
@@ -152,15 +152,15 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalIntTermsFacet.IntEntry) ordered.pop();
                 }
                 CacheRecycler.pushIntIntMap(facets);
-                return new InternalIntTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+                return new InternalIntTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
                 BoundedTreeSet<InternalIntTermsFacet.IntEntry> ordered = new BoundedTreeSet<InternalIntTermsFacet.IntEntry>(comparatorType.comparator(), size);
-                for (TIntIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TIntIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalIntTermsFacet.IntEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushIntIntMap(facets);
-                return new InternalIntTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
+                return new InternalIntTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }
@@ -212,6 +212,7 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
         private final TIntIntHashMap facets;
 
         private int missing;
+        private int total;
 
         public StaticAggregatorValueProc(TIntIntHashMap facets) {
             this.facets = facets;
@@ -223,6 +224,7 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
 
         @Override public void onValue(int docId, int value) {
             facets.adjustOrPutValue(value, 1, 1);
+            total++;
         }
 
         @Override public void onMissing(int docId) {
@@ -235,6 +237,10 @@ public class TermsIntFacetCollector extends AbstractFacetCollector {
 
         public final int missing() {
             return this.missing;
+        }
+
+        public final int total() {
+            return this.total;
         }
     }
 }

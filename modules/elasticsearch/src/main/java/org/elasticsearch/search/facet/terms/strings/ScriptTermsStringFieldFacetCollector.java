@@ -59,6 +59,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     private final TObjectIntHashMap<String> facets;
 
     private int missing;
+    private int total;
 
     public ScriptTermsStringFieldFacetCollector(String facetName, int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
                                                 ImmutableSet<String> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
@@ -96,6 +97,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                 if (match(value)) {
                     found = true;
                     facets.adjustOrPutValue(value, 1, 1);
+                    total++;
                 }
             }
             if (!found) {
@@ -108,6 +110,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                 if (match(value)) {
                     found = true;
                     facets.adjustOrPutValue(value, 1, 1);
+                    total++;
                 }
             }
             if (!found) {
@@ -117,6 +120,7 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
             String value = o.toString();
             if (match(value)) {
                 facets.adjustOrPutValue(value, 1, 1);
+                total++;
             } else {
                 missing++;
             }
@@ -136,11 +140,11 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
     @Override public Facet facet() {
         if (facets.isEmpty()) {
             CacheRecycler.pushObjectIntMap(facets);
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.StringEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
+                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
                 }
@@ -149,15 +153,15 @@ public class ScriptTermsStringFieldFacetCollector extends AbstractFacetCollector
                     list[i] = ((InternalStringTermsFacet.StringEntry) ordered.pop());
                 }
                 CacheRecycler.pushObjectIntMap(facets);
-                return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing);
+                return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
-                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
+                for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalStringTermsFacet.StringEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushObjectIntMap(facets);
-                return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing);
+                return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }
     }

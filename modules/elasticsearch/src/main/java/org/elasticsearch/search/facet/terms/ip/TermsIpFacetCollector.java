@@ -136,11 +136,11 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
         TLongIntHashMap facets = aggregator.facets();
         if (facets.isEmpty()) {
             CacheRecycler.pushLongIntMap(facets);
-            return new InternalIpTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalIpTermsFacet.LongEntry>of(), aggregator.missing());
+            return new InternalIpTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalIpTermsFacet.LongEntry>of(), aggregator.missing(), aggregator.total());
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TLongIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalIpTermsFacet.LongEntry(it.key(), it.value()));
                 }
@@ -149,15 +149,15 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
                     list[i] = (InternalIpTermsFacet.LongEntry) ordered.pop();
                 }
                 CacheRecycler.pushLongIntMap(facets);
-                return new InternalIpTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing());
+                return new InternalIpTermsFacet(facetName, comparatorType, size, Arrays.asList(list), aggregator.missing(), aggregator.total());
             } else {
                 BoundedTreeSet<InternalIpTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalIpTermsFacet.LongEntry>(comparatorType.comparator(), size);
-                for (TLongIntIterator it = facets.iterator(); it.hasNext();) {
+                for (TLongIntIterator it = facets.iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalIpTermsFacet.LongEntry(it.key(), it.value()));
                 }
                 CacheRecycler.pushLongIntMap(facets);
-                return new InternalIpTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing());
+                return new InternalIpTermsFacet(facetName, comparatorType, size, ordered, aggregator.missing(), aggregator.total());
             }
         }
     }
@@ -196,6 +196,7 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
         private final TLongIntHashMap facets;
 
         private int missing;
+        private int total;
 
         public StaticAggregatorValueProc(TLongIntHashMap facets) {
             this.facets = facets;
@@ -207,6 +208,7 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
 
         @Override public void onValue(int docId, long value) {
             facets.adjustOrPutValue(value, 1, 1);
+            total++;
         }
 
         @Override public void onMissing(int docId) {
@@ -219,6 +221,10 @@ public class TermsIpFacetCollector extends AbstractFacetCollector {
 
         public final int missing() {
             return this.missing;
+        }
+
+        public final int total() {
+            return this.total;
         }
     }
 }

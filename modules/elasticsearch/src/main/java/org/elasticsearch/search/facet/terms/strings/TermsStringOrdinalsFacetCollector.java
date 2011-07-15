@@ -69,6 +69,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     private ReaderAggregator current;
 
     long missing;
+    long total;
 
     private final ImmutableSet<String> excluded;
 
@@ -119,6 +120,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         if (current != null) {
             missing += current.counts[0];
+            total += current.total - current.counts[0];
             if (current.values.length > 1) {
                 aggregators.add(current);
             }
@@ -134,6 +136,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     @Override public Facet facet() {
         if (current != null) {
             missing += current.counts[0];
+            total += current.total - current.counts[0];
             // if we have values for this one, add it
             if (current.values.length > 1) {
                 aggregators.add(current);
@@ -188,7 +191,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                 CacheRecycler.pushIntArray(aggregator.counts);
             }
 
-            return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
         BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
@@ -221,7 +224,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             CacheRecycler.pushIntArray(aggregator.counts);
         }
 
-        return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing);
+        return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
 
     public static class ReaderAggregator implements FieldData.OrdinalInDocProc {
@@ -231,6 +234,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
         int position = 0;
         String current;
+        int total;
 
         public ReaderAggregator(StringFieldData fieldData) {
             this.values = fieldData.values();
@@ -239,6 +243,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
         @Override public void onOrdinal(int docId, int ordinal) {
             counts[ordinal]++;
+            total++;
         }
 
         public boolean nextPosition() {

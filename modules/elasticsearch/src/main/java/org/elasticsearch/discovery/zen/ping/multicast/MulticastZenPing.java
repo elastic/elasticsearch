@@ -25,7 +25,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +41,11 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.VoidTransportResponseHandler;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -181,11 +192,11 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
-                    @Override public void onPing(PingResponse[] pings) {
-                        response.set(pings);
-                        latch.countDown();
-                    }
-                }, timeout);
+            @Override public void onPing(PingResponse[] pings) {
+                response.set(pings);
+                latch.countDown();
+            }
+        }, timeout);
         try {
             latch.await();
             return response.get();
@@ -262,7 +273,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             }
             ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(request.id);
             if (responses == null) {
-                logger.warn("received ping response with no matching id [{}]", request.id);
+                logger.warn("received ping response {} with no matching id [{}]", request.pingResponse, request.id);
             } else {
                 responses.put(request.pingResponse.target(), request.pingResponse);
             }

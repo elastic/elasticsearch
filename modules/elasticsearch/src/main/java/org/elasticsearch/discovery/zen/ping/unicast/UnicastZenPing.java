@@ -147,11 +147,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
-                    @Override public void onPing(PingResponse[] pings) {
-                        response.set(pings);
-                        latch.countDown();
-                    }
-                }, timeout);
+            @Override public void onPing(PingResponse[] pings) {
+                response.set(pings);
+                latch.countDown();
+            }
+        }, timeout);
         try {
             latch.await();
             return response.get();
@@ -263,7 +263,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         }
                         ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
                         if (responses == null) {
-                            logger.warn("received ping response with no matching id [{}]", response.id);
+                            logger.warn("received ping response {} with no matching id [{}]", pingResponse, response.id);
                         } else {
                             responses.put(pingResponse.target(), pingResponse);
                         }

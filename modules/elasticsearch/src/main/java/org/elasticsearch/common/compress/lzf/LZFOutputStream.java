@@ -17,12 +17,31 @@ public class LZFOutputStream extends OutputStream {
     protected byte[] _outputBuffer;
     protected int _position = 0;
 
+    /**
+     * Flag that indicates if we have already called '_outputStream.close()'
+     * (to avoid calling it multiple times)
+     */
+    protected boolean _outputStreamClosed;
+
+    /*
+   ///////////////////////////////////////////////////////////////////////
+   // Construction
+   ///////////////////////////////////////////////////////////////////////
+    */
+
     public LZFOutputStream(final OutputStream outputStream) {
         _recycler = BufferRecycler.instance();
         _encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE, _recycler);
         _outputStream = outputStream;
         _outputBuffer = _recycler.allocOutputBuffer(OUTPUT_BUFFER_SIZE);
+        _outputStreamClosed = false;
     }
+
+    /*
+    ///////////////////////////////////////////////////////////////////////
+    // OutputStream impl
+    ///////////////////////////////////////////////////////////////////////
+     */
 
     @Override
     public void write(final int singleByte) throws IOException {
@@ -75,19 +94,46 @@ public class LZFOutputStream extends OutputStream {
     @Override
     public void close() throws IOException {
         flush();
-        _outputStream.close();
         _encoder.close();
         byte[] buf = _outputBuffer;
         if (buf != null) {
             _outputBuffer = null;
             _recycler.releaseOutputBuffer(buf);
         }
+        if (!_outputStreamClosed) {
+            _outputStreamClosed = true;
+            _outputStream.close();
+        }
     }
+
+    /*
+    ///////////////////////////////////////////////////////////////////////
+    // Additional public accessors
+    ///////////////////////////////////////////////////////////////////////
+     */
+
+    /**
+     * Method that can be used to find underlying {@link OutputStream} that
+     * we write encoded LZF encoded data into, after compressing it.
+     * Will never return null; although underlying stream may be closed
+     * (if this stream has been closed).
+     *
+     * @since 0.8
+     */
+    public OutputStream getUnderlyingOutputStream() {
+        return _outputStream;
+    }
+
+    /*
+   ///////////////////////////////////////////////////////////////////////
+   // Internal methods
+   ///////////////////////////////////////////////////////////////////////
+    */
 
     /**
      * Compress and write the current block to the OutputStream
      */
-    private void writeCompressedBlock() throws IOException {
+    protected void writeCompressedBlock() throws IOException {
         int left = _position;
         _position = 0;
         int offset = 0;

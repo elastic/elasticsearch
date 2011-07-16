@@ -38,6 +38,12 @@ public class LZFStreamInput extends StreamInput {
     protected StreamInput inputStream;
 
     /**
+     * Flag that indicates if we have already called 'inputStream.close()'
+     * (to avoid calling it multiple times)
+     */
+    protected boolean inputStreamClosed;
+
+    /**
      * Flag that indicates whether we force full reads (reading of as many
      * bytes as requested), or 'optimal' reads (up to as many as available,
      * but at least one). Default is false, meaning that 'optimal' read
@@ -69,25 +75,44 @@ public class LZFStreamInput extends StreamInput {
             _recycler = BufferRecycler.instance();
         }
         inputStream = in;
+        inputStreamClosed = false;
 
         _inputBuffer = _recycler.allocInputBuffer(LZFChunk.MAX_CHUNK_LEN);
         _decodedBytes = _recycler.allocDecodeBuffer(LZFChunk.MAX_CHUNK_LEN);
     }
 
-    @Override public int read() throws IOException {
-        readyBuffer();
-        if (bufferPosition < bufferLength) {
-            return _decodedBytes[bufferPosition++] & 255;
+    /**
+     * Method is overridden to report number of bytes that can now be read
+     * from decoded data buffer, without reading bytes from the underlying
+     * stream.
+     * Never throws an exception; returns number of bytes available without
+     * further reads from underlying source; -1 if stream has been closed, or
+     * 0 if an actual read (and possible blocking) is needed to find out.
+     */
+    @Override
+    public int available() {
+        // if closed, return -1;
+        if (inputStreamClosed) {
+            return -1;
         }
-        return -1;
+        int left = (bufferLength - bufferPosition);
+        return (left <= 0) ? 0 : left;
     }
 
-    @Override public int read(byte[] buffer, int offset, int length) throws IOException {
+    @Override
+    public int read() throws IOException {
+        if (!readyBuffer()) {
+            return -1;
+        }
+        return _decodedBytes[bufferPosition++] & 255;
+    }
+
+    @Override
+    public int read(final byte[] buffer, int offset, int length) throws IOException {
         if (length < 1) {
             return 0;
         }
-        readyBuffer();
-        if (bufferLength < 0) {
+        if (!readyBuffer()) {
             return -1;
         }
         // First let's read however much data we happen to have...
@@ -102,8 +127,7 @@ public class LZFStreamInput extends StreamInput {
         int totalRead = chunkLength;
         do {
             offset += chunkLength;
-            readyBuffer();
-            if (bufferLength == -1) {
+            if (!readyBuffer()) {
                 break;
             }
             chunkLength = Math.min(bufferLength - bufferPosition, (length - totalRead));
@@ -116,11 +140,10 @@ public class LZFStreamInput extends StreamInput {
     }
 
     @Override public byte readByte() throws IOException {
-        readyBuffer();
-        if (bufferPosition < bufferLength) {
-            return _decodedBytes[bufferPosition++];
+        if (!readyBuffer()) {
+            throw new EOFException();
         }
-        throw new EOFException();
+        return _decodedBytes[bufferPosition++];
     }
 
     @Override public void readBytes(byte[] b, int offset, int len) throws IOException {
@@ -165,18 +188,35 @@ public class LZFStreamInput extends StreamInput {
             _decodedBytes = null;
             _recycler.releaseDecodeBuffer(buf);
         }
-        inputStream.close();
+        if (!inputStreamClosed) {
+            inputStreamClosed = true;
+            inputStream.close();
+        }
     }
+
+    /*
+   ///////////////////////////////////////////////////////////////////////
+   // Internal methods
+   ///////////////////////////////////////////////////////////////////////
+    */
 
     /**
      * Fill the uncompressed bytes buffer by reading the underlying inputStream.
      *
-     * @throws java.io.IOException
+     * @throws IOException
      */
-    private void readyBuffer() throws IOException {
-        if (bufferPosition >= bufferLength) {
-            bufferLength = LZFDecoder.decompressChunk(inputStream, _inputBuffer, _decodedBytes);
-            bufferPosition = 0;
+    protected boolean readyBuffer() throws IOException {
+        if (bufferPosition < bufferLength) {
+            return true;
         }
+        if (inputStreamClosed) {
+            return false;
+        }
+        bufferLength = LZFDecoder.decompressChunk(inputStream, _inputBuffer, _decodedBytes);
+        if (bufferLength < 0) {
+            return false;
+        }
+        bufferPosition = 0;
+        return (bufferPosition < bufferLength);
     }
 }

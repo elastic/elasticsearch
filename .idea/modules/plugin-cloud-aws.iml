@@ -16,9 +16,9 @@
         <CLASSES>
           <root url="jar://$GRADLE_REPOSITORY$/commons-codec/commons-codec/jars/commons-codec-1.3.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/commons-logging/commons-logging/jars/commons-logging-1.1.1.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/com.amazonaws/aws-java-sdk/jars/aws-java-sdk-1.2.0.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.apache.httpcomponents/httpcore/jars/httpcore-4.1.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.apache.httpcomponents/httpclient/jars/httpclient-4.1.1.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.amazonaws/aws-java-sdk/jars/aws-java-sdk-1.2.4.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

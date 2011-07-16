@@ -109,7 +109,10 @@ public class LZFDecoder {
     }
 
     /**
-     * Main decode from a stream.  Decompressed bytes are placed in the outputBuffer, inputBuffer is a "scratch-area".
+     * Main decode from a stream.  Decompressed bytes are placed in the outputBuffer, inputBuffer
+     * is a "scratch-area".
+     * <p>
+     * If no
      *
      * @param is           An input stream of LZF compressed bytes
      * @param inputBuffer  A byte array used as a scratch area.
@@ -119,18 +122,19 @@ public class LZFDecoder {
     public static int decompressChunk(final InputStream is, final byte[] inputBuffer, final byte[] outputBuffer)
             throws IOException {
         int bytesInOutput;
-        int headerLength = is.read(inputBuffer, 0, HEADER_BYTES);
-        if (headerLength != HEADER_BYTES) {
-            return -1;
+        /* note: we do NOT read more than 5 bytes because otherwise might need to shuffle bytes
+           * for output buffer (could perhaps optimize in future?)
+           */
+        int bytesRead = readHeader(is, inputBuffer);
+        if ((bytesRead < HEADER_BYTES)
+                || inputBuffer[0] != LZFChunk.BYTE_Z || inputBuffer[1] != LZFChunk.BYTE_V) {
+            if (bytesRead == 0) { // probably fine, clean EOF
+                return -1;
+            }
+            throw new IOException("Corrupt input data, block did not start with 2 byte signature ('ZV') followed by type byte, 2-byte length)");
         }
-        int inPtr = 0;
-        if (inputBuffer[inPtr] != LZFChunk.BYTE_Z || inputBuffer[inPtr + 1] != LZFChunk.BYTE_V) {
-            throw new IOException("Corrupt input data, block did not start with 'ZV' signature bytes");
-        }
-        inPtr += 2;
-        int type = inputBuffer[inPtr++];
-        int compLen = uint16(inputBuffer, inPtr);
-        inPtr += 2;
+        int type = inputBuffer[2];
+        int compLen = uint16(inputBuffer, 3);
         if (type == LZFChunk.BLOCK_TYPE_NON_COMPRESSED) { // uncompressed
             readFully(is, false, outputBuffer, 0, compLen);
             bytesInOutput = compLen;
@@ -198,6 +202,38 @@ public class LZFDecoder {
 
     private final static int uint16(byte[] data, int ptr) {
         return ((data[ptr] & 0xFF) << 8) + (data[ptr + 1] & 0xFF);
+    }
+
+    /**
+     * Helper method to forcibly load header bytes that must be read before
+     * chunk can be handled.
+     */
+    protected static int readHeader(final InputStream is, final byte[] inputBuffer)
+            throws IOException {
+        // Ok: simple case first, where we just get all data we need
+        int needed = HEADER_BYTES;
+        int count = is.read(inputBuffer, 0, needed);
+
+        if (count == needed) {
+            return count;
+        }
+        if (count <= 0) {
+            return 0;
+        }
+
+        // if not, a source that trickles data (network etc); must loop
+        int offset = count;
+        needed -= count;
+
+        do {
+            count = is.read(inputBuffer, offset, needed);
+            if (count <= 0) {
+                break;
+            }
+            offset += count;
+            needed -= count;
+        } while (needed > 0);
+        return offset;
     }
 
     private final static void readFully(InputStream is, boolean compressed,

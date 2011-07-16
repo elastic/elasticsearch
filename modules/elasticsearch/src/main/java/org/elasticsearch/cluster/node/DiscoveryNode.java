@@ -48,6 +48,7 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     public static Map<String, String> buildCommonNodesAttributes(Settings settings) {
         Map<String, String> attributes = Maps.newHashMap(settings.getByPrefix("node.").getAsMap());
+        attributes.remove("name"); // name is extracted in other places
         if (attributes.containsKey("client")) {
             if (attributes.get("client").equals("false")) {
                 attributes.remove("client"); // this is the default

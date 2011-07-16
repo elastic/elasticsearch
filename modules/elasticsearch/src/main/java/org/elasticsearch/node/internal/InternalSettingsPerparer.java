@@ -84,8 +84,12 @@ public class InternalSettingsPerparer {
         // generate the name
         if (settingsBuilder.get("name") == null) {
             String name = System.getProperty("name");
-            if (name == null || name.isEmpty())
-                name = Names.randomNodeName(environment.resolveConfig("names.txt"));
+            if (name == null || name.isEmpty()) {
+                name = settingsBuilder.get("node.name");
+                if (name == null || name.isEmpty()) {
+                    name = Names.randomNodeName(environment.resolveConfig("names.txt"));
+                }
+            }
 
             if (name != null) {
                 settingsBuilder.put("name", name);

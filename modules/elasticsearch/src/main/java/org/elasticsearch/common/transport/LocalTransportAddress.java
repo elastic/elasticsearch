@@ -46,6 +46,10 @@ public class LocalTransportAddress implements TransportAddress {
         return 2;
     }
 
+    @Override public boolean match(String otherAddress) {
+        return id.equals(otherAddress);
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readUTF();
     }

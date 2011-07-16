@@ -38,6 +38,10 @@ public class DummyTransportAddress implements TransportAddress {
         return 0;
     }
 
+    @Override public boolean match(String otherAddress) {
+        return false;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
     }
 

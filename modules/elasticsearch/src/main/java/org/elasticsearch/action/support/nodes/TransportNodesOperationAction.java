@@ -21,7 +21,6 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.BaseAction;
@@ -33,7 +32,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -120,7 +125,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
-            String[] nodesIds = Actions.buildNodesIds(clusterState.nodes(), request.nodesIds());
+            String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
         }

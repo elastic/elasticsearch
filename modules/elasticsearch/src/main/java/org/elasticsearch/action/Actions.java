@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -33,32 +30,5 @@ public class Actions {
         }
         validationException.addValidationError(error);
         return validationException;
-    }
-
-    public static boolean isAllNodes(String... nodesIds) {
-        return nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"));
-    }
-
-    public static String[] buildNodesIds(DiscoveryNodes nodes, String... nodesIds) {
-        if (isAllNodes(nodesIds)) {
-            int index = 0;
-            nodesIds = new String[nodes.size()];
-            for (DiscoveryNode node : nodes) {
-                nodesIds[index++] = node.id();
-            }
-            return nodesIds;
-        } else {
-            String[] resolvedNodesIds = new String[nodesIds.length];
-            for (int i = 0; i < nodesIds.length; i++) {
-                if (nodesIds[i].equals("_local")) {
-                    resolvedNodesIds[i] = nodes.localNodeId();
-                } else if (nodesIds[i].equals("_master")) {
-                    resolvedNodesIds[i] = nodes.masterNodeId();
-                } else {
-                    resolvedNodesIds[i] = nodesIds[i];
-                }
-            }
-            return resolvedNodesIds;
-        }
     }
 }

@@ -7,7 +7,7 @@
       </pattern>
     </extension>
     <option name="MAIN_CLASS_NAME" value="org.elasticsearch.bootstrap.Bootstrap" />
-    <option name="VM_PARAMETERS" value="-server -Xmx1g -Des-foreground=yes -XX:+UseParNewGC -XX:+UseConcMarkSweepGC" />
+    <option name="VM_PARAMETERS" value="-server -Xmx1g -Des-foreground=yes -Djline.enabled=false -XX:+UseParNewGC -XX:+UseConcMarkSweepGC" />
     <option name="PROGRAM_PARAMETERS" value="" />
     <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />

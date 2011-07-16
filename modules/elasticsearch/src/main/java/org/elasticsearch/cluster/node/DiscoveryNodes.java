@@ -26,9 +26,11 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -167,6 +169,59 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             }
         }
         return null;
+    }
+
+    public boolean isAllNodes(String... nodesIds) {
+        return nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"));
+    }
+
+    public String[] resolveNodes(String... nodesIds) {
+        if (isAllNodes(nodesIds)) {
+            int index = 0;
+            nodesIds = new String[nodes.size()];
+            for (DiscoveryNode node : this) {
+                nodesIds[index++] = node.id();
+            }
+            return nodesIds;
+        } else {
+            Set<String> resolvedNodesIds = new HashSet<String>(nodesIds.length);
+            for (String nodeId : nodesIds) {
+                if (nodeId.equals("_local")) {
+                    resolvedNodesIds.add(localNodeId());
+                } else if (nodeId.equals("_master")) {
+                    resolvedNodesIds.add(masterNodeId());
+                } else if (nodeExists(nodeId)) {
+                    resolvedNodesIds.add(nodeId);
+                } else {
+                    // not a node id, try and search by name
+                    for (DiscoveryNode node : this) {
+                        if (Regex.simpleMatch(nodeId, node.name())) {
+                            resolvedNodesIds.add(node.id());
+                        }
+                    }
+                    for (DiscoveryNode node : this) {
+                        if (node.address().match(nodeId)) {
+                            resolvedNodesIds.add(node.id());
+                        }
+                    }
+                    int index = nodeId.indexOf(':');
+                    if (index != -1) {
+                        String matchAttrName = nodeId.substring(0, index);
+                        String matchAttrValue = nodeId.substring(index + 1);
+                        for (DiscoveryNode node : this) {
+                            for (Map.Entry<String, String> entry : node.attributes().entrySet()) {
+                                String attrName = entry.getKey();
+                                String attrValue = entry.getValue();
+                                if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
+                                    resolvedNodesIds.add(node.id());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return resolvedNodesIds.toArray(new String[resolvedNodesIds.size()]);
+        }
     }
 
     public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {

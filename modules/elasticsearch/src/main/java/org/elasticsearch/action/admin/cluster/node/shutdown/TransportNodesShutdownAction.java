@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -105,7 +104,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             throw new ElasticSearchIllegalStateException("Shutdown is disabled");
         }
         Set<DiscoveryNode> nodes = Sets.newHashSet();
-        if (Actions.isAllNodes(request.nodesIds)) {
+        if (state.nodes().isAllNodes(request.nodesIds)) {
             logger.info("[cluster_shutdown]: requested, shutting down in [{}]", request.delay);
             nodes.addAll(state.nodes().dataNodes().values());
             nodes.addAll(state.nodes().masterNodes().values());
@@ -162,7 +161,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             });
             t.start();
         } else {
-            final String[] nodesIds = Actions.buildNodesIds(state.nodes(), request.nodesIds);
+            final String[] nodesIds = state.nodes().resolveNodes(request.nodesIds);
             logger.info("[partial_cluster_shutdown]: requested, shutting down [{}] in [{}]", nodesIds, request.delay);
 
             for (String nodeId : nodesIds) {

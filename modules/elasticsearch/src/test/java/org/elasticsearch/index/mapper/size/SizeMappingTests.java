@@ -45,8 +45,8 @@ public class SizeMappingTests {
                 .copiedBytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.masterDoc().getFieldable("_size").isStored(), equalTo(false));
-        assertThat(doc.masterDoc().getFieldable("_size").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getFieldable("_size").isStored(), equalTo(false));
+        assertThat(doc.rootDoc().getFieldable("_size").tokenStreamValue(), notNullValue());
     }
 
     @Test public void testSizeEnabledAndStored() throws Exception {
@@ -62,8 +62,8 @@ public class SizeMappingTests {
                 .copiedBytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.masterDoc().getFieldable("_size").isStored(), equalTo(true));
-        assertThat(doc.masterDoc().getFieldable("_size").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getFieldable("_size").isStored(), equalTo(true));
+        assertThat(doc.rootDoc().getFieldable("_size").tokenStreamValue(), notNullValue());
     }
 
     @Test public void testSizeDisabled() throws Exception {
@@ -79,7 +79,7 @@ public class SizeMappingTests {
                 .copiedBytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.masterDoc().getFieldable("_size"), nullValue());
+        assertThat(doc.rootDoc().getFieldable("_size"), nullValue());
     }
 
     @Test public void testSizeNotSet() throws Exception {
@@ -94,6 +94,6 @@ public class SizeMappingTests {
                 .copiedBytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
-        assertThat(doc.masterDoc().getFieldable("_size"), nullValue());
+        assertThat(doc.rootDoc().getFieldable("_size"), nullValue());
     }
 }

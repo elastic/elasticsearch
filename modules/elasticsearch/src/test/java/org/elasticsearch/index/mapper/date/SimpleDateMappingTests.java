@@ -45,7 +45,7 @@ public class SimpleDateMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().getFieldable("date_field").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getFieldable("date_field").tokenStreamValue(), notNullValue());
     }
 
     @Test public void testDateDetection() throws Exception {
@@ -63,7 +63,7 @@ public class SimpleDateMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("date_field"), nullValue());
-        assertThat(doc.masterDoc().get("date_field_x"), equalTo("2010-01-01"));
+        assertThat(doc.rootDoc().get("date_field"), nullValue());
+        assertThat(doc.rootDoc().get("date_field_x"), equalTo("2010-01-01"));
     }
 }

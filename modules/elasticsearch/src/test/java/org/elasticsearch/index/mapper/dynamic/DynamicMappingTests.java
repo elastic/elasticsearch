@@ -50,8 +50,8 @@ public class DynamicMappingTests {
                 .field("field2", "value2")
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("field1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("field2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
     }
 
     @Test public void testDynamicFalse() throws IOException {
@@ -70,8 +70,8 @@ public class DynamicMappingTests {
                 .field("field2", "value2")
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("field1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("field2"), nullValue());
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("field2"), nullValue());
     }
 
 
@@ -116,8 +116,8 @@ public class DynamicMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("obj1.field1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("obj1.field2"), nullValue());
+        assertThat(doc.rootDoc().get("obj1.field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("obj1.field2"), nullValue());
     }
 
     @Test public void testDynamicStrictWithInnerObjectButDynamicSetOnRoot() throws IOException {

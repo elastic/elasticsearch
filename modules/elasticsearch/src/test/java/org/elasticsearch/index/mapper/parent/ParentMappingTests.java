@@ -48,7 +48,7 @@ public class ParentMappingTests {
                 .endObject()
                 .copiedBytes()).type("type").id("1"));
 
-        assertThat(doc.masterDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
+        assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
     }
 
     @Test public void parentNotSetInDocSetExternally() throws Exception {
@@ -63,7 +63,7 @@ public class ParentMappingTests {
                 .endObject()
                 .copiedBytes()).type("type").id("1").parent("1122"));
 
-        assertThat(doc.masterDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
+        assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
     }
 
     @Test public void parentSetInDocSetExternally() throws Exception {
@@ -79,6 +79,6 @@ public class ParentMappingTests {
                 .endObject()
                 .copiedBytes()).type("type").id("1").parent("1122"));
 
-        assertThat(doc.masterDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
+        assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
     }
 }

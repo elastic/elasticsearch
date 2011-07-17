@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -44,7 +45,7 @@ public class LuceneFieldCacheTests {
      */
     @Test public void testTwoFieldSameNameNumericFieldCache() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         NumericField field = new NumericField("int1").setIntValue(1);
@@ -55,7 +56,7 @@ public class LuceneFieldCacheTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         int[] ints = FieldCache.DEFAULT.getInts(reader, "int1");
         assertThat(ints.length, equalTo(1));
         assertThat(ints[0], equalTo(2));

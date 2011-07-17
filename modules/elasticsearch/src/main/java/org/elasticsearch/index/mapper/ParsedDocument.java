@@ -81,7 +81,7 @@ public class ParsedDocument {
         return this.routing;
     }
 
-    public Document masterDoc() {
+    public Document rootDoc() {
         return documents.get(documents.size() - 1);
     }
 

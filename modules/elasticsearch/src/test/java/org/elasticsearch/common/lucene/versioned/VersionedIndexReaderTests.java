@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.versioned;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.store.RAMDirectory;
@@ -47,7 +48,7 @@ public class VersionedIndexReaderTests {
     @BeforeClass public void setUp() throws Exception {
         versionedMap = new ConcurrentVersionedMapLong();
         dir = new RAMDirectory();
-        indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         indexWriter.addDocument(doc().add(field("value", "0")).build());
         indexWriter.addDocument(doc().add(field("value", "1")).build());
         indexWriter.addDocument(doc().add(field("value", "2")).build());
@@ -66,25 +67,25 @@ public class VersionedIndexReaderTests {
         TermDocs termDocs;
         Document doc = indexReader.document(0);
 
-        assertThat(doc.getField("value").stringValue(), equalTo("0"));
+        assertThat(doc.getFieldable("value").stringValue(), equalTo("0"));
         termDocs = indexReader.termDocs(new Term("value", "0"));
         assertThat(termDocs.next(), equalTo(true));
         assertThat(termDocs.next(), equalTo(false));
 
         doc = indexReader.document(1);
-        assertThat(doc.getField("value").stringValue(), equalTo("1"));
+        assertThat(doc.getFieldable("value").stringValue(), equalTo("1"));
         termDocs = indexReader.termDocs(new Term("value", "1"));
         assertThat(termDocs.next(), equalTo(true));
         assertThat(termDocs.next(), equalTo(false));
 
         doc = indexReader.document(2);
-        assertThat(doc.getField("value").stringValue(), equalTo("2"));
+        assertThat(doc.getFieldable("value").stringValue(), equalTo("2"));
         termDocs = indexReader.termDocs(new Term("value", "2"));
         assertThat(termDocs.next(), equalTo(true));
         assertThat(termDocs.next(), equalTo(false));
 
         doc = indexReader.document(3);
-        assertThat(doc.getField("value").stringValue(), equalTo("3"));
+        assertThat(doc.getFieldable("value").stringValue(), equalTo("3"));
         termDocs = indexReader.termDocs(new Term("value", "3"));
         assertThat(termDocs.next(), equalTo(true));
         assertThat(termDocs.next(), equalTo(false));

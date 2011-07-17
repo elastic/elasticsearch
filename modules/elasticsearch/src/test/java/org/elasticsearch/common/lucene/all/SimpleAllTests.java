@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
@@ -69,7 +70,7 @@ public class SimpleAllTests {
 
     @Test public void testSimpleAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
@@ -91,7 +92,7 @@ public class SimpleAllTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -111,7 +112,7 @@ public class SimpleAllTests {
 
     @Test public void testSimpleAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
@@ -133,7 +134,7 @@ public class SimpleAllTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // this one is boosted. so the second doc is more relevant
@@ -154,7 +155,7 @@ public class SimpleAllTests {
 
     @Test public void testMultipleTokensAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
@@ -176,7 +177,7 @@ public class SimpleAllTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -206,7 +207,7 @@ public class SimpleAllTests {
 
     @Test public void testMultipleTokensAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", Field.Store.YES, Field.Index.NO));
@@ -228,7 +229,7 @@ public class SimpleAllTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);

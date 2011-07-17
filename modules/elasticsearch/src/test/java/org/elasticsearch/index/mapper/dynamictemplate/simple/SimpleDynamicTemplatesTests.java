@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.dynamictemplate.simple;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperTests;
@@ -39,9 +39,9 @@ public class SimpleDynamicTemplatesTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        Document doc = docMapper.parse(json).masterDoc();
+        Document doc = docMapper.parse(json).rootDoc();
 
-        Field f = doc.getField("name");
+        Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -50,7 +50,7 @@ public class SimpleDynamicTemplatesTests {
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi1");
+        f = doc.getFieldable("multi1");
         assertThat(f.name(), equalTo("multi1"));
         assertThat(f.stringValue(), equalTo("multi 1"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -59,7 +59,7 @@ public class SimpleDynamicTemplatesTests {
         fieldMappers = docMapper.mappers().fullName("multi1");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi1.org");
+        f = doc.getFieldable("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
         assertThat(f.stringValue(), equalTo("multi 1"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -68,7 +68,7 @@ public class SimpleDynamicTemplatesTests {
         fieldMappers = docMapper.mappers().fullName("multi1.org");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi2");
+        f = doc.getFieldable("multi2");
         assertThat(f.name(), equalTo("multi2"));
         assertThat(f.stringValue(), equalTo("multi 2"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -77,7 +77,7 @@ public class SimpleDynamicTemplatesTests {
         fieldMappers = docMapper.mappers().fullName("multi2");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi2.org");
+        f = doc.getFieldable("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
         assertThat(f.stringValue(), equalTo("multi 2"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -94,9 +94,9 @@ public class SimpleDynamicTemplatesTests {
         docMapper = MapperTests.newParser().parse(docMapper.mappingSource().string());
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        Document doc = docMapper.parse(json).masterDoc();
+        Document doc = docMapper.parse(json).rootDoc();
 
-        Field f = doc.getField("name");
+        Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -105,7 +105,7 @@ public class SimpleDynamicTemplatesTests {
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi1");
+        f = doc.getFieldable("multi1");
         assertThat(f.name(), equalTo("multi1"));
         assertThat(f.stringValue(), equalTo("multi 1"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -114,7 +114,7 @@ public class SimpleDynamicTemplatesTests {
         fieldMappers = docMapper.mappers().fullName("multi1");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi1.org");
+        f = doc.getFieldable("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
         assertThat(f.stringValue(), equalTo("multi 1"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -123,7 +123,7 @@ public class SimpleDynamicTemplatesTests {
         fieldMappers = docMapper.mappers().fullName("multi1.org");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi2");
+        f = doc.getFieldable("multi2");
         assertThat(f.name(), equalTo("multi2"));
         assertThat(f.stringValue(), equalTo("multi 2"));
         assertThat(f.isIndexed(), equalTo(true));
@@ -132,7 +132,7 @@ public class SimpleDynamicTemplatesTests {
         fieldMappers = docMapper.mappers().fullName("multi2");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
 
-        f = doc.getField("multi2.org");
+        f = doc.getFieldable("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
         assertThat(f.stringValue(), equalTo("multi 2"));
         assertThat(f.isIndexed(), equalTo(true));

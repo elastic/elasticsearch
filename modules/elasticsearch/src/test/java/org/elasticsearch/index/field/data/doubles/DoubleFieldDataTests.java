@@ -22,6 +22,7 @@ package org.elasticsearch.index.field.data.doubles;
 import org.apache.lucene.document.NumericField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -40,7 +41,7 @@ public class DoubleFieldDataTests {
 
     @Test public void intFieldDataTests() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         indexWriter.addDocument(doc()
                 .add(new NumericField("svalue").setDoubleValue(4))
@@ -65,7 +66,7 @@ public class DoubleFieldDataTests {
                 .add(new NumericField("svalue").setDoubleValue(4))
                 .build());
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         DoubleFieldData sFieldData = DoubleFieldData.load(reader, "svalue");
         DoubleFieldData mFieldData = DoubleFieldData.load(reader, "mvalue");

@@ -42,7 +42,7 @@ public class MultiFieldTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json");
-        Document doc = docMapper.parse(json).masterDoc();
+        Document doc = docMapper.parse(json).rootDoc();
 
         Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
@@ -88,7 +88,7 @@ public class MultiFieldTests {
 
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json");
-        Document doc = docMapper.parse(json).masterDoc();
+        Document doc = docMapper.parse(json).rootDoc();
 
         Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));

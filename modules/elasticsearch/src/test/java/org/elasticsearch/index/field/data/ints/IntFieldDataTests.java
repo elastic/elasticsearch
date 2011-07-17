@@ -66,7 +66,7 @@ public class IntFieldDataTests {
                 .add(new NumericField("svalue").setIntValue(4))
                 .build());
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         IntFieldData sFieldData = IntFieldData.load(reader, "svalue");
         IntFieldData mFieldData = IntFieldData.load(reader, "mvalue");

@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
@@ -39,12 +40,12 @@ public class MatchAllDocsFilterTests {
 
     @Test public void testMatchAllDocsFilter() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         indexWriter.addDocument(doc().add(field("_id", "1")).add(field("text", "lucene")).build());
         indexWriter.addDocument(doc().add(field("_id", "2")).add(field("text", "lucene release")).build());
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         DeletionAwareConstantScoreQuery query = new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER);

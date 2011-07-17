@@ -282,12 +282,10 @@ public class SearchPhaseController extends AbstractComponent {
         InternalFacets facets = null;
         if (!queryResults.isEmpty()) {
             // we rely on the fact that the order of facets is the same on all query results
-            QuerySearchResult queryResult = queryResults.values().iterator().next().queryResult();
-
-            if (queryResult.facets() != null && queryResult.facets().facets() != null && !queryResult.facets().facets().isEmpty()) {
+            if (querySearchResult.facets() != null && querySearchResult.facets().facets() != null && !querySearchResult.facets().facets().isEmpty()) {
                 List<Facet> aggregatedFacets = Lists.newArrayList();
                 List<Facet> namedFacets = Lists.newArrayList();
-                for (Facet facet : queryResult.facets()) {
+                for (Facet facet : querySearchResult.facets()) {
                     // aggregate each facet name into a single list, and aggregate it
                     namedFacets.clear();
                     for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {

@@ -49,7 +49,7 @@ public class NullValueObjectMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("value1"), equalTo("test1"));
+        assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -58,7 +58,7 @@ public class NullValueObjectMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("value1"), equalTo("test1"));
+        assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -67,7 +67,7 @@ public class NullValueObjectMappingTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("obj1.field"), equalTo("value"));
-        assertThat(doc.masterDoc().get("value1"), equalTo("test1"));
+        assertThat(doc.rootDoc().get("obj1.field"), equalTo("value"));
+        assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
     }
 }

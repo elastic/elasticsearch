@@ -27,6 +27,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.document.NumericField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
@@ -55,11 +56,11 @@ public class SimpleLuceneTests {
 
     @Test public void testSortValues() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         for (int i = 0; i < 10; i++) {
             indexWriter.addDocument(doc().add(field("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}))).build());
         }
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), null, 10, new Sort(new SortField("str", SortField.STRING)));
         for (int i = 0; i < 10; i++) {
@@ -70,30 +71,31 @@ public class SimpleLuceneTests {
 
     @Test public void testAddDocAfterPrepareCommit() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         indexWriter.addDocument(doc()
                 .add(field("_id", "1")).build());
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         assertThat(reader.numDocs(), equalTo(1));
 
         indexWriter.prepareCommit();
-        reader = indexWriter.getReader();
+        reader = reader.reopen();
         assertThat(reader.numDocs(), equalTo(1));
 
         indexWriter.addDocument(doc()
                 .add(field("_id", "2")).build());
         indexWriter.commit();
-        reader = indexWriter.getReader();
+        reader = reader.reopen();
         assertThat(reader.numDocs(), equalTo(2));
     }
 
     @Test public void testSimpleNumericOps() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         indexWriter.addDocument(doc().add(field("_id", "1")).add(new NumericField("test", Field.Store.YES, true).setIntValue(2)).build());
 
-        IndexSearcher searcher = new IndexSearcher(indexWriter.getReader());
+        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         Document doc = searcher.doc(topDocs.scoreDocs[0].doc);
         Fieldable f = doc.getFieldable("test");
@@ -114,13 +116,14 @@ public class SimpleLuceneTests {
      */
     @Test public void testOrdering() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         indexWriter.addDocument(doc()
                 .add(field("_id", "1"))
                 .add(field("#id", "1")).build());
 
-        IndexSearcher searcher = new IndexSearcher(indexWriter.getReader());
+        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         final ArrayList<String> fieldsOrder = new ArrayList<String>();
         Document doc = searcher.doc(topDocs.scoreDocs[0].doc, new FieldSelector() {
@@ -139,7 +142,7 @@ public class SimpleLuceneTests {
 
     @Test public void testCollectorOrdering() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         for (int i = 0; i < 5000; i++) {
             indexWriter.addDocument(doc()
                     .add(field("_id", Integer.toString(i))).build());
@@ -147,7 +150,7 @@ public class SimpleLuceneTests {
                 indexWriter.commit();
             }
         }
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         for (int i = 0; i < 5000; i++) {
@@ -181,7 +184,7 @@ public class SimpleLuceneTests {
 
     @Test public void testBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         for (int i = 0; i < 100; i++) {
             // TODO (just setting the boost value does not seem to work...)
@@ -195,7 +198,8 @@ public class SimpleLuceneTests {
                     .boost(i).build());
         }
 
-        IndexSearcher searcher = new IndexSearcher(indexWriter.getReader());
+        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexSearcher searcher = new IndexSearcher(reader);
         TermQuery query = new TermQuery(new Term("value", "value"));
         TopDocs topDocs = searcher.search(query, 100);
         assertThat(100, equalTo(topDocs.totalHits));
@@ -210,8 +214,8 @@ public class SimpleLuceneTests {
 
     @Test public void testNRT() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
-        IndexReader reader = indexWriter.getReader();
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         List<IndexReader> readers = Lists.newArrayList();
         for (int i = 0; i < 100; i++) {
@@ -247,8 +251,8 @@ public class SimpleLuceneTests {
 
     @Test public void testNRTSearchOnClosedWriter() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
-        IndexReader reader = indexWriter.getReader();
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
             indexWriter.addDocument(doc()
@@ -269,7 +273,7 @@ public class SimpleLuceneTests {
      */
     @Test public void testNumericTermDocsFreqs() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         NumericField field = new NumericField("int1").setIntValue(1);
@@ -294,7 +298,7 @@ public class SimpleLuceneTests {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         TermDocs termDocs = reader.termDocs();
 

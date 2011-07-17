@@ -45,7 +45,7 @@ public class RoutingTypeMapperTests {
                 .endObject()
                 .copiedBytes()).type("type").id("1").routing("routing_value"));
 
-        assertThat(doc.masterDoc().get("_routing"), equalTo("routing_value"));
-        assertThat(doc.masterDoc().get("field"), equalTo("value"));
+        assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
+        assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 }

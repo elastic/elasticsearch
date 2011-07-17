@@ -306,7 +306,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
 
         // TODO: This means percolation does not support nested docs...
-        for (Fieldable field : request.doc().masterDoc().getFields()) {
+        for (Fieldable field : request.doc().rootDoc().getFields()) {
             if (!field.isIndexed()) {
                 continue;
             }
@@ -321,7 +321,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 Reader reader = field.readerValue();
                 if (reader != null) {
                     try {
-                        memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), reader), field.getBoost() * request.doc().masterDoc().getBoost());
+                        memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), reader), field.getBoost() * request.doc().rootDoc().getBoost());
                     } catch (IOException e) {
                         throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
                     }
@@ -329,7 +329,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     String value = field.stringValue();
                     if (value != null) {
                         try {
-                            memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), new FastStringReader(value)), field.getBoost() * request.doc().masterDoc().getBoost());
+                            memoryIndex.addField(field.name(), request.doc().analyzer().reusableTokenStream(field.name(), new FastStringReader(value)), field.getBoost() * request.doc().rootDoc().getBoost());
                         } catch (IOException e) {
                             throw new MapperParsingException("Failed to analyze field [" + field.name() + "]", e);
                         }

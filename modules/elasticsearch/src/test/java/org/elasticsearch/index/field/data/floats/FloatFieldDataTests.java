@@ -22,6 +22,7 @@ package org.elasticsearch.index.field.data.floats;
 import org.apache.lucene.document.NumericField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -40,7 +41,7 @@ public class FloatFieldDataTests {
 
     @Test public void intFieldDataTests() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         indexWriter.addDocument(doc()
                 .add(new NumericField("svalue").setFloatValue(4))
@@ -65,7 +66,7 @@ public class FloatFieldDataTests {
                 .add(new NumericField("svalue").setFloatValue(4))
                 .build());
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         FloatFieldData sFieldData = FloatFieldData.load(reader, "svalue");
         FloatFieldData mFieldData = FloatFieldData.load(reader, "mvalue");

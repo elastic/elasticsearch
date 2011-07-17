@@ -47,7 +47,7 @@ public class MoreLikeThisQueryTests {
         indexWriter.addDocument(doc().add(field("_id", "1")).add(field("text", "lucene")).build());
         indexWriter.addDocument(doc().add(field("_id", "2")).add(field("text", "lucene release")).build());
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER);

@@ -56,13 +56,13 @@ public class CustomBoostMappingTests {
                 .startObject("date_field").field("value", "20100101").field("boost", 9.0f).endObject()
                 .endObject().copiedBytes());
 
-        assertThat(doc.masterDoc().getFieldable("s_field").getBoost(), equalTo(2.0f));
-        assertThat(doc.masterDoc().getFieldable("l_field").getBoost(), equalTo(3.0f));
-        assertThat(doc.masterDoc().getFieldable("i_field").getBoost(), equalTo(4.0f));
-        assertThat(doc.masterDoc().getFieldable("sh_field").getBoost(), equalTo(5.0f));
-        assertThat(doc.masterDoc().getFieldable("b_field").getBoost(), equalTo(6.0f));
-        assertThat(doc.masterDoc().getFieldable("d_field").getBoost(), equalTo(7.0f));
-        assertThat(doc.masterDoc().getFieldable("f_field").getBoost(), equalTo(8.0f));
-        assertThat(doc.masterDoc().getFieldable("date_field").getBoost(), equalTo(9.0f));
+        assertThat(doc.rootDoc().getFieldable("s_field").getBoost(), equalTo(2.0f));
+        assertThat(doc.rootDoc().getFieldable("l_field").getBoost(), equalTo(3.0f));
+        assertThat(doc.rootDoc().getFieldable("i_field").getBoost(), equalTo(4.0f));
+        assertThat(doc.rootDoc().getFieldable("sh_field").getBoost(), equalTo(5.0f));
+        assertThat(doc.rootDoc().getFieldable("b_field").getBoost(), equalTo(6.0f));
+        assertThat(doc.rootDoc().getFieldable("d_field").getBoost(), equalTo(7.0f));
+        assertThat(doc.rootDoc().getFieldable("f_field").getBoost(), equalTo(8.0f));
+        assertThat(doc.rootDoc().getFieldable("date_field").getBoost(), equalTo(9.0f));
     }
 }

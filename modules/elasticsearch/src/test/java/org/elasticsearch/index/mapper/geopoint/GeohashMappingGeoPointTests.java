@@ -47,9 +47,9 @@ public class GeohashMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        MatcherAssert.assertThat(doc.masterDoc().getFieldable("point.lat"), nullValue());
-        MatcherAssert.assertThat(doc.masterDoc().getFieldable("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
+        MatcherAssert.assertThat(doc.rootDoc().getFieldable("point.lat"), nullValue());
+        MatcherAssert.assertThat(doc.rootDoc().getFieldable("point.lon"), nullValue());
+        MatcherAssert.assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
@@ -65,9 +65,9 @@ public class GeohashMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        MatcherAssert.assertThat(doc.masterDoc().getFieldable("point.lat"), nullValue());
-        MatcherAssert.assertThat(doc.masterDoc().getFieldable("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.masterDoc().get("point"), equalTo("1.2,1.3"));
+        MatcherAssert.assertThat(doc.rootDoc().getFieldable("point.lat"), nullValue());
+        MatcherAssert.assertThat(doc.rootDoc().getFieldable("point.lon"), nullValue());
+        MatcherAssert.assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
     @Test public void testGeoHashValue() throws Exception {
@@ -83,9 +83,9 @@ public class GeohashMappingGeoPointTests {
                 .endObject()
                 .copiedBytes());
 
-        MatcherAssert.assertThat(doc.masterDoc().getFieldable("point.lat"), nullValue());
-        MatcherAssert.assertThat(doc.masterDoc().getFieldable("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.masterDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
-        MatcherAssert.assertThat(doc.masterDoc().get("point"), notNullValue());
+        MatcherAssert.assertThat(doc.rootDoc().getFieldable("point.lat"), nullValue());
+        MatcherAssert.assertThat(doc.rootDoc().getFieldable("point.lon"), nullValue());
+        MatcherAssert.assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        MatcherAssert.assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 }

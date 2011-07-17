@@ -2,6 +2,7 @@ package org.elasticsearch.index.mapper.lucene;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.RAMDirectory;
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.*;
 public class DoubleIndexingDocTest {
 
     @Test public void testDoubleIndexingSameDoc() throws Exception {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), Lucene.STANDARD_ANALYZER, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
@@ -39,10 +40,10 @@ public class DoubleIndexingDocTest {
                 .endObject()
                 .copiedBytes());
 
-        writer.addDocument(doc.masterDoc(), doc.analyzer());
-        writer.addDocument(doc.masterDoc(), doc.analyzer());
+        writer.addDocument(doc.rootDoc(), doc.analyzer());
+        writer.addDocument(doc.rootDoc(), doc.analyzer());
 
-        IndexReader reader = writer.getReader();
+        IndexReader reader = IndexReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().fieldQuery("value1", null), 10);

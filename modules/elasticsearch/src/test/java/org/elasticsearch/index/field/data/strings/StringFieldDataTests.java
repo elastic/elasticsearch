@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -40,7 +41,7 @@ public class StringFieldDataTests {
 
     @Test public void stringFieldDataTests() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         indexWriter.addDocument(doc()
                 .add(field("svalue", "zzz"))
@@ -59,7 +60,7 @@ public class StringFieldDataTests {
         indexWriter.addDocument(doc()
                 .add(field("svalue", "aaa")).build());
 
-        IndexReader reader = indexWriter.getReader();
+        IndexReader reader = IndexReader.open(indexWriter, true);
 
         StringFieldData sFieldData = StringFieldData.load(reader, "svalue");
         StringFieldData mFieldData = StringFieldData.load(reader, "mvalue");

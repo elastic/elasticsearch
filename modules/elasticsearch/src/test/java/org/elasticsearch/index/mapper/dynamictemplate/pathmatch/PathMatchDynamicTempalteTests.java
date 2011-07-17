@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.dynamictemplate.pathmatch;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperTests;
@@ -39,9 +39,9 @@ public class PathMatchDynamicTempalteTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        Document doc = docMapper.parse(json).masterDoc();
+        Document doc = docMapper.parse(json).rootDoc();
 
-        Field f = doc.getField("name");
+        Fieldable f = doc.getFieldable("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.isStored(), equalTo(false));
@@ -50,7 +50,7 @@ public class PathMatchDynamicTempalteTests {
         assertThat(fieldMappers.mappers().size(), equalTo(1));
         assertThat(fieldMappers.mapper().stored(), equalTo(false));
 
-        f = doc.getField("obj1.name");
+        f = doc.getFieldable("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.isStored(), equalTo(true));
 
@@ -58,7 +58,7 @@ public class PathMatchDynamicTempalteTests {
         assertThat(fieldMappers.mappers().size(), equalTo(1));
         assertThat(fieldMappers.mapper().stored(), equalTo(true));
 
-        f = doc.getField("obj1.obj2.name");
+        f = doc.getFieldable("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.isStored(), equalTo(false));
 

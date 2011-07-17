@@ -46,9 +46,9 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testTypeLevel() throws Exception {
@@ -64,9 +64,9 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject().endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testNoLevelWithFieldTypeAsValue() throws Exception {
@@ -83,10 +83,10 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("type"), equalTo("value_type"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testTypeLevelWithFieldTypeAsValue() throws Exception {
@@ -103,10 +103,10 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject().endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("type"), equalTo("value_type"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testNoLevelWithFieldTypeAsObject() throws Exception {
@@ -124,9 +124,9 @@ public class ParseDocumentTypeLevelsTests {
                 .copiedBytes());
 
         // in this case, we analyze the type object as the actual document, and ignore the other same level fields
-        assertThat(doc.masterDoc().get("type_field"), equalTo("type_value"));
-        assertThat(doc.masterDoc().get("test1"), nullValue());
-        assertThat(doc.masterDoc().get("test2"), nullValue());
+        assertThat(doc.rootDoc().get("type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("test1"), nullValue());
+        assertThat(doc.rootDoc().get("test2"), nullValue());
     }
 
     @Test public void testTypeLevelWithFieldTypeAsObject() throws Exception {
@@ -143,10 +143,10 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject().endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("type.type_field"), equalTo("type_value"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testNoLevelWithFieldTypeAsValueNotFirst() throws Exception {
@@ -163,10 +163,10 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject().endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("type"), equalTo("value_type"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testTypeLevelWithFieldTypeAsValueNotFirst() throws Exception {
@@ -183,10 +183,10 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject().endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("type"), equalTo("value_type"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testNoLevelWithFieldTypeAsObjectNotFirst() throws Exception {
@@ -204,10 +204,10 @@ public class ParseDocumentTypeLevelsTests {
                 .copiedBytes());
 
         // when the type is not the first one, we don't confuse it...
-        assertThat(doc.masterDoc().get("type.type_field"), equalTo("type_value"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 
     @Test public void testTypeLevelWithFieldTypeAsObjectNotFirst() throws Exception {
@@ -224,9 +224,9 @@ public class ParseDocumentTypeLevelsTests {
                 .endObject().endObject()
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("type.type_field"), equalTo("type_value"));
-        assertThat(doc.masterDoc().get("test1"), equalTo("value1"));
-        assertThat(doc.masterDoc().get("test2"), equalTo("value2"));
-        assertThat(doc.masterDoc().get("inner.inner_field"), equalTo("inner_value"));
+        assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
     }
 }

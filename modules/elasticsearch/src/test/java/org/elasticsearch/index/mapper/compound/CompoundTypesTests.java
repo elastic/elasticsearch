@@ -46,9 +46,9 @@ public class CompoundTypesTests {
                 .field("field2", "value2")
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("field1"), equalTo("value1"));
-        assertThat((double) doc.masterDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
-        assertThat(doc.masterDoc().get("field2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
+        assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -56,9 +56,9 @@ public class CompoundTypesTests {
                 .field("field2", "value2")
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("field1"), equalTo("value1"));
-        assertThat((double) doc.masterDoc().getFieldable("field1").getBoost(), closeTo(2.0d, 0.000001d));
-        assertThat(doc.masterDoc().get("field2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(2.0d, 0.000001d));
+        assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -66,8 +66,8 @@ public class CompoundTypesTests {
                 .field("field2", "value2")
                 .copiedBytes());
 
-        assertThat(doc.masterDoc().get("field1"), equalTo("value1"));
-        assertThat((double) doc.masterDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
-        assertThat(doc.masterDoc().get("field2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
+        assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
     }
 }

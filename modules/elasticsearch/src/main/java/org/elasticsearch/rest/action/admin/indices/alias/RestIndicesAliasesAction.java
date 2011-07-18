@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.*;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
@@ -106,10 +106,10 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                     } else if ("routing".equals(currentFieldName)) {
                                         routing = parser.textOrNull();
                                         routingSet = true;
-                                    } else if ("indexRouting".equals(currentFieldName) || "index-routing".equals(currentFieldName)) {
+                                    } else if ("indexRouting".equals(currentFieldName) || "index-routing".equals(currentFieldName) || "index_routing".equals(currentFieldName)) {
                                         indexRouting = parser.textOrNull();
                                         indexRoutingSet = true;
-                                    } else if ("searchRouting".equals(currentFieldName) || "search-routing".equals(currentFieldName)) {
+                                    } else if ("searchRouting".equals(currentFieldName) || "search-routing".equals(currentFieldName) || "search_routing".equals(currentFieldName)) {
                                         searchRouting = parser.textOrNull();
                                         searchRoutingSet = true;
                                     }

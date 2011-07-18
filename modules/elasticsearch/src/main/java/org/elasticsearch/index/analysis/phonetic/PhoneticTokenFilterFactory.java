@@ -22,7 +22,13 @@ package org.elasticsearch.index.analysis.phonetic;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.codec.Encoder;
-import org.elasticsearch.common.codec.language.*;
+import org.elasticsearch.common.codec.language.Caverphone1;
+import org.elasticsearch.common.codec.language.Caverphone2;
+import org.elasticsearch.common.codec.language.ColognePhonetic;
+import org.elasticsearch.common.codec.language.DoubleMetaphone;
+import org.elasticsearch.common.codec.language.Metaphone;
+import org.elasticsearch.common.codec.language.RefinedSoundex;
+import org.elasticsearch.common.codec.language.Soundex;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -39,11 +45,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Encoder encoder;
 
-    private final boolean inject;
+    private final boolean replace;
 
     @Inject public PhoneticTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.inject = settings.getAsBoolean("replace", true);
+        this.replace = settings.getAsBoolean("replace", true);
         String encoder = settings.get("encoder");
         if (encoder == null) {
             throw new ElasticSearchIllegalArgumentException("encoder must be set on phonetic token filter");
@@ -73,8 +79,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override public TokenStream create(TokenStream tokenStream) {
         if (encoder instanceof DoubleMetaphone) {
-            return new DoubleMetaphoneFilter(tokenStream, (DoubleMetaphone) encoder, inject);
+            return new DoubleMetaphoneFilter(tokenStream, (DoubleMetaphone) encoder, !replace);
         }
-        return new PhoneticFilter(tokenStream, encoder, name(), inject);
+        return new PhoneticFilter(tokenStream, encoder, name(), !replace);
     }
 }

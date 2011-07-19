@@ -162,7 +162,7 @@ public class MultiPhrasePrefixQuery extends Query {
                 } else {
                     break;
                 }
-                if (terms.size() > maxExpansions) {
+                if (terms.size() >= maxExpansions) {
                     break;
                 }
             } while (enumerator.next());

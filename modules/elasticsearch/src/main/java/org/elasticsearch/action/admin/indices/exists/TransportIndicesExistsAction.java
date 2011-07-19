@@ -61,7 +61,8 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
     }
 
     @Override protected void doExecute(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        // don't call this since it will throw IndexMissingException
+        //request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
         super.doExecute(request, listener);
     }
 

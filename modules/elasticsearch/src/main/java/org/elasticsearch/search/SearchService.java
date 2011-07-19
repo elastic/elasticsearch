@@ -46,11 +46,19 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchRequest;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -159,7 +167,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             contextProcessedSuccessfully(context);
             return context.dfsResult();
         } catch (RuntimeException e) {
-        	logger.debug("Dfs phase failed", e);
+            logger.trace("Dfs phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -182,7 +190,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             contextProcessedSuccessfully(context);
             return context.queryResult();
         } catch (RuntimeException e) {
-        	logger.debug("Scan phase failed", e);
+            logger.trace("Scan phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -210,7 +218,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (RuntimeException e) {
-        	logger.debug("Scan phase failed", e);
+            logger.trace("Scan phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -231,7 +239,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             return context.queryResult();
         } catch (RuntimeException e) {
-        	logger.debug("Query phase failed", e);
+            logger.trace("Query phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -248,7 +256,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             queryPhase.execute(context);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
         } catch (RuntimeException e) {
-        	logger.debug("Query phase failed", e);
+            logger.trace("Query phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -271,7 +279,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             contextProcessedSuccessfully(context);
             return context.queryResult();
         } catch (RuntimeException e) {
-        	logger.debug("Query phase failed", e);
+            logger.trace("Query phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -294,7 +302,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (RuntimeException e) {
-        	logger.debug("Fetch phase failed", e);
+            logger.trace("Fetch phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -323,7 +331,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (RuntimeException e) {
-        	logger.debug("Fetch phase failed", e);
+            logger.trace("Fetch phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -346,7 +354,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (RuntimeException e) {
-        	logger.debug("Fetch phase failed", e);
+            logger.trace("Fetch phase failed", e);
             freeContext(context);
             throw e;
         } finally {
@@ -367,7 +375,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             return context.fetchResult();
         } catch (RuntimeException e) {
-        	logger.debug("Fetch phase failed", e);
+            logger.trace("Fetch phase failed", e);
             freeContext(context);
             throw e;
         } finally {

@@ -67,6 +67,11 @@ public class MultiGetRequest implements ActionRequest {
             return this.index;
         }
 
+        public Item index(String index) {
+            this.index = index;
+            return this;
+        }
+
         public String type() {
             return this.type;
         }

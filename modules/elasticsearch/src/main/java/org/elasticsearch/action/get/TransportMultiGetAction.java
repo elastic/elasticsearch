@@ -56,6 +56,7 @@ public class TransportMultiGetAction extends BaseAction<MultiGetRequest, MultiGe
         Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<ShardId, MultiGetShardRequest>();
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
+            item.index(clusterState.metaData().concreteIndex(item.index()));
             ShardId shardId = clusterService.operationRouting()
                     .getShards(clusterState, item.index(), item.type(), item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);

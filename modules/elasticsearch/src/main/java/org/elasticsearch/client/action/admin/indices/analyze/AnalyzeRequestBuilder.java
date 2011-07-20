@@ -57,7 +57,7 @@ public class AnalyzeRequestBuilder extends BaseIndicesRequestBuilder<AnalyzeRequ
         client.analyze(request, listener);
     }
 
-    public AnalyzeRequestBuilder field(String field) {
+    public AnalyzeRequestBuilder setField(String field) {
         request.field(field);
         return this;
     }

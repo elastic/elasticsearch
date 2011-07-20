@@ -204,7 +204,7 @@ public class QueryPhase implements SearchPhase {
                 }
                 topDocs = countCollector.topDocs();
             } else if (searchContext.searchType() == SearchType.SCAN) {
-                ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size());
+                ScanCollector scanCollector = new ScanCollector(searchContext.from(), searchContext.size(), searchContext.trackScores());
                 try {
                     searchContext.searcher().search(query, scanCollector);
                 } catch (ScanCollector.StopCollectingException e) {
@@ -259,13 +259,18 @@ public class QueryPhase implements SearchPhase {
 
         private final ArrayList<ScoreDoc> docs;
 
+        private final boolean trackScores;
+
+        private Scorer scorer;
+
         private int docBase;
 
         private int counter;
 
-        ScanCollector(int from, int size) {
+        ScanCollector(int from, int size, boolean trackScores) {
             this.from = from;
             this.to = from + size;
+            this.trackScores = trackScores;
             this.docs = new ArrayList<ScoreDoc>(size);
         }
 
@@ -274,11 +279,12 @@ public class QueryPhase implements SearchPhase {
         }
 
         @Override public void setScorer(Scorer scorer) throws IOException {
+            this.scorer = scorer;
         }
 
         @Override public void collect(int doc) throws IOException {
             if (counter >= from) {
-                docs.add(new ScoreDoc(docBase + doc, 0f));
+                docs.add(new ScoreDoc(docBase + doc, trackScores ? scorer.score() : 0f));
             }
             counter++;
             if (counter >= to) {

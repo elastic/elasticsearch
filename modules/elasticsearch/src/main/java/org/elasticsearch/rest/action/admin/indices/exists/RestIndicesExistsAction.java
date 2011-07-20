@@ -31,9 +31,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.StringRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
@@ -73,8 +70,8 @@ public class RestIndicesExistsAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
+                    channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
+                } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }
             }

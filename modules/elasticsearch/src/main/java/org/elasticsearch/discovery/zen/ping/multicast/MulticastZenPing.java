@@ -348,7 +348,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         continue;
                     }
                     if (!clusterName.equals(MulticastZenPing.this.clusterName)) {
-                        // not our cluster, ignore it...
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("[{}] received ping_request from [{}], but wrong cluster_name [{}], expected [{}], ignoring", id, requestingNode, clusterName, MulticastZenPing.this.clusterName);
+                        }
+                        continue;
+                    }
+                    // don't connect between two client nodes, no need for that...
+                    if (!discoveryNodes.localNode().shouldConnectTo(requestingNode)) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("[{}] received ping_request from [{}], both are client nodes, ignoring", id, requestingNode, clusterName);
+                        }
                         continue;
                     }
                     final MulticastPingResponse multicastPingResponse = new MulticastPingResponse();

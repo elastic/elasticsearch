@@ -98,6 +98,16 @@ public class DiscoveryNode implements Streamable, Serializable {
     }
 
     /**
+     * Should this node form a connection to the provided node.
+     */
+    public boolean shouldConnectTo(DiscoveryNode otherNode) {
+        if (clientNode() && otherNode.clientNode()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * The address that the node can be communicated with.
      */
     public TransportAddress address() {

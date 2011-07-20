@@ -118,7 +118,7 @@ public class AnalyzeResponse implements ActionResponse, Iterable<AnalyzeResponse
             if (type == null) {
                 out.writeBoolean(false);
             } else {
-                out.writeBoolean(false);
+                out.writeBoolean(true);
                 out.writeUTF(type);
             }
         }

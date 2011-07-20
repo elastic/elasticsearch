@@ -127,6 +127,10 @@ public class FacetParseElement implements SearchParseElement {
                     facet = new NestedChildrenCollector(facet, context.filterCache().cache(NonNestedDocsFilter.INSTANCE), context.filterCache().cache(objectMapper.nestedTypeFilter()));
                 }
 
+                if (facet == null) {
+                    throw new SearchParseException(context, "no facet type found for facet named [" + topLevelFieldName + "]");
+                }
+
                 if (facetCollectors == null) {
                     facetCollectors = Lists.newArrayList();
                 }

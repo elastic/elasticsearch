@@ -1,30 +1,32 @@
-# Cluster Settings
-#cluster:
-#  name: elasticsearch
+# The cluster name
+#cluster.name: elasticsearch
 
 # Path Settings
-#path:
-#  conf: /path/to/conf
-#  data: /path/to/data
-#  work: /path/to/work
-#  logs: /path/to/logs
+#path.conf: /path/to/conf
+#path.data: /path/to/data
+#path.work: /path/to/work
+#path.logs: /path/to/logs
 
 # Gateway Settings
-#gateway:
-#  recover_after_nodes: 1
-#  recover_after_time: 5m
-#  expected_nodes: 2
-
+#   Controls when to start the initial recovery process when starting a new cluster
+#gateway.recover_after_nodes: 1
+#gateway.recover_after_time: 5m
+#gateway.expected_nodes: 2
 
 # Force all memory to be locked, forcing JVM to never swap
-#  (make sure to set MIN and MAX mem to the same value)
-#bootstrap:
-#  mlockall: true
+#   (make sure to set MIN and MAX mem to the same value)
+#   In order to see if this works or not, set the `common.jna` logging to DEBUG level.
+#   A solution to “Unknown mlockall error 0” can be to set ulimit -l unlimited.
+#bootstrap.mlockall: true
+
+# Controls the minimum number of master eligible nodes this node should "see"
+# in order to operate within the cluster.
+#   Set this to a higher value (2-4) when running more than 2 nodes in the cluster
+#discovery.zen.minimum_master_nodes: 1
+
+# The time to wait for ping responses from other nodes when doing node discovery
+#discovery.zen.ping.timeout: 3s
 
 # Unicast Discovery (disable multicast)
-#discovery:
-#  zen:
-#    minimum_master_nodes: 1
-#    ping.timeout: 3s
-#    ping.multicast.enabled: false
-#    ping.unicast.hosts: ["host1", "host2"]
+#discovery.zen.ping.multicast.enabled: false
+#discovery.zen.ping.unicast.hosts: ["host1", "host2"]

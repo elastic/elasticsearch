@@ -12,6 +12,9 @@ logger:
   # peer shard recovery
   #index.shard.recovery: DEBUG
 
+  # discovery
+  #discovery: TRACE
+
 appender:
   console:
     type: console

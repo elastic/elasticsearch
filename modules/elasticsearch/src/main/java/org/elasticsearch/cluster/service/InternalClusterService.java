@@ -341,11 +341,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     private boolean nodeRequiresConnection(DiscoveryNode node) {
-        if (localNode().clientNode()) {
-            if (node.clientNode()) {
-                return false;
-            }
-        }
-        return true;
+        return localNode().shouldConnectTo(node);
     }
 }

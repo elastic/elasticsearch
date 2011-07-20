@@ -98,7 +98,7 @@ public class AnalyzeActionTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client.admin().indices().prepareAnalyze("test", "THIS IS A TEST");
-            requestBuilder.field("document.simple");
+            requestBuilder.setField("document.simple");
             AnalyzeResponse analyzeResponse = requestBuilder.execute().actionGet();
             assertThat(analyzeResponse.tokens().size(), equalTo(4));
             AnalyzeResponse.AnalyzeToken token = analyzeResponse.tokens().get(3);

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +63,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Inject public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings);
         this.location = new File(nodeEnv.shardLocation(shardId), "translog");
-        this.location.mkdirs();
+        FileSystemUtils.mkdirs(this.location);
         this.useStream = componentSettings.getAsBoolean("use_stream", false);
     }
 
@@ -73,7 +74,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location, boolean useStream) {
         super(shardId, indexSettings);
         this.location = location;
-        this.location.mkdirs();
+        FileSystemUtils.mkdirs(this.location);
         this.useStream = useStream;
     }
 

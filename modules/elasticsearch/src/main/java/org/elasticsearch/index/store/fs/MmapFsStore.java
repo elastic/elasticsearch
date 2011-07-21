@@ -26,6 +26,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -50,7 +51,7 @@ public class MmapFsStore extends FsStore {
         super(shardId, indexSettings, indexStore);
         LockFactory lockFactory = buildLockFactory();
         File location = ((FsIndexStore) indexStore).shardIndexLocation(shardId);
-        location.mkdirs();
+        FileSystemUtils.mkdirs(location);
         this.fsDirectory = new MMapDirectory(location, lockFactory);
 
         boolean suggestUseCompoundFile;

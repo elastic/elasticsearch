@@ -64,7 +64,7 @@ public class PluginManager {
                 }
                 String zipName = zipEntry.getName().replace('\\', '/');
                 File target = new File(extractLocation, zipName);
-                target.getParentFile().mkdirs();
+                FileSystemUtils.mkdirs(target.getParentFile());
                 Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
             }
         } catch (Exception e) {
@@ -96,7 +96,7 @@ public class PluginManager {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
 
         if (!initialSettings.v2().pluginsFile().exists()) {
-            initialSettings.v2().pluginsFile().mkdirs();
+            FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
 
         String url = "http://elasticsearch.googlecode.com/svn/plugins";

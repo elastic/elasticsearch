@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,7 +61,7 @@ public class NodeEnvironment extends AbstractComponent {
         for (int i = 0; i < 50; i++) {
             dir = new File(new File(environment.dataWithClusterFile(), "nodes"), Integer.toString(i));
             if (!dir.exists()) {
-                dir.mkdirs();
+                FileSystemUtils.mkdirs(dir);
             }
             logger.trace("obtaining node lock on {} ...", dir.getAbsolutePath());
             try {

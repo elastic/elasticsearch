@@ -19,7 +19,12 @@
 
 package org.elasticsearch.common.io;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +33,14 @@ import java.util.List;
  * @author kimchy (shay.banon)
  */
 public class FileSystemUtils {
+
+    private static final Object mkdirsMutex = new Object();
+
+    public static boolean mkdirs(File dir) {
+        synchronized (mkdirsMutex) {
+            return dir.mkdirs();
+        }
+    }
 
     public static int maxOpenFiles(File testDir) {
         boolean dirCreated = false;

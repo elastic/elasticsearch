@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -53,7 +52,11 @@ public class WrapperQueryParser implements QueryParser {
         byte[] querySource = parser.binaryValue();
         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
         try {
-            return SearchContext.current().queryParserService().parse(qSourceParser).query();
+            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
+            context.reset(qSourceParser);
+            Query result = context.parseInnerQuery();
+            parser.nextToken();
+            return result;
         } finally {
             qSourceParser.close();
         }

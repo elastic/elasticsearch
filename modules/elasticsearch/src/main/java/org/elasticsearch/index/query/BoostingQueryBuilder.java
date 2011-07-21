@@ -90,5 +90,6 @@ public class BoostingQueryBuilder extends BaseQueryBuilder {
         if (boost != -1) {
             builder.field("boost", boost);
         }
+        builder.endObject();
     }
 }

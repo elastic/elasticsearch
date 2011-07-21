@@ -21,7 +21,13 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Searcher;
+import org.apache.lucene.search.Similarity;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -106,7 +112,7 @@ public class FunctionScoreQuery extends Query {
                 return null;
             }
             function.setNextReader(reader);
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer);
+            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, function);
         }
 
         @Override
@@ -127,14 +133,16 @@ public class FunctionScoreQuery extends Query {
     }
 
 
-    class CustomBoostFactorScorer extends Scorer {
+    static class CustomBoostFactorScorer extends Scorer {
         private final float subQueryWeight;
         private final Scorer scorer;
+        private final ScoreFunction function;
 
-        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer) throws IOException {
+        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
             super(similarity);
             this.subQueryWeight = w.getValue();
             this.scorer = scorer;
+            this.function = function;
         }
 
         @Override

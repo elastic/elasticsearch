@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -33,6 +37,34 @@ import java.util.List;
  * @author kimchy (shay.banon)
  */
 public class FileSystemUtils {
+
+    private static ESLogger logger = ESLoggerFactory.getLogger(FileSystemUtils.class.getName());
+
+    private static final long mkdirsStallTimeout = TimeValue.timeValueMinutes(5).millis();
+    private static final Object mkdirsMutex = new Object();
+    private static volatile Thread mkdirsThread;
+    private static volatile long mkdirsStartTime;
+
+    public static boolean mkdirs(File dir) {
+        synchronized (mkdirsMutex) {
+            try {
+                mkdirsThread = Thread.currentThread();
+                mkdirsStartTime = System.currentTimeMillis();
+                return dir.mkdirs();
+            } finally {
+                mkdirsThread = null;
+            }
+        }
+    }
+
+    public static void checkMkdirsStall(long currentTime) {
+        Thread mkdirsThread1 = mkdirsThread;
+        long stallTime = currentTime - mkdirsStartTime;
+        if (mkdirsThread1 != null && (stallTime > mkdirsStallTimeout)) {
+            logger.error("mkdirs stalled for {} on {}, trying to interrupt", new TimeValue(stallTime), mkdirsThread1.getName());
+            mkdirsThread1.interrupt(); // try and interrupt it...
+        }
+    }
 
     public static int maxOpenFiles(File testDir) {
         boolean dirCreated = false;

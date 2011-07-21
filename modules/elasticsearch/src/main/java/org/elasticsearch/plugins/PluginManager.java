@@ -192,7 +192,7 @@ public class PluginManager {
                     }
                 }
                 File target = new File(extractLocation, zipName);
-                target.getParentFile().mkdirs();
+                FileSystemUtils.mkdirs(target.getParentFile());
                 Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
             }
         } catch (Exception e) {
@@ -216,7 +216,7 @@ public class PluginManager {
                 File site = new File(extractLocation, "_site");
                 File tmpLocation = new File(environment.pluginsFile(), name + ".tmp");
                 extractLocation.renameTo(tmpLocation);
-                extractLocation.mkdirs();
+                FileSystemUtils.mkdirs(extractLocation);
                 tmpLocation.renameTo(site);
             }
         }
@@ -239,7 +239,7 @@ public class PluginManager {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
 
         if (!initialSettings.v2().pluginsFile().exists()) {
-            initialSettings.v2().pluginsFile().mkdirs();
+            FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
 
         String url = null;

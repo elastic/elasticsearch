@@ -344,7 +344,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         } else {
             // create the location where the state will be stored
             this.location = new File(nodeEnv.nodeDataLocation(), "_state");
-            this.location.mkdirs();
+            FileSystemUtils.mkdirs(this.location);
 
             if (clusterService.localNode().masterNode()) {
                 try {

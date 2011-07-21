@@ -25,6 +25,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -278,6 +279,11 @@ public class ThreadPool extends AbstractComponent {
                 } catch (InterruptedException e) {
                     running = false;
                     return;
+                }
+                try {
+                    FileSystemUtils.checkMkdirsStall(estimatedTimeInMillis);
+                } catch (Exception e) {
+                    // ignore
                 }
             }
         }

@@ -125,7 +125,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override public Query fieldQuery(String value, QueryParseContext context) {
-        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value)));
+        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value), null));
     }
 
     @Override public boolean useFieldQueryWithQueryString() {

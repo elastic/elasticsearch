@@ -68,7 +68,7 @@ public class WeakFilterCache extends AbstractConcurrentMapFilterCache implements
         super.close();
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+    @Override protected ConcurrentMap<Object, DocSet> buildFilterMap() {
         MapMaker mapMaker = new MapMaker().weakValues();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);

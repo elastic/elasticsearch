@@ -35,6 +35,7 @@ public class OrFilterBuilder extends BaseFilterBuilder {
     private ArrayList<FilterBuilder> filters = Lists.newArrayList();
 
     private Boolean cache;
+    private String cacheKey;
 
     private String filterName;
 
@@ -60,6 +61,11 @@ public class OrFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public OrFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
+        return this;
+    }
+
     public OrFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
         return this;
@@ -74,6 +80,9 @@ public class OrFilterBuilder extends BaseFilterBuilder {
         builder.endArray();
         if (cache != null) {
             builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
         if (filterName != null) {
             builder.field("_name", filterName);

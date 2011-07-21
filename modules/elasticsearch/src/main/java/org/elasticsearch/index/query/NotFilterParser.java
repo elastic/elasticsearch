@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 
@@ -45,6 +46,7 @@ public class NotFilterParser implements FilterParser {
 
         Filter filter = null;
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -64,6 +66,8 @@ public class NotFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -74,7 +78,7 @@ public class NotFilterParser implements FilterParser {
 
         Filter notFilter = new NotFilter(filter);
         if (cache) {
-            notFilter = parseContext.cacheFilter(notFilter);
+            notFilter = parseContext.cacheFilter(notFilter, cacheKey);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, notFilter);

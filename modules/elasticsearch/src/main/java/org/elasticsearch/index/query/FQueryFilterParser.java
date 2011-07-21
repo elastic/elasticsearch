@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 
@@ -49,6 +50,7 @@ public class FQueryFilterParser implements FilterParser {
 
         Query query = null;
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -65,12 +67,14 @@ public class FQueryFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
         Filter filter = new QueryWrapperFilter(query);
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

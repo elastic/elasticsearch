@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ public class RangeFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         boolean cache = true;
+        CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         String from = null;
         String to = null;
@@ -93,6 +95,8 @@ public class RangeFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -113,7 +117,7 @@ public class RangeFilterParser implements FilterParser {
         }
 
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

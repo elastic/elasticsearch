@@ -68,7 +68,7 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache implements
         super.close();
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+    @Override protected ConcurrentMap<Object, DocSet> buildFilterMap() {
         // DocSet are not really stored with strong reference only when searching on them...
         // Filter might be stored in query cache
         MapMaker mapMaker = new MapMaker().softValues();

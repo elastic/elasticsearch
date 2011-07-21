@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -48,6 +49,7 @@ public class NumericRangeFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         boolean cache = false; // default to false, since its using fielddata cache
+        CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         String from = null;
         String to = null;
@@ -94,6 +96,8 @@ public class NumericRangeFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -111,7 +115,7 @@ public class NumericRangeFilterParser implements FilterParser {
         Filter filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.indexCache().fieldData(), from, to, includeLower, includeUpper);
 
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {

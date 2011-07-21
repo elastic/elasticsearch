@@ -40,6 +40,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
     private String bottomRightGeohash;
 
     private Boolean cache;
+    private String cacheKey;
 
     private String filterName;
 
@@ -99,6 +100,11 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public GeoBoundingBoxFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoBoundingBoxFilterParser.NAME);
 
@@ -125,6 +131,9 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 
@@ -50,6 +51,7 @@ public class FilteredQueryParser implements QueryParser {
         Filter filter = null;
         float boost = 1.0f;
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -65,8 +67,10 @@ public class FilteredQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("cache".equals(currentFieldName)) {
+                } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -79,7 +83,7 @@ public class FilteredQueryParser implements QueryParser {
 
         // cache if required
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
 
         // if its a match_all query, use constant_score

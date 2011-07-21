@@ -47,7 +47,7 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         super(settings);
         this.path = path;
         if (!path.exists()) {
-            boolean b = path.mkdirs();
+            boolean b = FileSystemUtils.mkdirs(path);
             if (!b) {
                 throw new BlobStoreException("Failed to create directory at [" + path + "]");
             }
@@ -89,7 +89,7 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     private synchronized File buildAndCreate(BlobPath path) {
         File f = buildPath(path);
-        f.mkdirs();
+        FileSystemUtils.mkdirs(f);
         return f;
     }
 

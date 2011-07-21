@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.dump;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -57,7 +58,7 @@ public class SimpleDumpGenerator implements DumpGenerator {
             fileName += localNode.id() + "-";
         }
         File file = new File(dumpLocation, fileName + cause + "-" + timestamp);
-        file.mkdirs();
+        FileSystemUtils.mkdirs(file);
         SimpleDump dump;
         try {
             dump = new SimpleDump(System.currentTimeMillis(), cause, context, file);

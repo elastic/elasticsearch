@@ -58,6 +58,7 @@ public class IndicesQueriesRegistry {
         addQueryParser(queryParsers, new ConstantScoreQueryParser());
         addQueryParser(queryParsers, new CustomBoostFactorQueryParser());
         addQueryParser(queryParsers, new CustomScoreQueryParser());
+        addQueryParser(queryParsers, new CustomFiltersScoreQueryParser());
         addQueryParser(queryParsers, new SpanTermQueryParser());
         addQueryParser(queryParsers, new SpanNotQueryParser());
         addQueryParser(queryParsers, new SpanFirstQueryParser());

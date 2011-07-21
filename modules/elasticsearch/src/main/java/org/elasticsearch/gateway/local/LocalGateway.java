@@ -384,7 +384,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             if (fileIndex >= index) {
                 // try and read the meta data
                 try {
-                    readStartedShards(Streams.copyToByteArray(new FileInputStream(stateFile)));
+                    byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
+                    if (data.length == 0) {
+                        logger.debug("[findLatestState]: not data for [" + name + "], ignoring...");
+                    }
+                    readStartedShards(data);
                     index = fileIndex;
                 } catch (IOException e) {
                     logger.warn("[findLatestState]: Failed to read state from [" + name + "], ignoring...", e);
@@ -409,7 +413,12 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             if (fileIndex >= index) {
                 // try and read the meta data
                 try {
-                    readMetaState(Streams.copyToByteArray(new FileInputStream(stateFile)));
+                    byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
+                    if (data.length == 0) {
+                        logger.debug("[findLatestState]: not data for [" + name + "], ignoring...");
+                        continue;
+                    }
+                    readMetaState(data);
                     index = fileIndex;
                 } catch (IOException e) {
                     logger.warn("[findLatestState]: Failed to read state from [" + name + "], ignoring...", e);

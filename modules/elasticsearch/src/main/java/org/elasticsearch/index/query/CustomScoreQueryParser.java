@@ -99,7 +99,7 @@ public class CustomScoreQueryParser implements QueryParser {
 
         private final SearchScript script;
 
-        private ScriptScoreFunction(SearchScript script) {
+        public ScriptScoreFunction(SearchScript script) {
             this.script = script;
         }
 

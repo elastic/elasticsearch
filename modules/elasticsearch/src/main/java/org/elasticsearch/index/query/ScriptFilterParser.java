@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
@@ -54,6 +55,7 @@ public class ScriptFilterParser implements FilterParser {
         XContentParser.Token token;
 
         boolean cache = false; // no need to cache it by default, changes a lot?
+        CacheKeyFilter.Key cacheKey = null;
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         String script = null;
         String scriptLang = null;
@@ -77,6 +79,8 @@ public class ScriptFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -90,7 +94,7 @@ public class ScriptFilterParser implements FilterParser {
 
         Filter filter = new ScriptFilter(scriptLang, script, params, parseContext.scriptService());
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

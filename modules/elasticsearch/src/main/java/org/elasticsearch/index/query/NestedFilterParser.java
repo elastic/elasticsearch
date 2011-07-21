@@ -27,6 +27,7 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
@@ -55,6 +56,7 @@ public class NestedFilterParser implements FilterParser {
         String scope = null;
         String path = null;
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
 
         // we need a late binding filter so we can inject a parent nested filter inner nested queries
@@ -85,6 +87,8 @@ public class NestedFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -113,7 +117,7 @@ public class NestedFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
         }
 
-        Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter());
+        Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
         usAsParentFilter.filter = childFilter;
         // wrap the child query to only work on the nested path type
         query = new FilteredQuery(query, childFilter);
@@ -125,7 +129,7 @@ public class NestedFilterParser implements FilterParser {
                 // filter based on the type...
                 parentFilter = mapper.docMapper().typeFilter();
             }
-            parentFilter = parseContext.cacheFilter(parentFilter);
+            parentFilter = parseContext.cacheFilter(parentFilter, null);
         }
 
         // restore the thread local one...
@@ -139,7 +143,7 @@ public class NestedFilterParser implements FilterParser {
 
         Filter joinFilter = new QueryWrapperFilter(joinQuery);
         if (cache) {
-            joinFilter = parseContext.cacheFilter(joinFilter);
+            joinFilter = parseContext.cacheFilter(joinFilter, cacheKey);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, joinFilter);

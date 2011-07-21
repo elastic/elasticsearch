@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 
@@ -50,6 +51,7 @@ public class ConstantScoreQueryParser implements QueryParser {
         Query query = null;
         float boost = 1.0f;
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -67,6 +69,8 @@ public class ConstantScoreQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -77,7 +81,7 @@ public class ConstantScoreQueryParser implements QueryParser {
         if (filter != null) {
             // cache the filter if possible needed
             if (cache) {
-                filter = parseContext.cacheFilter(filter);
+                filter = parseContext.cacheFilter(filter, cacheKey);
             }
 
             Query query1 = new DeletionAwareConstantScoreQuery(filter);

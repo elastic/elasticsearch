@@ -79,7 +79,7 @@ public class ExistsFilterParser implements FilterParser {
         }
 
         // we always cache this one, really does not change...
-        filter = parseContext.cacheFilter(filter);
+        filter = parseContext.cacheFilter(filter, null);
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {

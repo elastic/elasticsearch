@@ -33,6 +33,7 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
     private String scope;
 
     private Boolean cache;
+    private String cacheKey;
     private String filterName;
 
     public NestedFilterBuilder(String path, QueryBuilder queryBuilder) {
@@ -58,6 +59,11 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
      */
     public NestedFilterBuilder cache(boolean cache) {
         this.cache = cache;
+        return this;
+    }
+
+    public NestedFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
         return this;
     }
 
@@ -87,6 +93,9 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
         builder.endObject();
     }

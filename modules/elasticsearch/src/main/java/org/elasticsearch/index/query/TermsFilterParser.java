@@ -24,6 +24,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PublicTermsFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -53,6 +54,7 @@ public class TermsFilterParser implements FilterParser {
         PublicTermsFilter termsFilter = new PublicTermsFilter();
         String filterName = null;
         String currentFieldName = null;
+        CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -83,13 +85,15 @@ public class TermsFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
 
         Filter filter = termsFilter;
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

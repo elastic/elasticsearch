@@ -25,6 +25,7 @@ import org.apache.lucene.search.OpenFilterClause;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,6 +52,7 @@ public class BoolFilterParser implements FilterParser {
         List<OpenFilterClause> clauses = newArrayList();
 
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -85,6 +87,8 @@ public class BoolFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -95,7 +99,7 @@ public class BoolFilterParser implements FilterParser {
         }
         Filter filter = boolFilter;
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
@@ -64,6 +65,7 @@ public class GeoPolygonFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         List<GeoPolygonFilter.Point> points = Lists.newArrayList();
 
@@ -137,6 +139,8 @@ public class GeoPolygonFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 }
             }
         }
@@ -157,7 +161,7 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         Filter filter = new GeoPolygonFilter(points.toArray(new GeoPolygonFilter.Point[points.size()]), fieldName, parseContext.indexCache().fieldData());
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
         filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
         if (filterName != null) {

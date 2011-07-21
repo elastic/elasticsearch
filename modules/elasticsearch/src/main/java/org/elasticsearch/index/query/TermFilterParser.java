@@ -24,6 +24,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ public class TermFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         boolean cache = true; // since usually term filter is on repeating terms, cache it by default
+        CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         String value = null;
 
@@ -62,6 +64,8 @@ public class TermFilterParser implements FilterParser {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else {
                     fieldName = currentFieldName;
                     value = parser.text();
@@ -89,7 +93,7 @@ public class TermFilterParser implements FilterParser {
         }
 
         if (cache) {
-            filter = parseContext.cacheFilter(filter);
+            filter = parseContext.cacheFilter(filter, cacheKey);
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

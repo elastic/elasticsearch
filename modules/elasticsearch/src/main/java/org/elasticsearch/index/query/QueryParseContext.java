@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -116,7 +117,10 @@ public class QueryParseContext {
         return multiFieldQueryParser;
     }
 
-    public Filter cacheFilter(Filter filter) {
+    public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
+        if (cacheKey != null) {
+            filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
+        }
         return indexQueryParser.indexCache.filter().cache(filter);
     }
 

@@ -37,6 +37,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
     private final List<GeoPolygonFilter.Point> points = Lists.newArrayList();
 
     private Boolean cache;
+    private String cacheKey;
 
     private String filterName;
 
@@ -77,6 +78,11 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public GeoPolygonFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoPolygonFilterParser.NAME);
 
@@ -93,6 +99,9 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

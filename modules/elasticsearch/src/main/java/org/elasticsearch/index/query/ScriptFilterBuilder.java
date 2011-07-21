@@ -38,6 +38,7 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
     private String lang;
 
     private Boolean cache;
+    private String cacheKey;
 
     private String filterName;
 
@@ -86,6 +87,11 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public ScriptFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ScriptFilterParser.NAME);
         builder.field("script", script);
@@ -100,6 +106,9 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         }
         if (cache != null) {
             builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
         builder.endObject();
     }

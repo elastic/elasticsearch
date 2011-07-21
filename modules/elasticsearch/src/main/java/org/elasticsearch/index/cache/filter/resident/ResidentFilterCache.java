@@ -68,7 +68,7 @@ public class ResidentFilterCache extends AbstractConcurrentMapFilterCache implem
         super.close();
     }
 
-    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+    @Override protected ConcurrentMap<Object, DocSet> buildFilterMap() {
         MapMaker mapMaker = new MapMaker();
         if (maxSize != -1) {
             mapMaker.maximumSize(maxSize);

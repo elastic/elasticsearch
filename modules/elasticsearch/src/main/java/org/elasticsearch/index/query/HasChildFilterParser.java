@@ -89,7 +89,7 @@ public class HasChildFilterParser implements FilterParser {
         String parentType = childDocMapper.parentFieldMapper().type();
 
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter()));
+        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
 

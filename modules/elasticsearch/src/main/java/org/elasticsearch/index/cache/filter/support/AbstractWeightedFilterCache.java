@@ -164,7 +164,11 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            FilterCacheKey cacheKey = new FilterCacheKey(reader.getCoreCacheKey(), filter);
+            Object filterKey = filter;
+            if (filter instanceof CacheKeyFilter) {
+                filterKey = ((CacheKeyFilter) filter).cacheKey();
+            }
+            FilterCacheKey cacheKey = new FilterCacheKey(reader.getCoreCacheKey(), filterKey);
             ConcurrentMap<FilterCacheKey, FilterCacheValue<DocSet>> innerCache = cache.cache();
 
             FilterCacheValue<DocSet> cacheValue = innerCache.get(cacheKey);
@@ -223,30 +227,30 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
 
     public static class FilterCacheKey {
         private final Object readerKey;
-        private final Filter filter;
+        private final Object filterKey;
 
-        public FilterCacheKey(Object readerKey, Filter filter) {
+        public FilterCacheKey(Object readerKey, Object filterKey) {
             this.readerKey = readerKey;
-            this.filter = filter;
+            this.filterKey = filterKey;
         }
 
         public Object readerKey() {
             return readerKey;
         }
 
-        public Filter filter() {
-            return filter;
+        public Object filterKey() {
+            return filterKey;
         }
 
         @Override public boolean equals(Object o) {
             if (this == o) return true;
 //            if (o == null || getClass() != o.getClass()) return false;
             FilterCacheKey that = (FilterCacheKey) o;
-            return (readerKey == that.readerKey && filter.equals(that.filter));
+            return (readerKey == that.readerKey && filterKey.equals(that.filterKey));
         }
 
         @Override public int hashCode() {
-            return readerKey.hashCode() + 31 * filter().hashCode();
+            return readerKey.hashCode() + 31 * filterKey.hashCode();
         }
     }
 }

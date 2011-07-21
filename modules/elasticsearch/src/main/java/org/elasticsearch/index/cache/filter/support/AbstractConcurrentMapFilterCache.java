@@ -47,7 +47,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache, IndexReader.ReaderFinishedListener {
 
-    final ConcurrentMap<Object, FilterCacheValue<ConcurrentMap<Filter, DocSet>>> cache;
+    final ConcurrentMap<Object, FilterCacheValue<ConcurrentMap<Object, DocSet>>> cache;
 
     final boolean labEnabled;
     final ByteSizeValue labMaxAlloc;
@@ -75,11 +75,11 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         this.labChunkSizeBytes = (int) (labChunkSize.bytes() / RamUsage.NUM_BYTES_LONG);
     }
 
-    protected ConcurrentMap<Object, FilterCacheValue<ConcurrentMap<Filter, DocSet>>> buildCache() {
-        return new ConcurrentHashMap<Object, FilterCacheValue<ConcurrentMap<Filter, DocSet>>>();
+    protected ConcurrentMap<Object, FilterCacheValue<ConcurrentMap<Object, DocSet>>> buildCache() {
+        return new ConcurrentHashMap<Object, FilterCacheValue<ConcurrentMap<Object, DocSet>>>();
     }
 
-    protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+    protected ConcurrentMap<Object, DocSet> buildFilterMap() {
         return newConcurrentMap();
     }
 
@@ -92,7 +92,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void finished(IndexReader reader) {
-        FilterCacheValue<ConcurrentMap<Filter, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
+        FilterCacheValue<ConcurrentMap<Object, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (readerValue != null) {
             readerValue.value().clear();
@@ -100,7 +100,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void clear(IndexReader reader) {
-        FilterCacheValue<ConcurrentMap<Filter, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
+        FilterCacheValue<ConcurrentMap<Object, DocSet>> readerValue = cache.remove(reader.getCoreCacheKey());
         // help soft/weak handling GC
         if (readerValue != null) {
             readerValue.value().clear();
@@ -111,7 +111,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         long sizeInBytes = 0;
         long totalCount = 0;
         int segmentsCount = 0;
-        for (FilterCacheValue<ConcurrentMap<Filter, DocSet>> readerValue : cache.values()) {
+        for (FilterCacheValue<ConcurrentMap<Object, DocSet>> readerValue : cache.values()) {
             segmentsCount++;
             for (DocSet docSet : readerValue.value().values()) {
                 sizeInBytes += docSet.sizeInBytes();
@@ -151,27 +151,32 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            FilterCacheValue<ConcurrentMap<Filter, DocSet>> cacheValue = cache.cache.get(reader.getCoreCacheKey());
+            FilterCacheValue<ConcurrentMap<Object, DocSet>> cacheValue = cache.cache.get(reader.getCoreCacheKey());
             if (cacheValue == null) {
                 LongsLAB longsLAB = null;
                 if (cache.labEnabled) {
                     longsLAB = new LongsLAB(cache.labChunkSizeBytes, cache.labMaxAllocBytes);
                 }
-                cacheValue = new FilterCacheValue<ConcurrentMap<Filter, DocSet>>(cache.buildFilterMap(), longsLAB);
-                FilterCacheValue<ConcurrentMap<Filter, DocSet>> prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), cacheValue);
+                cacheValue = new FilterCacheValue<ConcurrentMap<Object, DocSet>>(cache.buildFilterMap(), longsLAB);
+                FilterCacheValue<ConcurrentMap<Object, DocSet>> prev = cache.cache.putIfAbsent(reader.getCoreCacheKey(), cacheValue);
                 if (prev != null) {
                     cacheValue = prev;
                 } else {
                     reader.addReaderFinishedListener(cache);
                 }
             }
-            DocSet docSet = cacheValue.value().get(filter);
+            Object key = filter;
+            if (filter instanceof CacheKeyFilter) {
+                key = ((CacheKeyFilter) filter).cacheKey();
+            }
+
+            DocSet docSet = cacheValue.value().get(key);
             if (docSet != null) {
                 return docSet;
             }
             DocIdSet docIdSet = filter.getDocIdSet(reader);
             docSet = FilterCacheValue.cacheable(reader, cacheValue.longsLAB(), docIdSet);
-            DocSet prev = cacheValue.value().putIfAbsent(filter, docSet);
+            DocSet prev = cacheValue.value().putIfAbsent(key, docSet);
             if (prev != null) {
                 docSet = prev;
             }

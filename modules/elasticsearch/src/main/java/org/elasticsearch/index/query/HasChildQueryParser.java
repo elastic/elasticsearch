@@ -90,7 +90,7 @@ public class HasChildQueryParser implements QueryParser {
 
         query.setBoost(boost);
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter()));
+        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
         HasChildFilter childFilter = new HasChildFilter(query, scope, childType, parentType, searchContext);

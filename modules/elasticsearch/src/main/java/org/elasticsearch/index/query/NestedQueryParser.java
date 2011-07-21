@@ -122,7 +122,7 @@ public class NestedQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
         }
 
-        Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter());
+        Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
         usAsParentFilter.filter = childFilter;
         // wrap the child query to only work on the nested path type
         query = new FilteredQuery(query, childFilter);
@@ -134,7 +134,7 @@ public class NestedQueryParser implements QueryParser {
                 // filter based on the type...
                 parentFilter = mapper.docMapper().typeFilter();
             }
-            parentFilter = parseContext.cacheFilter(parentFilter);
+            parentFilter = parseContext.cacheFilter(parentFilter, null);
         }
 
         // restore the thread local one...

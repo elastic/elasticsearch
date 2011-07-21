@@ -35,6 +35,7 @@ public class AndFilterBuilder extends BaseFilterBuilder {
     private ArrayList<FilterBuilder> filters = Lists.newArrayList();
 
     private Boolean cache;
+    private String cacheKey;
 
     private String filterName;
 
@@ -60,6 +61,11 @@ public class AndFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public AndFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
+        return this;
+    }
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -77,6 +83,9 @@ public class AndFilterBuilder extends BaseFilterBuilder {
         builder.endArray();
         if (cache != null) {
             builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
         if (filterName != null) {
             builder.field("_name", filterName);

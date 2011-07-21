@@ -51,10 +51,10 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
         }
 
         // we always cache this one, really does not change... (exists)
-        filter = parseContext.cacheFilter(filter);
+        filter = parseContext.cacheFilter(filter, null);
         filter = new NotFilter(filter);
         // cache the not filter as well, so it will be faster
-        filter = parseContext.cacheFilter(filter);
+        filter = parseContext.cacheFilter(filter, null);
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
 

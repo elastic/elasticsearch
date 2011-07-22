@@ -51,7 +51,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
     /**
      * Recovers the state of the shard from the gateway.
      */
-    void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException;
+    void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException;
 
     /**
      * Snapshots the given shard into the gateway.

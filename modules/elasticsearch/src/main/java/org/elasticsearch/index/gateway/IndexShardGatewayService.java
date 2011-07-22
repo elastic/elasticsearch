@@ -151,7 +151,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     /**
      * Recovers the state of the shard from the gateway.
      */
-    public void recover(final RecoveryListener listener) throws IndexShardGatewayRecoveryException, IgnoreGatewayRecoveryException {
+    public void recover(final boolean indexShouldExists, final RecoveryListener listener) throws IndexShardGatewayRecoveryException, IgnoreGatewayRecoveryException {
         if (indexShard.state() == IndexShardState.CLOSED) {
             // got closed on us, just ignore this recovery
             listener.onIgnoreRecovery("shard closed");
@@ -176,7 +176,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                 try {
                     logger.debug("starting recovery from {} ...", shardGateway);
-                    shardGateway.recover(recoveryStatus);
+                    shardGateway.recover(indexShouldExists, recoveryStatus);
 
                     lastIndexVersion = recoveryStatus.index().version();
                     lastTranslogId = -1;

@@ -26,6 +26,10 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class IndexShardGatewayRecoveryException extends IndexShardGatewayException {
 
+    public IndexShardGatewayRecoveryException(ShardId shardId, String msg) {
+        super(shardId, msg);
+    }
+
     public IndexShardGatewayRecoveryException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
     }

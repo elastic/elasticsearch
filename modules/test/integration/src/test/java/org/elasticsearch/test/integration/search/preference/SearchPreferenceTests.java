@@ -82,10 +82,16 @@ public class SearchPreferenceTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }

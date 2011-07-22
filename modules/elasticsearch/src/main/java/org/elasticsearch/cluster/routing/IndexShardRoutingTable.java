@@ -162,7 +162,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator preferLocalShardsIt(String nodeId) {
         ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(this.shards.size());
         // fill it in a randomized fashion
-        int index = counter.getAndIncrement();
+        int index = Math.abs(counter.getAndIncrement());
         for (int i = 0; i < this.shards.size(); i++) {
             int loc = (index + i) % this.shards.size();
             ordered.add(this.shards.get(loc));

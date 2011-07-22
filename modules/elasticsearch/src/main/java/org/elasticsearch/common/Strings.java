@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Iterables;
+import org.elasticsearch.common.trove.set.hash.THashSet;
 
 import java.util.*;
 
@@ -966,6 +967,78 @@ public class Strings {
         Set<String> set = new TreeSet<String>();
         set.addAll(Arrays.asList(array));
         return toStringArray(set);
+    }
+
+    public static Set<String> splitStringByCommaToSet(final String s) {
+        return splitStringToSet(s, ',');
+    }
+
+    public static String[] splitStringByCommaToArray(final String s) {
+        return splitStringToArray(s, ',');
+    }
+
+    public static Set<String> splitStringToSet(final String s, final char c) {
+        final char[] chars = s.toCharArray();
+        int count = 1;
+        for (final char x : chars) {
+            if (x == c) {
+                count++;
+            }
+        }
+        final THashSet<String> result = new THashSet<String>(count);
+        final int len = chars.length;
+        int start = 0;  // starting index in chars of the current substring.
+        int pos = 0;    // current index in chars.
+        int i = 0;      // number of the current substring.
+        for (; pos < len; pos++) {
+            if (chars[pos] == c) {
+                int size = pos - start;
+                if (size > 0) { // only add non empty strings
+                    result.add(new String(chars, start, size));
+                }
+                start = pos + 1;
+            }
+        }
+        int size = pos - start;
+        if (size > 0) {
+            result.add(new String(chars, start, size));
+        }
+        return result;
+    }
+
+    public static String[] splitStringToArray(final String s, final char c) {
+        final char[] chars = s.toCharArray();
+        int count = 1;
+        for (final char x : chars) {
+            if (x == c) {
+                count++;
+            }
+        }
+        final String[] result = new String[count];
+        final int len = chars.length;
+        int start = 0;  // starting index in chars of the current substring.
+        int pos = 0;    // current index in chars.
+        int i = 0;      // number of the current substring.
+        for (; pos < len; pos++) {
+            if (chars[pos] == c) {
+                int size = pos - start;
+                if (size > 0) {
+                    result[i++] = new String(chars, start, size);
+                }
+                start = pos + 1;
+            }
+        }
+        int size = pos - start;
+        if (size > 0) {
+            result[i++] = new String(chars, start, size);
+        }
+        if (i != count) {
+            // we have empty strings, copy over to a new array
+            String[] result1 = new String[i];
+            System.arraycopy(result, 0, result1, 0, i);
+            return result1;
+        }
+        return result;
     }
 
     /**

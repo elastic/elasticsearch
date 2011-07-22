@@ -21,11 +21,10 @@ package org.elasticsearch.rest.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestRequest;
-
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -34,8 +33,6 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  * @author kimchy (shay.banon)
  */
 public abstract class AbstractRestRequest implements RestRequest {
-
-    private static final Pattern commaPattern = Pattern.compile(",");
 
     @Override public final String path() {
         return RestUtils.decodeComponent(rawPath());
@@ -102,6 +99,6 @@ public abstract class AbstractRestRequest implements RestRequest {
         if (value == null) {
             return defaultValue;
         }
-        return commaPattern.split(value);
+        return Strings.splitStringByCommaToArray(value);
     }
 }

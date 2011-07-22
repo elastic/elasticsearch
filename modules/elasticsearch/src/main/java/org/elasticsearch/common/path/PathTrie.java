@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.collect.MapBuilder.*;
 
@@ -43,21 +43,21 @@ public class PathTrie<T> {
 
     private final Decoder decoder;
     private final TrieNode<T> root;
-    private final Pattern pattern;
+    private final char separator;
     private T rootValue;
 
     public PathTrie() {
-        this("/", "*", NO_DECODER);
+        this('/', "*", NO_DECODER);
     }
 
     public PathTrie(Decoder decoder) {
-        this("/", "*", decoder);
+        this('/', "*", decoder);
     }
 
-    public PathTrie(String separator, String wildcard, Decoder decoder) {
+    public PathTrie(char separator, String wildcard, Decoder decoder) {
         this.decoder = decoder;
-        pattern = Pattern.compile(separator);
-        root = new TrieNode<T>(separator, null, null, wildcard);
+        this.separator = separator;
+        root = new TrieNode<T>(new String(new char[]{separator}), null, null, wildcard);
     }
 
     public class TrieNode<T> {
@@ -193,7 +193,7 @@ public class PathTrie<T> {
     }
 
     public void insert(String path, T value) {
-        String[] strings = pattern.split(path);
+        String[] strings = Strings.splitStringToArray(path, separator);
         if (strings.length == 0) {
             rootValue = value;
             return;
@@ -214,7 +214,7 @@ public class PathTrie<T> {
         if (path.length() == 0) {
             return rootValue;
         }
-        String[] strings = pattern.split(path);
+        String[] strings = Strings.splitStringToArray(path, separator);
         if (strings.length == 0) {
             return rootValue;
         }

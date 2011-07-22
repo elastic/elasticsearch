@@ -46,7 +46,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
@@ -63,8 +62,6 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
 
     private final long version;
-
-    public final static Pattern routingPattern = Pattern.compile(",");
 
     private final ImmutableMap<String, IndexMetaData> indices;
     private final ImmutableMap<String, IndexTemplateMetaData> templates;
@@ -137,7 +134,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                     tmpAliasToIndexToSearchRoutingMap.put(aliasMd.alias(), indexToSearchRoutingMap);
                 }
                 if (aliasMd.searchRouting() != null) {
-                    indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.copyOf(routingPattern.split(aliasMd.searchRouting())));
+                    indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.copyOf(Strings.splitStringByCommaToSet(aliasMd.searchRouting())));
                 } else {
                     indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.<String>of());
                 }
@@ -272,7 +269,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     private Map<String, Set<String>> resolveSearchRoutingAllIndices(String routing) {
         if (routing != null) {
-            THashSet<String> r = new THashSet<String>(Arrays.asList(routingPattern.split(routing)));
+            Set<String> r = Strings.splitStringByCommaToSet(routing);
             Map<String, Set<String>> routings = newHashMap();
             String[] concreteIndices = concreteAllIndices();
             for (String index : concreteIndices) {
@@ -285,9 +282,9 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String aliasOrIndex) {
         Map<String, Set<String>> routings = null;
-        List<String> paramRouting = null;
+        Set<String> paramRouting = null;
         if (routing != null) {
-            paramRouting = Arrays.asList(routingPattern.split(routing));
+            paramRouting = Strings.splitStringByCommaToSet(routing);
         }
 
         ImmutableMap<String, ImmutableSet<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
@@ -320,11 +317,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         } else {
             // It's an index
             if (paramRouting != null) {
-                Set<String> r = new THashSet<String>(paramRouting);
-                if (routings == null) {
-                    routings = newHashMap();
-                }
-                routings.put(aliasOrIndex, r);
+                routings = ImmutableMap.of(aliasOrIndex, paramRouting);
             }
         }
         return routings;
@@ -336,20 +329,20 @@ public class MetaData implements Iterable<IndexMetaData> {
             return resolveSearchRoutingAllIndices(routing);
         }
 
-        Map<String, Set<String>> routings = null;
-        List<String> paramRouting = null;
-        // List of indices that don't require any routing
-        Set<String> norouting = newHashSet();
-        if (routing != null) {
-            paramRouting = Arrays.asList(routingPattern.split(routing));
-        }
-
         if (aliasesOrIndices.length == 1) {
             if (aliasesOrIndices[0].equals("_all")) {
                 return resolveSearchRoutingAllIndices(routing);
             } else {
                 return resolveSearchRouting(routing, aliasesOrIndices[0]);
             }
+        }
+
+        Map<String, Set<String>> routings = null;
+        Set<String> paramRouting = null;
+        // List of indices that don't require any routing
+        Set<String> norouting = newHashSet();
+        if (routing != null) {
+            paramRouting = Strings.splitStringByCommaToSet(routing);
         }
 
         for (String aliasOrIndex : aliasesOrIndices) {

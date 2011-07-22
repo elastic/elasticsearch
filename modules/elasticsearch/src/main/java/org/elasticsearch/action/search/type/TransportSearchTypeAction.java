@@ -86,6 +86,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected final SearchRequest request;
 
+        protected final ClusterState clusterState;
         protected final DiscoveryNodes nodes;
 
         protected final int expectedSuccessfulOps;
@@ -106,8 +107,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             this.request = request;
             this.listener = listener;
 
-            ClusterState clusterState = clusterService.state();
-
+            this.clusterState = clusterService.state();
             nodes = clusterState.nodes();
 
             String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), false, true);
@@ -197,7 +197,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 if (node == null) {
                     onFirstPhaseResult(shard, shardIt, null);
                 } else {
-                    String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
+                    String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
                     sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases), new SearchServiceListener<FirstResult>() {
                         @Override public void onResult(FirstResult result) {
                             onFirstPhaseResult(shard, result, shardIt);

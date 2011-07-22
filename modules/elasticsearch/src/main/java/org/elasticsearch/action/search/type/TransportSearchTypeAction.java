@@ -82,7 +82,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected final ActionListener<SearchResponse> listener;
 
-        protected final GroupShardsIterator shardsIts;
+        private final GroupShardsIterator shardsIts;
 
         protected final SearchRequest request;
 
@@ -90,11 +90,11 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected final int expectedSuccessfulOps;
 
-        protected final int expectedTotalOps;
+        private final int expectedTotalOps;
 
         protected final AtomicInteger successulOps = new AtomicInteger();
 
-        protected final AtomicInteger totalOps = new AtomicInteger();
+        private final AtomicInteger totalOps = new AtomicInteger();
 
         protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
 

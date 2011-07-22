@@ -43,7 +43,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
@@ -54,15 +53,6 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
  * @author kimchy (shay.banon)
  */
 public class RestSearchAction extends BaseRestHandler {
-
-    private final static Pattern fieldsPattern;
-
-    private final static Pattern indicesBoostPattern;
-
-    static {
-        fieldsPattern = Pattern.compile(",");
-        indicesBoostPattern = Pattern.compile(",");
-    }
 
     @Inject public RestSearchAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -192,7 +182,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (!Strings.hasText(sField)) {
                 searchSourceBuilder.noFields();
             } else {
-                String[] sFields = fieldsPattern.split(sField);
+                String[] sFields = Strings.splitStringByCommaToArray(sField);
                 if (sFields != null) {
                     for (String field : sFields) {
                         searchSourceBuilder.field(field);
@@ -203,7 +193,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sSorts = request.param("sort");
         if (sSorts != null) {
-            String[] sorts = fieldsPattern.split(sSorts);
+            String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
                 int delimiter = sort.lastIndexOf(":");
                 if (delimiter != -1) {
@@ -222,7 +212,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sIndicesBoost = request.param("indices_boost");
         if (sIndicesBoost != null) {
-            String[] indicesBoost = indicesBoostPattern.split(sIndicesBoost);
+            String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
             for (String indexBoost : indicesBoost) {
                 int divisor = indexBoost.indexOf(',');
                 if (divisor == -1) {

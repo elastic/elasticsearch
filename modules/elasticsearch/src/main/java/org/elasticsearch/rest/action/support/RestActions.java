@@ -29,17 +29,11 @@ import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public class RestActions {
-
-    public final static Pattern indicesPattern = Pattern.compile(",");
-    public final static Pattern typesPattern = Pattern.compile(",");
-    public final static Pattern nodesIdsPattern = Pattern.compile(",");
-    public final static Pattern genericPattern = Pattern.compile(",");
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
@@ -100,20 +94,20 @@ public class RestActions {
         if (indices == null) {
             return Strings.EMPTY_ARRAY;
         }
-        return indicesPattern.split(indices);
+        return Strings.splitStringByCommaToArray(indices);
     }
 
     public static String[] splitTypes(String typeNames) {
         if (typeNames == null) {
             return Strings.EMPTY_ARRAY;
         }
-        return typesPattern.split(typeNames);
+        return Strings.splitStringByCommaToArray(typeNames);
     }
 
     public static String[] splitNodes(String nodes) {
         if (nodes == null) {
             return Strings.EMPTY_ARRAY;
         }
-        return nodesIdsPattern.split(nodes);
+        return Strings.splitStringByCommaToArray(nodes);
     }
 }

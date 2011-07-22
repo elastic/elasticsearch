@@ -28,7 +28,9 @@ import java.util.NoSuchElementException;
  */
 public class PlainShardsIterator implements ShardsIterator {
 
-    protected final List<ShardRouting> shards;
+    private final List<ShardRouting> shards;
+
+    private final int size;
 
     private final int origIndex;
 
@@ -42,6 +44,7 @@ public class PlainShardsIterator implements ShardsIterator {
 
     public PlainShardsIterator(List<ShardRouting> shards, int index) {
         this.shards = shards;
+        this.size = shards.size();
         this.index = Math.abs(index);
         this.origIndex = this.index;
     }
@@ -57,7 +60,7 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override public boolean hasNext() {
-        return counter < size();
+        return counter < size;
     }
 
     @Override public ShardRouting next() throws NoSuchElementException {
@@ -73,7 +76,7 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override public int size() {
-        return shards.size();
+        return size;
     }
 
     @Override public int sizeActive() {
@@ -89,7 +92,7 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override public boolean hasNextActive() {
         int counter = this.counter;
         int index = this.index;
-        while (counter++ < size()) {
+        while (counter++ < size) {
             ShardRouting shardRouting = shardModulo(index++);
             if (shardRouting.active()) {
                 return true;
@@ -109,7 +112,7 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override public ShardRouting nextActiveOrNull() {
         int counter = this.counter;
         int index = this.index;
-        while (counter++ < size()) {
+        while (counter++ < size) {
             ShardRouting shardRouting = shardModulo(index++);
             if (shardRouting.active()) {
                 this.counter = counter;
@@ -135,7 +138,7 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override public boolean hasNextAssigned() {
         int counter = this.counter;
         int index = this.index;
-        while (counter++ < size()) {
+        while (counter++ < size) {
             ShardRouting shardRouting = shardModulo(index++);
             if (shardRouting.assignedToNode()) {
                 return true;
@@ -155,7 +158,7 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override public ShardRouting nextAssignedOrNull() {
         int counter = this.counter;
         int index = this.index;
-        while (counter++ < size()) {
+        while (counter++ < size) {
             ShardRouting shardRouting = shardModulo(index++);
             if (shardRouting.assignedToNode()) {
                 this.counter = counter;
@@ -168,7 +171,7 @@ public class PlainShardsIterator implements ShardsIterator {
         return null;
     }
 
-    ShardRouting shardModulo(int counter) {
-        return shards.get((counter % size()));
+    final ShardRouting shardModulo(int counter) {
+        return shards.get((counter % size));
     }
 }

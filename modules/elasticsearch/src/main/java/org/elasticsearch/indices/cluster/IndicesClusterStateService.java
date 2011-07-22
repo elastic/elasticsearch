@@ -492,12 +492,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
 
             if (shardRouting.initializing()) {
-                applyInitializingShard(routingTable, nodes, shardRouting);
+                applyInitializingShard(routingTable, nodes, routingTable.index(shardRouting.index()).shard(shardRouting.id()), shardRouting);
             }
         }
     }
 
-    private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final ShardRouting shardRouting) throws ElasticSearchException {
+    private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final IndexShardRoutingTable indexShardRouting, final ShardRouting shardRouting) throws ElasticSearchException {
         final IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
         final int shardId = shardRouting.id();
 
@@ -582,8 +582,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         } else {
             if (shardRouting.relocatingNodeId() == null) {
                 // we are the first primary, recover from the gateway
+                // if its post api allocation, the index should exists
+                boolean indexShouldExists = indexShardRouting.allocatedPostApi();
                 IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
-                shardGatewayService.recover(new IndexShardGatewayService.RecoveryListener() {
+                shardGatewayService.recover(indexShouldExists, new IndexShardGatewayService.RecoveryListener() {
                     @Override public void onRecoveryDone() {
                         shardStateAction.shardStarted(shardRouting, "after recovery from gateway");
                     }

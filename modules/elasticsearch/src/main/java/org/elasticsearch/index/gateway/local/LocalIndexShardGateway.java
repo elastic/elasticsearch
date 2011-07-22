@@ -82,7 +82,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         return recoveryStatus;
     }
 
-    @Override public void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
+    @Override public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus.index().startTime(System.currentTimeMillis());
         long version = -1;
         long translogId = -1;
@@ -95,6 +95,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 } else {
                     translogId = version;
                 }
+            } else if (indexShouldExists) {
+                throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't");
             }
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);

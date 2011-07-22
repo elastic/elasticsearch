@@ -24,7 +24,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.blobstore.*;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
@@ -36,7 +40,14 @@ import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.gateway.*;
+import org.elasticsearch.index.gateway.CommitPoint;
+import org.elasticsearch.index.gateway.CommitPoints;
+import org.elasticsearch.index.gateway.IndexGateway;
+import org.elasticsearch.index.gateway.IndexShardGateway;
+import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
+import org.elasticsearch.index.gateway.IndexShardGatewaySnapshotFailedException;
+import org.elasticsearch.index.gateway.RecoveryStatus;
+import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -358,7 +369,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
-    @Override public void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
+    @Override public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         this.recoveryStatus = recoveryStatus;
 
         final ImmutableMap<String, BlobMetaData> blobs;

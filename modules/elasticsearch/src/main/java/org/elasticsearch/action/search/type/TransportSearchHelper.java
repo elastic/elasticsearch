@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Maps;
@@ -39,19 +40,12 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public abstract class TransportSearchHelper {
 
-
-    private final static Pattern scrollIdPattern;
-
-    static {
-        scrollIdPattern = Pattern.compile(";");
-    }
 
     /**
      * Builds the shard failures, and releases the cache (meaning this should only be called once!).
@@ -119,7 +113,7 @@ public abstract class TransportSearchHelper {
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to decode scrollId", e);
         }
-        String[] elements = scrollIdPattern.split(scrollId);
+        String[] elements = Strings.splitStringToArray(scrollId, ';');
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);

@@ -106,7 +106,7 @@ public class PlainShardsIterator implements ShardsIterator {
         return shardRouting;
     }
 
-    @Override public ShardRouting nextActiveOrNull() throws NoSuchElementException {
+    @Override public ShardRouting nextActiveOrNull() {
         int counter = this.counter;
         int index = this.index;
         while (counter++ < size()) {

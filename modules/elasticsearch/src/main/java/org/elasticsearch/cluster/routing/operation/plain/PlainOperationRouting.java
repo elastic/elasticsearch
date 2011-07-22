@@ -42,14 +42,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
-
-    public final static Pattern routingPattern = Pattern.compile(",");
 
     private final HashFunction hashFunction;
 

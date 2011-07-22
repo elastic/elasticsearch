@@ -165,15 +165,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         int index = Math.abs(counter.getAndIncrement());
         for (int i = 0; i < this.shards.size(); i++) {
             int loc = (index + i) % this.shards.size();
-            ordered.add(this.shards.get(loc));
-        }
-        // find the local one, and push it upfront
-        for (int i = 0; i < ordered.size(); i++) {
-            ShardRouting current = ordered.get(i);
-            if (nodeId.equals(current.currentNodeId())) {
+            ShardRouting shardRouting = this.shards.get(loc);
+            ordered.add(shardRouting);
+            if (nodeId.equals(shardRouting.currentNodeId())) {
+                // switch, its the matching node id
                 ordered.set(i, ordered.get(0));
-                ordered.set(0, current);
-                break;
+                ordered.set(0, shardRouting);
             }
         }
         return new PlainShardIterator(shardId, ordered);

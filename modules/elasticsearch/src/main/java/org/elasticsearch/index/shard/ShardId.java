@@ -40,6 +40,8 @@ public class ShardId implements Serializable, Streamable {
 
     private int shardId;
 
+    private int hashCode;
+
     private ShardId() {
 
     }
@@ -51,6 +53,7 @@ public class ShardId implements Serializable, Streamable {
     public ShardId(Index index, int shardId) {
         this.index = index;
         this.shardId = shardId;
+        this.hashCode = computeHashCode();
     }
 
     public Index index() {
@@ -75,17 +78,16 @@ public class ShardId implements Serializable, Streamable {
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (o == null) return false;
         ShardId shardId1 = (ShardId) o;
-
-        if (shardId != shardId1.shardId) return false;
-        if (index != null ? !index.equals(shardId1.index) : shardId1.index != null) return false;
-
-        return true;
+        return shardId == shardId1.shardId && index.name().equals(shardId1.index.name());
     }
 
     @Override public int hashCode() {
+        return hashCode;
+    }
+
+    private int computeHashCode() {
         int result = index != null ? index.hashCode() : 0;
         result = 31 * result + shardId;
         return result;

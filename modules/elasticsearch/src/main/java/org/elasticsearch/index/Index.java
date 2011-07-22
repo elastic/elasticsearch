@@ -57,17 +57,13 @@ public class Index implements Serializable, Streamable {
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (o == null) return false;
         Index index1 = (Index) o;
-
-        if (name != null ? !name.equals(index1.name) : index1.name != null) return false;
-
-        return true;
+        return name.equals(index1.name);
     }
 
     @Override public int hashCode() {
-        return name != null ? name.hashCode() : 0;
+        return name.hashCode();
     }
 
     public static Index readIndexName(StreamInput in) throws IOException {

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -117,7 +118,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
 
         public void start() {
-            performFirst();
+            perform(null);
         }
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
@@ -127,71 +128,9 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             perform(e);
         }
 
-        /**
-         * First get should try and use a shard that exists on a local node for better performance
-         */
-        private void performFirst() {
-            while (shardIt.hasNextActive()) {
-                final ShardRouting shard = shardIt.nextActive();
-                if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                    if (request.operationThreaded()) {
-                        threadPool.executor(executor).execute(new Runnable() {
-                            @Override public void run() {
-                                try {
-                                    Response response = shardOperation(request, shard.id());
-                                    listener.onResponse(response);
-                                } catch (Exception e) {
-                                    onFailure(shard, e);
-                                }
-                            }
-                        });
-                        return;
-                    } else {
-                        try {
-                            final Response response = shardOperation(request, shard.id());
-                            listener.onResponse(response);
-                            return;
-                        } catch (Exception e) {
-                            onFailure(shard, e);
-                        }
-                    }
-                }
-            }
-            if (!shardIt.hasNextActive()) {
-                // no local node get, go remote
-                shardIt.reset();
-                perform(null);
-            }
-        }
-
-        private void perform(final Exception lastException) {
-            while (shardIt.hasNextActive()) {
-                final ShardRouting shard = shardIt.nextActive();
-                // no need to check for local nodes, we tried them already in performFirstGet
-                if (!shard.currentNodeId().equals(nodes.localNodeId())) {
-                    DiscoveryNode node = nodes.get(shard.currentNodeId());
-                    transportService.sendRequest(node, transportShardAction, new ShardSingleOperationRequest(request, shard.id()), new BaseTransportResponseHandler<Response>() {
-
-                        @Override public Response newInstance() {
-                            return newResponse();
-                        }
-
-                        @Override public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
-
-                        @Override public void handleResponse(final Response response) {
-                            listener.onResponse(response);
-                        }
-
-                        @Override public void handleException(TransportException exp) {
-                            onFailure(shard, exp);
-                        }
-                    });
-                    return;
-                }
-            }
-            if (!shardIt.hasNextActive()) {
+        private void perform(@Nullable final Exception lastException) {
+            final ShardRouting shardRouting = shardIt.nextActiveOrNull();
+            if (shardRouting == null) {
                 Exception failure = lastException;
                 if (failure == null) {
                     failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
@@ -201,6 +140,49 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     }
                 }
                 listener.onFailure(failure);
+                return;
+            }
+
+            if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
+                if (request.operationThreaded()) {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override public void run() {
+                            try {
+                                Response response = shardOperation(request, shardRouting.id());
+                                listener.onResponse(response);
+                            } catch (Exception e) {
+                                onFailure(shardRouting, e);
+                            }
+                        }
+                    });
+                } else {
+                    try {
+                        final Response response = shardOperation(request, shardRouting.id());
+                        listener.onResponse(response);
+                    } catch (Exception e) {
+                        onFailure(shardRouting, e);
+                    }
+                }
+            } else {
+                DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
+                transportService.sendRequest(node, transportShardAction, new ShardSingleOperationRequest(request, shardRouting.id()), new BaseTransportResponseHandler<Response>() {
+
+                    @Override public Response newInstance() {
+                        return newResponse();
+                    }
+
+                    @Override public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override public void handleResponse(final Response response) {
+                        listener.onResponse(response);
+                    }
+
+                    @Override public void handleException(TransportException exp) {
+                        onFailure(shardRouting, exp);
+                    }
+                });
             }
         }
     }

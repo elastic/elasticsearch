@@ -32,7 +32,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -99,6 +103,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
      */
     protected ShardRouting nextShardOrNull(ShardIterator shardIt) {
         return shardIt.nextActiveOrNull();
+    }
+
+    protected ShardRouting firstShardOrNull(ShardIterator shardIt) {
+        return shardIt.firstActiveOrNull();
     }
 
     /**
@@ -169,13 +177,13 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardIterator shardIt : shardsIts) {
-                final ShardRouting shard = nextShardOrNull(shardIt);
+                final ShardRouting shard = firstShardOrNull(shardIt);
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         localOperations++;
                     } else {
                         // do the remote operation here, the localAsync flag is not relevant
-                        performOperation(shardIt.reset(), true);
+                        performOperation(shardIt, true);
                     }
                 } else {
                     // really, no shards active in this group
@@ -189,10 +197,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardIterator shardIt : shardsIts) {
-                                final ShardRouting shard = nextShardOrNull(shardIt.reset());
+                                final ShardRouting shard = firstShardOrNull(shardIt);
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                                        performOperation(shardIt.reset(), false);
+                                        performOperation(shardIt, false);
                                     }
                                 }
                             }
@@ -204,10 +212,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         request.beforeLocalFork();
                     }
                     for (final ShardIterator shardIt : shardsIts) {
-                        final ShardRouting shard = nextShardOrNull(shardIt.reset());
+                        final ShardRouting shard = firstShardOrNull(shardIt);
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                                performOperation(shardIt.reset(), localAsync);
+                                performOperation(shardIt, localAsync);
                             }
                         }
                     }

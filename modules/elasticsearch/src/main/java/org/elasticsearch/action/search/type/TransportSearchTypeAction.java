@@ -20,7 +20,12 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchOperationThreading;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -125,13 +130,13 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardIterator shardIt : shardsIts) {
-                final ShardRouting shard = shardIt.nextActiveOrNull();
+                final ShardRouting shard = shardIt.firstActiveOrNull();
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         localOperations++;
                     } else {
                         // do the remote operation here, the localAsync flag is not relevant
-                        performFirstPhase(shardIt.reset());
+                        performFirstPhase(shardIt);
                     }
                 } else {
                     // really, no shards active in this group
@@ -145,10 +150,10 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardIterator shardIt : shardsIts) {
-                                final ShardRouting shard = shardIt.reset().nextActiveOrNull();
+                                final ShardRouting shard = shardIt.firstActiveOrNull();
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                                        performFirstPhase(shardIt.reset());
+                                        performFirstPhase(shardIt);
                                     }
                                 }
                             }
@@ -160,17 +165,17 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                         request.beforeLocalFork();
                     }
                     for (final ShardIterator shardIt : shardsIts) {
-                        final ShardRouting shard = shardIt.reset().nextActiveOrNull();
+                        final ShardRouting shard = shardIt.firstActiveOrNull();
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 if (localAsync) {
                                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                         @Override public void run() {
-                                            performFirstPhase(shardIt.reset());
+                                            performFirstPhase(shardIt);
                                         }
                                     });
                                 } else {
-                                    performFirstPhase(shardIt.reset());
+                                    performFirstPhase(shardIt);
                                 }
                             }
                         }

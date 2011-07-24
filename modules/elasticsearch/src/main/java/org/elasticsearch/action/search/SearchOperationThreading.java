@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 
 /**
  * Controls the operation threading model for search operation that are performed
@@ -65,7 +66,7 @@ public enum SearchOperationThreading {
         throw new ElasticSearchIllegalArgumentException("No type matching id [" + id + "]");
     }
 
-    public static SearchOperationThreading fromString(String value, SearchOperationThreading defaultValue) {
+    public static SearchOperationThreading fromString(String value, @Nullable SearchOperationThreading defaultValue) {
         if (value == null) {
             return defaultValue;
         }

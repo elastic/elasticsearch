@@ -69,12 +69,14 @@ public class RestSearchAction extends BaseRestHandler {
         try {
             searchRequest = parseSearchRequest(request);
             searchRequest.listenerThreaded(false);
-            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), SearchOperationThreading.SINGLE_THREAD);
-            if (operationThreading == SearchOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = SearchOperationThreading.SINGLE_THREAD;
+            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
+            if (operationThreading != null) {
+                if (operationThreading == SearchOperationThreading.NO_THREADS) {
+                    // since we don't spawn, don't allow no_threads, but change it to a single thread
+                    operationThreading = SearchOperationThreading.SINGLE_THREAD;
+                }
+                searchRequest.operationThreading(operationThreading);
             }
-            searchRequest.operationThreading(operationThreading);
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("failed to parse search request parameters", e);

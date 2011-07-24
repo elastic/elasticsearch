@@ -125,6 +125,18 @@ public class PlainShardsIterator implements ShardsIterator {
         return null;
     }
 
+    @Override public ShardRouting firstActiveOrNull() {
+        int counter = 0;
+        int index = this.origIndex;
+        while (counter++ < size) {
+            ShardRouting shardRouting = shardModulo(index++);
+            if (shardRouting.active()) {
+                return shardRouting;
+            }
+        }
+        return null;
+    }
+
     @Override public int sizeAssigned() {
         int shardsAssigned = 0;
         for (ShardRouting shardRouting : shards) {
@@ -168,6 +180,18 @@ public class PlainShardsIterator implements ShardsIterator {
         }
         this.counter = counter;
         this.index = index;
+        return null;
+    }
+
+    @Override public ShardRouting firstAssignedOrNull() {
+        int counter = 0;
+        int index = this.origIndex;
+        while (counter++ < size) {
+            ShardRouting shardRouting = shardModulo(index++);
+            if (shardRouting.assignedToNode()) {
+                return shardRouting;
+            }
+        }
         return null;
     }
 

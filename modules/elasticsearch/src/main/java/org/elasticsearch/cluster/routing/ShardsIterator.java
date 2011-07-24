@@ -68,6 +68,14 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRo
     ShardRouting nextActiveOrNull();
 
     /**
+     * Returns the first active shard, or <tt>null</tt>, without
+     * incrementing the iterator.
+     *
+     * @see ShardRouting#active()
+     */
+    ShardRouting firstActiveOrNull();
+
+    /**
      * The number of assigned shard routing instances.
      *
      * @see ShardRouting#assignedToNode()
@@ -94,6 +102,14 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRo
      * @see ShardRouting#assignedToNode()
      */
     ShardRouting nextAssignedOrNull();
+
+    /**
+     * Returns the first assigned shard, or <tt>null</tt>, wuthout
+     * incrementing the iterator.
+     *
+     * @see ShardRouting#assignedToNode()
+     */
+    ShardRouting firstAssignedOrNull();
 
     int hashCode();
 

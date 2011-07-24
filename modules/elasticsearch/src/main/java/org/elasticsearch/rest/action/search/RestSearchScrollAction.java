@@ -68,12 +68,14 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
             }
             searchScrollRequest.listenerThreaded(false);
-            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), SearchOperationThreading.SINGLE_THREAD);
-            if (operationThreading == SearchOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = SearchOperationThreading.SINGLE_THREAD;
+            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
+            if (operationThreading != null) {
+                if (operationThreading == SearchOperationThreading.NO_THREADS) {
+                    // since we don't spawn, don't allow no_threads, but change it to a single thread
+                    operationThreading = SearchOperationThreading.SINGLE_THREAD;
+                }
+                searchScrollRequest.operationThreading(operationThreading);
             }
-            searchScrollRequest.operationThreading(operationThreading);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

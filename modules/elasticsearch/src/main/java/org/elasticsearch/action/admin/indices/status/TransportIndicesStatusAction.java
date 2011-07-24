@@ -106,6 +106,13 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     /**
      * We want to go over all assigned nodes (to get recovery status) and not just active ones.
      */
+    @Override protected ShardRouting firstShardOrNull(ShardIterator shardIt) {
+        return shardIt.firstAssignedOrNull();
+    }
+
+    /**
+     * We want to go over all assigned nodes (to get recovery status) and not just active ones.
+     */
     @Override protected boolean hasNextShard(ShardIterator shardIt) {
         return shardIt.hasNextAssigned();
     }

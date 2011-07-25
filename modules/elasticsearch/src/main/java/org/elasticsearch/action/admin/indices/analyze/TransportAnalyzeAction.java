@@ -80,7 +80,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     @Override protected ShardsIterator shards(ClusterState clusterState, AnalyzeRequest request) {
         request.index(clusterState.metaData().concreteIndex(request.index()));
-        return clusterState.routingTable().index(request.index()).randomAllShardsIt();
+        return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 
     @Override protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticSearchException {

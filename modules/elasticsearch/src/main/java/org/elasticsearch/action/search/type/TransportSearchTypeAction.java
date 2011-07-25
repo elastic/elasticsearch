@@ -121,7 +121,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             shardsIts = clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, request.queryHint(), routingMap, request.preference());
             expectedSuccessfulOps = shardsIts.size();
             // we need to add 1 for non active partition, since we count it in the total!
-            expectedTotalOps = shardsIts.totalSizeActiveWith1ForEmpty();
+            expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
             if (expectedSuccessfulOps == 0) {
                 // not search shards to search on...
@@ -133,7 +133,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardIterator shardIt : shardsIts) {
-                final ShardRouting shard = shardIt.firstActiveOrNull();
+                final ShardRouting shard = shardIt.firstOrNull();
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         localOperations++;
@@ -153,7 +153,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardIterator shardIt : shardsIts) {
-                                final ShardRouting shard = shardIt.firstActiveOrNull();
+                                final ShardRouting shard = shardIt.firstOrNull();
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                         performFirstPhase(shardIt);
@@ -168,7 +168,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                         request.beforeLocalFork();
                     }
                     for (final ShardIterator shardIt : shardsIts) {
-                        final ShardRouting shard = shardIt.firstActiveOrNull();
+                        final ShardRouting shard = shardIt.firstOrNull();
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 if (localAsync) {
@@ -188,7 +188,10 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         }
 
         private void performFirstPhase(final ShardIterator shardIt) {
-            final ShardRouting shard = shardIt.nextActiveOrNull();
+            performFirstPhase(shardIt, shardIt.nextOrNull());
+        }
+
+        private void performFirstPhase(final ShardIterator shardIt, final ShardRouting shard) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, but just for safety)
                 onFirstPhaseResult(null, shardIt, null);
@@ -216,12 +219,9 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             processFirstPhaseResult(shard, result);
             // increment all the "future" shards to update the total ops since we some may work and some may not...
             // and when that happens, we break on total ops, so we must maintain them
-            while (shardIt.hasNextActive()) {
-                totalOps.incrementAndGet();
-                shardIt.nextActive();
-            }
-            if (successulOps.incrementAndGet() == expectedSuccessfulOps ||
-                    totalOps.incrementAndGet() == expectedTotalOps) {
+            int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
+            successulOps.incrementAndGet();
+            if (xTotalOps == expectedTotalOps) {
                 try {
                     moveToSecondPhase();
                 } catch (Exception e) {
@@ -263,7 +263,8 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     }
                 }
             } else {
-                if (shardIt.hasNextActive()) {
+                ShardRouting nextShard = shardIt.nextOrNull();
+                if (nextShard != null) {
                     // trace log this exception
                     if (logger.isTraceEnabled()) {
                         if (t != null) {
@@ -274,7 +275,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                             }
                         }
                     }
-                    performFirstPhase(shardIt);
+                    performFirstPhase(shardIt, nextShard);
                 } else {
                     // no more shards active, add a failure
                     // e is null when there is no next active....

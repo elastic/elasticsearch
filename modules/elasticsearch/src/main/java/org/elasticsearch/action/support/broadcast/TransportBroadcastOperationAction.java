@@ -95,31 +95,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract GroupShardsIterator shards(Request request, String[] concreteIndices, ClusterState clusterState);
 
-    /**
-     * Allows to override how shard routing is iterated over. Default implementation uses
-     * {@link org.elasticsearch.cluster.routing.ShardIterator#nextActiveOrNull()}.
-     *
-     * <p>Note, if overriding this method, make sure to also override {@link #hasNextShard(org.elasticsearch.cluster.routing.ShardIterator)},
-     * and {@link #firstShardOrNull(org.elasticsearch.cluster.routing.ShardIterator)}.
-     */
-    protected ShardRouting nextShardOrNull(ShardIterator shardIt) {
-        return shardIt.nextActiveOrNull();
-    }
-
-    protected ShardRouting firstShardOrNull(ShardIterator shardIt) {
-        return shardIt.firstActiveOrNull();
-    }
-
-    /**
-     * Allows to override how shard routing is iterated over. Default implementation uses
-     * {@link org.elasticsearch.cluster.routing.ShardIterator#hasNextActive()}.
-     *
-     * <p>Note, if overriding this method, make sure to also override {@link #nextShardOrNull(org.elasticsearch.cluster.routing.ShardIterator)}.
-     */
-    protected boolean hasNextShard(ShardIterator shardIt) {
-        return shardIt.hasNextActive();
-    }
-
     protected boolean accumulateExceptions() {
         return true;
     }
@@ -180,7 +155,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardIterator shardIt : shardsIts) {
-                final ShardRouting shard = firstShardOrNull(shardIt);
+                final ShardRouting shard = shardIt.firstOrNull();
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         localOperations++;
@@ -200,7 +175,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardIterator shardIt : shardsIts) {
-                                final ShardRouting shard = firstShardOrNull(shardIt);
+                                final ShardRouting shard = shardIt.firstOrNull();
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                         performOperation(shardIt, false);
@@ -215,7 +190,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         request.beforeLocalFork();
                     }
                     for (final ShardIterator shardIt : shardsIts) {
-                        final ShardRouting shard = firstShardOrNull(shardIt);
+                        final ShardRouting shard = shardIt.firstOrNull();
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 performOperation(shardIt, localAsync);
@@ -227,7 +202,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         private void performOperation(final ShardIterator shardIt, boolean localAsync) {
-            final ShardRouting shard = nextShardOrNull(shardIt);
+            performOperation(shardIt, shardIt.nextOrNull(), localAsync);
+        }
+
+        private void performOperation(final ShardIterator shardIt, final ShardRouting shard, boolean localAsync) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
                 onOperation(null, shardIt, null);
@@ -289,7 +267,24 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
         @SuppressWarnings({"unchecked"})
         private void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
-            if (!hasNextShard(shardIt)) {
+            ShardRouting nextShard = shardIt.nextOrNull();
+            if (nextShard != null) {
+                // trace log this exception
+                if (logger.isTraceEnabled()) {
+                    if (t != null) {
+                        if (shard != null) {
+                            logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
+                        } else {
+                            logger.trace(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                        }
+                    }
+                }
+                // we are not threaded here if we got here from the transport
+                // or we possibly threaded if we got from a local threaded one,
+                // in which case, the next shard in the partition will not be local one
+                // so there is no meaning to this flag
+                performOperation(shardIt, nextShard, true);
+            } else {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {
                     if (t != null) {
@@ -315,24 +310,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 if (expectedOps == counterOps.incrementAndGet()) {
                     finishHim();
                 }
-                return;
-            } else {
-                // trace log this exception
-                if (logger.isTraceEnabled()) {
-                    if (t != null) {
-                        if (shard != null) {
-                            logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                        } else {
-                            logger.trace(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
-                        }
-                    }
-                }
             }
-            // we are not threaded here if we got here from the transport
-            // or we possibly threaded if we got from a local threaded one,
-            // in which case, the next shard in the partition will not be local one
-            // so there is no meaning to this flag
-            performOperation(shardIt, true);
         }
 
         private void finishHim() {

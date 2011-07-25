@@ -119,6 +119,6 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
      * The refresh request works against *all* shards.
      */
     @Override protected GroupShardsIterator shards(FlushRequest request, String[] concreteIndices, ClusterState clusterState) {
-        return clusterState.routingTable().allShardsGrouped(concreteIndices);
+        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
     }
 }

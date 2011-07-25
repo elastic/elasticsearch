@@ -35,7 +35,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
@@ -124,9 +128,12 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
          */
         private void performFirst() {
             if (request.preferLocalShard()) {
-                while (shardsIt.hasNextActive()) {
-                    final ShardRouting shard = shardsIt.nextActive();
+                boolean foundLocal = false;
+                ShardRouting shardX;
+                while ((shardX = shardsIt.nextOrNull()) != null) {
+                    final ShardRouting shard = shardX;
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
+                        foundLocal = true;
                         if (request.operationThreaded()) {
                             request.beforeLocalFork();
                             threadPool.executor(executor()).execute(new Runnable() {
@@ -151,20 +158,29 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                         }
                     }
                 }
+                if (!foundLocal) {
+                    // no local node get, go remote
+                    shardsIt.reset();
+                    perform(null);
+                }
             } else {
-                perform(null);
-            }
-            if (!shardsIt.hasNextActive()) {
-                // no local node get, go remote
-                shardsIt.reset();
                 perform(null);
             }
         }
 
         private void perform(final Exception lastException) {
-            while (shardsIt.hasNextActive()) {
-                final ShardRouting shard = shardsIt.nextActive();
-                // no need to check for local nodes, we tried them already in performFirstGet
+            final ShardRouting shard = shardsIt.nextOrNull();
+            if (shard == null) {
+                Exception failure = lastException;
+                if (failure == null) {
+                    failure = new NoShardAvailableActionException(null, "No shard available for [" + request + "]");
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("failed to execute [" + request + "]", failure);
+                    }
+                }
+                listener.onFailure(failure);
+            } else {
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     // we don't prefer local shard, so try and do it here
                     if (!request.preferLocalShard()) {
@@ -180,12 +196,10 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                                     }
                                 }
                             });
-                            return;
                         } else {
                             try {
                                 final Response response = shardOperation(request, shard.id());
                                 listener.onResponse(response);
-                                return;
                             } catch (Exception e) {
                                 onFailure(shard, e);
                             }
@@ -210,19 +224,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                             onFailure(shard, exp);
                         }
                     });
-                    return;
                 }
-            }
-            if (!shardsIt.hasNextActive()) {
-                Exception failure = lastException;
-                if (failure == null) {
-                    failure = new NoShardAvailableActionException(null, "No shard available for [" + request + "]");
-                } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("failed to execute [" + request + "]", failure);
-                    }
-                }
-                listener.onFailure(failure);
             }
         }
     }

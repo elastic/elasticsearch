@@ -53,7 +53,7 @@ public class TransportSinglePingAction extends TransportShardSingleOperationActi
 
     @Override protected ShardIterator shards(ClusterState clusterState, SinglePingRequest request) throws ElasticSearchException {
         return clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type, request.id, null);
+                .getShards(clusterService.state(), request.index(), request.type, request.id, null, null);
     }
 
     @Override protected SinglePingResponse shardOperation(SinglePingRequest request, int shardId) throws ElasticSearchException {

@@ -67,11 +67,11 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     }
 
     @Override public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
-        return preferenceShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), preference);
     }
 
     @Override public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
-        return preferenceShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), preference);
     }
 
     @Override public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
@@ -149,7 +149,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                             throw new IndexShardMissingException(new ShardId(index, shardId));
                         }
                         // we might get duplicates, but that's ok, they will override one another
-                        set.add(preferenceShardIterator(indexShard, clusterState.nodes().localNodeId(), preference));
+                        set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), preference));
                     }
                 }
             }
@@ -160,19 +160,19 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             for (String index : concreteIndices) {
                 IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
                 for (IndexShardRoutingTable indexShard : indexRouting) {
-                    set.add(preferenceShardIterator(indexShard, clusterState.nodes().localNodeId(), preference));
+                    set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), preference));
                 }
             }
             return new GroupShardsIterator(set);
         }
     }
 
-    private ShardIterator preferenceShardIterator(IndexShardRoutingTable indexShard, String nodeId, @Nullable String preference) {
+    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String nodeId, @Nullable String preference) {
         if (preference == null) {
-            return indexShard.shardsRandomIt();
+            return indexShard.activeShardsRandomIt();
         }
         if ("_local".equals(preference)) {
-            return indexShard.preferLocalShardsIt(nodeId);
+            return indexShard.preferNodeShardsIt(nodeId);
         }
         if ("_primary".equals(preference)) {
             return indexShard.primaryShardIt();

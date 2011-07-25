@@ -92,7 +92,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
 
-    private class AsyncSingleAction {
+    class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
 
@@ -129,7 +129,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
 
         private void perform(@Nullable final Exception lastException) {
-            final ShardRouting shardRouting = shardIt.nextActiveOrNull();
+            final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
                 Exception failure = lastException;
                 if (failure == null) {

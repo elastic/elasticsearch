@@ -41,23 +41,15 @@ public class GroupShardsIterator implements Iterable<ShardIterator> {
         return size;
     }
 
-    public int totalSizeActiveWith1ForEmpty() {
+    public int totalSizeWith1ForEmpty() {
         int size = 0;
         for (ShardIterator shard : iterators) {
-            int sizeActive = shard.sizeActive();
+            int sizeActive = shard.size();
             if (sizeActive == 0) {
                 size += 1;
             } else {
                 size += sizeActive;
             }
-        }
-        return size;
-    }
-
-    public int totalSizeActive() {
-        int size = 0;
-        for (ShardIterator shard : iterators) {
-            size += shard.sizeActive();
         }
         return size;
     }

@@ -127,7 +127,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, new String[]{"test"}, null, null, null)) {
-            for (ShardRouting shardRouting : shardIt) {
+            for (ShardRouting shardRouting : shardIt.asUnordered()) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.DFS_QUERY_THEN_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
@@ -194,7 +194,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, new String[]{"test"}, null, null, null)) {
-            for (ShardRouting shardRouting : shardIt) {
+            for (ShardRouting shardRouting : shardIt.asUnordered()) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.DFS_QUERY_THEN_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
@@ -284,7 +284,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         // do this with dfs, since we have uneven distribution of docs between shards
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, new String[]{"test"}, null, null, null)) {
-            for (ShardRouting shardRouting : shardIt) {
+            for (ShardRouting shardRouting : shardIt.asUnordered()) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.QUERY_AND_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 dfsResults.add(nodeToSearchService.get(shardRouting.currentNodeId()).executeDfsPhase(searchRequest));
@@ -339,7 +339,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
         for (ShardIterator shardIt : clusterService.operationRouting().searchShards(clusterService.state(), new String[]{"test"}, new String[]{"test"}, null, null, null)) {
-            for (ShardRouting shardRouting : shardIt) {
+            for (ShardRouting shardRouting : shardIt.asUnordered()) {
                 InternalSearchRequest searchRequest = searchRequest(shardRouting, sourceBuilder, SearchType.QUERY_THEN_FETCH)
                         .scroll(new Scroll(new TimeValue(10, TimeUnit.MINUTES)));
                 QuerySearchResult queryResult = nodeToSearchService.get(shardRouting.currentNodeId()).executeQueryPhase(searchRequest);

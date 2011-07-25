@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
@@ -172,8 +173,60 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return new GroupShardsIterator(set);
     }
 
+    public GroupShardsIterator allActiveShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
+        // use list here since we need to maintain identity across shards
+        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        if (indices == null || indices.length == 0) {
+            indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
+        }
+        for (String index : indices) {
+            IndexRoutingTable indexRoutingTable = index(index);
+            if (indexRoutingTable == null) {
+                continue;
+                // we simply ignore indices that don't exists (make sense for operations that use it currently)
+//                throw new IndexMissingException(new Index(index));
+            }
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.active()) {
+                        set.add(shardRouting.shardsIt());
+                    } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
+                        set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
+                    }
+                }
+            }
+        }
+        return new GroupShardsIterator(set);
+    }
+
+    public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
+        // use list here since we need to maintain identity across shards
+        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        if (indices == null || indices.length == 0) {
+            indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
+        }
+        for (String index : indices) {
+            IndexRoutingTable indexRoutingTable = index(index);
+            if (indexRoutingTable == null) {
+                continue;
+                // we simply ignore indices that don't exists (make sense for operations that use it currently)
+//                throw new IndexMissingException(new Index(index));
+            }
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.assignedToNode()) {
+                        set.add(shardRouting.shardsIt());
+                    } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
+                        set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
+                    }
+                }
+            }
+        }
+        return new GroupShardsIterator(set);
+    }
+
     /**
-     * All the primary shards for the provided indices grouped (each group is a single element, consisting
+     * All the *active* primary shards for the provided indices grouped (each group is a single element, consisting
      * of the primary shard). This is handy for components that expect to get group iterators, but still want in some
      * cases to iterate over all primary shards (and not just one shard in replication group).
      *
@@ -182,7 +235,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      * @throws IndexMissingException If an index passed does not exists
      * @see IndexRoutingTable#groupByAllIt()
      */
-    public GroupShardsIterator primaryShardsGrouped(String... indices) throws IndexMissingException {
+    public GroupShardsIterator activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
         if (indices == null || indices.length == 0) {
@@ -194,7 +247,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                 throw new IndexMissingException(new Index(index));
             }
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                set.add(indexShardRoutingTable.primaryShard().shardsIt());
+                ShardRouting primary = indexShardRoutingTable.primaryShard();
+                if (primary.active()) {
+                    set.add(primary.shardsIt());
+                } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
+                    set.add(new PlainShardIterator(primary.shardId(), ImmutableList.<ShardRouting>of()));
+                }
             }
         }
         return new GroupShardsIterator(set);

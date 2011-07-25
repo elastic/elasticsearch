@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAct
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,28 +92,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
      * Status goes across *all* shards.
      */
     @Override protected GroupShardsIterator shards(IndicesStatusRequest request, String[] concreteIndices, ClusterState clusterState) {
-        return clusterState.routingTable().allShardsGrouped(concreteIndices);
-    }
-
-    /**
-     * We want to go over all assigned nodes (to get recovery status) and not just active ones.
-     */
-    @Override protected ShardRouting nextShardOrNull(ShardIterator shardIt) {
-        return shardIt.nextAssignedOrNull();
-    }
-
-    /**
-     * We want to go over all assigned nodes (to get recovery status) and not just active ones.
-     */
-    @Override protected ShardRouting firstShardOrNull(ShardIterator shardIt) {
-        return shardIt.firstAssignedOrNull();
-    }
-
-    /**
-     * We want to go over all assigned nodes (to get recovery status) and not just active ones.
-     */
-    @Override protected boolean hasNextShard(ShardIterator shardIt) {
-        return shardIt.hasNextAssigned();
+        return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
     }
 
     @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {

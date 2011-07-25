@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 /**
  * @author kimchy (shay.banon)
@@ -32,11 +30,11 @@ public class PlainShardsIterator implements ShardsIterator {
 
     private final int size;
 
-    private final int origIndex;
+    private final int index;
 
-    private volatile int index;
+    private final int limit;
 
-    private volatile int counter = 0;
+    private volatile int counter;
 
     public PlainShardsIterator(List<ShardRouting> shards) {
         this(shards, 0);
@@ -45,34 +43,46 @@ public class PlainShardsIterator implements ShardsIterator {
     public PlainShardsIterator(List<ShardRouting> shards, int index) {
         this.shards = shards;
         this.size = shards.size();
-        this.index = Math.abs(index);
-        this.origIndex = this.index;
-    }
-
-    @Override public Iterator<ShardRouting> iterator() {
-        return this;
+        if (size == 0) {
+            this.index = 0;
+        } else {
+            this.index = Math.abs(index % size);
+        }
+        this.counter = this.index;
+        this.limit = this.index + size;
     }
 
     @Override public ShardsIterator reset() {
-        counter = 0;
-        index = origIndex;
+        this.counter = this.index;
         return this;
     }
 
-    @Override public boolean hasNext() {
-        return counter < size;
+    @Override public int remaining() {
+        return limit - counter;
     }
 
-    @Override public ShardRouting next() throws NoSuchElementException {
-        if (!hasNext()) {
-            throw new NoSuchElementException("No shard found");
+    @Override public ShardRouting firstOrNull() {
+        if (size == 0) {
+            return null;
         }
-        counter++;
-        return shardModulo(index++);
+        return shards.get((index + 1) % size);
     }
 
-    @Override public void remove() {
-        throw new UnsupportedOperationException();
+    @Override public ShardRouting nextOrNull() {
+        if (size == 0) {
+            return null;
+        }
+        int counter = (this.counter);
+        if (counter >= size) {
+            if (counter >= limit) {
+                return null;
+            }
+            this.counter = counter + 1;
+            return shards.get(counter - size);
+        } else {
+            this.counter = counter + 1;
+            return shards.get(counter);
+        }
     }
 
     @Override public int size() {
@@ -80,122 +90,42 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override public int sizeActive() {
-        int shardsActive = 0;
-        for (ShardRouting shardRouting : shards) {
-            if (shardRouting.active()) {
-                shardsActive++;
+        int count = 0;
+        for (int i = 0; i < size; i++) {
+            if (shards.get(i).active()) {
+                count++;
             }
         }
-        return shardsActive;
+        return count;
     }
 
-    @Override public boolean hasNextActive() {
-        int counter = this.counter;
-        int index = this.index;
-        while (counter++ < size) {
-            ShardRouting shardRouting = shardModulo(index++);
-            if (shardRouting.active()) {
-                return true;
+    @Override public int assignedReplicasIncludingRelocating() {
+        int count = 0;
+        for (int i = 0; i < size; i++) {
+            ShardRouting shard = shards.get(i);
+            if (shard.unassigned()) {
+                continue;
+            }
+            // if the shard is primary and relocating, add one to the counter since we perform it on the replica as well
+            // (and we already did it on the primary)
+            if (shard.primary()) {
+                if (shard.relocating()) {
+                    count++;
+                }
+            } else {
+                count++;
+                // if we are relocating the replica, we want to perform the index operation on both the relocating
+                // shard and the target shard. This means that we won't loose index operations between end of recovery
+                // and reassignment of the shard by the master node
+                if (shard.relocating()) {
+                    count++;
+                }
             }
         }
-        return false;
+        return count;
     }
 
-    @Override public ShardRouting nextActive() throws NoSuchElementException {
-        ShardRouting shardRouting = nextActiveOrNull();
-        if (shardRouting == null) {
-            throw new NoSuchElementException("No active shard found");
-        }
-        return shardRouting;
-    }
-
-    @Override public ShardRouting nextActiveOrNull() {
-        int counter = this.counter;
-        int index = this.index;
-        while (counter++ < size) {
-            ShardRouting shardRouting = shardModulo(index++);
-            if (shardRouting.active()) {
-                this.counter = counter;
-                this.index = index;
-                return shardRouting;
-            }
-        }
-        this.counter = counter;
-        this.index = index;
-        return null;
-    }
-
-    @Override public ShardRouting firstActiveOrNull() {
-        int counter = 0;
-        int index = this.origIndex;
-        while (counter++ < size) {
-            ShardRouting shardRouting = shardModulo(index++);
-            if (shardRouting.active()) {
-                return shardRouting;
-            }
-        }
-        return null;
-    }
-
-    @Override public int sizeAssigned() {
-        int shardsAssigned = 0;
-        for (ShardRouting shardRouting : shards) {
-            if (shardRouting.assignedToNode()) {
-                shardsAssigned++;
-            }
-        }
-        return shardsAssigned;
-    }
-
-    @Override public boolean hasNextAssigned() {
-        int counter = this.counter;
-        int index = this.index;
-        while (counter++ < size) {
-            ShardRouting shardRouting = shardModulo(index++);
-            if (shardRouting.assignedToNode()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override public ShardRouting nextAssigned() throws NoSuchElementException {
-        ShardRouting shardRouting = nextAssignedOrNull();
-        if (shardRouting == null) {
-            throw new NoSuchElementException("No assigned shard found");
-        }
-        return shardRouting;
-    }
-
-    @Override public ShardRouting nextAssignedOrNull() {
-        int counter = this.counter;
-        int index = this.index;
-        while (counter++ < size) {
-            ShardRouting shardRouting = shardModulo(index++);
-            if (shardRouting.assignedToNode()) {
-                this.counter = counter;
-                this.index = index;
-                return shardRouting;
-            }
-        }
-        this.counter = counter;
-        this.index = index;
-        return null;
-    }
-
-    @Override public ShardRouting firstAssignedOrNull() {
-        int counter = 0;
-        int index = this.origIndex;
-        while (counter++ < size) {
-            ShardRouting shardRouting = shardModulo(index++);
-            if (shardRouting.assignedToNode()) {
-                return shardRouting;
-            }
-        }
-        return null;
-    }
-
-    final ShardRouting shardModulo(int counter) {
-        return shards.get((counter % size));
+    @Override public Iterable<ShardRouting> asUnordered() {
+        return shards;
     }
 }

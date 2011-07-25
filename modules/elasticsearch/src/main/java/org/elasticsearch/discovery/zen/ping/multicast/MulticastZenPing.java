@@ -254,6 +254,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 if (remove) {
                     receivedResponses.remove(id);
                 }
+                if (lifecycle.stoppedOrClosed()) {
+                    return;
+                }
                 throw new ZenPingException("Failed to send ping request over multicast on " + multicastSocket, e);
             }
         }

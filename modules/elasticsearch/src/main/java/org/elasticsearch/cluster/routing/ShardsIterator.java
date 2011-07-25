@@ -19,15 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-
 /**
  * Allows to iterate over unrelated shards.
  *
  * @author kimchy (shay.banon)
  */
-public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRouting> {
+public interface ShardsIterator {
 
     /**
      * Resets the iterator.
@@ -39,80 +36,29 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRo
      */
     int size();
 
-    /**
-     * The number of active shard routing instances.
-     *
-     * @see ShardRouting#active()
-     */
     int sizeActive();
 
-    /**
-     * Is there an active shard we can iterate to.
-     *
-     * @see ShardRouting#active()
-     */
-    boolean hasNextActive();
+    int assignedReplicasIncludingRelocating();
 
     /**
-     * Returns the next active shard, or throws {@link NoSuchElementException}.
-     *
-     * @see ShardRouting#active()
+     * Returns the next shard, or <tt>null</tt> if none available.
      */
-    ShardRouting nextActive() throws NoSuchElementException;
+    ShardRouting nextOrNull();
 
     /**
-     * Returns the next active shard, or <tt>null</tt>.
-     *
-     * @see ShardRouting#active()
-     */
-    ShardRouting nextActiveOrNull();
-
-    /**
-     * Returns the first active shard, or <tt>null</tt>, without
-     * incrementing the iterator.
-     *
-     * @see ShardRouting#active()
-     */
-    ShardRouting firstActiveOrNull();
-
-    /**
-     * The number of assigned shard routing instances.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    int sizeAssigned();
-
-    /**
-     * Is there an assigned shard we can iterate to.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    boolean hasNextAssigned();
-
-    /**
-     * Returns the next assigned shard, or throws {@link NoSuchElementException}.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    ShardRouting nextAssigned() throws NoSuchElementException;
-
-    /**
-     * Returns the next assigned shard, or <tt>null</tt>.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    ShardRouting nextAssignedOrNull();
-
-    /**
-     * Returns the first assigned shard, or <tt>null</tt>, wuthout
+     * Returns the first shard, or <tt>null</tt>, without
      * incrementing the iterator.
      *
      * @see ShardRouting#assignedToNode()
      */
-    ShardRouting firstAssignedOrNull();
+    ShardRouting firstOrNull();
+
+    int remaining();
 
     int hashCode();
 
     boolean equals(Object other);
+
+    Iterable<ShardRouting> asUnordered();
 }
 

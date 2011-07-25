@@ -157,8 +157,13 @@ public class TransportClientNodesService extends AbstractComponent {
     public void close() {
         closed = true;
         nodesSamplerFuture.cancel(true);
-        for (DiscoveryNode listedNode : listedNodes)
+        for (DiscoveryNode node : nodes) {
+            transportService.disconnectFromNode(node);
+        }
+        for (DiscoveryNode listedNode : listedNodes) {
             transportService.disconnectFromNode(listedNode);
+        }
+        nodes = ImmutableList.of();
     }
 
     interface NodeSampler {

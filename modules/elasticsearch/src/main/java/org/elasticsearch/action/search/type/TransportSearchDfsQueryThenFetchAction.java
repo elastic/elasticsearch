@@ -140,7 +140,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void executeQuery(final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
+        void executeQuery(final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
             searchService.sendExecuteQuery(node, querySearchRequest, new SearchServiceListener<QuerySearchResult>() {
                 @Override public void onResult(QuerySearchResult result) {
                     result.shardTarget(dfsResult.shardTarget());
@@ -163,7 +163,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             });
         }
 
-        private void executeFetchPhase() {
+        void executeFetchPhase() {
             try {
                 innerExecuteFetchPhase();
             } catch (Exception e) {
@@ -171,7 +171,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void innerExecuteFetchPhase() {
+        void innerExecuteFetchPhase() {
             sortedShardList = searchPhaseController.sortDocs(queryResults.values());
             final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
             this.docIdsToLoad = docIdsToLoad;
@@ -227,7 +227,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void executeFetch(final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        void executeFetch(final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override public void onResult(FetchSearchResult result) {
                     result.shardTarget(shardTarget);
@@ -250,7 +250,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             });
         }
 
-        private void finishHim() {
+        void finishHim() {
             try {
                 innerFinishHim();
             } catch (Exception e) {
@@ -267,7 +267,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void innerFinishHim() throws Exception {
+        void innerFinishHim() throws Exception {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

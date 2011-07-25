@@ -384,7 +384,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
 
-        private void retry(boolean fromClusterEvent, final ShardId shardId) {
+        void retry(boolean fromClusterEvent, final ShardId shardId) {
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
                 request.beforeLocalFork();
@@ -423,7 +423,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        private void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, final ShardRouting shard, ClusterState clusterState) {
+        void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, final ShardRouting shard, ClusterState clusterState) {
             try {
                 PrimaryResponse<Response> response = shardOperationOnPrimary(clusterState, new ShardOperationRequest(primaryShardId, request));
                 performReplicas(response);
@@ -442,7 +442,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        private void performReplicas(final PrimaryResponse<Response> response) {
+        void performReplicas(final PrimaryResponse<Response> response) {
             if (ignoreReplicas() || shardIt.size() == 1 /* no replicas */) {
                 postPrimaryOperation(request, response);
                 listener.onResponse(response.response());
@@ -507,7 +507,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        private void performOnReplica(final PrimaryResponse<Response> response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
+        void performOnReplica(final PrimaryResponse<Response> response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
             if (!nodes.nodeExists(nodeId)) {
@@ -576,7 +576,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         /**
          * Should an exception be ignored when the operation is performed on the replica.
          */
-        private boolean ignoreReplicaException(Throwable e) {
+        boolean ignoreReplicaException(Throwable e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IllegalIndexShardStateException) {
                 return true;

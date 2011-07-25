@@ -20,7 +20,11 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchOperationThreading;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -174,6 +178,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
             if (docIdsToLoad.isEmpty()) {
                 finishHim();
+                return;
             }
 
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.size());

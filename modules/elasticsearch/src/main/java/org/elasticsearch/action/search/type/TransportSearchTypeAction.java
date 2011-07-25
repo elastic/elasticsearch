@@ -187,11 +187,11 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void performFirstPhase(final ShardIterator shardIt) {
+        void performFirstPhase(final ShardIterator shardIt) {
             performFirstPhase(shardIt, shardIt.nextOrNull());
         }
 
-        private void performFirstPhase(final ShardIterator shardIt, final ShardRouting shard) {
+        void performFirstPhase(final ShardIterator shardIt, final ShardRouting shard) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, but just for safety)
                 onFirstPhaseResult(null, shardIt, null);
@@ -214,7 +214,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardIterator shardIt) {
+        void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardIterator shardIt) {
             result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
             processFirstPhaseResult(shard, result);
             // increment all the "future" shards to update the total ops since we some may work and some may not...
@@ -233,7 +233,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
+        void onFirstPhaseResult(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {

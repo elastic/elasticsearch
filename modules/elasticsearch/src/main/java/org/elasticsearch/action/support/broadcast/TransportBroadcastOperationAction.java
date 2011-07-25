@@ -201,11 +201,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        private void performOperation(final ShardIterator shardIt, boolean localAsync) {
+        void performOperation(final ShardIterator shardIt, boolean localAsync) {
             performOperation(shardIt, shardIt.nextOrNull(), localAsync);
         }
 
-        private void performOperation(final ShardIterator shardIt, final ShardRouting shard, boolean localAsync) {
+        void performOperation(final ShardIterator shardIt, final ShardRouting shard, boolean localAsync) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
                 onOperation(null, shardIt, null);
@@ -257,16 +257,14 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        @SuppressWarnings({"unchecked"})
-        private void onOperation(ShardRouting shard, ShardResponse response) {
+        @SuppressWarnings({"unchecked"}) void onOperation(ShardRouting shard, ShardResponse response) {
             shardsResponses.set(indexCounter.getAndIncrement(), response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim();
             }
         }
 
-        @SuppressWarnings({"unchecked"})
-        private void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
+        @SuppressWarnings({"unchecked"}) void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             ShardRouting nextShard = shardIt.nextOrNull();
             if (nextShard != null) {
                 // trace log this exception
@@ -313,7 +311,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        private void finishHim() {
+        void finishHim() {
             listener.onResponse(newResponse(request, shardsResponses, clusterState));
         }
     }

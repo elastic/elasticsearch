@@ -258,8 +258,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         }
                         if (!pingResponse.clusterName().equals(clusterName)) {
                             // not part of the cluster
-                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", pingResponse.target(), pingResponse.clusterName().value());
-                            return;
+                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.target(), pingResponse.clusterName().value());
+                            continue;
                         }
                         ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
                         if (responses == null) {

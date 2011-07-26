@@ -666,6 +666,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public UidField.DocIdAndVersion docIdAndVersion() {
             return docIdAndVersion;
         }
+
+        public void release() {
+            if (searcher != null) {
+                searcher.release();
+            }
+        }
     }
 
 }

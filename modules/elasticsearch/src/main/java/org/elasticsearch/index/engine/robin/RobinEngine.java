@@ -340,7 +340,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "failed to load document", e);
             }
-
+            searcher.release();
             return GetResult.NOT_EXISTS;
         } finally {
             rwl.readLock().unlock();

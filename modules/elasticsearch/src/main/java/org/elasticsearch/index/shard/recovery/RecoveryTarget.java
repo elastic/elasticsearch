@@ -23,6 +23,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.VoidStreamable;
@@ -33,7 +34,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -41,11 +46,16 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -270,6 +280,7 @@ public class RecoveryTarget extends AbstractComponent {
                 }
             }
             peerRecoveryStatus.openIndexOutputs = null;
+            peerRecoveryStatus.checksums = null;
         }
     }
 
@@ -391,6 +402,44 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            if (onGoingRecovery == null) {
+                // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
+            }
+
+            // first, we go and move files that were created with the recovery id suffix to
+            // the actual names, its ok if we have a corrupted index here, since we have replicas
+            // to recover from in case of a full cluster shutdown just when this code executes...
+            String suffix = "." + onGoingRecovery.startTime;
+            Set<String> filesToRename = Sets.newHashSet();
+            for (String existingFile : shard.store().directory().listAll()) {
+                if (existingFile.endsWith(suffix)) {
+                    filesToRename.add(existingFile.substring(0, existingFile.length() - suffix.length()));
+                }
+            }
+            Exception failureToRename = null;
+            if (!filesToRename.isEmpty()) {
+                // first, go and delete the existing ones
+                for (String fileToRename : filesToRename) {
+                    shard.store().directory().deleteFile(fileToRename);
+                }
+                for (String fileToRename : filesToRename) {
+                    // now, rename the files...
+                    try {
+                        shard.store().renameFile(fileToRename + suffix, fileToRename);
+                    } catch (Exception e) {
+                        failureToRename = e;
+                        break;
+                    }
+                }
+            }
+            if (failureToRename != null) {
+                throw failureToRename;
+            }
+            // now write checksums
+            shard.store().writeChecksums(onGoingRecovery.checksums);
+
             for (String existingFile : shard.store().directory().listAll()) {
                 if (!request.snapshotFiles().contains(existingFile)) {
                     try {
@@ -425,6 +474,7 @@ public class RecoveryTarget extends AbstractComponent {
             IndexOutput indexOutput;
             if (request.position() == 0) {
                 // first request
+                onGoingRecovery.checksums.remove(request.name());
                 indexOutput = onGoingRecovery.openIndexOutputs.remove(request.name());
                 if (indexOutput != null) {
                     try {
@@ -435,7 +485,19 @@ public class RecoveryTarget extends AbstractComponent {
                 }
                 // we create an output with no checksum, this is because the pure binary data of the file is not
                 // the checksum (because of seek). We will create the checksum file once copying is done
-                indexOutput = shard.store().createOutputWithNoChecksum(request.name());
+
+                // also, we check if the file already exists, if it does, we create a file name based
+                // on the current recovery "id" and later we make the switch, the reason for that is that
+                // we only want to overwrite the index files once we copied all over, and not create a
+                // case where the index is half moved
+
+                String name = request.name();
+                if (shard.store().directory().fileExists(name)) {
+                    name = name + "." + onGoingRecovery.startTime;
+                }
+
+                indexOutput = shard.store().createOutputWithNoChecksum(name);
+
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {
                 indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());
@@ -453,7 +515,7 @@ public class RecoveryTarget extends AbstractComponent {
                         indexOutput.close();
                         // write the checksum
                         if (request.checksum() != null) {
-                            shard.store().writeChecksum(request.name(), request.checksum());
+                            onGoingRecovery.checksums.put(request.name(), request.checksum());
                         }
                         shard.store().directory().sync(Collections.singleton(request.name()));
                         onGoingRecovery.openIndexOutputs.remove(request.name());

@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.store.support;
 
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -121,6 +125,18 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         return Directories.estimateSize(directory());
     }
 
+    @Override public void renameFile(String from, String to) throws IOException {
+        doRenameFile(from, to);
+        synchronized (mutex) {
+            StoreFileMetaData fromMetaData = filesMetadata.get(from); // we should always find this one
+            StoreFileMetaData toMetaData = new StoreFileMetaData(fromMetaData.name(), fromMetaData.length(), fromMetaData.lastModified(), fromMetaData.checksum());
+            filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(from).put(to, toMetaData).immutableMap();
+            files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+        }
+    }
+
+    protected abstract void doRenameFile(String from, String to) throws IOException;
+
     public static Map<String, String> readChecksums(Directory dir) throws IOException {
         long lastFound = -1;
         for (String name : dir.listAll()) {
@@ -202,10 +218,22 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         }
     }
 
+    @Override public void writeChecksums(Map<String, String> checksums) throws IOException {
+        // update the metadata to include the checksum and write a new checksums file
+        synchronized (mutex) {
+            for (Map.Entry<String, String> entry : checksums.entrySet()) {
+                StoreFileMetaData metaData = filesMetadata.get(entry.getKey());
+                metaData = new StoreFileMetaData(metaData.name(), metaData.length(), metaData.lastModified(), entry.getValue());
+                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(entry.getKey(), metaData).immutableMap();
+            }
+            writeChecksums();
+        }
+    }
+
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
-    class StoreDirectory extends Directory implements ForceSyncDirectory {
+    protected class StoreDirectory extends Directory implements ForceSyncDirectory {
 
         private final Directory delegate;
 

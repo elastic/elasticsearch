@@ -76,6 +76,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
         this.initialShards = componentSettings.get("initial_shards", "quorum");
+
+        logger.debug("using initial_shards [{}], list_timeout [{}]", initialShards, listTimeout);
     }
 
     @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
@@ -142,19 +144,27 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
             // check if the counts meets the minimum set
             int requiredAllocation = 1;
-            IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
-            if ("quorum".equals(initialShards)) {
-                if (indexMetaData.numberOfReplicas() > 1) {
-                    requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+            try {
+                IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
+                if ("quorum".equals(initialShards)) {
+                    if (indexMetaData.numberOfReplicas() > 1) {
+                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+                    }
+                } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
+                    if (indexMetaData.numberOfReplicas() > 2) {
+                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
+                    }
+                } else if ("full".equals(initialShards)) {
+                    requiredAllocation = indexMetaData.numberOfReplicas() + 1;
+                } else if ("full-1".equals(initialShards)) {
+                    if (indexMetaData.numberOfReplicas() > 1) {
+                        requiredAllocation = indexMetaData.numberOfReplicas();
+                    }
+                } else {
+                    requiredAllocation = Integer.parseInt(initialShards);
                 }
-            } else if ("full".equals(initialShards)) {
-                requiredAllocation = indexMetaData.numberOfReplicas() + 1;
-            } else if ("full-1".equals(initialShards)) {
-                if (indexMetaData.numberOfReplicas() > 1) {
-                    requiredAllocation = indexMetaData.numberOfReplicas();
-                }
-            } else {
-                requiredAllocation = Integer.parseInt(initialShards);
+            } catch (Exception e) {
+                logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", shard.index(), shard.id(), initialShards, shard);
             }
 
             // not enough found for this shard, continue...

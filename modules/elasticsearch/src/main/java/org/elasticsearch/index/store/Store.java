@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -41,6 +42,8 @@ public interface Store extends IndexShardComponent {
 
     void writeChecksum(String name, String checksum) throws IOException;
 
+    void writeChecksums(Map<String, String> checksums) throws IOException;
+
     StoreFileMetaData metaData(String name) throws IOException;
 
     ImmutableMap<String, StoreFileMetaData> list() throws IOException;
@@ -49,6 +52,11 @@ public interface Store extends IndexShardComponent {
      * Just deletes the content of the store.
      */
     void deleteContent() throws IOException;
+
+    /**
+     * Renames, note, might not be atomic, and can fail "in the middle".
+     */
+    void renameFile(String from, String to) throws IOException;
 
     /**
      * Deletes the store completely. For example, in FS ones, also deletes the parent

@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -33,7 +38,9 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 
 /**
  * @author kimchy (shay.banon)
@@ -47,11 +54,40 @@ public abstract class FsStore extends AbstractStore {
     }
 
     @Override public void fullDelete() throws IOException {
-        FileSystemUtils.deleteRecursively(fsDirectory().getFile());
+        FileSystemUtils.deleteRecursively(fsDirectory().getDirectory());
         // if we are the last ones, delete also the actual index
-        String[] list = fsDirectory().getFile().getParentFile().list();
+        String[] list = fsDirectory().getDirectory().getParentFile().list();
         if (list == null || list.length == 0) {
-            FileSystemUtils.deleteRecursively(fsDirectory().getFile().getParentFile());
+            FileSystemUtils.deleteRecursively(fsDirectory().getDirectory().getParentFile());
+        }
+    }
+
+    @Override protected void doRenameFile(String from, String to) throws IOException {
+        File directory = fsDirectory().getDirectory();
+        File old = new File(directory, from);
+        File nu = new File(directory, to);
+        if (nu.exists())
+            if (!nu.delete())
+                throw new IOException("Cannot delete " + nu);
+
+        if (!old.exists()) {
+            throw new FileNotFoundException("Can't rename from [" + from + "] to [" + to + "], from does not exists");
+        }
+
+        boolean renamed = false;
+        for (int i = 0; i < 3; i++) {
+            if (old.renameTo(nu)) {
+                renamed = true;
+                break;
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new InterruptedIOException(e.getMessage());
+            }
+        }
+        if (!renamed) {
+            throw new IOException("Failed to rename, from [" + from + "], to [" + to + "]");
         }
     }
 
@@ -62,30 +98,7 @@ public abstract class FsStore extends AbstractStore {
         LockFactory lockFactory = new NoLockFactory();
         if (fsLock.equals("native")) {
             // TODO LUCENE MONITOR: this is not needed in next Lucene version
-            lockFactory = new NativeFSLockFactory() {
-                @Override public void clearLock(String lockName) throws IOException {
-                    // Note that this isn't strictly required anymore
-                    // because the existence of these files does not mean
-                    // they are locked, but, still do this in case people
-                    // really want to see the files go away:
-                    if (lockDir.exists()) {
-
-                        // Try to release the lock first - if it's held by another process, this
-                        // method should not silently fail.
-                        // NOTE: makeLock fixes the lock name by prefixing it w/ lockPrefix.
-                        // Therefore it should be called before the code block next which prefixes
-                        // the given name.
-                        makeLock(lockName).release();
-
-                        if (lockPrefix != null) {
-                            lockName = lockPrefix + "-" + lockName;
-                        }
-
-                        // As mentioned above, we don't care if the deletion of the file failed.
-                        new File(lockDir, lockName).delete();
-                    }
-                }
-            };
+            lockFactory = new NativeFSLockFactory();
         } else if (fsLock.equals("simple")) {
             lockFactory = new SimpleFSLockFactory();
         }

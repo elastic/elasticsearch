@@ -40,6 +40,7 @@ public class RecoveryStatus {
     }
 
     ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
+    ConcurrentMap<String, String> checksums = ConcurrentCollections.newConcurrentMap();
 
     final long startTime = System.currentTimeMillis();
     long time;

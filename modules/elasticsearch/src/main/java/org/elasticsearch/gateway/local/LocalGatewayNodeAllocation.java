@@ -56,6 +56,10 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class LocalGatewayNodeAllocation extends NodeAllocation {
 
+    static {
+        IndexMetaData.addDynamicSettings("index.recovery.initial_shards");
+    }
+
     private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
 
     private final TransportNodesListShardStoreMetaData listShardStoreMetaData;
@@ -146,6 +150,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             int requiredAllocation = 1;
             try {
                 IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
+                String initialShards = indexMetaData.settings().get("recovery.initial_shards", this.initialShards);
                 if ("quorum".equals(initialShards)) {
                     if (indexMetaData.numberOfReplicas() > 1) {
                         requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;

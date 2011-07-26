@@ -945,10 +945,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 failEngine(e);
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
+                rwl.readLock().unlock();
                 if (indexWriter != null && indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
                     ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).disableMerge();
                 }
-                rwl.readLock().unlock();
                 optimizeMutex.set(false);
             }
         }
@@ -1031,18 +1031,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
 
         rwl.writeLock().lock();
-        Translog.Snapshot phase3Snapshot;
+        Translog.Snapshot phase3Snapshot = null;
         try {
             phase3Snapshot = translog.snapshot(phase2Snapshot);
-        } catch (Exception e) {
-            --disableFlushCounter;
-            rwl.writeLock().unlock();
-            phase1Snapshot.release();
-            phase2Snapshot.release();
-            throw new RecoveryEngineException(shardId, 3, "Snapshot failed", e);
-        }
-
-        try {
             recoveryHandler.phase3(phase3Snapshot);
         } catch (Exception e) {
             throw new RecoveryEngineException(shardId, 3, "Execution failed", e);
@@ -1051,7 +1042,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             rwl.writeLock().unlock();
             phase1Snapshot.release();
             phase2Snapshot.release();
-            phase3Snapshot.release();
+            if (phase3Snapshot != null) {
+                phase3Snapshot.release();
+            }
         }
     }
 

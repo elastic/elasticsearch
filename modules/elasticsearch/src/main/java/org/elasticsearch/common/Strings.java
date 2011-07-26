@@ -1007,6 +1007,9 @@ public class Strings {
     }
 
     public static String[] splitStringToArray(final String s, final char c) {
+        if (s.length() == 0) {
+            return Strings.EMPTY_ARRAY;
+        }
         final char[] chars = s.toCharArray();
         int count = 1;
         for (final char x : chars) {

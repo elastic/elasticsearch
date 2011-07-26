@@ -26,6 +26,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -72,6 +73,11 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.exists(), equalTo(true));
         assertThat(response.sourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.sourceAsMap().get("field2").toString(), equalTo("value2"));
+
+        logger.info("--> realtime get 1 (no source)");
+        response = client.prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.source(), nullValue());
 
         logger.info("--> realtime get 1 (no type)");
         response = client.prepareGet("test", null, "1").execute().actionGet();

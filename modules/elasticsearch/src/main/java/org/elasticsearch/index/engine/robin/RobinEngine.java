@@ -305,6 +305,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (versionValue.delete()) {
                         return GetResult.NOT_EXISTS;
                     }
+                    if (!get.loadSource()) {
+                        return new GetResult(true, versionValue.version(), null);
+                    }
                     byte[] data = translog.read(versionValue.translogLocation());
                     if (data != null) {
                         try {

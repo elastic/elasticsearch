@@ -46,7 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ByteBufferDirectory extends Directory {
 
-    private final Map<String, ByteBufferFile> files = new ConcurrentHashMap<String, ByteBufferFile>();
+    protected final Map<String, ByteBufferFile> files = new ConcurrentHashMap<String, ByteBufferFile>();
 
     private final ByteBufferAllocator allocator;
 

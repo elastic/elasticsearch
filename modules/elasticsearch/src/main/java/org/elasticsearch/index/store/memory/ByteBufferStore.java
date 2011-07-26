@@ -20,7 +20,9 @@
 package org.elasticsearch.index.store.memory;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.bytebuffer.ByteBufferAllocator;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
+import org.apache.lucene.store.bytebuffer.ByteBufferFile;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.support.AbstractStore;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
@@ -36,12 +39,15 @@ import java.io.IOException;
  */
 public class ByteBufferStore extends AbstractStore {
 
+    private final CustomByteBufferDirectory bbDirectory;
+
     private final Directory directory;
 
     @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) throws IOException {
         super(shardId, indexSettings, indexStore);
 
-        this.directory = wrapDirectory(new ByteBufferDirectory(byteBufferCache));
+        this.bbDirectory = new CustomByteBufferDirectory(byteBufferCache);
+        this.directory = wrapDirectory(bbDirectory);
         logger.debug("Using [byte_buffer] store");
     }
 
@@ -54,5 +60,30 @@ public class ByteBufferStore extends AbstractStore {
      */
     @Override public boolean suggestUseCompoundFile() {
         return false;
+    }
+
+    @Override protected void doRenameFile(String from, String to) throws IOException {
+        bbDirectory.renameTo(from, to);
+    }
+
+    static class CustomByteBufferDirectory extends ByteBufferDirectory {
+
+        CustomByteBufferDirectory() {
+        }
+
+        CustomByteBufferDirectory(ByteBufferAllocator allocator) {
+            super(allocator);
+        }
+
+        public void renameTo(String from, String to) throws IOException {
+            ByteBufferFile fromFile = files.get(from);
+            if (fromFile == null)
+                throw new FileNotFoundException(from);
+            ByteBufferFile toFile = files.get(to);
+            if (toFile != null) {
+                files.remove(from);
+            }
+            files.put(to, fromFile);
+        }
     }
 }

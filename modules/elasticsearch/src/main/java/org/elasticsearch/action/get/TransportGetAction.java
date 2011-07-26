@@ -133,20 +133,28 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 if (get.exists()) {
                     type = typeX;
                     break;
+                } else {
+                    get.release();
                 }
             }
-            if (get == null || !get.exists()) {
+            if (get == null) {
+                return new GetResponse(index, type, id, -1, false, null, null);
+            }
+            if (!get.exists()) {
+                // no need to release here as well..., we release in the for loop for non exists
                 return new GetResponse(index, type, id, -1, false, null, null);
             }
         } else {
             get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id))).loadSource(loadSource));
             if (!get.exists()) {
+                get.release();
                 return new GetResponse(index, type, id, -1, false, null, null);
             }
         }
 
         DocumentMapper docMapper = indexService.mapperService().documentMapper(type);
         if (docMapper == null) {
+            get.release();
             return new GetResponse(index, type, id, -1, false, null, null);
         }
 
@@ -307,9 +315,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 return new GetResponse(index, type, id, get.version(), get.exists(), sourceRequested ? source : null, fields);
             }
         } finally {
-            if (get.searcher() != null) {
-                get.searcher().release();
-            }
+            get.release();
         }
     }
 

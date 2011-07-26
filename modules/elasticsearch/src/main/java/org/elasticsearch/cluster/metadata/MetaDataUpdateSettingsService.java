@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -36,6 +38,8 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.ClusterState.*;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -43,10 +47,13 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final ClusterService clusterService;
 
-    @Inject public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService) {
+    private final ShardsAllocation shardsAllocation;
+
+    @Inject public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, ShardsAllocation shardsAllocation) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterService.add(this);
+        this.shardsAllocation = shardsAllocation;
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {
@@ -175,7 +182,13 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
 
-                    return ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).build();
+                    ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).build();
+
+                    // now, reroute in case things change that require it (like number of replicas)
+                    RoutingAllocation.Result routingResult = shardsAllocation.reroute(updatedState);
+                    updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+
+                    return updatedState;
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;

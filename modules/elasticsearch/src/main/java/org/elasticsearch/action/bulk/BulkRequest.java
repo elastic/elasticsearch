@@ -145,7 +145,7 @@ public class BulkRequest implements ActionRequest {
             }
 
             if ("delete".equals(action)) {
-                add(new DeleteRequest(index, type, id).parent(parent).versionType(versionType).routing(routing));
+                add(new DeleteRequest(index, type, id).parent(parent).version(version).versionType(versionType).routing(routing));
             } else {
                 nextMarker = findNextMarker(marker, from, data, length);
                 if (nextMarker == -1) {

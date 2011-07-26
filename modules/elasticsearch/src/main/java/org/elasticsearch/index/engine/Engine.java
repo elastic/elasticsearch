@@ -597,6 +597,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Get {
         private final boolean realtime;
         private final Term uid;
+        private boolean loadSource = true;
 
         public Get(boolean realtime, Term uid) {
             this.realtime = realtime;
@@ -610,6 +611,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public Term uid() {
             return uid;
         }
+
+        public boolean loadSource() {
+            return this.loadSource;
+        }
+
+        public Get loadSource(boolean loadSource) {
+            this.loadSource = loadSource;
+            return this;
+        }
     }
 
     static class GetResult {
@@ -621,7 +631,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
 
-        public GetResult(boolean exists, long version, BytesHolder source) {
+        public GetResult(boolean exists, long version, @Nullable BytesHolder source) {
             this.source = source;
             this.exists = exists;
             this.version = version;
@@ -645,7 +655,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.version;
         }
 
-        public BytesHolder source() {
+        @Nullable public BytesHolder source() {
             return source;
         }
 

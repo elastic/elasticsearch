@@ -125,10 +125,11 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     }
 
     public static GetResponse load(ESLogger logger, ScriptService scriptService, IndexService indexService, IndexShard indexShard, String index, String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
+        boolean loadSource = gFields == null || gFields.length > 0;
         Engine.GetResult get = null;
         if (type == null || type.equals("_all")) {
             for (String typeX : indexService.mapperService().types()) {
-                get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, id))));
+                get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, id))).loadSource(loadSource));
                 if (get.exists()) {
                     type = typeX;
                     break;
@@ -138,7 +139,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 return new GetResponse(index, type, id, -1, false, null, null);
             }
         } else {
-            get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id))));
+            get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id))).loadSource(loadSource));
             if (!get.exists()) {
                 return new GetResponse(index, type, id, -1, false, null, null);
             }
@@ -243,13 +244,17 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 return new GetResponse(index, type, id, get.version(), get.exists(), source == null ? null : new BytesHolder(source), fields);
             } else {
                 BytesHolder source = get.source();
-                assert source != null;
 
                 Map<String, GetField> fields = null;
                 boolean sourceRequested = false;
 
                 // we can only load scripts that can run against the source
-                if (gFields != null && gFields.length > 0) {
+                if (gFields == null) {
+                    sourceRequested = true;
+                } else if (gFields.length == 0) {
+                    // no fields, and no source
+                    sourceRequested = false;
+                } else {
                     Map<String, Object> sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
                     SearchLookup searchLookup = null;
                     for (String field : gFields) {
@@ -297,8 +302,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                             }
                         }
                     }
-                } else {
-                    sourceRequested = true;
                 }
 
                 return new GetResponse(index, type, id, get.version(), get.exists(), sourceRequested ? source : null, fields);

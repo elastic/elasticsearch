@@ -83,7 +83,7 @@ public class MonitorModule extends AbstractModule {
             }
         } catch (Throwable e) {
             // no sigar
-            Loggers.getLogger(MonitorModule.class).debug("failed to load sigar", e);
+            Loggers.getLogger(MonitorModule.class).trace("failed to load sigar", e);
         }
         if (!sigarLoaded) {
             // bind non sigar implementations

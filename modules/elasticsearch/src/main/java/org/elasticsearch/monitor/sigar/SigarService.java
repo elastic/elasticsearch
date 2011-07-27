@@ -40,7 +40,7 @@ public class SigarService extends AbstractComponent {
             // call it to make sure the library was loaded
             sigar.getPid();
         } catch (Throwable t) {
-            logger.debug("Failed to load sigar", t);
+            logger.trace("Failed to load sigar", t);
             if (sigar != null) {
                 try {
                     sigar.close();

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
@@ -58,6 +60,8 @@ public class RootObjectMapper extends ObjectMapper {
 
         protected final List<DynamicTemplate> dynamicTemplates = newArrayList();
 
+        // we use this to filter out seen date formats, because we might get duplicates during merging
+        protected Set<String> seenDateFormats = Sets.newHashSet();
         protected List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
 
         protected boolean dateDetection = Defaults.DATE_DETECTION;
@@ -74,18 +78,11 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder dateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
             for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                this.dateTimeFormatters.add(dateTimeFormatter);
+                if (!seenDateFormats.contains(dateTimeFormatter.format())) {
+                    seenDateFormats.add(dateTimeFormatter.format());
+                    this.dateTimeFormatters.add(dateTimeFormatter);
+                }
             }
-            return builder;
-        }
-
-        public Builder dateTimeFormatter(FormatDateTimeFormatter[] dateTimeFormatters) {
-            this.dateTimeFormatters.addAll(newArrayList(dateTimeFormatters));
-            return builder;
-        }
-
-        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
-            this.dateTimeFormatters.add(dateTimeFormatter);
             return builder;
         }
 

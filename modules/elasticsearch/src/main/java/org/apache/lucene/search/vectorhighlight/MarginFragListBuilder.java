@@ -26,7 +26,7 @@ import java.util.List;
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
 
 /**
- * A simple implementation of {@link FragListBuilder}.
+ * A modification of SimpleFragListBuilder to expose the margin property. Implements FragListBuilder {@link FragListBuilder}.
  */
 public class MarginFragListBuilder implements FragListBuilder {
 

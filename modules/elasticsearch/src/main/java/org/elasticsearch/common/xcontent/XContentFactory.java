@@ -178,7 +178,7 @@ public class XContentFactory {
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from " + Arrays.toString(data));
+            throw new ElasticSearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
         }
         return xContent(type);
     }

@@ -19,7 +19,11 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.ChannelHandler;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.channel.ExceptionEvent;
+import org.elasticsearch.common.netty.channel.MessageEvent;
+import org.elasticsearch.common.netty.channel.SimpleChannelUpstreamHandler;
 import org.elasticsearch.common.netty.handler.codec.http.HttpRequest;
 
 
@@ -37,7 +41,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
         HttpRequest request = (HttpRequest) e.getMessage();
-        serverTransport.dispatchRequest(new NettyHttpRequest(request), new NettyHttpChannel(e.getChannel(), request));
+        serverTransport.dispatchRequest(new NettyHttpRequest(request), new NettyHttpChannel(serverTransport, e.getChannel(), request));
         super.messageReceived(ctx, e);
     }
 

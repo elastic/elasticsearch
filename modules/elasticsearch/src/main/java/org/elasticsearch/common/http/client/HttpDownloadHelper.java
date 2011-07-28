@@ -258,6 +258,7 @@ public class HttpDownloadHelper {
             if (connection instanceof HttpURLConnection) {
                 ((HttpURLConnection) connection).setInstanceFollowRedirects(false);
                 ((HttpURLConnection) connection).setUseCaches(true);
+                ((HttpURLConnection) connection).setConnectTimeout(5000);
             }
             // connect to the remote site (may take some time)
             connection.connect();

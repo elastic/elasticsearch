@@ -95,6 +95,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final int compressionLevel;
 
+    final boolean resetCookies;
+
     private final String port;
 
     private final String bindHost;
@@ -128,6 +130,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.maxChunkSize = componentSettings.getAsBytesSize("max_chunk_size", settings.getAsBytesSize("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
         this.maxHeaderSize = componentSettings.getAsBytesSize("max_header_size", settings.getAsBytesSize("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
         this.maxInitialLineLength = componentSettings.getAsBytesSize("max_initial_line_length", settings.getAsBytesSize("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB)));
+        // don't reset cookies by default, since I don't think we really need to, and parsing of cookies with netty is slow
+        // and requires a large stack allocation because of the use of regex
+        this.resetCookies = componentSettings.getAsBoolean("reset_cookies", settings.getAsBoolean("http.reset_cookies", false));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors() * 2);
         this.blockingServer = settings.getAsBoolean("http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));

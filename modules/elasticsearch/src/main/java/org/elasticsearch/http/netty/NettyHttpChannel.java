@@ -48,10 +48,12 @@ import java.util.Set;
  * @author kimchy (shay.banon)
  */
 public class NettyHttpChannel implements HttpChannel {
+    private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.elasticsearch.common.netty.handler.codec.http.HttpRequest request;
 
-    public NettyHttpChannel(Channel channel, org.elasticsearch.common.netty.handler.codec.http.HttpRequest request) {
+    public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, org.elasticsearch.common.netty.handler.codec.http.HttpRequest request) {
+        this.transport = transport;
         this.channel = channel;
         this.request = request;
     }
@@ -126,17 +128,19 @@ public class NettyHttpChannel implements HttpChannel {
 
         resp.setHeader(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buf.readableBytes()));
 
-        String cookieString = request.getHeader(HttpHeaders.Names.COOKIE);
-        if (cookieString != null) {
-            CookieDecoder cookieDecoder = new CookieDecoder();
-            Set<Cookie> cookies = cookieDecoder.decode(cookieString);
-            if (!cookies.isEmpty()) {
-                // Reset the cookies if necessary.
-                CookieEncoder cookieEncoder = new CookieEncoder(true);
-                for (Cookie cookie : cookies) {
-                    cookieEncoder.addCookie(cookie);
+        if (transport.resetCookies) {
+            String cookieString = request.getHeader(HttpHeaders.Names.COOKIE);
+            if (cookieString != null) {
+                CookieDecoder cookieDecoder = new CookieDecoder();
+                Set<Cookie> cookies = cookieDecoder.decode(cookieString);
+                if (!cookies.isEmpty()) {
+                    // Reset the cookies if necessary.
+                    CookieEncoder cookieEncoder = new CookieEncoder(true);
+                    for (Cookie cookie : cookies) {
+                        cookieEncoder.addCookie(cookie);
+                    }
+                    resp.addHeader(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
                 }
-                resp.addHeader(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
             }
         }
 

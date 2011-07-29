@@ -843,8 +843,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             translog.makeTransientCurrent();
                         } catch (Exception e) {
+                            translog.revertTransient();
                             throw new FlushFailedEngineException(shardId, e);
                         } catch (OutOfMemoryError e) {
+                            translog.revertTransient();
                             failEngine(e);
                             throw new FlushFailedEngineException(shardId, e);
                         }

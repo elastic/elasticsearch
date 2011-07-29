@@ -20,12 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
@@ -51,7 +51,7 @@ public class WildcardQueryParser implements QueryParser {
         XContentParser.Token token = parser.nextToken();
         assert token == XContentParser.Token.FIELD_NAME;
         String fieldName = parser.currentName();
-
+        String rewriteMethod = null;
 
         String value = null;
         float boost = 1.0f;
@@ -68,6 +68,8 @@ public class WildcardQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
+                    } else if ("rewrite".equals(currentFieldName)) {
+                        rewriteMethod = parser.textOrNull();
                     }
                 }
             }
@@ -90,7 +92,7 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         WildcardQuery query = new WildcardQuery(new Term(fieldName, value));
-        query.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
+        query.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }

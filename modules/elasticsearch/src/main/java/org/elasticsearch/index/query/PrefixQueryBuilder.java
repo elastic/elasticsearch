@@ -36,6 +36,8 @@ public class PrefixQueryBuilder extends BaseQueryBuilder {
 
     private float boost = -1;
 
+    private String rewrite;
+
     /**
      * A Query that matches documents containing terms with a specified prefix.
      *
@@ -56,14 +58,24 @@ public class PrefixQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public PrefixQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixQueryParser.NAME);
-        if (boost == -1) {
+        if (boost == -1 && rewrite == null) {
             builder.field(name, prefix);
         } else {
             builder.startObject(name);
             builder.field("prefix", prefix);
-            builder.field("boost", boost);
+            if (boost != -1) {
+                builder.field("boost", boost);
+            }
+            if (rewrite != null) {
+                builder.field("rewrite", rewrite);
+            }
             builder.endObject();
         }
         builder.endObject();

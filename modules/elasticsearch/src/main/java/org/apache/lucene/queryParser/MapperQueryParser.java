@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
@@ -84,7 +83,7 @@ public class MapperQueryParser extends QueryParser {
     public void reset(QueryParserSettings settings) {
         this.field = settings.defaultField();
         this.analyzer = settings.analyzer();
-        setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
+        setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());

@@ -25,6 +25,7 @@ import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
@@ -93,6 +94,8 @@ public class FieldQueryParser implements QueryParser {
                         qpSettings.escape(parser.booleanValue());
                     } else if ("analyze_wildcard".equals(currentFieldName) || "analyzeWildcard".equals(currentFieldName)) {
                         qpSettings.analyzeWildcard(parser.booleanValue());
+                    } else if ("rewrite".equals(currentFieldName)) {
+                        qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                     }
                 }
             }

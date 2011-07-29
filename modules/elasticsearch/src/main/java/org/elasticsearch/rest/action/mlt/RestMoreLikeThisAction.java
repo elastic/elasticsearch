@@ -27,7 +27,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
@@ -67,6 +72,8 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
             mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
             mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
             mltRequest.searchQueryHint(request.param("search_query_hint"));
+            mltRequest.searchSize(request.paramAsInt("search_size", mltRequest.searchSize()));
+            mltRequest.searchFrom(request.paramAsInt("search_from", mltRequest.searchFrom()));
             String searchScroll = request.param("search_scroll");
             if (searchScroll != null) {
                 mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));

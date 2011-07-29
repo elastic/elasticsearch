@@ -337,6 +337,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("edgeNGram", EdgeNGramTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("edge_ngram", EdgeNGramTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("shingle", ShingleTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("unique", UniqueTokenFilterFactory.class);
         }
 
         @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {

@@ -31,6 +31,7 @@ import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
@@ -144,6 +145,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.tieBreaker(parser.floatValue());
                 } else if ("analyze_wildcard".equals(currentFieldName) || "analyzeWildcard".equals(currentFieldName)) {
                     qpSettings.analyzeWildcard(parser.booleanValue());
+                } else if ("rewrite".equals(currentFieldName)) {
+                    qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                 }
             }
         }

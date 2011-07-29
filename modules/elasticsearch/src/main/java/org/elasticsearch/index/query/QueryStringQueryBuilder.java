@@ -78,6 +78,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private float tieBreaker = -1;
 
+    private String rewrite = null;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -234,6 +236,11 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public QueryStringQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -301,6 +308,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (analyzeWildcard != null) {
             builder.field("analyze_wildcard", analyzeWildcard);
+        }
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
         }
         builder.endObject();
     }

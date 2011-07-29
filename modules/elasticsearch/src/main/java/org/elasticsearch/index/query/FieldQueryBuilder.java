@@ -65,6 +65,8 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
 
     private boolean extraSet = false;
 
+    private String rewrite;
+
     /**
      * A query that executes the query string against a field. It is a simplified
      * version of {@link QueryStringQueryBuilder} that simply runs against
@@ -268,6 +270,12 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public FieldQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        extraSet = true;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FieldQueryParser.NAME);
         if (!extraSet) {
@@ -307,6 +315,9 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
             }
             if (analyzeWildcard != null) {
                 builder.field("analyze_wildcard", analyzeWildcard);
+            }
+            if (rewrite != null) {
+                builder.field("rewrite", rewrite);
             }
             builder.endObject();
         }

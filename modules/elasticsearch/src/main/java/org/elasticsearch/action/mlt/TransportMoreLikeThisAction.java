@@ -170,15 +170,19 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 if (searchTypes == null) {
                     searchTypes = new String[]{request.type()};
                 }
-
+                int size = request.searchSize() != 0 ? request.searchSize() : 10;
+                int from = request.searchFrom() != 0 ? request.searchFrom() : 0;
                 SearchRequest searchRequest = searchRequest(searchIndices)
                         .types(searchTypes)
                         .searchType(request.searchType())
                         .scroll(request.searchScroll())
                         .extraSource(searchSource()
                                 .query(boolBuilder)
+                                .from(from)
+                                .size(size)
                         )
                         .listenerThreaded(request.listenerThreaded());
+
                 if (request.searchSource() != null) {
                     searchRequest.source(request.searchSource(), request.searchSourceOffset(), request.searchSourceLength(), request.searchSourceUnsafe());
                 }

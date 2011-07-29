@@ -49,6 +49,7 @@ import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
@@ -430,6 +431,16 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new UniqueTokenFilter(tokenStream);
+            }
+        }));
+
+        tokenFilterFactories.put("truncate", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override public String name() {
+                return "truncate";
+            }
+
+            @Override public TokenStream create(TokenStream tokenStream) {
+                return new TruncateTokenFilter(tokenStream, 10);
             }
         }));
 

@@ -88,6 +88,11 @@ public interface Translog extends IndexShardComponent {
     void makeTransientCurrent();
 
     /**
+     * Reverts back to not have a transient translog.
+     */
+    void revertTransient();
+
+    /**
      * Adds a create operation to the transaction log.
      */
     Location add(Operation operation) throws TranslogException;

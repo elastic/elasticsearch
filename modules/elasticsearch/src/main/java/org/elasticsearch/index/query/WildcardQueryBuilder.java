@@ -41,6 +41,8 @@ public class WildcardQueryBuilder extends BaseQueryBuilder {
 
     private float boost = -1;
 
+    private String rewrite;
+
     /**
      * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
      * matches any character sequence (including the empty one), and <tt>?</tt>,
@@ -57,6 +59,11 @@ public class WildcardQueryBuilder extends BaseQueryBuilder {
         this.wildcard = wildcard;
     }
 
+    public WildcardQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -68,12 +75,17 @@ public class WildcardQueryBuilder extends BaseQueryBuilder {
 
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(WildcardQueryParser.NAME);
-        if (boost == -1) {
+        if (boost == -1 && rewrite != null) {
             builder.field(name, wildcard);
         } else {
             builder.startObject(name);
             builder.field("wildcard", wildcard);
-            builder.field("boost", boost);
+            if (boost != -1) {
+                builder.field("boost", boost);
+            }
+            if (rewrite != null) {
+                builder.field("rewrite", rewrite);
+            }
             builder.endObject();
         }
         builder.endObject();

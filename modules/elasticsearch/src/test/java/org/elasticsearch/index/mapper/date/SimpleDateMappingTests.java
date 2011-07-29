@@ -21,8 +21,10 @@ package org.elasticsearch.index.mapper.date;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -30,6 +32,23 @@ import static org.hamcrest.Matchers.*;
 
 @Test
 public class SimpleDateMappingTests {
+
+    @Test public void testAutomaticDateParser() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "2011/01/22 00:00:00 +02")
+                .endObject()
+                .copiedBytes());
+
+        FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field");
+        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+    }
 
     @Test public void testTimestampAsDate() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

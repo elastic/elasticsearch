@@ -49,6 +49,7 @@ import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
@@ -419,6 +420,16 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override public TokenStream create(TokenStream tokenStream) {
                 return new ShingleFilter(tokenStream, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
+            }
+        }));
+
+        tokenFilterFactories.put("unique", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override public String name() {
+                return "unique";
+            }
+
+            @Override public TokenStream create(TokenStream tokenStream) {
+                return new UniqueTokenFilter(tokenStream);
             }
         }));
 

@@ -80,6 +80,8 @@ public class MoreLikeThisRequest implements ActionRequest {
     private float boostTerms = -1;
 
     private SearchType searchType = SearchType.DEFAULT;
+    private int searchSize = 0;
+    private int searchFrom = 0;
     private String searchQueryHint;
     private String[] searchIndices;
     private String[] searchTypes;
@@ -97,7 +99,7 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     /**
      * Constructs a new more like this request for a document that will be fetch from the provided index.
-     * Use {@link #type(String)} and {@link #id(String)} to specificy the document to load.
+     * Use {@link #type(String)} and {@link #id(String)} to specify the document to load.
      */
     public MoreLikeThisRequest(String index) {
         this.index = index;
@@ -122,7 +124,7 @@ public class MoreLikeThisRequest implements ActionRequest {
     }
 
     /**
-     * The type of document to load from which the "like" query will rutn with.
+     * The type of document to load from which the "like" query will execute with.
      */
     @Required public MoreLikeThisRequest type(String type) {
         this.type = type;
@@ -130,14 +132,14 @@ public class MoreLikeThisRequest implements ActionRequest {
     }
 
     /**
-     * The id of document to load from which the "like" query will rutn with.
+     * The id of document to load from which the "like" query will execute with.
      */
     public String id() {
         return id;
     }
 
     /**
-     * The id of document to load from which the "like" query will rutn with.
+     * The id of document to load from which the "like" query will execute with.
      */
     @Required public MoreLikeThisRequest id(String id) {
         this.id = id;
@@ -494,6 +496,30 @@ public class MoreLikeThisRequest implements ActionRequest {
         return this.searchScroll;
     }
 
+    /**
+     * The number of documents to return, defaults to 10.
+     */
+    public MoreLikeThisRequest searchSize(int size) {
+        this.searchSize = size;
+        return this;
+    }
+
+    public int searchSize() {
+        return this.searchSize;
+    }
+
+    /**
+     * From which search result set to return.
+     */
+    public MoreLikeThisRequest searchFrom(int from) {
+        this.searchFrom = from;
+        return this;
+    }
+
+    public int searchFrom() {
+        return this.searchFrom;
+    }
+
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
@@ -592,6 +618,9 @@ public class MoreLikeThisRequest implements ActionRequest {
             searchSource = new byte[searchSourceLength];
             in.readFully(searchSource);
         }
+
+        searchSize = in.readVInt();
+        searchFrom = in.readVInt();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -659,5 +688,8 @@ public class MoreLikeThisRequest implements ActionRequest {
             out.writeVInt(searchSourceLength);
             out.writeBytes(searchSource, searchSourceOffset, searchSourceLength);
         }
+
+        out.writeVInt(searchSize);
+        out.writeVInt(searchFrom);
     }
 }

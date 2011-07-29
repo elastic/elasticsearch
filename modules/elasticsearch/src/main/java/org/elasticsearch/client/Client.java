@@ -48,6 +48,7 @@ import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder
 import org.elasticsearch.client.action.get.GetRequestBuilder;
 import org.elasticsearch.client.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.client.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
@@ -334,6 +335,15 @@ public interface Client {
      * @param listener A listener to be notified of the result
      */
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
+
+    /**
+     * A more like this action to search for documents that are "like" a specific document.
+     *
+     * @param index The index to load the document from
+     * @param type  The type of the document
+     * @param id    The id of the document
+     */
+    MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
 
     /**
      * Percolates a request returning the matches documents.

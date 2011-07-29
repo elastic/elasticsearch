@@ -593,7 +593,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // a safe check since "1" gets parsed as well
                 if (context.root().dateDetection()) {
                     if (text.contains(":") || text.contains("-") || text.contains("/")) {
-                        for (FormatDateTimeFormatter dateTimeFormatter : context.root().dateTimeFormatters()) {
+                        for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                             try {
                                 dateTimeFormatter.parser().parseMillis(text);
                                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");

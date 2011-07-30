@@ -196,11 +196,13 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
             int fileIndex = Integer.parseInt(name.substring(name.indexOf('-') + 1));
             if (fileIndex >= index) {
                 // try and read the meta data
+                byte[] data = null;
                 try {
-                    readMetaData(metaDataBlobContainer.readBlobFully(name));
+                    data = metaDataBlobContainer.readBlobFully(name);
+                    readMetaData(data);
                     index = fileIndex;
                 } catch (IOException e) {
-                    logger.warn("[findLatestMetadata]: Failed to read metadata from [" + name + "], ignoring...", e);
+                    logger.warn("[findLatestMetadata]: failed to read metadata from [{}], data_length [{}] ignoring...", e, name, data == null ? "na" : data.length);
                 }
             }
         }

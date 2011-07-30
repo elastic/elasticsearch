@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper.selector;
 
-import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.FieldSelectorResult;
+import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
  *
  * @author kimchy (shay.banon)
  */
-public class UidFieldSelector implements FieldSelector {
+public class UidFieldSelector implements ResetFieldSelector {
 
     public static final UidFieldSelector INSTANCE = new UidFieldSelector();
 
@@ -41,5 +41,8 @@ public class UidFieldSelector implements FieldSelector {
             return FieldSelectorResult.LOAD_AND_BREAK;
         }
         return FieldSelectorResult.NO_LOAD;
+    }
+
+    @Override public void reset() {
     }
 }

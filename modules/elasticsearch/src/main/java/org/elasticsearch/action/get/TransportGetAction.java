@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -164,8 +164,9 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 Map<String, GetField> fields = null;
                 byte[] source = null;
                 UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-                FieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
+                ResetFieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
                 if (fieldSelector != null) {
+                    fieldSelector.reset();
                     Document doc;
                     try {
                         doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
@@ -319,7 +320,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         }
     }
 
-    private static FieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {
+    private static ResetFieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {
         if (fields == null) {
             return docMapper.sourceMapper().fieldSelector();
         }

@@ -19,33 +19,11 @@
 
 package org.elasticsearch.common.lucene.document;
 
-import org.apache.lucene.document.FieldSelectorResult;
+import org.apache.lucene.document.FieldSelector;
 
 /**
- * @author kimchy (shay.banon)
  */
-public class SingleFieldSelector implements ResetFieldSelector {
+public interface ResetFieldSelector extends FieldSelector {
 
-    private String name;
-
-    public SingleFieldSelector() {
-    }
-
-    public SingleFieldSelector(String name) {
-        this.name = name;
-    }
-
-    public void name(String name) {
-        this.name = name;
-    }
-
-    @Override public FieldSelectorResult accept(String fieldName) {
-        if (name.equals(fieldName)) {
-            return FieldSelectorResult.LOAD_AND_BREAK;
-        }
-        return FieldSelectorResult.NO_LOAD;
-    }
-
-    @Override public void reset() {
-    }
+    void reset();
 }

@@ -20,11 +20,11 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -81,7 +81,7 @@ public class FetchPhase implements SearchPhase {
     }
 
     public void execute(SearchContext context) {
-        FieldSelector fieldSelector = buildFieldSelectors(context);
+        ResetFieldSelector fieldSelector = buildFieldSelectors(context);
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
@@ -181,15 +181,16 @@ public class FetchPhase implements SearchPhase {
         throw new FetchPhaseExecutionException(context, "Failed to load uid from the index, missing internal _uid field, current fields in the doc [" + fieldNames + "]");
     }
 
-    private Document loadDocument(SearchContext context, FieldSelector fieldSelector, int docId) {
+    private Document loadDocument(SearchContext context, ResetFieldSelector fieldSelector, int docId) {
         try {
+            fieldSelector.reset();
             return context.searcher().doc(docId, fieldSelector);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to fetch doc id [" + docId + "]", e);
         }
     }
 
-    private FieldSelector buildFieldSelectors(SearchContext context) {
+    private ResetFieldSelector buildFieldSelectors(SearchContext context) {
         if (context.hasScriptFields() && !context.hasFieldNames()) {
             // we ask for script fields, and no field names, don't load the source
             return UidFieldSelector.INSTANCE;

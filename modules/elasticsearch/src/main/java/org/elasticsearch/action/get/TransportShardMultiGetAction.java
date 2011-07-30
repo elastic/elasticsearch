@@ -108,6 +108,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
                 GetResponse getResponse = TransportGetAction.load(logger, scriptService, indexService, indexShard, request.index(), type, id, fields, request.realtime());
                 response.add(request.locations.get(i), getResponse);
             } catch (Exception e) {
+                logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", e, request.index(), shardId, type, id);
                 response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(e)));
             }
         }

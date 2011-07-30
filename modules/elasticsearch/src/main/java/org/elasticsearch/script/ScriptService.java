@@ -54,7 +54,7 @@ public class ScriptService extends AbstractComponent {
 
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
-    private final ConcurrentMap<String, CompiledScript> cache = new MapMaker().softValues().makeMap();
+    private final ConcurrentMap<CacheKey, CompiledScript> cache = new MapMaker().softValues().makeMap();
 
     public ScriptService(Settings settings) {
         this(settings, new Environment(), ImmutableSet.<ScriptEngineService>builder()
@@ -136,25 +136,21 @@ public class ScriptService extends AbstractComponent {
         if (compiled != null) {
             return compiled;
         }
-        compiled = cache.get(script);
-        if (compiled != null) {
-            return compiled;
-        }
         if (lang == null) {
             lang = defaultLang;
         }
-        synchronized (cache) {
-            compiled = cache.get(script);
-            if (compiled != null) {
-                return compiled;
-            }
-            ScriptEngineService service = scriptEngines.get(lang);
-            if (service == null) {
-                throw new ElasticSearchIllegalArgumentException("script_lang not supported [" + lang + "]");
-            }
-            compiled = new CompiledScript(lang, service.compile(script));
-            cache.put(script, compiled);
+        CacheKey cacheKey = new CacheKey(lang, script);
+        compiled = cache.get(cacheKey);
+        if (compiled != null) {
+            return compiled;
         }
+        // not the end of the world if we compile it twice...
+        ScriptEngineService service = scriptEngines.get(lang);
+        if (service == null) {
+            throw new ElasticSearchIllegalArgumentException("script_lang not supported [" + lang + "]");
+        }
+        compiled = new CompiledScript(lang, service.compile(script));
+        cache.put(cacheKey, compiled);
         return compiled;
     }
 
@@ -184,6 +180,25 @@ public class ScriptService extends AbstractComponent {
 
     public void clear() {
         cache.clear();
+    }
+
+    public static class CacheKey {
+        public final String lang;
+        public final String script;
+
+        public CacheKey(String lang, String script) {
+            this.lang = lang;
+            this.script = script;
+        }
+
+        @Override public boolean equals(Object o) {
+            CacheKey other = (CacheKey) o;
+            return lang.equals(other.lang) && script.equals(other.script);
+        }
+
+        @Override public int hashCode() {
+            return lang.hashCode() + 31 * script.hashCode();
+        }
     }
 
     public static class DocScoreNativeScriptFactory implements NativeScriptFactory {

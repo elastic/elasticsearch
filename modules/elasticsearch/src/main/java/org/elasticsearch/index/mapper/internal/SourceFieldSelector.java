@@ -19,15 +19,15 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.FieldSelectorResult;
+import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 
 /**
  * An optimized field selector that loads just the uid.
  *
  * @author kimchy (shay.banon)
  */
-public class SourceFieldSelector implements FieldSelector {
+public class SourceFieldSelector implements ResetFieldSelector {
 
     public static final SourceFieldSelector INSTANCE = new SourceFieldSelector();
 
@@ -40,5 +40,8 @@ public class SourceFieldSelector implements FieldSelector {
             return FieldSelectorResult.LOAD_AND_BREAK;
         }
         return FieldSelectorResult.NO_LOAD;
+    }
+
+    @Override public void reset() {
     }
 }

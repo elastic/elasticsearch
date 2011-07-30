@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper.selector;
 
-import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.FieldSelectorResult;
+import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
  *
  * @author kimchy (shay.banon)
  */
-public class AllButSourceFieldSelector implements FieldSelector {
+public class AllButSourceFieldSelector implements ResetFieldSelector {
 
     public static final AllButSourceFieldSelector INSTANCE = new AllButSourceFieldSelector();
 
@@ -37,5 +37,8 @@ public class AllButSourceFieldSelector implements FieldSelector {
             return FieldSelectorResult.NO_LOAD;
         }
         return FieldSelectorResult.LOAD;
+    }
+
+    @Override public void reset() {
     }
 }

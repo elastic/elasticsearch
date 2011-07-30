@@ -21,14 +21,13 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldSelector;
-import org.apache.lucene.document.FieldSelectorResult;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.compress.lzf.LZFEncoder;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
@@ -97,8 +96,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     private long compressThreshold;
 
-    private final SourceFieldSelector fieldSelector;
-
     public SourceFieldMapper() {
         this(Defaults.NAME, Defaults.ENABLED, null, -1);
     }
@@ -109,15 +106,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
-        this.fieldSelector = new SourceFieldSelector(names.indexName());
     }
 
     public boolean enabled() {
         return this.enabled;
     }
 
-    public FieldSelector fieldSelector() {
-        return this.fieldSelector;
+    public ResetFieldSelector fieldSelector() {
+        return SourceFieldSelector.INSTANCE;
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
@@ -174,22 +170,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     @Override public String indexedValue(String value) {
         return value;
-    }
-
-    private static class SourceFieldSelector implements FieldSelector {
-
-        private final String name;
-
-        private SourceFieldSelector(String name) {
-            this.name = name;
-        }
-
-        @Override public FieldSelectorResult accept(String fieldName) {
-            if (fieldName.equals(name)) {
-                return FieldSelectorResult.LOAD_AND_BREAK;
-            }
-            return FieldSelectorResult.NO_LOAD;
-        }
     }
 
     @Override protected String contentType() {

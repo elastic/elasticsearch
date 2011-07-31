@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.iterator.TObjectIntIterator;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -188,20 +188,12 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         return otherCount();
     }
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>> aggregateCache = new ThreadLocal<ThreadLocals.CleanableValue<TObjectIntHashMap<String>>>() {
-        @Override protected ThreadLocals.CleanableValue<TObjectIntHashMap<String>> initialValue() {
-            return new ThreadLocals.CleanableValue<TObjectIntHashMap<String>>(new TObjectIntHashMap<String>());
-        }
-    };
-
-
     @Override public Facet reduce(String name, List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
         InternalStringTermsFacet first = (InternalStringTermsFacet) facets.get(0);
-        TObjectIntHashMap<String> aggregated = aggregateCache.get().get();
-        aggregated.clear();
+        TObjectIntHashMap<String> aggregated = CacheRecycler.popObjectIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -221,6 +213,9 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         first.entries = ordered;
         first.missing = missing;
         first.total = total;
+
+        CacheRecycler.pushObjectIntMap(aggregated);
+
         return first;
     }
 

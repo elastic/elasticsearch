@@ -226,14 +226,15 @@ public class HttpDownloadHelper {
 
 
         private boolean redirectionAllowed(URL aSource, URL aDest) throws IOException {
-            if (!(aSource.getProtocol().equals(aDest.getProtocol()) || ("http"
-                    .equals(aSource.getProtocol()) && "https".equals(aDest
-                    .getProtocol())))) {
-                String message = "Redirection detected from "
-                        + aSource.getProtocol() + " to " + aDest.getProtocol()
-                        + ". Protocol switch unsafe, not allowed.";
-                throw new IOException(message);
-            }
+            // Argh, github does this...
+//            if (!(aSource.getProtocol().equals(aDest.getProtocol()) || ("http"
+//                    .equals(aSource.getProtocol()) && "https".equals(aDest
+//                    .getProtocol())))) {
+//                String message = "Redirection detected from "
+//                        + aSource.getProtocol() + " to " + aDest.getProtocol()
+//                        + ". Protocol switch unsafe, not allowed.";
+//                throw new IOException(message);
+//            }
 
             redirections++;
             if (redirections > 5) {

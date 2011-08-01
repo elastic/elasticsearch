@@ -35,7 +35,7 @@ public class MergePolicyModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(MergePolicyProvider.class)
-                .to(settings.getAsClass("index.merge.policy.type", TieredMergePolicyProvider.class, "org.elasticsearch.index.merge.policy", "MergePolicyProvider"))
+                .to(settings.getAsClass("index.merge.policy.type", TieredMergePolicyProvider.class, "org.elasticsearch.index.merge.policy.", "MergePolicyProvider"))
                 .asEagerSingleton();
     }
 }

@@ -350,7 +350,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 try {
                     long version = findLatestMetaStateVersion();
                     if (version != -1) {
-                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(new File(location, "metadata-" + version))));
+                        File file = new File(location, "metadata-" + version);
+                        logger.debug("[find_latest_state]: loading metadata from [{}]", file.getAbsolutePath());
+                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(file)));
+                    } else {
+                        logger.debug("[find_latest_state]: no metadata state loaded");
                     }
                 } catch (Exception e) {
                     logger.warn("failed to read local state (metadata)", e);
@@ -361,7 +365,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 try {
                     long version = findLatestStartedShardsVersion();
                     if (version != -1) {
-                        this.currentStartedShards = readStartedShards(Streams.copyToByteArray(new FileInputStream(new File(location, "shards-" + version))));
+                        File file = new File(location, "shards-" + version);
+                        logger.debug("[find_latest_state]: loading started shards from [{}]", file.getAbsolutePath());
+                        this.currentStartedShards = readStartedShards(Streams.copyToByteArray(new FileInputStream(file)));
+                    } else {
+                        logger.debug("[find_latest_state]: no started shards loaded");
                     }
                 } catch (Exception e) {
                     logger.warn("failed to read local state (started shards)", e);
@@ -374,7 +382,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         long index = -1;
         for (File stateFile : location.listFiles()) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[findLatestState]: Processing [" + stateFile.getName() + "]");
+                logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
             }
             String name = stateFile.getName();
             if (!name.startsWith("shards-")) {
@@ -386,12 +394,12 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 try {
                     byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
                     if (data.length == 0) {
-                        logger.debug("[findLatestState]: not data for [" + name + "], ignoring...");
+                        logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
                     }
                     readStartedShards(data);
                     index = fileIndex;
                 } catch (IOException e) {
-                    logger.warn("[findLatestState]: Failed to read state from [" + name + "], ignoring...", e);
+                    logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
                 }
             }
         }
@@ -403,7 +411,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         long index = -1;
         for (File stateFile : location.listFiles()) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[findLatestState]: Processing [" + stateFile.getName() + "]");
+                logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
             }
             String name = stateFile.getName();
             if (!name.startsWith("metadata-")) {
@@ -415,13 +423,13 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 try {
                     byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
                     if (data.length == 0) {
-                        logger.debug("[findLatestState]: not data for [" + name + "], ignoring...");
+                        logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
                         continue;
                     }
                     readMetaState(data);
                     index = fileIndex;
                 } catch (IOException e) {
-                    logger.warn("[findLatestState]: Failed to read state from [" + name + "], ignoring...", e);
+                    logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
                 }
             }
         }

@@ -209,6 +209,10 @@ public class SearchContext implements Releasable {
         return this.numberOfShards;
     }
 
+    public boolean hasTypes() {
+        return types != null && types.length > 0;
+    }
+
     public String[] types() {
         return types;
     }

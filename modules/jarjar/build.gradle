@@ -10,6 +10,7 @@ dependencies {
 
     runtime 'commons-codec:commons-codec:1.5'
 
+    // joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets!
     runtime 'joda-time:joda-time:1.6.2'
     runtime 'org.mvel:mvel2:2.1.Beta5'
 

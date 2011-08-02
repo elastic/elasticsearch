@@ -27,14 +27,22 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.search.highlight.Formatter;
-import org.apache.lucene.search.vectorhighlight.*;
+import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
+import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
+import org.apache.lucene.search.vectorhighlight.FieldQuery;
+import org.apache.lucene.search.vectorhighlight.FragListBuilder;
+import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.SearchHitPhase;
@@ -44,7 +52,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.collect.Maps.*;
 
@@ -71,8 +83,18 @@ public class HighlightPhase implements SearchHitPhase {
             for (SearchContextHighlight.Field field : context.highlight().fields()) {
                 FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
                 if (mapper == null) {
-                    //Save skipping missing fields
-                    continue;
+                    MapperService.SmartNameFieldMappers fullMapper = context.mapperService().smartName(field.field());
+                    if (fullMapper == null || !fullMapper.hasDocMapper()) {
+                        //Save skipping missing fields
+                        continue;
+                    }
+                    if (!fullMapper.docMapper().type().equals(hitContext.hit().type())) {
+                        continue;
+                    }
+                    mapper = fullMapper.mapper();
+                    if (mapper == null) {
+                        continue;
+                    }
                 }
 
                 // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
@@ -149,7 +171,7 @@ public class HighlightPhase implements SearchHitPhase {
                     if (field.numberOfFragments() == 0 && textsToHighlight.size() > 1) {
                         fragments = new String[1];
                         for (int i = 0; i < fragsList.size(); i++) {
-                            fragments[0] = (fragments[0] != null ? (fragments[0]+" ") : "") + fragsList.get(i).toString();
+                            fragments[0] = (fragments[0] != null ? (fragments[0] + " ") : "") + fragsList.get(i).toString();
                         }
                     } else {
                         // refine numberOfFragments if needed

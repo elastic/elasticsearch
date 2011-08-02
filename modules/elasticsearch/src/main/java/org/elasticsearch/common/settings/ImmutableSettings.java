@@ -235,7 +235,10 @@ public class ImmutableSettings implements Settings {
         List<String> result = Lists.newArrayList();
 
         if (get(settingPrefix) != null) {
-            Collections.addAll(result, Strings.commaDelimitedListToStringArray(get(settingPrefix)));
+            String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
+            if (strings.length > 0) {
+                Collections.addAll(result, strings);
+            }
         }
 
         int counter = 0;

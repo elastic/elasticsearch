@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.de.GermanLightStemFilter;
 import org.apache.lucene.analysis.de.GermanMinimalStemFilter;
 import org.apache.lucene.analysis.en.EnglishMinimalStemFilter;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
+import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
@@ -84,6 +85,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SnowballFilter(tokenStream, new ItalianStemmer());
         } else if ("kp".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new KpStemmer());
+        } else if ("kstem".equalsIgnoreCase(language)) {
+            return new KStemFilter(tokenStream);
         } else if ("lovins".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new LovinsStemmer());
         } else if ("norwegian".equalsIgnoreCase(language)) {

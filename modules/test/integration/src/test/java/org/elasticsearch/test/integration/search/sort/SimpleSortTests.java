@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.hamcrest.Matchers;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -110,6 +111,41 @@ public class SimpleSortTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.getScore(), not(equalTo(Float.NaN)));
         }
+    }
+
+    @Test public void testScoreSortDirection() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type", "1").setSource("field", 2).execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("field", 1).execute().actionGet();
+        client.prepareIndex("test", "type", "3").setSource("field", 0).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).execute().actionGet();
+        assertThat(searchResponse.hits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(1).score(), Matchers.lessThan(searchResponse.hits().getAt(0).score()));
+        assertThat(searchResponse.hits().getAt(1).getId(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(2).score(), Matchers.lessThan(searchResponse.hits().getAt(1).score()));
+        assertThat(searchResponse.hits().getAt(2).getId(), equalTo("3"));
+
+        searchResponse = client.prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).addSort("_score", SortOrder.DESC).execute().actionGet();
+        assertThat(searchResponse.hits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(1).score(), Matchers.lessThan(searchResponse.hits().getAt(0).score()));
+        assertThat(searchResponse.hits().getAt(1).getId(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(2).score(), Matchers.lessThan(searchResponse.hits().getAt(1).score()));
+        assertThat(searchResponse.hits().getAt(2).getId(), equalTo("3"));
+
+        searchResponse = client.prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).addSort("_score", SortOrder.DESC).execute().actionGet();
+        assertThat(searchResponse.hits().getAt(2).getId(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(1).getId(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).getId(), equalTo("1"));
     }
 
     @Test public void testSimpleSortsSingleShard() throws Exception {

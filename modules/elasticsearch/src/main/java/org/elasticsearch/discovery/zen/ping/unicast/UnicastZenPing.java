@@ -100,7 +100,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         this.transportService = transportService;
         this.clusterName = clusterName;
 
-        List<String> hosts = Lists.newArrayList(componentSettings.getAsArray("hosts"));
+        String[] hostArr = componentSettings.getAsArray("hosts");
+        // trim the hosts
+        for (int i = 0; i < hostArr.length; i++) {
+            hostArr[i] = hostArr[i].trim();
+        }
+        List<String> hosts = Lists.newArrayList(hostArr);
         logger.debug("using initial hosts {}", hosts);
 
         List<DiscoveryNode> nodes = Lists.newArrayList();

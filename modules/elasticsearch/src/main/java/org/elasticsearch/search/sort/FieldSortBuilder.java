@@ -64,8 +64,8 @@ public class FieldSortBuilder extends SortBuilder {
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
-        if (order == SortOrder.DESC) {
-            builder.field("reverse", true);
+        if (order != null) {
+            builder.field("order", order.toString());
         }
         if (missing != null) {
             builder.field("missing", missing);

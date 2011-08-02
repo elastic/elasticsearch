@@ -28,9 +28,17 @@ public enum SortOrder {
     /**
      * Ascending order.
      */
-    ASC,
+    ASC {
+        @Override public String toString() {
+            return "asc";
+        }
+    },
     /**
      * Descending order.
      */
-    DESC
+    DESC {
+        @Override public String toString() {
+            return "desc";
+        }
+    }
 }

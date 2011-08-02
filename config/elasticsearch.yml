@@ -7,17 +7,15 @@
 #path.work: /path/to/work
 #path.logs: /path/to/logs
 
+# Force all memory to be locked, forcing the JVM to never swap
+#bootstrap.mlockall: true
+
 # Gateway Settings
 #   Controls when to start the initial recovery process when starting a new cluster
+#   allowing for better reused of existing data during recovery.
 #gateway.recover_after_nodes: 1
 #gateway.recover_after_time: 5m
 #gateway.expected_nodes: 2
-
-# Force all memory to be locked, forcing JVM to never swap
-#   (make sure to set MIN and MAX mem to the same value)
-#   In order to see if this works or not, set the `common.jna` logging to DEBUG level.
-#   A solution to “Unknown mlockall error 0” can be to set ulimit -l unlimited.
-#bootstrap.mlockall: true
 
 # Controls the minimum number of master eligible nodes this node should "see"
 # in order to operate within the cluster.

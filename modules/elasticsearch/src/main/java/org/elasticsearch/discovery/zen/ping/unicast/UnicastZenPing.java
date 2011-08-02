@@ -56,6 +56,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -168,13 +169,15 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override public void ping(final PingListener listener, final TimeValue timeout) throws ElasticSearchException {
+        final AtomicBoolean done = new AtomicBoolean();
         final int id = pingIdGenerator.incrementAndGet();
         receivedResponses.put(id, new ConcurrentHashMap<DiscoveryNode, PingResponse>());
-        final Set<DiscoveryNode> nodesToDisconnect1 = sendPings(id, timeout, false);
+        final Set<DiscoveryNode> nodesToDisconnect1 = sendPings(id, timeout, false, done);
         threadPool.schedule(timeout, ThreadPool.Names.CACHED, new Runnable() {
             @Override public void run() {
                 final Set<DiscoveryNode> nodesToDisconnect = Sets.newHashSet(nodesToDisconnect1);
-                nodesToDisconnect.addAll(sendPings(id, timeout, true));
+                nodesToDisconnect.addAll(sendPings(id, timeout, true, done));
+                done.set(true);
                 for (DiscoveryNode node : nodesToDisconnect) {
                     transportService.disconnectFromNode(node);
                 }
@@ -184,7 +187,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         });
     }
 
-    Set<DiscoveryNode> sendPings(final int id, final TimeValue timeout, boolean wait) {
+    Set<DiscoveryNode> sendPings(final int id, final TimeValue timeout, boolean wait, final AtomicBoolean done) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = id;
         pingRequest.timeout = timeout;
@@ -217,6 +220,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 // fork the connection to another thread
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
                     @Override public void run() {
+                        if (done.get()) {
+                            return;
+                        }
                         try {
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {

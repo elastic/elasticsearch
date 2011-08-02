@@ -31,11 +31,11 @@ import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.compress.lzf.LZFOutputStream;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -151,24 +152,20 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     @Override public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            StreamOutput out;
+            FastByteArrayOutputStream out = new FastByteArrayOutputStream();
+            OutputStream os = out;
             if (compress) {
-                out = cachedEntry.cachedLZFBytes();
-            } else {
-                out = cachedEntry.cachedBytes();
+                os = new LZFOutputStream(os);
             }
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, os);
             builder.startObject();
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(cachedEntry.bytes().unsafeByteArray(), 0, cachedEntry.bytes().size()), cachedEntry.bytes().size());
+            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(out.unsafeByteArray(), 0, out.size()), out.size());
         } catch (IOException e) {
             throw new GatewayException("Failed to write metadata [" + newMetaData + "]", e);
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
 
         currentIndex++;

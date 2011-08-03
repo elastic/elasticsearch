@@ -112,6 +112,10 @@ public class ThreadPool extends AbstractComponent {
         return executor;
     }
 
+    public ScheduledExecutorService scheduler() {
+        return this.scheduler;
+    }
+
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
         return scheduler.scheduleWithFixedDelay(new LoggingRunnable(command), interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
     }

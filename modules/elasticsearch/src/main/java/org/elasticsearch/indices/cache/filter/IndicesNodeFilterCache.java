@@ -24,15 +24,17 @@ import org.elasticsearch.common.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import org.elasticsearch.common.concurrentlinkedhashmap.EvictionListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.filter.support.AbstractWeightedFilterCache;
 import org.elasticsearch.index.cache.filter.support.FilterCacheValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 public class IndicesNodeFilterCache extends AbstractComponent implements EvictionListener<AbstractWeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>> {
 
@@ -43,11 +45,7 @@ public class IndicesNodeFilterCache extends AbstractComponent implements Evictio
     private final CopyOnWriteArrayList<EvictionListener<AbstractWeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>>> evictionListeners =
             new CopyOnWriteArrayList<EvictionListener<AbstractWeightedFilterCache.FilterCacheKey, FilterCacheValue<DocSet>>>();
 
-    public IndicesNodeFilterCache() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
-    }
-
-    @Inject public IndicesNodeFilterCache(Settings settings) {
+    @Inject public IndicesNodeFilterCache(Settings settings, ThreadPool threadPool) {
         super(settings);
 
         String size = componentSettings.get("size", "20%");
@@ -57,6 +55,7 @@ public class IndicesNodeFilterCache extends AbstractComponent implements Evictio
         } else {
             sizeInBytes = ByteSizeValue.parseBytesSizeValue(size).bytes();
         }
+        TimeValue catchupTime = componentSettings.getAsTime("catchup", TimeValue.timeValueSeconds(10));
 
         int weightedSize = (int) Math.min(sizeInBytes / AbstractWeightedFilterCache.FilterCacheValueWeigher.FACTOR, Integer.MAX_VALUE);
 
@@ -64,6 +63,7 @@ public class IndicesNodeFilterCache extends AbstractComponent implements Evictio
                 .maximumWeightedCapacity(weightedSize)
                 .weigher(new AbstractWeightedFilterCache.FilterCacheValueWeigher())
                 .listener(this)
+                .catchup(threadPool.scheduler(), catchupTime.millis(), TimeUnit.MILLISECONDS)
                 .build();
 
         logger.debug("using [node] filter cache with size [{}]", new ByteSizeValue(sizeInBytes));

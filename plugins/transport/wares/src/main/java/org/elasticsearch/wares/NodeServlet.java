@@ -27,6 +27,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.support.RestUtils;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
@@ -128,12 +129,18 @@ public class NodeServlet extends HttpServlet {
 
         @Override public void sendResponse(RestResponse response) {
             resp.setContentType(response.contentType());
-            resp.addHeader("Access-Control-Allow-Origin", "*");
-            if (restRequest.method() == RestRequest.Method.OPTIONS) {
-                // also add more access control parameters
-                resp.addHeader("Access-Control-Max-Age", "1728000");
-                resp.addHeader("Access-Control-Allow-Methods", "PUT, DELETE");
-                resp.addHeader("Access-Control-Allow-Headers", "X-Requested-With");
+            if (RestUtils.isBrowser(restRequest.header("User-Agent"))) {
+                resp.addHeader("Access-Control-Allow-Origin", "*");
+                if (restRequest.method() == RestRequest.Method.OPTIONS) {
+                    // also add more access control parameters
+                    resp.addHeader("Access-Control-Max-Age", "1728000");
+                    resp.addHeader("Access-Control-Allow-Methods", "PUT, DELETE");
+                    resp.addHeader("Access-Control-Allow-Headers", "X-Requested-With");
+                }
+            }
+            String opaque = restRequest.header("X-Opaque-Id");
+            if (opaque != null) {
+                resp.addHeader("X-Opaque-Id", opaque);
             }
             try {
                 int contentLength = response.contentLength() + response.prefixContentLength() + response.suffixContentLength();

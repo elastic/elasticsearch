@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.support;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.path.PathTrie;
 
@@ -35,6 +36,17 @@ public class RestUtils {
             return RestUtils.decodeComponent(value);
         }
     };
+
+    public static boolean isBrowser(@Nullable String userAgent) {
+        if (userAgent == null) {
+            return false;
+        }
+        // chrome, safari, firefox, ie
+        if (userAgent.startsWith("Mozilla")) {
+            return true;
+        }
+        return false;
+    }
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {

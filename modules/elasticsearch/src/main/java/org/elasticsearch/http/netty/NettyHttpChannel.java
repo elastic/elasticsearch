@@ -36,10 +36,10 @@ import org.elasticsearch.common.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpException;
-import org.elasticsearch.http.HttpHelper;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ public class NettyHttpChannel implements HttpChannel {
         } else {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
-        if (HttpHelper.isBrowser(request.getHeader(HttpHeaders.Names.USER_AGENT))) {
+        if (RestUtils.isBrowser(request.getHeader(HttpHeaders.Names.USER_AGENT))) {
             // add support for cross origin
             resp.addHeader("Access-Control-Allow-Origin", "*");
             if (request.getMethod() == HttpMethod.OPTIONS) {
@@ -87,6 +87,11 @@ public class NettyHttpChannel implements HttpChannel {
                 resp.addHeader("Access-Control-Allow-Methods", "PUT, DELETE");
                 resp.addHeader("Access-Control-Allow-Headers", "X-Requested-With");
             }
+        }
+
+        String opaque = request.getHeader("X-Opaque-Id");
+        if (opaque != null) {
+            resp.addHeader("X-Opaque-Id", opaque);
         }
 
         // Convert the response content to a ChannelBuffer.

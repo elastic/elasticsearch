@@ -24,7 +24,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.trove.list.array.TFloatArrayList;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
@@ -57,6 +60,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
 
         ArrayList<Filter> filters = new ArrayList<Filter>();
         ArrayList<String> scripts = new ArrayList<String>();
+        TFloatArrayList boosts = new TFloatArrayList();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -74,6 +78,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String script = null;
                         Filter filter = null;
+                        float fboost = Float.NaN;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
@@ -84,17 +89,20 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                             } else if (token.isValue()) {
                                 if ("script".equals(currentFieldName)) {
                                     script = parser.text();
+                                } else if ("boost".equals(currentFieldName)) {
+                                    fboost = parser.floatValue();
                                 }
                             }
                         }
-                        if (script == null) {
-                            throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'script' in filters array element");
+                        if (script == null && fboost == -1) {
+                            throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'script' or 'boost' in filters array element");
                         }
                         if (filter == null) {
                             throw new QueryParsingException(parseContext.index(), "[custom_filters_score] missing 'filter' in filters array element");
                         }
                         filters.add(filter);
                         scripts.add(script);
+                        boosts.add(fboost);
                     }
                 }
             } else if (token.isValue()) {
@@ -118,8 +126,15 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
         }
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[filters.size()];
         for (int i = 0; i < filterFunctions.length; i++) {
-            SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, scripts.get(i), vars);
-            filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(filters.get(i), new CustomScoreQueryParser.ScriptScoreFunction(searchScript));
+            ScoreFunction scoreFunction;
+            String script = scripts.get(i);
+            if (script != null) {
+                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
+                scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(searchScript);
+            } else {
+                scoreFunction = new BoostScoreFunction(boosts.get(i));
+            }
+            filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(filters.get(i), scoreFunction);
         }
         FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, filterFunctions);
         functionScoreQuery.setBoost(boost);

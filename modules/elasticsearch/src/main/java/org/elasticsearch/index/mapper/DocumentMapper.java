@@ -519,11 +519,15 @@ public class DocumentMapper implements ToXContent {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new MapperParsingException("Malformed content, must start with an object");
             }
+            boolean emptyDoc = false;
             token = parser.nextToken();
-            if (token != XContentParser.Token.FIELD_NAME) {
+            if (token == XContentParser.Token.END_OBJECT) {
+                // empty doc, we can handle it...
+                emptyDoc = true;
+            } else if (token != XContentParser.Token.FIELD_NAME) {
                 throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
-            if (parser.currentName().equals(type)) {
+            if (type.equals(parser.currentName())) {
                 // first field is the same as the type, this might be because the type is provided, and the object exists within it
                 // or because there is a valid field that by chance is named as the type
 
@@ -558,7 +562,9 @@ public class DocumentMapper implements ToXContent {
 
             indexFieldMapper.parse(context);
 
-            rootObjectMapper.parse(context);
+            if (!emptyDoc) {
+                rootObjectMapper.parse(context);
+            }
 
             for (int i = 0; i < countDownTokens; i++) {
                 parser.nextToken();

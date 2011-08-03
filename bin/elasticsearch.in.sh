@@ -21,10 +21,6 @@ JAVA_OPTS="$JAVA_OPTS -Xss128k"
 #    - Disabled by default as it might cause the JVM to crash
 # JAVA_OPTS="$JAVA_OPTS -XX:+AggressiveOpts"
 
-# Enable reference compression, reducing memory overhead on 64bit JVMs
-#    - Disabled by default as it is not stable for Sun JVM before 6u19
-#JAVA_OPTS="$JAVA_OPTS -XX:+UseCompressedOops"
-
 JAVA_OPTS="$JAVA_OPTS -XX:+UseParNewGC"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
 JAVA_OPTS="$JAVA_OPTS -XX:+CMSParallelRemarkEnabled"

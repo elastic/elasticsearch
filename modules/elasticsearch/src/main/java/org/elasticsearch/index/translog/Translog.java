@@ -505,7 +505,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         public DeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-            this(deleteByQuery.source(), deleteByQuery.types());
+            this(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types());
         }
 
         public DeleteByQuery(byte[] source, String[] filteringAliases, String... types) {

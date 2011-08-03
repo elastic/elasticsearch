@@ -41,7 +41,7 @@ public class OsService extends AbstractComponent {
         super(settings);
         this.probe = probe;
 
-        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(5));
+        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(1));
 
         this.info = probe.osInfo();
         this.info.refreshInterval = refreshInterval.millis();

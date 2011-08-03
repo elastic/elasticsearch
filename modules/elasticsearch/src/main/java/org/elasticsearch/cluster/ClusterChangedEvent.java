@@ -20,6 +20,10 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
+
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
@@ -68,6 +72,50 @@ public class ClusterChangedEvent {
             return state.routingTable().index(index) != previousState.routingTable().index(index);
         }
         return true;
+    }
+
+    /**
+     * Returns the indices created in this event
+     */
+    public List<String> indicesCreated() {
+        if (previousState == null) {
+            return Lists.newArrayList(state.metaData().indices().keySet());
+        }
+        if (!metaDataChanged()) {
+            return ImmutableList.of();
+        }
+        List<String> created = null;
+        for (String index : state.metaData().indices().keySet()) {
+            if (!previousState.metaData().hasIndex(index)) {
+                if (created == null) {
+                    created = Lists.newArrayList();
+                }
+                created.add(index);
+            }
+        }
+        return created == null ? ImmutableList.<String>of() : created;
+    }
+
+    /**
+     * Returns the indices deleted in this event
+     */
+    public List<String> indicesDeleted() {
+        if (previousState == null) {
+            return ImmutableList.of();
+        }
+        if (!metaDataChanged()) {
+            return ImmutableList.of();
+        }
+        List<String> deleted = null;
+        for (String index : previousState.metaData().indices().keySet()) {
+            if (!state.metaData().hasIndex(index)) {
+                if (deleted == null) {
+                    deleted = Lists.newArrayList();
+                }
+                deleted.add(index);
+            }
+        }
+        return deleted == null ? ImmutableList.<String>of() : deleted;
     }
 
     public boolean metaDataChanged() {

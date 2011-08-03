@@ -27,9 +27,7 @@ import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Strings;
@@ -63,7 +61,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -118,8 +120,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
 
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
-            final Set<String> allocatedNodes = Sets.newHashSet();
-
             @Override public ClusterState execute(ClusterState currentState) {
                 try {
                     try {
@@ -271,43 +271,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                     }
 
-                    // initialize the counter only for nodes the shards are allocated to
-                    if (updatedState.routingTable().hasIndex(request.index)) {
-                        for (IndexShardRoutingTable indexShardRoutingTable : updatedState.routingTable().index(request.index)) {
-                            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                                // if we have a routing for this shard on a node, and its not the master node (since we already created
-                                // an index on it), then add it
-                                if (shardRouting.currentNodeId() != null && !updatedState.nodes().localNodeId().equals(shardRouting.currentNodeId())) {
-                                    allocatedNodes.add(shardRouting.currentNodeId());
+                    // we wait for events from all nodes that the index has been added to the metadata
+                    final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
+
+                    final NodeIndexCreatedAction.Listener nodeIndexCreatedListener = new NodeIndexCreatedAction.Listener() {
+                        @Override public void onNodeIndexCreated(String index, String nodeId) {
+                            if (index.equals(request.index)) {
+                                if (counter.decrementAndGet() == 0) {
+                                    listener.onResponse(new Response(true, indexMetaData));
+                                    nodeIndexCreatedAction.remove(this);
                                 }
                             }
                         }
-                    }
+                    };
 
-                    if (!allocatedNodes.isEmpty()) {
-                        final AtomicInteger counter = new AtomicInteger(allocatedNodes.size());
+                    nodeIndexCreatedAction.add(nodeIndexCreatedListener);
 
-                        final NodeIndexCreatedAction.Listener nodeIndexCreatedListener = new NodeIndexCreatedAction.Listener() {
-                            @Override public void onNodeIndexCreated(String index, String nodeId) {
-                                if (index.equals(request.index)) {
-                                    if (counter.decrementAndGet() == 0) {
-                                        listener.onResponse(new Response(true, indexMetaData));
-                                        nodeIndexCreatedAction.remove(this);
-                                    }
-                                }
-                            }
-                        };
-
-                        nodeIndexCreatedAction.add(nodeIndexCreatedListener);
-
-                        listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
-                            @Override public void run() {
-                                listener.onResponse(new Response(false, indexMetaData));
-                                nodeIndexCreatedAction.remove(nodeIndexCreatedListener);
-                            }
-                        });
-                    }
-
+                    listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
+                        @Override public void run() {
+                            listener.onResponse(new Response(false, indexMetaData));
+                            nodeIndexCreatedAction.remove(nodeIndexCreatedListener);
+                        }
+                    });
 
                     return updatedState;
                 } catch (Exception e) {
@@ -318,9 +303,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
-                if (allocatedNodes.isEmpty()) {
-                    listener.onResponse(new Response(true, clusterState.metaData().index(request.index)));
-                }
             }
         });
     }

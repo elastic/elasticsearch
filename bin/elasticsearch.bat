@@ -25,10 +25,6 @@ REM Enable aggressive optimizations in the JVM
 REM    - Disabled by default as it might cause the JVM to crash
 REM set JAVA_OPTS=%JAVA_OPTS% -XX:+AggressiveOpts
 
-REM Enable reference compression, reducing memory overhead on 64bit JVMs
-REM    - Disabled by default as it is not stable for Sun JVM before 6u19
-REM set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCompressedOops
-
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+CMSParallelRemarkEnabled

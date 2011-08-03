@@ -180,6 +180,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             applyDeletedShards(event);
             applyCleanedIndices(event);
             applySettings(event);
+            sendIndexLifecycleEvents(event);
+        }
+    }
+
+    private void sendIndexLifecycleEvents(final ClusterChangedEvent event) {
+        for (String index : event.indicesCreated()) {
+            try {
+                nodeIndexCreatedAction.nodeIndexCreated(index, event.state().nodes().localNodeId());
+            } catch (Exception e) {
+                logger.debug("failed to send to master index {} created event", index);
+            }
+        }
+        for (String index : event.indicesDeleted()) {
+            try {
+                nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
+            } catch (Exception e) {
+                logger.debug("failed to send to master index {} deleted event", index);
+            }
         }
     }
 
@@ -223,11 +241,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 try {
                     indicesService.deleteIndex(index, "deleting index");
-                    threadPool.cached().execute(new Runnable() {
-                        @Override public void run() {
-                            nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
-                        }
-                    });
                 } catch (Exception e) {
                     logger.warn("failed to delete index", e);
                 }
@@ -292,11 +305,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] creating index", indexMetaData.index());
                 }
                 indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), event.state().nodes().localNode().id());
-                threadPool.cached().execute(new Runnable() {
-                    @Override public void run() {
-                        nodeIndexCreatedAction.nodeIndexCreated(indexMetaData.index(), event.state().nodes().localNodeId());
-                    }
-                });
             }
         }
     }

@@ -24,12 +24,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,46 +89,26 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                     ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
 
-                    // initialize the counter only for nodes the shards are allocated to
-                    Set<String> allocatedNodes = Sets.newHashSet();
-                    if (currentState.routingTable().hasIndex(request.index)) {
-                        for (IndexShardRoutingTable indexShardRoutingTable : currentState.routingTable().index(request.index)) {
-                            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                                if (shardRouting.currentNodeId() != null) {
-                                    allocatedNodes.add(shardRouting.currentNodeId());
-                                }
-                                if (shardRouting.relocatingNodeId() != null) {
-                                    allocatedNodes.add(shardRouting.relocatingNodeId());
+                    final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
+
+                    final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
+                        @Override public void onNodeIndexDeleted(String index, String nodeId) {
+                            if (index.equals(request.index)) {
+                                if (counter.decrementAndGet() == 0) {
+                                    listener.onResponse(new Response(true));
+                                    nodeIndexDeletedAction.remove(this);
                                 }
                             }
                         }
-                    }
+                    };
+                    nodeIndexDeletedAction.add(nodeIndexDeleteListener);
 
-                    if (allocatedNodes.isEmpty()) {
-                        // no nodes allocated, don't wait for a response
-                        listener.onResponse(new Response(true));
-                    } else {
-                        final AtomicInteger counter = new AtomicInteger(allocatedNodes.size());
-
-                        final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
-                            @Override public void onNodeIndexDeleted(String index, String nodeId) {
-                                if (index.equals(request.index)) {
-                                    if (counter.decrementAndGet() == 0) {
-                                        listener.onResponse(new Response(true));
-                                        nodeIndexDeletedAction.remove(this);
-                                    }
-                                }
-                            }
-                        };
-                        nodeIndexDeletedAction.add(nodeIndexDeleteListener);
-
-                        listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
-                            @Override public void run() {
-                                listener.onResponse(new Response(false));
-                                nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
-                            }
-                        });
-                    }
+                    listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
+                        @Override public void run() {
+                            listener.onResponse(new Response(false));
+                            nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
+                        }
+                    });
 
                     return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
                 } catch (Exception e) {

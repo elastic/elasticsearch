@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.bloom.BloomCache;
@@ -52,7 +53,12 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     private final BloomCache bloomCache;
 
+    private final TimeValue refreshInterval;
+
     private ClusterService clusterService;
+
+    private long latestCacheStatsTimestamp = -1;
+    private CacheStats latestCacheStats;
 
     @Inject public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache,
                               QueryParserCache queryParserCache, IdCache idCache, BloomCache bloomCache) {
@@ -62,6 +68,10 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         this.queryParserCache = queryParserCache;
         this.idCache = idCache;
         this.bloomCache = bloomCache;
+
+        this.refreshInterval = componentSettings.getAsTime("stats.refresh_interval", TimeValue.timeValueSeconds(1));
+
+        logger.debug("Using stats.refresh_interval [{}]", refreshInterval);
     }
 
     @Inject(optional = true)
@@ -72,9 +82,14 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         }
     }
 
-    public CacheStats stats() {
-        FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-        return new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes());
+    public synchronized CacheStats stats() {
+        long timestamp = System.currentTimeMillis();
+        if ((timestamp - latestCacheStatsTimestamp) > refreshInterval.millis()) {
+            FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
+            latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes());
+            latestCacheStatsTimestamp = timestamp;
+        }
+        return latestCacheStats;
     }
 
     public FilterCache filter() {

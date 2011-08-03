@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
@@ -30,16 +31,28 @@ public class JvmService extends AbstractComponent {
 
     private final JvmInfo jvmInfo;
 
+    private final TimeValue refreshInterval;
+
+    private JvmStats jvmStats;
+
     @Inject public JvmService(Settings settings) {
         super(settings);
         this.jvmInfo = JvmInfo.jvmInfo();
+        this.jvmStats = JvmStats.jvmStats();
+
+        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(1));
+
+        logger.debug("Using refresh_interval [{}]", refreshInterval);
     }
 
     public JvmInfo info() {
         return this.jvmInfo;
     }
 
-    public JvmStats stats() {
-        return JvmStats.jvmStats();
+    public synchronized JvmStats stats() {
+        if ((System.currentTimeMillis() - jvmStats.timestamp()) > refreshInterval.millis()) {
+            jvmStats = JvmStats.jvmStats();
+        }
+        return jvmStats;
     }
 }

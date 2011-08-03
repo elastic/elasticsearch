@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.trove.list.array.TFloatArrayList;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
     private ArrayList<FilterBuilder> filters = new ArrayList<FilterBuilder>();
     private ArrayList<String> scripts = new ArrayList<String>();
+    private TFloatArrayList boosts = new TFloatArrayList();
 
     public CustomFiltersScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
@@ -51,6 +53,14 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
     public CustomFiltersScoreQueryBuilder add(FilterBuilder filter, String script) {
         this.filters.add(filter);
         this.scripts.add(script);
+        this.boosts.add(-1);
+        return this;
+    }
+
+    public CustomFiltersScoreQueryBuilder add(FilterBuilder filter, float boost) {
+        this.filters.add(filter);
+        this.scripts.add(null);
+        this.boosts.add(boost);
         return this;
     }
 
@@ -104,7 +114,12 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
             builder.startObject();
             builder.field("filter");
             filters.get(i).toXContent(builder, params);
-            builder.field("script", scripts.get(i));
+            String script = scripts.get(i);
+            if (script != null) {
+                builder.field("script", script);
+            } else {
+                builder.field("boost", boosts.get(i));
+            }
             builder.endObject();
         }
         builder.endArray();

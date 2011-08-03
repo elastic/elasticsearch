@@ -174,5 +174,25 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(2).score(), equalTo(1.0f));
         assertThat(searchResponse.hits().getAt(3).id(), anyOf(equalTo("1"), equalTo("3")));
         assertThat(searchResponse.hits().getAt(3).score(), equalTo(1.0f));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(customFiltersScoreQuery(matchAllQuery())
+                        .add(termFilter("field", "value4"), 2)
+                        .add(termFilter("field", "value2"), 3))
+                .setExplain(true)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).score(), equalTo(3.0f));
+        logger.info("--> Hit[0] {} Explanation {}", searchResponse.hits().getAt(0).id(), searchResponse.hits().getAt(0).explanation());
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(1).score(), equalTo(2.0f));
+        assertThat(searchResponse.hits().getAt(2).id(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.hits().getAt(2).score(), equalTo(1.0f));
+        assertThat(searchResponse.hits().getAt(3).id(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.hits().getAt(3).score(), equalTo(1.0f));
     }
 }

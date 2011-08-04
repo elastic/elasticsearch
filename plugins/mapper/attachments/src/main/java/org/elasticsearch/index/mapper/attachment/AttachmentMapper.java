@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.attachment;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
+import org.elasticsearch.common.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -81,6 +82,8 @@ public class AttachmentMapper implements Mapper {
 
         private DateFieldMapper.Builder dateBuilder = dateField("date");
 
+        private StringFieldMapper.Builder contentTypeBuilder = stringField("content_type");
+
         public Builder(String name) {
             super(name);
             this.builder = this;
@@ -117,6 +120,11 @@ public class AttachmentMapper implements Mapper {
             return this;
         }
 
+        public Builder contentType(StringFieldMapper.Builder contentType) {
+            this.contentTypeBuilder = contentType;
+            return this;
+        }
+
         @Override public AttachmentMapper build(BuilderContext context) {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
@@ -130,11 +138,12 @@ public class AttachmentMapper implements Mapper {
             StringFieldMapper authorMapper = authorBuilder.build(context);
             StringFieldMapper titleMapper = titleBuilder.build(context);
             StringFieldMapper keywordsMapper = keywordsBuilder.build(context);
+            StringFieldMapper contentTypeMapper = contentTypeBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
 
-            return new AttachmentMapper(name, pathType, contentMapper, dateMapper, titleMapper, authorMapper, keywordsMapper);
+            return new AttachmentMapper(name, pathType, contentMapper, dateMapper, titleMapper, authorMapper, keywordsMapper, contentTypeMapper);
         }
     }
 
@@ -183,6 +192,8 @@ public class AttachmentMapper implements Mapper {
                             builder.author((StringFieldMapper.Builder) parserContext.typeParser("string").parse("author", (Map<String, Object>) propNode, parserContext));
                         } else if ("keywords".equals(propName)) {
                             builder.keywords((StringFieldMapper.Builder) parserContext.typeParser("string").parse("keywords", (Map<String, Object>) propNode, parserContext));
+                        } else if ("content_type".equals(propName)) {
+                            builder.contentType((StringFieldMapper.Builder) parserContext.typeParser("string").parse("content_type", (Map<String, Object>) propNode, parserContext));
                         }
                     }
                 }
@@ -206,9 +217,11 @@ public class AttachmentMapper implements Mapper {
 
     private final StringFieldMapper keywordsMapper;
 
+    private final StringFieldMapper contentTypeMapper;
+
     public AttachmentMapper(String name, ContentPath.Type pathType, StringFieldMapper contentMapper,
                             DateFieldMapper dateMapper, StringFieldMapper titleMapper, StringFieldMapper authorMapper,
-                            StringFieldMapper keywordsMapper) {
+                            StringFieldMapper keywordsMapper, StringFieldMapper contentTypeMapper) {
         this.name = name;
         this.pathType = pathType;
         this.contentMapper = contentMapper;
@@ -216,6 +229,7 @@ public class AttachmentMapper implements Mapper {
         this.titleMapper = titleMapper;
         this.authorMapper = authorMapper;
         this.keywordsMapper = keywordsMapper;
+        this.contentTypeMapper = contentTypeMapper;
     }
 
     @Override public String name() {
@@ -277,6 +291,9 @@ public class AttachmentMapper implements Mapper {
 
         context.externalValue(metadata.get(Metadata.KEYWORDS));
         keywordsMapper.parse(context);
+
+        context.externalValue(metadata.get(Metadata.CONTENT_TYPE));
+        contentTypeMapper.parse(context);
     }
 
     @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
@@ -289,6 +306,7 @@ public class AttachmentMapper implements Mapper {
         titleMapper.traverse(fieldMapperListener);
         authorMapper.traverse(fieldMapperListener);
         keywordsMapper.traverse(fieldMapperListener);
+        contentTypeMapper.traverse(fieldMapperListener);
     }
 
     @Override public void traverse(ObjectMapperListener objectMapperListener) {
@@ -300,6 +318,7 @@ public class AttachmentMapper implements Mapper {
         titleMapper.close();
         authorMapper.close();
         keywordsMapper.close();
+        contentTypeMapper.close();
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -313,6 +332,7 @@ public class AttachmentMapper implements Mapper {
         titleMapper.toXContent(builder, params);
         dateMapper.toXContent(builder, params);
         keywordsMapper.toXContent(builder, params);
+        contentTypeMapper.toXContent(builder, params);
         builder.endObject();
 
         builder.endObject();

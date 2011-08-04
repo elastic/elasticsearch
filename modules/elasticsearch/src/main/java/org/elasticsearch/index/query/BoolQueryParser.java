@@ -94,6 +94,20 @@ public class BoolQueryParser implements QueryParser {
             }
         }
 
+        if (clauses.size() == 1) {
+            BooleanClause clause = clauses.get(0);
+            if (clause.getOccur() == BooleanClause.Occur.MUST) {
+                Query query = clause.getQuery();
+                query.setBoost(boost * query.getBoost());
+                return query;
+            }
+            if (clause.getOccur() == BooleanClause.Occur.SHOULD && minimumNumberShouldMatch > 0) {
+                Query query = clause.getQuery();
+                query.setBoost(boost * query.getBoost());
+                return query;
+            }
+        }
+
         BooleanQuery query = new BooleanQuery(disableCoord);
         for (BooleanClause clause : clauses) {
             query.add(clause);

@@ -19,7 +19,13 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -62,6 +68,23 @@ public class Queries {
      * Optimizes the given query and returns the optimized version of it.
      */
     public static Query optimizeQuery(Query q) {
+        if (q instanceof BooleanQuery) {
+            BooleanQuery booleanQuery = (BooleanQuery) q;
+            BooleanClause[] clauses = booleanQuery.getClauses();
+            if (clauses.length == 1) {
+                BooleanClause clause = clauses[0];
+                if (clause.getOccur() == BooleanClause.Occur.MUST) {
+                    Query query = clause.getQuery();
+                    query.setBoost(booleanQuery.getBoost() * query.getBoost());
+                    return optimizeQuery(query);
+                }
+                if (clause.getOccur() == BooleanClause.Occur.SHOULD && booleanQuery.getMinimumNumberShouldMatch() > 0) {
+                    Query query = clause.getQuery();
+                    query.setBoost(booleanQuery.getBoost() * query.getBoost());
+                    return optimizeQuery(query);
+                }
+            }
+        }
         return q;
     }
 

@@ -42,6 +42,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -201,6 +202,8 @@ public class SimpleBloomCache extends AbstractIndexComponent implements BloomCac
                     }
                 }
             } catch (AlreadyClosedException e) {
+                // ignore, we are getting closed
+            } catch (ClosedChannelException e) {
                 // ignore, we are getting closed
             } catch (Exception e) {
                 logger.warn("failed to load bloom filter for [{}]", e, field);

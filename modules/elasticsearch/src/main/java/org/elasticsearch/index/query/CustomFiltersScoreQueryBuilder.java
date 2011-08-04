@@ -42,6 +42,8 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
 
     private Map<String, Object> params = null;
 
+    private String scoreMode;
+
     private ArrayList<FilterBuilder> filters = new ArrayList<FilterBuilder>();
     private ArrayList<String> scripts = new ArrayList<String>();
     private TFloatArrayList boosts = new TFloatArrayList();
@@ -61,6 +63,11 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
         this.filters.add(filter);
         this.scripts.add(null);
         this.boosts.add(boost);
+        return this;
+    }
+
+    public CustomFiltersScoreQueryBuilder scoreMode(String scoreMode) {
+        this.scoreMode = scoreMode;
         return this;
     }
 
@@ -123,6 +130,10 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder {
             builder.endObject();
         }
         builder.endArray();
+
+        if (scoreMode != null) {
+            builder.field("score_mode", scoreMode);
+        }
 
         if (lang != null) {
             builder.field("lang", lang);

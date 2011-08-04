@@ -58,6 +58,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
         String scriptLang = null;
         Map<String, Object> vars = null;
 
+        FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.First;
         ArrayList<Filter> filters = new ArrayList<Filter>();
         ArrayList<String> scripts = new ArrayList<String>();
         TFloatArrayList boosts = new TFloatArrayList();
@@ -110,6 +111,19 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     scriptLang = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    String sScoreMode = parser.text();
+                    if ("avg".equals(sScoreMode)) {
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Avg;
+                    } else if ("max".equals(sScoreMode)) {
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Max;
+                    } else if ("total".equals(sScoreMode)) {
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Total;
+                    } else if ("first".equals(sScoreMode)) {
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.First;
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]");
+                    }
                 }
             }
         }
@@ -136,7 +150,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             }
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(filters.get(i), scoreFunction);
         }
-        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, filterFunctions);
+        FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions);
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }

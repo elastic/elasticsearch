@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
 
@@ -73,12 +74,16 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
+    public static enum ScoreMode {First, Avg, Max, Total}
+
     Query subQuery;
     final FilterFunction[] filterFunctions;
+    final ScoreMode scoreMode;
     DocSet[] docSets;
 
-    public FiltersFunctionScoreQuery(Query subQuery, FilterFunction[] filterFunctions) {
+    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions) {
         this.subQuery = subQuery;
+        this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
         this.docSets = new DocSet[filterFunctions.length];
     }
@@ -151,7 +156,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 filterFunction.function.setNextReader(reader);
                 docSets[i] = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
             }
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, filterFunctions, docSets);
+            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, scoreMode, filterFunctions, docSets);
         }
 
         @Override
@@ -161,16 +166,59 @@ public class FiltersFunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
 
-            for (FilterFunction filterFunction : filterFunctions) {
-                DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
-                if (docSet.get(doc)) {
-                    filterFunction.function.setNextReader(reader);
-                    Explanation functionExplanation = filterFunction.function.explain(doc, subQueryExpl);
-                    float sc = getValue() * functionExplanation.getValue();
-                    Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
-                    res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
-                    res.addDetail(functionExplanation);
-                    res.addDetail(new Explanation(getValue(), "queryBoost"));
+            if (scoreMode == ScoreMode.First) {
+                for (FilterFunction filterFunction : filterFunctions) {
+                    DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                    if (docSet.get(doc)) {
+                        filterFunction.function.setNextReader(reader);
+                        Explanation functionExplanation = filterFunction.function.explain(doc, subQueryExpl);
+                        float sc = getValue() * functionExplanation.getValue();
+                        Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
+                        res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
+                        res.addDetail(functionExplanation);
+                        res.addDetail(new Explanation(getValue(), "queryBoost"));
+                        return res;
+                    }
+                }
+            } else {
+                int count = 0;
+                float total = 0;
+                float max = Float.NEGATIVE_INFINITY;
+                ArrayList<Explanation> filtersExplanations = new ArrayList<Explanation>();
+                for (FilterFunction filterFunction : filterFunctions) {
+                    DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                    if (docSet.get(doc)) {
+                        filterFunction.function.setNextReader(reader);
+                        Explanation functionExplanation = filterFunction.function.explain(doc, subQueryExpl);
+                        float sc = functionExplanation.getValue();
+                        count++;
+                        total += sc;
+                        max = Math.max(sc, max);
+                        Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
+                        res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
+                        res.addDetail(functionExplanation);
+                        res.addDetail(new Explanation(getValue(), "queryBoost"));
+                        filtersExplanations.add(res);
+                    }
+                }
+                if (count > 0) {
+                    float sc = 0;
+                    switch (scoreMode) {
+                        case Avg:
+                            sc = total / count;
+                            break;
+                        case Max:
+                            sc = max;
+                            break;
+                        case Total:
+                            sc = total;
+                            break;
+                    }
+                    sc *= getValue();
+                    Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
+                    for (Explanation explanation : filtersExplanations) {
+                        res.addDetail(explanation);
+                    }
                     return res;
                 }
             }
@@ -188,13 +236,15 @@ public class FiltersFunctionScoreQuery extends Query {
         private final float subQueryWeight;
         private final Scorer scorer;
         private final FilterFunction[] filterFunctions;
+        private final ScoreMode scoreMode;
         private final DocSet[] docSets;
 
         private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer,
-                                        FilterFunction[] filterFunctions, DocSet[] docSets) throws IOException {
+                                        ScoreMode scoreMode, FilterFunction[] filterFunctions, DocSet[] docSets) throws IOException {
             super(similarity);
             this.subQueryWeight = w.getValue();
             this.scorer = scorer;
+            this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
             this.docSets = docSets;
         }
@@ -218,9 +268,36 @@ public class FiltersFunctionScoreQuery extends Query {
         public float score() throws IOException {
             int docId = scorer.docID();
             float score = scorer.score();
-            for (int i = 0; i < filterFunctions.length; i++) {
-                if (docSets[i].get(docId)) {
-                    return subQueryWeight * filterFunctions[i].function.score(docId, score);
+            if (scoreMode == ScoreMode.First) {
+                for (int i = 0; i < filterFunctions.length; i++) {
+                    if (docSets[i].get(docId)) {
+                        return subQueryWeight * filterFunctions[i].function.score(docId, score);
+                    }
+                }
+            } else if (scoreMode == ScoreMode.Max) {
+                float maxScore = Float.NEGATIVE_INFINITY;
+                for (int i = 0; i < filterFunctions.length; i++) {
+                    if (docSets[i].get(docId)) {
+                        maxScore = Math.max(filterFunctions[i].function.score(docId, score), maxScore);
+                    }
+                }
+                if (maxScore != Float.NEGATIVE_INFINITY) {
+                    score = maxScore;
+                }
+            } else { // Avg / Total
+                float totalScore = 0.0f;
+                int count = 0;
+                for (int i = 0; i < filterFunctions.length; i++) {
+                    if (docSets[i].get(docId)) {
+                        totalScore += filterFunctions[i].function.score(docId, score);
+                        count++;
+                    }
+                }
+                if (count != 0) {
+                    score = totalScore;
+                    if (scoreMode == ScoreMode.Avg) {
+                        score /= count;
+                    }
                 }
             }
             return subQueryWeight * score;

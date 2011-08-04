@@ -41,7 +41,7 @@ public class SingleFieldSelector implements ResetFieldSelector {
 
     @Override public FieldSelectorResult accept(String fieldName) {
         if (name.equals(fieldName)) {
-            return FieldSelectorResult.LOAD_AND_BREAK;
+            return FieldSelectorResult.LOAD;
         }
         return FieldSelectorResult.NO_LOAD;
     }

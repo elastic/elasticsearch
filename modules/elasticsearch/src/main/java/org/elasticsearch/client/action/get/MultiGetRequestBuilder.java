@@ -42,6 +42,20 @@ public class MultiGetRequestBuilder extends BaseRequestBuilder<MultiGetRequest, 
         return this;
     }
 
+    public MultiGetRequestBuilder add(String index, @Nullable String type, Iterable<String> ids) {
+        for (String id : ids) {
+            request.add(index, type, id);
+        }
+        return this;
+    }
+
+    public MultiGetRequestBuilder add(String index, @Nullable String type, String... ids) {
+        for (String id : ids) {
+            request.add(index, type, id);
+        }
+        return this;
+    }
+
     public MultiGetRequestBuilder add(MultiGetRequest.Item item) {
         request.add(item);
         return this;

@@ -32,8 +32,6 @@ import java.util.HashSet;
 public class FieldMappersFieldSelector implements ResetFieldSelector {
 
     private final HashSet<String> names = new HashSet<String>();
-    private int count;
-
 
     public void add(String fieldName) {
         names.add(fieldName);
@@ -47,15 +45,11 @@ public class FieldMappersFieldSelector implements ResetFieldSelector {
 
     @Override public FieldSelectorResult accept(String fieldName) {
         if (names.contains(fieldName)) {
-            if (++count == names.size()) {
-                return FieldSelectorResult.LOAD_AND_BREAK;
-            }
             return FieldSelectorResult.LOAD;
         }
         return FieldSelectorResult.NO_LOAD;
     }
 
     @Override public void reset() {
-        count = 0;
     }
 }

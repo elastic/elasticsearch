@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.collect.Lists.*;
 
@@ -309,9 +310,9 @@ public class DocumentMapper implements ToXContent {
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
 
-    private final List<FieldMapperListener> fieldMapperListeners = newArrayList();
+    private final List<FieldMapperListener> fieldMapperListeners = new CopyOnWriteArrayList<FieldMapperListener>();
 
-    private final List<ObjectMapperListener> objectMapperListeners = newArrayList();
+    private final List<ObjectMapperListener> objectMapperListeners = new CopyOnWriteArrayList<ObjectMapperListener>();
 
     private boolean hasNestedObjects = false;
 
@@ -630,47 +631,43 @@ public class DocumentMapper implements ToXContent {
     public void addFieldMapper(FieldMapper fieldMapper) {
         synchronized (mutex) {
             fieldMappers = fieldMappers.concat(this, fieldMapper);
-            for (FieldMapperListener listener : fieldMapperListeners) {
-                listener.fieldMapper(fieldMapper);
-            }
+        }
+        for (FieldMapperListener listener : fieldMapperListeners) {
+            listener.fieldMapper(fieldMapper);
         }
     }
 
     public void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting) {
-        synchronized (mutex) {
-            fieldMapperListeners.add(fieldMapperListener);
-            if (includeExisting) {
-                if (indexFieldMapper.enabled()) {
-                    fieldMapperListener.fieldMapper(indexFieldMapper);
-                }
-                fieldMapperListener.fieldMapper(sourceFieldMapper);
-                fieldMapperListener.fieldMapper(sizeFieldMapper);
-                fieldMapperListener.fieldMapper(typeFieldMapper);
-                fieldMapperListener.fieldMapper(uidFieldMapper);
-                fieldMapperListener.fieldMapper(allFieldMapper);
-                rootObjectMapper.traverse(fieldMapperListener);
+        fieldMapperListeners.add(fieldMapperListener);
+        if (includeExisting) {
+            if (indexFieldMapper.enabled()) {
+                fieldMapperListener.fieldMapper(indexFieldMapper);
             }
+            fieldMapperListener.fieldMapper(sourceFieldMapper);
+            fieldMapperListener.fieldMapper(sizeFieldMapper);
+            fieldMapperListener.fieldMapper(typeFieldMapper);
+            fieldMapperListener.fieldMapper(uidFieldMapper);
+            fieldMapperListener.fieldMapper(allFieldMapper);
+            rootObjectMapper.traverse(fieldMapperListener);
         }
     }
 
     public void addObjectMapper(ObjectMapper objectMapper) {
         synchronized (mutex) {
             objectMappers = MapBuilder.newMapBuilder(objectMappers).put(objectMapper.fullPath(), objectMapper).immutableMap();
-            for (ObjectMapperListener objectMapperListener : objectMapperListeners) {
-                objectMapperListener.objectMapper(objectMapper);
-            }
             if (objectMapper.nested().isNested()) {
                 hasNestedObjects = true;
             }
         }
+        for (ObjectMapperListener objectMapperListener : objectMapperListeners) {
+            objectMapperListener.objectMapper(objectMapper);
+        }
     }
 
     public void addObjectMapperListener(ObjectMapperListener objectMapperListener, boolean includeExisting) {
-        synchronized (mutex) {
-            objectMapperListeners.add(objectMapperListener);
-            if (includeExisting) {
-                rootObjectMapper.traverse(objectMapperListener);
-            }
+        objectMapperListeners.add(objectMapperListener);
+        if (includeExisting) {
+            rootObjectMapper.traverse(objectMapperListener);
         }
     }
 

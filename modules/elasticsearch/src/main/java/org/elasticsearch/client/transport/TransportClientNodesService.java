@@ -115,11 +115,13 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public TransportClientNodesService addTransportAddress(TransportAddress transportAddress) {
-        synchronized (transportMutex) {
-            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
-            listedNodes = builder.addAll(listedNodes).add(new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress)).build();
-        }
-        nodesSampler.sample();
+    	if(!checkListedNodes(transportAddress)){
+             synchronized (transportMutex) {
+                 ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+                 listedNodes = builder.addAll(listedNodes).add(new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress)).build();
+             }
+             nodesSampler.run();
+    	}
         return this;
     }
 
@@ -271,6 +273,7 @@ public class TransportClientNodesService extends AbstractComponent {
                         if (nodeInfo.node().dataNode()) { // only add data nodes to connect to
                             newNodes.add(nodeInfo.node());
                         }
+			addTransportAddress(nodeInfo.node().getAddress());
                     }
                 }
             }
@@ -286,6 +289,15 @@ public class TransportClientNodesService extends AbstractComponent {
             }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
         }
+    }
+
+    private boolean checkListedNodes(TransportAddress transportAddress) {
+        for(DiscoveryNode listedNode : listedNodes) {
+            if(listedNode.getAddress().equals(transportAddress)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static interface NodeCallback<T> {

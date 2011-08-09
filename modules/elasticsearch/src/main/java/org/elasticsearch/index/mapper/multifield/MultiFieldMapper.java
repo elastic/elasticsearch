@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -219,13 +220,14 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
             mergeContext.addConflict("Can't merge a non multi_field / non simple mapping [" + mergeWith.name() + "] with a multi_field mapping [" + name() + "]");
             return;
         }
+        List<FieldMapper> mappersToAddToDocMapper = new ArrayList<FieldMapper>();
         synchronized (mutex) {
             if (mergeWith instanceof AbstractFieldMapper) {
                 // its a single field mapper, upgraded into a multi field mapper, just update the default mapper
                 if (defaultMapper == null) {
                     if (!mergeContext.mergeFlags().simulate()) {
                         defaultMapper = mergeWith;
-                        mergeContext.docMapper().addFieldMapper((FieldMapper) defaultMapper);
+                        mappersToAddToDocMapper.add((FieldMapper) defaultMapper);
                     }
                 }
             } else {
@@ -235,7 +237,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     if (mergeWithMultiField.defaultMapper != null) {
                         if (!mergeContext.mergeFlags().simulate()) {
                             defaultMapper = mergeWithMultiField.defaultMapper;
-                            mergeContext.docMapper().addFieldMapper((FieldMapper) defaultMapper);
+                            mappersToAddToDocMapper.add((FieldMapper) defaultMapper);
                         }
                     }
                 } else {
@@ -256,7 +258,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             }
                             mappers = newMapBuilder(mappers).put(mergeWithMapper.name(), mergeWithMapper).immutableMap();
                             if (mergeWithMapper instanceof AbstractFieldMapper) {
-                                mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);
+                                mappersToAddToDocMapper.add((FieldMapper) mergeWithMapper);
                             }
                         }
                     } else {
@@ -264,6 +266,10 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     }
                 }
             }
+        }
+        // call it outside of the mutex
+        for (FieldMapper fieldMapper : mappersToAddToDocMapper) {
+            mergeContext.docMapper().addFieldMapper(fieldMapper);
         }
     }
 

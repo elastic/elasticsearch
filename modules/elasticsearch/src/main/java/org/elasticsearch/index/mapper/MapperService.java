@@ -182,9 +182,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 logger.warn("Type [{}] contains a '.', it is recommended not to include it within a type name", mapper.type());
             }
             remove(mapper.type()); // first remove it (in case its an update, we need to remove the aggregated mappers)
-            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
             mapper.addFieldMapperListener(fieldMapperListener, true);
             mapper.addObjectMapperListener(objectMapperListener, true);
+            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
         }
     }
 

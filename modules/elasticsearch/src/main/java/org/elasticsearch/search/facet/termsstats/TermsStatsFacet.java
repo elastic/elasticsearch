@@ -69,7 +69,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 }
                 int i = (o2.count() < o1.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
                 if (i == 0) {
-                    i = o2.term().compareTo(o1.term());
+                    i = o2.compareTo(o1);
                     if (i == 0) {
                         i = System.identityHashCode(o2) - System.identityHashCode(o1);
                     }

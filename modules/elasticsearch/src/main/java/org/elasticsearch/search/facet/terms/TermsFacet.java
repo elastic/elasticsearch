@@ -64,7 +64,7 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
             @Override public int compare(Entry o1, Entry o2) {
                 int i = o2.count() - o1.count();
                 if (i == 0) {
-                    i = o2.term().compareTo(o1.term());
+                    i = o2.compareTo(o1);
                     if (i == 0) {
                         i = System.identityHashCode(o2) - System.identityHashCode(o1);
                     }

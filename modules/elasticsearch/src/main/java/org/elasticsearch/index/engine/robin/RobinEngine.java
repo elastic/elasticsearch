@@ -803,7 +803,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // that's ok if the index writer failed and is in inconsistent state
                         // we will get an exception on a dirty operation, and will cause the shard
                         // to be allocated to a different node
-                        indexWriter.close();
+                        indexWriter.close(false);
                         indexWriter = createWriter();
 
                         if (flushNeeded) {

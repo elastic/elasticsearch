@@ -135,6 +135,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             if (!clearedAtLeastOne) {
                 service.cache().clear();
             }
+            service.cache().invalidateCache();
         }
         return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
     }

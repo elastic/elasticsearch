@@ -27,15 +27,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
-import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
-import org.apache.lucene.search.vectorhighlight.FieldQuery;
-import org.apache.lucene.search.vectorhighlight.FragListBuilder;
-import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
-import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
@@ -230,7 +222,7 @@ public class HighlightPhase implements SearchHitPhase {
                 fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldMapper, searchContext, field.preTags(), field.postTags());
             }
         } else {
-            if(field.fragmentOffset() == -1)
+            if (field.fragmentOffset() == -1)
                 fragListBuilder = new SimpleFragListBuilder();
             else
                 fragListBuilder = new MarginFragListBuilder(field.fragmentOffset());

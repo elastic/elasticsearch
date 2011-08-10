@@ -142,7 +142,7 @@ public class SortParseElement implements SearchParseElement {
             if (fieldMapper == null) {
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "]");
             }
-            sortFields.add(new SortField(fieldName, fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache(), missing), reverse));
+            sortFields.add(new SortField(fieldMapper.names().indexName(), fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache(), missing), reverse));
         }
     }
 }

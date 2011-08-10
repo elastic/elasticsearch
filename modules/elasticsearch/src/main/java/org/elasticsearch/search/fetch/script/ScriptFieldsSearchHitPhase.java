@@ -59,6 +59,7 @@ public class ScriptFieldsSearchHitPhase implements SearchHitPhase {
             Object value;
             try {
                 value = scriptField.script().run();
+                value = scriptField.script().unwrap(value);
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;

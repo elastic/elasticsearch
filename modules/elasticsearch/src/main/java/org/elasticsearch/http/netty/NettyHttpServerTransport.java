@@ -257,7 +257,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override public HttpStats stats() {
-        return new HttpStats(serverOpenChannels.numberOfOpenChannels());
+        OpenChannelsHandler channels = serverOpenChannels;
+        return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels());
     }
 
     void dispatchRequest(HttpRequest request, HttpChannel channel) {

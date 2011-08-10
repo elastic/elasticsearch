@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+if [ -x "/etc/init.d/elasticsearch" ]; then
+	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+		invoke-rc.d elasticsearch stop || true
+	else
+		/etc/init.d/elasticsearch stop || true
+	fi
+fi

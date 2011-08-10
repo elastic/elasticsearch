@@ -94,6 +94,11 @@ configurations {
     distLib {
         visible = false
     }
+    jdeb
+}
+
+dependencies {
+    jdeb group: 'org.vafer', name: 'jdeb', version: '0.8'
 }
 
 //task run(dependsOn: [configurations.distLib], description: 'Runs') << {
@@ -182,7 +187,28 @@ task tar(type: Tar, dependsOn: ['explodedDist']) {
     }
 }
 
-task release(dependsOn: [zip, tar]) << {
+
+task deb(dependsOn: ['explodedDist']) << {
+    ant.taskdef(name: "deb", classname: "org.vafer.jdeb.ant.DebAntTask", classpath: configurations.jdeb.asPath )
+    ant.copy(todir: "${distsDir}/debian") { 
+        fileset(dir: "pkg/debian/control")
+        filterset(begintoken: "[[", endtoken: "]]"){
+                filter(token: "version", value: "${version}")
+        }
+    }
+    ant.deb(destfile: "${distsDir}/${archivesBaseName}-${version}-1_all.deb", control: "${distsDir}/debian", verbose: "true"){
+        tarfileset(dir: explodedDistDir, prefix: "/usr/share/elasticsearch", includes: "*.txt, *.textile", username: "root", group: "root")
+        tarfileset(dir: explodedDistBinDir, prefix: "/usr/share/elasticsearch/bin", excludes: "*.bat", filemode: "755", username: "root", group: "root")
+        tarfileset(dir: explodedDistLibDir, prefix: "/usr/share/elasticsearch/lib", includes: "*.jar, sigar/*", username: "root", group: "root")
+        tarfileset(dir: explodedDistConfigDir, prefix: "/etc/elasticsearch", username: "root", group: "root")
+        tarfileset(dir: "pkg/debian/init.d", includes: "elasticsearch", prefix: "/etc/init.d", filemode: "755", username: "root", group: "root")
+        tarfileset(dir: "pkg/debian/default", includes: "elasticsearch", prefix: "/etc/default", username: "root", group: "root")
+    }
+    ant.delete(dir: "${distsDir}/debian")
+}
+
+
+task release(dependsOn: [zip, tar, deb]) << {
     ant.delete(dir: explodedDistDir)
 }
 

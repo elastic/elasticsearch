@@ -213,6 +213,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             script.setNextVar("ctx", ctx);
             try {
                 script.run();
+                // we need to unwrap the ctx...
+                ctx = (Map<String, Object>) script.unwrap(ctx);
             } catch (Exception e) {
                 logger.warn("failed to script process {}, ignoring", e, ctx);
                 return seq;

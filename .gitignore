@@ -24,6 +24,13 @@ plugins/river/twitter/build
 plugins/river/wikipedia/build
 plugins/transport/memcached/build
 plugins/transport/thrift/build
+.idea/gradle.xml
+.idea/misc.xml
+.idea/modules/elasticsearch-root.iml
+.idea/modules/plugin-river-rabbitmq.iml
+.idea/projectCodeStyle.xml
+
+
 
 ## eclipse ignores (use 'gradle eclipse' to build eclipse projects)
 .project

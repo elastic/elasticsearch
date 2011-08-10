@@ -28,6 +28,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -92,6 +93,21 @@ public class JavaScriptScriptEngineTests {
         assertThat((String) ((Map<String, Object>) ctx.get("obj1")).get("prop1"), equalTo("uvalue1"));
         assertThat(ctx.containsKey("obj2"), equalTo(true));
         assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
+    }
+
+    @Test public void testJavaScriptInnerArrayCreation() {
+        Map<String, Object> ctx = new HashMap<String, Object>();
+        Map<String, Object> doc = new HashMap<String, Object>();
+        ctx.put("doc", doc);
+
+        Object complied = se.compile("ctx.doc.field1 = ['value1', 'value2']");
+        ExecutableScript script = se.executable(complied, new HashMap<String, Object>());
+        script.setNextVar("ctx", ctx);
+        script.run();
+
+        Map<String, Object> unwrap = (Map<String, Object>) script.unwrap(ctx);
+
+        assertThat(((Map) unwrap.get("doc")).get("field1"), instanceOf(List.class));
     }
 
     @Test public void testAccessListInScript() {

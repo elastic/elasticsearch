@@ -281,10 +281,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                             }
                             indexService.removeShard(existingShardId, "removing shard (index is closed)");
                         } else {
+                            // we can just remove the shard, without cleaning it locally, since we will clean it
+                            // when all shards are allocated in the IndicesStore
                             if (logger.isDebugEnabled()) {
-                                logger.debug("[{}][{}] cleaning shard locally (not allocated)", index, existingShardId);
+                                logger.debug("[{}][{}] removing shard (not allocated)", index, existingShardId);
                             }
-                            indexService.cleanShard(existingShardId, "cleaning shard locally (not allocated)");
+                            indexService.removeShard(existingShardId, "removing shard (not allocated)");
                         }
                     }
                 }

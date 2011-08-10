@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+	[ -f /etc/default/elasticsearch ] && . /etc/default/elasticsearch
+	[ -z "$ES_USER" ] && ES_USER="elasticsearch"
+	[ -z "$ES_GROUP" ] && ES_GROUP="elasticsearch"
+	if ! getent group "$ES_GROUP" > /dev/null 2>&1 ; then
+	    addgroup --system "$ES_GROUP" --quiet
+	fi
+	if ! id $ES_USER > /dev/null 2>&1 ; then
+	    adduser --system --home /usr/share/elasticsearch --no-create-home \
+		--ingroup "$ES_GROUP" --disabled-password --shell /bin/false \
+		"$ES_USER"
+	fi
+
+	# Set user permissions on /var/log/elasticsearch and /var/lib/elasticsearch
+	mkdir -p /var/log/elasticsearch /var/lib/elasticsearch
+	chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch /var/lib/elasticsearch
+	chmod 755 /var/log/elasticsearch /var/lib/elasticsearch
+	
+	# configuration files should not be modifiable by elasticsearch user, as this can be a security issue
+	chown -Rh root:root /etc/elasticsearch/*
+	chmod 755 /etc/elasticsearch
+	chmod 644 /etc/elasticsearch/*
+    ;;
+esac
+
+
+if [ -x "/etc/init.d/elasticsearch" ]; then
+	update-rc.d elasticsearch defaults 95 10 >/dev/null
+	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+		invoke-rc.d elasticsearch start || true
+	else
+		/etc/init.d/elasticsearch start || true
+	fi
+fi
+

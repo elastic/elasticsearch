@@ -54,6 +54,7 @@ public class RootObjectMapper extends ObjectMapper {
                         Joda.forPattern("yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z")
                 };
         public static final boolean DATE_DETECTION = true;
+        public static final boolean NUMERIC_DETECTION = false;
     }
 
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
@@ -65,6 +66,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected List<FormatDateTimeFormatter> dynamicDateTimeFormatters = newArrayList();
 
         protected boolean dateDetection = Defaults.DATE_DETECTION;
+        protected boolean numericDetection = Defaults.NUMERIC_DETECTION;
 
         public Builder(String name) {
             super(name);
@@ -117,7 +119,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
-                    dateDetection);
+                    dateDetection, numericDetection);
         }
     }
 
@@ -165,6 +167,8 @@ public class RootObjectMapper extends ObjectMapper {
                 }
             } else if (fieldName.equals("date_detection")) {
                 ((Builder) builder).dateDetection = nodeBooleanValue(fieldNode);
+            } else if (fieldName.equals("numeric_detection")) {
+                ((Builder) builder).numericDetection = nodeBooleanValue(fieldNode);
             }
         }
     }
@@ -172,19 +176,25 @@ public class RootObjectMapper extends ObjectMapper {
     private final FormatDateTimeFormatter[] dynamicDateTimeFormatters;
 
     private final boolean dateDetection;
+    private final boolean numericDetection;
 
     private volatile DynamicTemplate dynamicTemplates[];
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
-                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection) {
+                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
         super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
+        this.numericDetection = numericDetection;
     }
 
     public boolean dateDetection() {
         return this.dateDetection;
+    }
+
+    public boolean numericDetection() {
+        return this.numericDetection;
     }
 
     public FormatDateTimeFormatter[] dynamicDateTimeFormatters() {
@@ -254,6 +264,9 @@ public class RootObjectMapper extends ObjectMapper {
 
         if (dateDetection != Defaults.DATE_DETECTION) {
             builder.field("date_detection", dateDetection);
+        }
+        if (numericDetection != Defaults.NUMERIC_DETECTION) {
+            builder.field("numeric_detection", numericDetection);
         }
     }
 }

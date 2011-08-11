@@ -241,4 +241,36 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(2));
     }
+
+    @Test public void testAutoExpandNumberReplicas2() {
+        logger.info("--> add another node");
+        startNode("node3");
+        logger.info("--> creating index test with auto expand replicas set to 0-2");
+        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 2).put("auto_expand_replicas", "0-2")).execute().actionGet();
+
+        logger.info("--> running cluster health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();
+        logger.info("--> done cluster health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.indices().get("test").activePrimaryShards(), equalTo(2));
+        assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(2));
+        assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(6));
+
+        logger.info("--> add two more nodes");
+        startNode("node4");
+        startNode("node5");
+
+        logger.info("--> update the auto expand replicas to 0-3");
+        client1.admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("auto_expand_replicas", "0-3")).execute().actionGet();
+
+        logger.info("--> running cluster health");
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(8).execute().actionGet();
+        logger.info("--> done cluster health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.indices().get("test").activePrimaryShards(), equalTo(2));
+        assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(3));
+        assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(8));
+    }
 }

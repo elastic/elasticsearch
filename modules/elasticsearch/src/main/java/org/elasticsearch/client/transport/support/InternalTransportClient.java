@@ -139,12 +139,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndexResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<IndexResponse> listener) throws ElasticSearchException {
                 indexAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<DeleteResponse> delete(final DeleteRequest request) {
@@ -156,12 +155,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteResponse> listener) throws ElasticSearchException {
                 deleteAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
@@ -173,12 +171,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void bulk(final BulkRequest request, final ActionListener<BulkResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<BulkResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<BulkResponse> listener) throws ElasticSearchException {
                 bulkAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request) {
@@ -190,12 +187,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteByQueryResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteByQueryResponse> listener) throws ElasticSearchException {
                 deleteByQueryAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<GetResponse> get(final GetRequest request) {
@@ -207,12 +203,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void get(final GetRequest request, final ActionListener<GetResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<GetResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<GetResponse> listener) throws ElasticSearchException {
                 getAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<MultiGetResponse> multiGet(final MultiGetRequest request) {
@@ -224,12 +219,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void multiGet(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<MultiGetResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<MultiGetResponse> listener) throws ElasticSearchException {
                 multiGetAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<CountResponse> count(final CountRequest request) {
@@ -241,12 +235,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<CountResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<CountResponse> listener) throws ElasticSearchException {
                 countAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<SearchResponse> search(final SearchRequest request) {
@@ -258,12 +251,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SearchResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
                 searchAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
@@ -275,12 +267,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SearchResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
                 searchScrollAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request) {
@@ -292,12 +283,11 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SearchResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<SearchResponse> listener) throws ElasticSearchException {
                 moreLikeThisAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<PercolateResponse> percolate(final PercolateRequest request) {
@@ -309,11 +299,10 @@ public class InternalTransportClient extends AbstractClient implements InternalC
     }
 
     @Override public void percolate(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<PercolateResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<PercolateResponse> listener) throws ElasticSearchException {
                 percolateAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 }

@@ -54,6 +54,14 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         return timestamp();
     }
 
+    public long openFileDescriptors() {
+        return this.openFileDescriptors;
+    }
+
+    public long getOpenFileDescriptors() {
+        return openFileDescriptors;
+    }
+
     public Cpu cpu() {
         return cpu;
     }

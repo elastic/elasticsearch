@@ -21,10 +21,11 @@ package org.elasticsearch.index.search.geo;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
@@ -38,12 +39,12 @@ import java.io.IOException;
 // LUCENE MONITOR: Monitor against FieldComparator.Double
 public class GeoDistanceDataComparator extends FieldComparator {
 
-    public static FieldComparatorSource comparatorSource(String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                                         FieldDataCache fieldDataCache, MapperService mapperService) {
+    public static FieldDataType.ExtendedFieldComparatorSource comparatorSource(String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
+                                                                               FieldDataCache fieldDataCache, MapperService mapperService) {
         return new InnerSource(fieldName, lat, lon, unit, geoDistance, fieldDataCache, mapperService);
     }
 
-    private static class InnerSource extends FieldComparatorSource {
+    static class InnerSource extends FieldDataType.ExtendedFieldComparatorSource {
 
         protected final String fieldName;
 
@@ -72,6 +73,10 @@ public class GeoDistanceDataComparator extends FieldComparator {
 
         @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
             return new GeoDistanceDataComparator(numHits, fieldname, lat, lon, unit, geoDistance, fieldDataCache, mapperService);
+        }
+
+        @Override public int reducedType() {
+            return SortField.DOUBLE;
         }
     }
 

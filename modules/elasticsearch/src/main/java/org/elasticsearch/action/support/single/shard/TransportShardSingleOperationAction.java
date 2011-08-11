@@ -136,7 +136,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(shardIt.shardId() + ": Failed to get [{}]", failure, request);
+                        logger.debug(shardIt.shardId() + ": Failed to execute [{}]", failure, request);
                     }
                 }
                 listener.onFailure(failure);

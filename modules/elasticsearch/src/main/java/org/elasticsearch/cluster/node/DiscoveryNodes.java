@@ -187,9 +187,15 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             Set<String> resolvedNodesIds = new HashSet<String>(nodesIds.length);
             for (String nodeId : nodesIds) {
                 if (nodeId.equals("_local")) {
-                    resolvedNodesIds.add(localNodeId());
+                    String localNodeId = localNodeId();
+                    if (localNodeId != null) {
+                        resolvedNodesIds.add(localNodeId);
+                    }
                 } else if (nodeId.equals("_master")) {
-                    resolvedNodesIds.add(masterNodeId());
+                    String masterNodeId = masterNodeId();
+                    if (masterNodeId != null) {
+                        resolvedNodesIds.add(masterNodeId);
+                    }
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {

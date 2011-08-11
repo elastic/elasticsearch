@@ -136,10 +136,6 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
-        if (!enabled) {
-            return null;
-        }
-
         if (context.parsedTimestampState() == ParseContext.ParsedTimestampState.NO) {
             String dateAsString = null;
             Long value = null;
@@ -184,14 +180,17 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                     return null;
                 }
             }
-            System.out.println("Setting timestamp to: " + value + " [" + new Date(value).toString() + "]");
+
             context.parsedTimestamp(ParseContext.ParsedTimestampState.PARSED);
             LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value);
             field.setBoost(boost);
             return field;
         } else if (context.parsedTimestampState() == ParseContext.ParsedTimestampState.GENERATED) {
+            // If it is not enabled in mapping no timestamp is generated
+            if (!enabled) {
+                return null;
+            }
             long value = ((Number) context.externalValue()).longValue();
-            System.out.println("Setting timestamp to: " + value + " [" + new Date(value).toString() + "]");
             return new LongFieldMapper.CustomLongNumericField(this, value);
         } else {
             throw new MapperParsingException("Illegal parsed timestamp state");

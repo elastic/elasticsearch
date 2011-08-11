@@ -21,8 +21,9 @@ package org.elasticsearch.index.field.function.sort;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SortField;
+import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -32,11 +33,11 @@ import java.io.IOException;
  */
 public class StringFieldsFunctionDataComparator extends FieldComparator {
 
-    public static FieldComparatorSource comparatorSource(SearchScript script) {
+    public static FieldDataType.ExtendedFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
     }
 
-    private static class InnerSource extends FieldComparatorSource {
+    private static class InnerSource extends FieldDataType.ExtendedFieldComparatorSource {
 
         private final SearchScript script;
 
@@ -46,6 +47,10 @@ public class StringFieldsFunctionDataComparator extends FieldComparator {
 
         @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
             return new StringFieldsFunctionDataComparator(numHits, script);
+        }
+
+        @Override public int reducedType() {
+            return SortField.STRING;
         }
     }
 

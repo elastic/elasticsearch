@@ -314,6 +314,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Term uid;
         private final ParsedDocument doc;
         private long version;
+        private long timestamp;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
@@ -378,6 +379,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        public Create timestamp(long timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        public long timestamp() {
+            return this.timestamp;
+        }
+
         public String parent() {
             return this.doc.parent();
         }
@@ -404,6 +414,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Term uid;
         private final ParsedDocument doc;
         private long version;
+        private long timestamp;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
@@ -454,6 +465,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public VersionType versionType() {
             return this.versionType;
+        }
+
+        public Index timestamp(long timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        public long timestamp() {
+            return this.timestamp;
         }
 
         public List<Document> docs() {

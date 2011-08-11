@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -143,6 +144,8 @@ public class DocumentMapper implements ToXContent {
         private SourceFieldMapper sourceFieldMapper = new SourceFieldMapper();
         private SizeFieldMapper sizeFieldMapper = new SizeFieldMapper();
 
+        private TimestampFieldMapper timestampFieldMapper = new TimestampFieldMapper();
+
         private RoutingFieldMapper routingFieldMapper = new RoutingFieldMapper();
 
         private BoostFieldMapper boostFieldMapper = new BoostFieldMapper();
@@ -188,6 +191,11 @@ public class DocumentMapper implements ToXContent {
 
         public Builder sizeField(SizeFieldMapper.Builder builder) {
             this.sizeFieldMapper = builder.build(builderContext);
+            return this;
+        }
+
+        public Builder timestampField(TimestampFieldMapper.Builder builder) {
+            this.timestampFieldMapper = builder.build(builderContext);
             return this;
         }
 
@@ -257,7 +265,7 @@ public class DocumentMapper implements ToXContent {
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new DocumentMapper(index, docMapperParser, rootObjectMapper, meta, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
-                    sourceFieldMapper, sizeFieldMapper, parentFieldMapper, routingFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
+                    sourceFieldMapper, sizeFieldMapper, timestampFieldMapper, parentFieldMapper, routingFieldMapper, allFieldMapper, analyzerMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
 
@@ -288,6 +296,8 @@ public class DocumentMapper implements ToXContent {
 
     private final SourceFieldMapper sourceFieldMapper;
     private final SizeFieldMapper sizeFieldMapper;
+
+    private final TimestampFieldMapper timestampFieldMapper;
 
     private final RoutingFieldMapper routingFieldMapper;
 
@@ -328,6 +338,7 @@ public class DocumentMapper implements ToXContent {
                           IndexFieldMapper indexFieldMapper,
                           SourceFieldMapper sourceFieldMapper,
                           SizeFieldMapper sizeFieldMapper,
+                          TimestampFieldMapper timestampFieldMapper,
                           @Nullable ParentFieldMapper parentFieldMapper,
                           RoutingFieldMapper routingFieldMapper,
                           AllFieldMapper allFieldMapper,
@@ -345,6 +356,7 @@ public class DocumentMapper implements ToXContent {
         this.indexFieldMapper = indexFieldMapper;
         this.sourceFieldMapper = sourceFieldMapper;
         this.sizeFieldMapper = sizeFieldMapper;
+        this.timestampFieldMapper = timestampFieldMapper;
         this.parentFieldMapper = parentFieldMapper;
         this.routingFieldMapper = routingFieldMapper;
         this.allFieldMapper = allFieldMapper;
@@ -357,6 +369,7 @@ public class DocumentMapper implements ToXContent {
         this.typeFilter = typeMapper().fieldFilter(type);
 
         rootObjectMapper.putMapper(idFieldMapper);
+        rootObjectMapper.putMapper(timestampFieldMapper);
         if (boostFieldMapper != null) {
             rootObjectMapper.putMapper(boostFieldMapper);
         }
@@ -594,6 +607,14 @@ public class DocumentMapper implements ToXContent {
                     idFieldMapper.parse(context);
                 }
             }
+
+            // Timestamp handling if it has not been already parsed in source
+            if (context.parsedTimestampState() != ParseContext.ParsedTimestampState.PARSED) {
+                context.externalValue(source.timestamp());
+                context.parsedTimestamp(ParseContext.ParsedTimestampState.GENERATED);
+                timestampFieldMapper.parse(context);
+            }
+
             if (parentFieldMapper != null) {
                 context.externalValue(source.parent());
                 parentFieldMapper.parse(context);
@@ -676,6 +697,8 @@ public class DocumentMapper implements ToXContent {
         analyzerMapper.merge(mergeWith.analyzerMapper, mergeContext);
         sourceFieldMapper.merge(mergeWith.sourceFieldMapper, mergeContext);
         sizeFieldMapper.merge(mergeWith.sizeFieldMapper, mergeContext);
+        timestampFieldMapper.merge(mergeWith.timestampFieldMapper, mergeContext);
+
 
         if (!mergeFlags.simulate()) {
             // let the merge with attributes to override the attributes
@@ -708,6 +731,7 @@ public class DocumentMapper implements ToXContent {
         analyzerMapper.close();
         sourceFieldMapper.close();
         sizeFieldMapper.close();
+        timestampFieldMapper.close();
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -736,7 +760,7 @@ public class DocumentMapper implements ToXContent {
                 }
                 return builder;
             }
-            // no need to pass here id and boost, since they are added to the root object mapper
+            // no need to pass here id and boost and timestamp, since they are added to the root object mapper
             // in the constructor
         }, indexFieldMapper, typeFieldMapper, allFieldMapper, analyzerMapper, sourceFieldMapper, sizeFieldMapper);
         return builder;

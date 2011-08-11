@@ -145,6 +145,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 docBuilder.sourceField(parseSourceField((Map<String, Object>) fieldNode, parserContext));
             } else if (SizeFieldMapper.CONTENT_TYPE.equals(fieldName)) {
                 docBuilder.sizeField(parseSizeField((Map<String, Object>) fieldNode, parserContext));
+            } else if (TimestampFieldMapper.CONTENT_TYPE.equals(fieldName)) {
+                docBuilder.timestampField(parseTimestampField((Map<String, Object>) fieldNode, parserContext));
             } else if (IdFieldMapper.CONTENT_TYPE.equals(fieldName) || "idField".equals(fieldName)) {
                 docBuilder.idField(parseIdField((Map<String, Object>) fieldNode, parserContext));
             } else if (IndexFieldMapper.CONTENT_TYPE.equals(fieldName) || "indexField".equals(fieldName)) {
@@ -287,6 +289,21 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 builder.enabled(nodeBooleanValue(fieldNode));
             } else if (fieldName.equals("store")) {
                 builder.store(parseStore(fieldName, fieldNode.toString()));
+            }
+        }
+        return builder;
+    }
+
+    private TimestampFieldMapper.Builder parseTimestampField(Map<String, Object> timestampNode, Mapper.TypeParser.ParserContext parserContext) {
+        TimestampFieldMapper.Builder builder = timestamp();
+        parseField(builder, builder.name, timestampNode, parserContext);
+        for (Map.Entry<String, Object> entry : timestampNode.entrySet()) {
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            Object fieldNode = entry.getValue();
+            if (fieldName.equals("enabled")) {
+                builder.enabled(nodeBooleanValue(fieldNode));
+            } else if (fieldName.equals("format")) {
+                builder.dateTimeFormatter(parseDateTimeFormatter(builder.name(), fieldNode.toString()));
             }
         }
         return builder;

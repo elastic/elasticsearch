@@ -71,6 +71,7 @@ public class ParseContext {
     private Map<String, String> ignoredValues = new HashMap<String, String>();
 
     private ParsedIdState parsedIdState;
+    private ParsedTimestampState parsedTimestampState;
 
     private boolean mappersAdded = false;
 
@@ -104,6 +105,7 @@ public class ParseContext {
         this.flyweight = flyweight;
         this.path.reset();
         this.parsedIdState = ParsedIdState.NO;
+        this.parsedTimestampState = ParsedTimestampState.NO;
         this.mappersAdded = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
@@ -201,6 +203,15 @@ public class ParseContext {
         return this.parsedIdState;
     }
 
+    public void parsedTimestamp(ParsedTimestampState parsedTimestampState) {
+        this.parsedTimestampState = parsedTimestampState;
+    }
+
+    public ParsedTimestampState parsedTimestampState() {
+        return this.parsedTimestampState;
+    }
+
+
     public void ignoredValue(String indexName, String value) {
         ignoredValues.put(indexName, value);
     }
@@ -278,5 +289,11 @@ public class ParseContext {
         NO,
         PARSED,
         EXTERNAL
+    }
+
+    public static enum ParsedTimestampState {
+        NO,
+        PARSED,
+        GENERATED
     }
 }

@@ -333,7 +333,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    private long parseStringValue(String value) {
+    protected long parseStringValue(String value) {
         try {
             return dateTimeFormatter.parser().parseMillis(value);
         } catch (RuntimeException e) {

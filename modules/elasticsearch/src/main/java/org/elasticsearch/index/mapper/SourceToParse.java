@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Date;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -47,6 +49,8 @@ public class SourceToParse {
     private String routing;
 
     private String parentId;
+
+    private long timestamp;
 
     public SourceToParse(XContentParser parser) {
         this.parser = parser;
@@ -108,6 +112,15 @@ public class SourceToParse {
 
     public SourceToParse routing(String routing) {
         this.routing = routing;
+        return this;
+    }
+
+    public long timestamp() {
+        return this.timestamp;
+    }
+
+    public SourceToParse timestamp(long timestamp) {
+        this.timestamp = timestamp;
         return this;
     }
 }

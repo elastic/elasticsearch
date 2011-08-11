@@ -178,13 +178,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         IndexShard indexShard = indexShard(shardRequest);
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp());
         long version;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())
                     .versionType(request.versionType())
+                    .timestamp(request.timestamp())
                     .origin(Engine.Operation.Origin.PRIMARY);
             indexShard.index(index);
             version = index.version();
@@ -193,6 +194,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
                     .versionType(request.versionType())
+                    .timestamp(request.timestamp())
                     .origin(Engine.Operation.Origin.PRIMARY);
             indexShard.create(create);
             version = create.version();
@@ -233,15 +235,17 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())
+                    .timestamp(request.timestamp())
                     .origin(Engine.Operation.Origin.REPLICA);
             indexShard.index(index);
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
+                    .timestamp(request.timestamp())
                     .origin(Engine.Operation.Origin.REPLICA);
             indexShard.create(create);
         }

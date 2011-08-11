@@ -45,6 +45,7 @@ import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
@@ -128,6 +129,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private long version = 0;
     private VersionType versionType = VersionType.INTERNAL;
     private String percolate;
+
+    private long timestamp = new Date().getTime();
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
@@ -548,6 +551,15 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.versionType;
     }
 
+    public IndexRequest timestamp(long timestamp) {
+        this.timestamp = timestamp;
+        return this;
+    }
+
+    public long timestamp() {
+        return this.timestamp;
+    }
+
     /**
      * Causes the index request document to be percolated. The parameter is the percolate query
      * to use to reduce the percolated queries that are going to run against this doc. Can be
@@ -609,6 +621,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             percolate = in.readUTF();
         }
         versionType = VersionType.fromValue(in.readByte());
+        timestamp = in.readLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -644,6 +657,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeUTF(percolate);
         }
         out.writeByte(versionType.getValue());
+        out.writeLong(timestamp);
     }
 
     @Override public String toString() {

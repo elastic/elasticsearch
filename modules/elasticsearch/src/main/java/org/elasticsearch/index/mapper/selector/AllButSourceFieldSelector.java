@@ -24,7 +24,7 @@ import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 
 /**
- * An optimized field selector that loads just the uid and the source.
+ * A field selector that loads all fields except the source field.
  *
  * @author kimchy (shay.banon)
  */

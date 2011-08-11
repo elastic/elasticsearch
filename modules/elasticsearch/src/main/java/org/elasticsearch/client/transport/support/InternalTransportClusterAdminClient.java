@@ -114,12 +114,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void health(final ClusterHealthRequest request, final ActionListener<ClusterHealthResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ClusterHealthResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<ClusterHealthResponse> listener) throws ElasticSearchException {
                 clusterHealthAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<ClusterStateResponse> state(final ClusterStateRequest request) {
@@ -131,12 +130,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void state(final ClusterStateRequest request, final ActionListener<ClusterStateResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ClusterStateResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<ClusterStateResponse> listener) throws ElasticSearchException {
                 clusterStateAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<SinglePingResponse> ping(final SinglePingRequest request) {
@@ -148,12 +146,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void ping(final SinglePingRequest request, final ActionListener<SinglePingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<SinglePingResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<SinglePingResponse> listener) throws ElasticSearchException {
                 singlePingAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<BroadcastPingResponse> ping(final BroadcastPingRequest request) {
@@ -165,12 +162,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void ping(final BroadcastPingRequest request, final ActionListener<BroadcastPingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<BroadcastPingResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<BroadcastPingResponse> listener) throws ElasticSearchException {
                 broadcastPingAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<ReplicationPingResponse> ping(final ReplicationPingRequest request) {
@@ -182,12 +178,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void ping(final ReplicationPingRequest request, final ActionListener<ReplicationPingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ReplicationPingResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<ReplicationPingResponse> listener) throws ElasticSearchException {
                 replicationPingAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
@@ -199,12 +194,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void nodesInfo(final NodesInfoRequest request, final ActionListener<NodesInfoResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<NodesInfoResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<NodesInfoResponse> listener) throws ElasticSearchException {
                 nodesInfoAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<NodesStatsResponse> nodesStats(final NodesStatsRequest request) {
@@ -216,12 +210,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void nodesStats(final NodesStatsRequest request, final ActionListener<NodesStatsResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<NodesStatsResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<NodesStatsResponse> listener) throws ElasticSearchException {
                 nodesStatsAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<NodesShutdownResponse> nodesShutdown(final NodesShutdownRequest request) {
@@ -233,12 +226,11 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void nodesShutdown(final NodesShutdownRequest request, final ActionListener<NodesShutdownResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
-            @Override public ActionFuture<Void> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<NodesShutdownResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<NodesShutdownResponse> listener) throws ElasticSearchException {
                 nodesShutdownAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<NodesRestartResponse> nodesRestart(final NodesRestartRequest request) {
@@ -250,11 +242,10 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     }
 
     @Override public void nodesRestart(final NodesRestartRequest request, final ActionListener<NodesRestartResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
-            @Override public ActionFuture<Void> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<NodesRestartResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<NodesRestartResponse> listener) throws ElasticSearchException {
                 nodesRestartAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 }

@@ -179,12 +179,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void exists(final IndicesExistsRequest request, final ActionListener<IndicesExistsResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesExistsResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<IndicesExistsResponse> listener) throws ElasticSearchException {
                 indicesExistsAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
@@ -196,12 +195,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesStatusResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<IndicesStatusResponse> listener) throws ElasticSearchException {
                 indicesStatusAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<IndicesSegmentResponse> segments(final IndicesSegmentsRequest request) {
@@ -213,12 +211,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void segments(final IndicesSegmentsRequest request, final ActionListener<IndicesSegmentResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesSegmentResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<IndicesSegmentResponse> listener) throws ElasticSearchException {
                 indicesSegmentsAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<CreateIndexResponse> create(final CreateIndexRequest request) {
@@ -230,12 +227,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void create(final CreateIndexRequest request, final ActionListener<CreateIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<CreateIndexResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<CreateIndexResponse> listener) throws ElasticSearchException {
                 createIndexAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<DeleteIndexResponse> delete(final DeleteIndexRequest request) {
@@ -247,12 +243,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void delete(final DeleteIndexRequest request, final ActionListener<DeleteIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteIndexResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteIndexResponse> listener) throws ElasticSearchException {
                 deleteIndexAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<CloseIndexResponse> close(final CloseIndexRequest request) {
@@ -264,12 +259,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void close(final CloseIndexRequest request, final ActionListener<CloseIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<CloseIndexResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
                 closeIndexAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<OpenIndexResponse> open(final OpenIndexRequest request) {
@@ -281,12 +275,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void open(final OpenIndexRequest request, final ActionListener<OpenIndexResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<OpenIndexResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
                 openIndexAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<RefreshResponse> refresh(final RefreshRequest request) {
@@ -298,12 +291,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void refresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<RefreshResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<RefreshResponse> listener) throws ElasticSearchException {
                 refreshAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<FlushResponse> flush(final FlushRequest request) {
@@ -315,12 +307,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void flush(final FlushRequest request, final ActionListener<FlushResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<FlushResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<FlushResponse> listener) throws ElasticSearchException {
                 flushAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request) {
@@ -332,12 +323,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
-            @Override public ActionFuture<Void> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<OptimizeResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<OptimizeResponse> listener) throws ElasticSearchException {
                 optimizeAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request) {
@@ -349,12 +339,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void putMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<PutMappingResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<PutMappingResponse> listener) throws ElasticSearchException {
                 putMappingAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<DeleteMappingResponse> deleteMapping(final DeleteMappingRequest request) {
@@ -366,12 +355,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void deleteMapping(final DeleteMappingRequest request, final ActionListener<DeleteMappingResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteMappingResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteMappingResponse> listener) throws ElasticSearchException {
                 deleteMappingAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(final GatewaySnapshotRequest request) {
@@ -383,12 +371,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void gatewaySnapshot(final GatewaySnapshotRequest request, final ActionListener<GatewaySnapshotResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<GatewaySnapshotResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<GatewaySnapshotResponse> listener) throws ElasticSearchException {
                 gatewaySnapshotAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<IndicesAliasesResponse> aliases(final IndicesAliasesRequest request) {
@@ -400,12 +387,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void aliases(final IndicesAliasesRequest request, final ActionListener<IndicesAliasesResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<IndicesAliasesResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<IndicesAliasesResponse> listener) throws ElasticSearchException {
                 indicesAliasesAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
@@ -417,12 +403,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void clearCache(final ClearIndicesCacheRequest request, final ActionListener<ClearIndicesCacheResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ClearIndicesCacheResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<ClearIndicesCacheResponse> listener) throws ElasticSearchException {
                 clearIndicesCacheAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<UpdateSettingsResponse> updateSettings(final UpdateSettingsRequest request) {
@@ -434,12 +419,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void updateSettings(final UpdateSettingsRequest request, final ActionListener<UpdateSettingsResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
-            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<UpdateSettingsResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<UpdateSettingsResponse> listener) throws ElasticSearchException {
                 updateSettingsAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<AnalyzeResponse> analyze(final AnalyzeRequest request) {
@@ -451,12 +435,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void analyze(final AnalyzeRequest request, final ActionListener<AnalyzeResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<AnalyzeResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<AnalyzeResponse> listener) throws ElasticSearchException {
                 analyzeAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<PutIndexTemplateResponse> putTemplate(final PutIndexTemplateRequest request) {
@@ -468,12 +451,11 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void putTemplate(final PutIndexTemplateRequest request, final ActionListener<PutIndexTemplateResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<PutIndexTemplateResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<PutIndexTemplateResponse> listener) throws ElasticSearchException {
                 putIndexTemplateAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 
     @Override public ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(final DeleteIndexTemplateRequest request) {
@@ -485,11 +467,10 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     }
 
     @Override public void deleteTemplate(final DeleteIndexTemplateRequest request, final ActionListener<DeleteIndexTemplateResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
-            @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<DeleteIndexTemplateResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticSearchException {
                 deleteIndexTemplateAction.execute(node, request, listener);
-                return null;
             }
-        });
+        }, listener);
     }
 }

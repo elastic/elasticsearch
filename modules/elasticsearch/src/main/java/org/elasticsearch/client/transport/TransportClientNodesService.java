@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -152,8 +153,10 @@ public class TransportClientNodesService extends AbstractComponent {
             DiscoveryNode node = nodes.get((index + i) % nodes.size());
             try {
                 return callback.doWithNode(node);
-            } catch (ConnectTransportException e) {
-                // retry in this case
+            } catch (ElasticSearchException e) {
+                if (!(e.unwrapCause() instanceof ConnectTransportException)) {
+                    throw e;
+                }
             }
         }
         throw new NoNodeAvailableException();
@@ -172,8 +175,12 @@ public class TransportClientNodesService extends AbstractComponent {
         RetryListener<Response> retryListener = new RetryListener<Response>(callback, listener, nodes, index);
         try {
             callback.doWithNode(nodes.get((index) % nodes.size()), retryListener);
-        } catch (ConnectTransportException e) {
-            retryListener.onFailure(e);
+        } catch (ElasticSearchException e) {
+            if (e.unwrapCause() instanceof ConnectTransportException) {
+                retryListener.onFailure(e);
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -197,7 +204,7 @@ public class TransportClientNodesService extends AbstractComponent {
         }
 
         @Override public void onFailure(Throwable e) {
-            if (e instanceof ConnectTransportException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
                 int i = ++this.i;
                 if (i == nodes.size()) {
                     listener.onFailure(new NoNodeAvailableException());

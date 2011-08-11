@@ -611,6 +611,32 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             }
                         }
                     }
+                    if (!resolved && context.root().numericDetection()) {
+                        try {
+                            Long.parseLong(text);
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
+                            if (builder == null) {
+                                builder = longField(currentFieldName);
+                            }
+                            mapper = builder.build(builderContext);
+                            resolved = true;
+                        } catch (Exception e) {
+                            // not a long number
+                        }
+                        if (!resolved) {
+                            try {
+                                Double.parseDouble(text);
+                                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
+                                if (builder == null) {
+                                    builder = doubleField(currentFieldName);
+                                }
+                                mapper = builder.build(builderContext);
+                                resolved = true;
+                            } catch (Exception e) {
+                                // not a long number
+                            }
+                        }
+                    }
                     // DON'T do automatic ip detection logic, since it messes up with docs that have hosts and ips
                     // check if its an ip
 //                if (!resolved && text.indexOf('.') != -1) {

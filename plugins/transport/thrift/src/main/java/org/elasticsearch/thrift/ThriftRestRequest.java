@@ -96,7 +96,7 @@ public class ThriftRestRequest extends AbstractRestRequest implements org.elasti
         if (!request.isSetBody()) {
             return 0;
         }
-        return request.bufferForBody().arrayOffset();
+        return request.bufferForBody().arrayOffset() + request.bufferForBody().position();
     }
 
     @Override public int contentLength() {

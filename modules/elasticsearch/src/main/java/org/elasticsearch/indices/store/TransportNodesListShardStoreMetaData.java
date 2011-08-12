@@ -23,7 +23,11 @@ import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.*;
+import org.elasticsearch.action.support.nodes.NodeOperationRequest;
+import org.elasticsearch.action.support.nodes.NodeOperationResponse;
+import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -166,8 +170,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         // read the checksums file
         FSDirectory directory = FSDirectory.open(indexFile);
+        Map<String, String> checksums = null;
         try {
-            Map<String, String> checksums = AbstractStore.readChecksums(directory);
+            checksums = AbstractStore.readChecksums(directory);
             for (File file : indexFile.listFiles()) {
                 // BACKWARD CKS SUPPORT
                 if (file.getName().endsWith(".cks")) {
@@ -193,13 +198,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             // try and load the checksum
             String checksum = null;
             File checksumFile = new File(file.getParentFile(), file.getName() + ".cks");
-            if (checksumFile.exists()) {
+            if (checksumFile.exists() && (checksums == null || !checksums.containsKey(file.getName()))) {
                 byte[] checksumBytes = Streams.copyToByteArray(checksumFile);
                 if (checksumBytes.length > 0) {
                     checksum = Unicode.fromBytes(checksumBytes);
                 }
+                files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksum));
             }
-            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksum));
         }
 
         return new StoreFilesMetaData(false, shardId, files);

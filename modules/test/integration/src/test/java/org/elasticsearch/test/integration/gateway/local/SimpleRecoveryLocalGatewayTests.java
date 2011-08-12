@@ -21,6 +21,10 @@ package org.elasticsearch.test.integration.gateway.local;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
+import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.action.admin.indices.status.ShardStatus;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
@@ -285,6 +289,80 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+        }
+    }
+
+    @Test public void testReusePeerRecovery() throws Exception {
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node3", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node4", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put("action.admin.cluster.node.shutdown.delay", "10ms")
+                .put("gateway.recover_after_nodes", 4)
+                .put("gateway.type", "local");
+        startNode("node1", settings);
+        startNode("node2", settings);
+        startNode("node3", settings);
+        startNode("node4", settings);
+
+        logger.info("--> indexing docs");
+        for (int i = 0; i < 1000; i++) {
+            client("node1").prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
+            if ((i % 200) == 0) {
+                client("node1").admin().indices().prepareFlush().execute().actionGet();
+            }
+        }
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> shutting down the nodes");
+        client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
+        Thread.sleep(2000);
+        logger.info("--> start the nodes back up");
+        startNode("node1", settings);
+        startNode("node2", settings);
+        startNode("node3", settings);
+        startNode("node4", settings);
+
+        logger.info("Running Cluster Health");
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(10)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> shutting down the nodes");
+        client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
+        Thread.sleep(2000);
+
+        logger.info("--> start the nodes back up");
+        startNode("node1", settings);
+        startNode("node2", settings);
+        startNode("node3", settings);
+        startNode("node4", settings);
+
+        logger.info("Running Cluster Health");
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(10)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        IndicesStatusResponse statusResponse = client("node1").admin().indices().prepareStatus("test").setRecovery(true).execute().actionGet();
+        for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
+            for (ShardStatus shardStatus : indexShardStatus) {
+                if (!shardStatus.shardRouting().primary()) {
+                    logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.shardId(), shardStatus.peerRecoveryStatus().recoveredIndexSize(), shardStatus.peerRecoveryStatus().reusedIndexSize());
+                    assertThat(shardStatus.peerRecoveryStatus().recoveredIndexSize().bytes(), greaterThan(0l));
+                    assertThat(shardStatus.peerRecoveryStatus().reusedIndexSize().bytes(), greaterThan(0l));
+                    assertThat(shardStatus.peerRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.peerRecoveryStatus().recoveredIndexSize().bytes()));
+                }
+            }
         }
     }
 }

@@ -913,6 +913,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override public void optimize(Optimize optimize) throws EngineException {
+        if (optimize.flush()) {
+            flush(new Flush());
+        }
         if (optimizeMutex.compareAndSet(false, true)) {
             rwl.readLock().lock();
             try {

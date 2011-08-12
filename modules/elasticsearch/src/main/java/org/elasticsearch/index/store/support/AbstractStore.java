@@ -129,7 +129,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         doRenameFile(from, to);
         synchronized (mutex) {
             StoreFileMetaData fromMetaData = filesMetadata.get(from); // we should always find this one
-            StoreFileMetaData toMetaData = new StoreFileMetaData(fromMetaData.name(), fromMetaData.length(), fromMetaData.lastModified(), fromMetaData.checksum());
+            StoreFileMetaData toMetaData = new StoreFileMetaData(to, fromMetaData.length(), fromMetaData.lastModified(), fromMetaData.checksum());
             filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(from).put(to, toMetaData).immutableMap();
             files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
         }

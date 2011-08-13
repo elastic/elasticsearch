@@ -42,12 +42,21 @@ public class SimpleDateMappingTests {
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("date_field", "2011/01/22 00:00:00 +02")
+                .field("date_field1", "2011/01/22")
+                .field("date_field2", "2011/01/22 00:00:00")
+//                .field("date_field3", "2011/01/22 +02")
+//                .field("date_field4", "2011/01/22 00:00:00 +02:00")
                 .endObject()
                 .copiedBytes());
 
-        FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field");
+        FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
+        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+//        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field3");
+//        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+//        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field4");
+//        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
     }
 
     @Test public void testTimestampAsDate() throws Exception {

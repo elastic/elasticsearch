@@ -53,6 +53,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
     static final String CHECKSUMS_PREFIX = "_checksums-";
 
+    public static final boolean isChecksum(String name) {
+        return name.startsWith(CHECKSUMS_PREFIX);
+    }
+
     protected final IndexStore indexStore;
 
     private volatile ImmutableMap<String, StoreFileMetaData> filesMetadata = ImmutableMap.of();
@@ -100,7 +104,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         String[] files = directory().listAll();
         IOException lastException = null;
         for (String file : files) {
-            if (file.startsWith(CHECKSUMS_PREFIX)) {
+            if (isChecksum(file)) {
                 ((StoreDirectory) directory()).deleteFileChecksum(file);
             } else {
                 try {
@@ -140,7 +144,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     public static Map<String, String> readChecksums(Directory dir) throws IOException {
         long lastFound = -1;
         for (String name : dir.listAll()) {
-            if (!name.startsWith(CHECKSUMS_PREFIX)) {
+            if (!isChecksum(name)) {
                 continue;
             }
             long current = Long.parseLong(name.substring(CHECKSUMS_PREFIX.length()));
@@ -316,7 +320,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         @Override public void deleteFile(String name) throws IOException {
             // we don't allow to delete the checksums files, only using the deleteChecksum method
-            if (name.startsWith(CHECKSUMS_PREFIX)) {
+            if (isChecksum(name)) {
                 return;
             }
             delegate.deleteFile(name);

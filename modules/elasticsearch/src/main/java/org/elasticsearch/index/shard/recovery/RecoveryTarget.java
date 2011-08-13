@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -441,7 +442,8 @@ public class RecoveryTarget extends AbstractComponent {
             shard.store().writeChecksums(onGoingRecovery.checksums);
 
             for (String existingFile : shard.store().directory().listAll()) {
-                if (!request.snapshotFiles().contains(existingFile)) {
+                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                if (!request.snapshotFiles().contains(existingFile) && !AbstractStore.isChecksum(existingFile)) {
                     try {
                         shard.store().directory().deleteFile(existingFile);
                     } catch (Exception e) {

@@ -178,7 +178,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
                 if (file.getName().endsWith(".cks")) {
                     continue;
                 }
-                if (file.getName().startsWith("_checksums")) {
+                if (AbstractStore.isChecksum(file.getName())) {
                     continue;
                 }
                 files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksums.get(file.getName())));

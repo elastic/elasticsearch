@@ -19,9 +19,6 @@ package org.elasticsearch.common.inject;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 /**
  * Handles {@link Binder#addError} commands.
  *
@@ -30,19 +27,20 @@ import java.util.logging.Logger;
  */
 class MessageProcessor extends AbstractProcessor {
 
-    private static final Logger logger = Logger.getLogger(Guice.class.getName());
+    //private static final Logger logger = Logger.getLogger(Guice.class.getName());
 
     MessageProcessor(Errors errors) {
         super(errors);
     }
 
     @Override public Boolean visit(Message message) {
-        if (message.getCause() != null) {
-            String rootMessage = getRootMessage(message.getCause());
-            logger.log(Level.INFO,
-                    "An exception was caught and reported. Message: " + rootMessage,
-                    message.getCause());
-        }
+        // ES_GUICE: don't log failures using jdk logging
+//        if (message.getCause() != null) {
+//            String rootMessage = getRootMessage(message.getCause());
+//            logger.log(Level.INFO,
+//                    "An exception was caught and reported. Message: " + rootMessage,
+//                    message.getCause());
+//        }
 
         errors.addMessage(message);
         return true;

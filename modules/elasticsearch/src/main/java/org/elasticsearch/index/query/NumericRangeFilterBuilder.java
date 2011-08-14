@@ -274,7 +274,7 @@ public class NumericRangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The to part of the filter query. Null indicates unbounded.
      */
-    public NumericRangeFilterBuilder lte(String to) {
+    public NumericRangeFilterBuilder lte(Object to) {
         this.to = to;
         this.includeUpper = true;
         return this;

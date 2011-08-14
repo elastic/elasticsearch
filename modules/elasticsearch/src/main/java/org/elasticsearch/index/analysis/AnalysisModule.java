@@ -231,9 +231,12 @@ public class AnalysisModule extends AbstractModule {
                 if (tokenFilterSettings.get("type") != null) {
                     type = tokenFiltersBindings.tokenFilters.get(tokenFilterSettings.get("type"));
                 }
+                if (type == null) {
+                    throw new ElasticSearchIllegalArgumentException("failed to find token filter type for [" + tokenFilterName + "]", e);
+                }
             }
             if (type == null) {
-                throw new ElasticSearchIllegalArgumentException("Token Filter [" + tokenFilterName + "] must have a type associated with it");
+                throw new ElasticSearchIllegalArgumentException("token filter [" + tokenFilterName + "] must have a type associated with it");
             }
             tokenFilterBinder.addBinding(tokenFilterName).toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
@@ -268,17 +271,21 @@ public class AnalysisModule extends AbstractModule {
             String tokenizerName = entry.getKey();
             Settings tokenizerSettings = entry.getValue();
 
-            Class<? extends TokenizerFactory> type = tokenizerSettings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "TokenizerFactory");
-            if (type == null) {
-                throw new ElasticSearchIllegalArgumentException("Tokenizer [" + tokenizerName + "] must have a type associated with it");
-            }
+            try {
+                Class<? extends TokenizerFactory> type = tokenizerSettings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "TokenizerFactory");
+                if (type == null) {
+                    throw new ElasticSearchIllegalArgumentException("Tokenizer [" + tokenizerName + "] must have a type associated with it");
+                }
 
-            // if it requires settings, and it has none, then don't register it
-            if (tokenizerSettings.getAsMap().isEmpty() && type.getAnnotation(AnalysisSettingsRequired.class) != null) {
-                continue;
-            }
+                // if it requires settings, and it has none, then don't register it
+                if (tokenizerSettings.getAsMap().isEmpty() && type.getAnnotation(AnalysisSettingsRequired.class) != null) {
+                    continue;
+                }
 
-            tokenizerBinder.addBinding(tokenizerName).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, type)).in(Scopes.SINGLETON);
+                tokenizerBinder.addBinding(tokenizerName).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, type)).in(Scopes.SINGLETON);
+            } catch (NoClassSettingsException e) {
+                throw new ElasticSearchIllegalArgumentException("failed to find tokenizer type for [" + tokenizerName + "]", e);
+            }
         }
 
         AnalysisBinderProcessor.TokenizersBindings tokenizersBindings = new AnalysisBinderProcessor.TokenizersBindings(tokenizerBinder, tokenizersSettings, indicesAnalysisService);
@@ -295,18 +302,22 @@ public class AnalysisModule extends AbstractModule {
         for (Map.Entry<String, Settings> entry : analyzersSettings.entrySet()) {
             String analyzerName = entry.getKey();
             Settings analyzerSettings = entry.getValue();
-            Class<? extends AnalyzerProvider> type = analyzerSettings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "AnalyzerProvider");
-            if (type == null) {
-                // no specific type, check if it has a tokenizer associated with it
-                String tokenizerName = analyzerSettings.get("tokenizer");
-                if (tokenizerName != null) {
-                    // we have a tokenizer, use the CustomAnalyzer
-                    type = CustomAnalyzerProvider.class;
-                } else {
-                    throw new ElasticSearchIllegalArgumentException("Analyzer [" + analyzerName + "] must have a type associated with it or a tokenizer");
+            try {
+                Class<? extends AnalyzerProvider> type = analyzerSettings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "AnalyzerProvider");
+                if (type == null) {
+                    // no specific type, check if it has a tokenizer associated with it
+                    String tokenizerName = analyzerSettings.get("tokenizer");
+                    if (tokenizerName != null) {
+                        // we have a tokenizer, use the CustomAnalyzer
+                        type = CustomAnalyzerProvider.class;
+                    } else {
+                        throw new ElasticSearchIllegalArgumentException("analyzer [" + analyzerName + "] must have a type associated with it or a tokenizer");
+                    }
                 }
+                analyzerBinder.addBinding(analyzerName).toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, type)).in(Scopes.SINGLETON);
+            } catch (NoClassSettingsException e) {
+                throw new ElasticSearchIllegalArgumentException("failed to find analyzer type for [" + analyzerName + "]", e);
             }
-            analyzerBinder.addBinding(analyzerName).toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, type)).in(Scopes.SINGLETON);
         }
 
         AnalysisBinderProcessor.AnalyzersBindings analyzersBindings = new AnalysisBinderProcessor.AnalyzersBindings(analyzerBinder, analyzersSettings, indicesAnalysisService);

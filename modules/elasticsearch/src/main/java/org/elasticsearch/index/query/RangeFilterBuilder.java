@@ -272,15 +272,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The to part of the filter query. Null indicates unbounded.
      */
-    public RangeFilterBuilder lte(String to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
-    }
-
-    /**
-     * The to part of the filter query. Null indicates unbounded.
-     */
     public RangeFilterBuilder lte(int to) {
         this.to = to;
         this.includeUpper = true;

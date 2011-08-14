@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
@@ -265,7 +266,12 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexModule());
         modules.add(new PercolatorModule());
 
-        Injector indexInjector = modules.createChildInjector(injector);
+        Injector indexInjector;
+        try {
+            indexInjector = modules.createChildInjector(injector);
+        } catch (CreationException e) {
+            throw new IndexCreationException(index, Injectors.getFirstErrorFailure(e));
+        }
 
         indicesInjectors.put(index.name(), indexInjector);
 

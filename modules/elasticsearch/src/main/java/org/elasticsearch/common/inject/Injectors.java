@@ -22,6 +22,7 @@ package org.elasticsearch.common.inject;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.name.Names;
+import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.reflect.Type;
 import java.util.Map;
@@ -32,6 +33,19 @@ import java.util.Set;
  * @author kimchy (Shay Banon)
  */
 public class Injectors {
+
+    public static Throwable getFirstErrorFailure(CreationException e) {
+        if (e.getErrorMessages().isEmpty()) {
+            return e;
+        }
+        // return the first message that has root cause, probably an actual error
+        for (Message message : e.getErrorMessages()) {
+            if (message.getCause() != null) {
+                return message.getCause();
+            }
+        }
+        return e;
+    }
 
     /**
      * Returns an instance of the given type with the {@link org.elasticsearch.common.inject.name.Named}

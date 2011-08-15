@@ -28,29 +28,66 @@ public class LZFDecoder {
     private LZFDecoder() {
     }
 
-    public static byte[] decode(final byte[] sourceBuffer) throws IOException {
-        byte[] result = new byte[calculateUncompressedSize(sourceBuffer)];
-        decode(sourceBuffer, result);
+    /**
+     * Method for decompressing a block of input data encoded in LZF
+     * block structure (compatible with lzf command line utility),
+     * and can consist of any number of blocks.
+     * Note that input MUST consists of a sequence of one or more complete
+     * chunks; partial chunks can not be handled.
+     */
+    public static byte[] decode(final byte[] inputBuffer) throws IOException {
+        byte[] result = new byte[calculateUncompressedSize(inputBuffer, 0, inputBuffer.length)];
+        decode(inputBuffer, 0, inputBuffer.length, result);
         return result;
     }
 
     /**
-     * Method for decompressing whole input data, which encoded in LZF
+     * Method for decompressing a block of input data encoded in LZF
      * block structure (compatible with lzf command line utility),
-     * and can consist of any number of blocks
+     * and can consist of any number of blocks.
+     * Note that input MUST consists of a sequence of one or more complete
+     * chunks; partial chunks can not be handled.
+     *
+     * @since 0.8.2
      */
-    public static int decode(final byte[] sourceBuffer, final byte[] targetBuffer) throws IOException {
-        /* First: let's calculate actual size, so we can allocate
-         * exact result size. Also useful for basic sanity checking;
-         * so that after call we know header structure is not corrupt
-         * (to the degree that lengths etc seem valid)
-         */
-        byte[] result = targetBuffer;
-        int inPtr = 0;
-        int outPtr = 0;
+    public static byte[] decode(final byte[] inputBuffer, int inputPtr, int inputLen) throws IOException {
+        byte[] result = new byte[calculateUncompressedSize(inputBuffer, inputPtr, inputLen)];
+        decode(inputBuffer, inputPtr, inputLen, result);
+        return result;
+    }
 
-        while (inPtr < (sourceBuffer.length - 1)) { // -1 to offset possible end marker
-            inPtr += 2; // skip 'ZV' marker
+    /**
+     * Method for decompressing a block of input data encoded in LZF
+     * block structure (compatible with lzf command line utility),
+     * and can consist of any number of blocks.
+     * Note that input MUST consists of a sequence of one or more complete
+     * chunks; partial chunks can not be handled.
+     */
+    public static int decode(final byte[] inputBuffer, final byte[] targetBuffer) throws IOException {
+        return decode(inputBuffer, 0, inputBuffer.length, targetBuffer);
+    }
+
+    /**
+     * Method for decompressing a block of input data encoded in LZF
+     * block structure (compatible with lzf command line utility),
+     * and can consist of any number of blocks.
+     * Note that input MUST consists of a sequence of one or more complete
+     * chunks; partial chunks can not be handled.
+     */
+    public static int decode(final byte[] sourceBuffer, int inPtr, int inLength,
+                             final byte[] targetBuffer) throws IOException {
+        byte[] result = targetBuffer;
+        int outPtr = 0;
+        int blockNr = 0;
+
+        final int end = inPtr + inLength - 1; // -1 to offset possible end marker
+
+        while (inPtr < end) {
+            // let's do basic sanity checks; no point in skimping with these checks
+            if (sourceBuffer[inPtr] != LZFChunk.BYTE_Z || sourceBuffer[inPtr + 1] != LZFChunk.BYTE_V) {
+                throw new IOException("Corrupt input data, block #" + blockNr + " (at offset " + inPtr + "): did not start with 'ZV' signature bytes");
+            }
+            inPtr += 2;
             int type = sourceBuffer[inPtr++];
             int len = uint16(sourceBuffer, inPtr);
             inPtr += 2;
@@ -64,16 +101,23 @@ public class LZFDecoder {
                 outPtr += uncompLen;
             }
             inPtr += len;
+            ++blockNr;
         }
         return outPtr;
     }
 
-    private static int calculateUncompressedSize(byte[] data) throws IOException {
+    /**
+     * Helper method that will calculate total uncompressed size, for sequence of
+     * one or more LZF blocks stored in given byte array.
+     * Will do basic sanity checking, so that this method can be called to
+     * verify against some types of corruption.
+     */
+    public static int calculateUncompressedSize(byte[] data, int ptr, int length) throws IOException {
         int uncompressedSize = 0;
-        int ptr = 0;
         int blockNr = 0;
+        final int end = ptr + length;
 
-        while (ptr < data.length) {
+        while (ptr < end) {
             // can use optional end marker
             if (ptr == (data.length + 1) && data[ptr] == BYTE_NULL) {
                 ++ptr; // so that we'll be at end
@@ -111,8 +155,6 @@ public class LZFDecoder {
     /**
      * Main decode from a stream.  Decompressed bytes are placed in the outputBuffer, inputBuffer
      * is a "scratch-area".
-     * <p>
-     * If no
      *
      * @param is           An input stream of LZF compressed bytes
      * @param inputBuffer  A byte array used as a scratch area.
@@ -155,27 +197,127 @@ public class LZFDecoder {
         do {
             int ctrl = in[inPos++] & 255;
             if (ctrl < LZFChunk.MAX_LITERAL) { // literal run
-                ctrl += inPos;
-                do {
-                    out[outPos++] = in[inPos];
-                } while (inPos++ < ctrl);
+                // 11-Aug-2011, tatu: Looks silly, but is faster than simple loop or System.arraycopy
+                switch (ctrl) {
+                    case 31:
+                        out[outPos++] = in[inPos++];
+                    case 30:
+                        out[outPos++] = in[inPos++];
+                    case 29:
+                        out[outPos++] = in[inPos++];
+                    case 28:
+                        out[outPos++] = in[inPos++];
+                    case 27:
+                        out[outPos++] = in[inPos++];
+                    case 26:
+                        out[outPos++] = in[inPos++];
+                    case 25:
+                        out[outPos++] = in[inPos++];
+                    case 24:
+                        out[outPos++] = in[inPos++];
+                    case 23:
+                        out[outPos++] = in[inPos++];
+                    case 22:
+                        out[outPos++] = in[inPos++];
+                    case 21:
+                        out[outPos++] = in[inPos++];
+                    case 20:
+                        out[outPos++] = in[inPos++];
+                    case 19:
+                        out[outPos++] = in[inPos++];
+                    case 18:
+                        out[outPos++] = in[inPos++];
+                    case 17:
+                        out[outPos++] = in[inPos++];
+                    case 16:
+                        out[outPos++] = in[inPos++];
+                    case 15:
+                        out[outPos++] = in[inPos++];
+                    case 14:
+                        out[outPos++] = in[inPos++];
+                    case 13:
+                        out[outPos++] = in[inPos++];
+                    case 12:
+                        out[outPos++] = in[inPos++];
+                    case 11:
+                        out[outPos++] = in[inPos++];
+                    case 10:
+                        out[outPos++] = in[inPos++];
+                    case 9:
+                        out[outPos++] = in[inPos++];
+                    case 8:
+                        out[outPos++] = in[inPos++];
+                    case 7:
+                        out[outPos++] = in[inPos++];
+                    case 6:
+                        out[outPos++] = in[inPos++];
+                    case 5:
+                        out[outPos++] = in[inPos++];
+                    case 4:
+                        out[outPos++] = in[inPos++];
+                    case 3:
+                        out[outPos++] = in[inPos++];
+                    case 2:
+                        out[outPos++] = in[inPos++];
+                    case 1:
+                        out[outPos++] = in[inPos++];
+                    case 0:
+                        out[outPos++] = in[inPos++];
+                }
                 continue;
             }
             // back reference
             int len = ctrl >> 5;
             ctrl = -((ctrl & 0x1f) << 8) - 1;
-            if (len == 7) {
-                len += in[inPos++] & 255;
+            if (len < 7) { // 2 bytes; length of 3 - 8 bytes
+                ctrl -= in[inPos++] & 255;
+                out[outPos] = out[outPos++ + ctrl];
+                out[outPos] = out[outPos++ + ctrl];
+                switch (len) {
+                    case 6:
+                        out[outPos] = out[outPos++ + ctrl];
+                    case 5:
+                        out[outPos] = out[outPos++ + ctrl];
+                    case 4:
+                        out[outPos] = out[outPos++ + ctrl];
+                    case 3:
+                        out[outPos] = out[outPos++ + ctrl];
+                    case 2:
+                        out[outPos] = out[outPos++ + ctrl];
+                    case 1:
+                        out[outPos] = out[outPos++ + ctrl];
+                }
+                continue;
             }
+
+            // long version (3 bytes, length of up to 264 bytes)
+            len = in[inPos++] & 255;
             ctrl -= in[inPos++] & 255;
-            len += outPos + 2;
+
+            // First: if there is no overlap, can just use arraycopy:
+            if ((ctrl + len) < -9) {
+                len += 9;
+                System.arraycopy(out, outPos + ctrl, out, outPos, len);
+                outPos += len;
+                continue;
+            }
+
+            // otherwise manual copy: so first just copy 9 bytes we know are needed
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
+            out[outPos] = out[outPos++ + ctrl];
             out[outPos] = out[outPos++ + ctrl];
             out[outPos] = out[outPos++ + ctrl];
 
-            /* Odd: after extensive profiling, looks like magic number
-             * for unrolling is 4: with 8 performance is worse (even
-             * bit less than with no unrolling).
-             */
+            // then loop
+            // Odd: after extensive profiling, looks like magic number
+            // for unrolling is 4: with 8 performance is worse (even
+            // bit less than with no unrolling).
+            len += outPos;
             final int end = len - 3;
             while (outPos < end) {
                 out[outPos] = out[outPos++ + ctrl];
@@ -183,15 +325,13 @@ public class LZFDecoder {
                 out[outPos] = out[outPos++ + ctrl];
                 out[outPos] = out[outPos++ + ctrl];
             }
-            // and, interestingly, unlooping works here too:
-            if (outPos < len) { // max 3 bytes to copy
-                out[outPos] = out[outPos++ + ctrl];
-                if (outPos < len) {
+            switch (len - outPos) {
+                case 3:
                     out[outPos] = out[outPos++ + ctrl];
-                    if (outPos < len) {
-                        out[outPos] = out[outPos++ + ctrl];
-                    }
-                }
+                case 2:
+                    out[outPos] = out[outPos++ + ctrl];
+                case 1:
+                    out[outPos] = out[outPos++ + ctrl];
             }
         } while (outPos < outEnd);
 

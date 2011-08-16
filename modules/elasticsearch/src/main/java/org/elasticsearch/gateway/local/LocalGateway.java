@@ -95,6 +95,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private volatile boolean initialized = false;
 
+    private volatile boolean metaDataPersistedAtLeastOnce = false;
+
     @Inject public LocalGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
                                 TransportNodesListGatewayMetaState listGatewayMetaState, TransportNodesListGatewayStartedShards listGatewayStartedShards) {
         super(settings);
@@ -193,7 +195,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
 
         // we only write the local metadata if this is a possible master node
-        if (event.state().nodes().localNode().masterNode() && event.metaDataChanged()) {
+        if (event.state().nodes().localNode().masterNode() && (event.metaDataChanged() || !metaDataPersistedAtLeastOnce)) {
             executor.execute(new LoggingRunnable(logger, new PersistMetaData(event)));
         }
 
@@ -435,6 +437,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             } catch (IOException e) {
                 logger.warn("failed to write updated state", e);
             }
+            metaDataPersistedAtLeastOnce = true;
         }
     }
 

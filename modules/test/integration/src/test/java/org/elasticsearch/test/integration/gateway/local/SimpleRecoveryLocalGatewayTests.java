@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -364,5 +365,32 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
                 }
             }
         }
+    }
+
+    @Test public void testRecoveryDifferentNodeOrderStartup() throws Exception {
+        // we need different data paths so we make sure we start the second node fresh
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data1").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
+        cleanAndCloseNodes();
+
+        startNode("node1", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data1").build());
+
+        client("node1").prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
+
+        startNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
+
+        ClusterHealthResponse health = client("node2").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        closeNode("node1");
+        closeNode("node2");
+
+        startNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
+
+        health = client("node2").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
+
+        assertThat(client("node2").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node2").prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
     }
 }

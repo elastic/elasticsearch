@@ -102,7 +102,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
 
-    private final long gcDeletesInMillis;
+    private long gcDeletesInMillis;
 
     private final ThreadPool threadPool;
 
@@ -1231,13 +1231,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         IndexMetaData.addDynamicSettings(
                 "index.term_index_interval",
                 "index.term_index_divisor",
-                "index.index_concurrency"
+                "index.index_concurrency",
+                "index.gc_deletes"
         );
     }
 
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
+            long gcDeletesInMillis = indexSettings.getAsTime("index.gc_deletes", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
+            if (gcDeletesInMillis != RobinEngine.this.gcDeletesInMillis) {
+                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
+                RobinEngine.this.gcDeletesInMillis = gcDeletesInMillis;
+            }
+
             int termIndexInterval = settings.getAsInt("index.term_index_interval", RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt("index.term_index_divisor", RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
             int indexConcurrency = settings.getAsInt("index.index_concurrency", RobinEngine.this.indexConcurrency);

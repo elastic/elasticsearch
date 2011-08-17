@@ -95,8 +95,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
         // otherwise, we are running it post processing of the xcontent
         String parsedParentId = context.doc().get(Defaults.NAME);
-        if (context.externalValueSet()) {
-            String parentId = (String) context.externalValue();
+        if (context.sourceToParse().parent() != null) {
+            String parentId = context.sourceToParse().parent();
             if (parsedParentId == null) {
                 if (parentId == null) {
                     throw new MapperParsingException("No parent id provided, not within the document, and not externally");

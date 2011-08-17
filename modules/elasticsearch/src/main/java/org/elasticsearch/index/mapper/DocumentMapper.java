@@ -512,7 +512,7 @@ public class DocumentMapper implements ToXContent {
                     parser = XContentFactory.xContent(source.source()).createParser(source.source());
                 }
             }
-            context.reset(parser, new Document(), type, source.source(), source.flyweight(), listener);
+            context.reset(parser, new Document(), source, listener);
 
             // will result in START_OBJECT
             int countDownTokens = 0;
@@ -602,13 +602,12 @@ public class DocumentMapper implements ToXContent {
                 }
             }
             if (parentFieldMapper != null) {
-                context.externalValue(source.parent());
                 parentFieldMapper.parse(context);
             }
             analyzerMapper.parse(context);
             allFieldMapper.parse(context);
             // validate aggregated mappers (TODO: need to be added as a phase to any field mapper)
-            routingFieldMapper.validate(context, source.routing());
+            routingFieldMapper.validate(context);
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse", e);
         } finally {
@@ -624,7 +623,7 @@ public class DocumentMapper implements ToXContent {
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), context.docs(), context.analyzer(),
                 context.source(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
-        context.reset(null, null, null, null, false, null);
+        context.reset(null, null, null, null);
         return doc;
     }
 

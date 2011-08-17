@@ -21,17 +21,25 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
 
-public class SizeFieldMapper extends IntegerFieldMapper {
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
+public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
+
+    public static final String NAME = "_size";
     public static final String CONTENT_TYPE = "_size";
 
     public static class Defaults extends IntegerFieldMapper.Defaults {
@@ -65,6 +73,22 @@ public class SizeFieldMapper extends IntegerFieldMapper {
         }
     }
 
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            SizeFieldMapper.Builder builder = new SizeFieldMapper.Builder();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("enabled")) {
+                    builder.enabled(nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("store")) {
+                    builder.store(parseStore(fieldName, fieldNode.toString()));
+                }
+            }
+            return builder;
+        }
+    }
+
     private final boolean enabled;
 
     public SizeFieldMapper() {
@@ -84,11 +108,30 @@ public class SizeFieldMapper extends IntegerFieldMapper {
         return this.enabled;
     }
 
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+        // we post parse it so we get the size stored, possibly compressed (source will be preParse)
+        super.parse(context);
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        // nothing to do here, we call the parent in postParse
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
+    }
+
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
-        return new CustomIntegerNumericField(this, ((Number) context.externalValue()).intValue());
+        return new CustomIntegerNumericField(this, context.source().length);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

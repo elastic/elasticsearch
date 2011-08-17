@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -31,18 +32,25 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class AllFieldMapper extends AbstractFieldMapper<Void> implements InternalMapper {
+public class AllFieldMapper extends AbstractFieldMapper<Void> implements InternalMapper, RootMapper {
 
     public interface IncludeInAll extends Mapper {
 
@@ -98,6 +106,21 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
     }
 
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            AllFieldMapper.Builder builder = all();
+            parseField(builder, builder.name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("enabled")) {
+                    builder.enabled(nodeBooleanValue(fieldNode));
+                }
+            }
+            return builder;
+        }
+    }
+
 
     private boolean enabled;
 
@@ -122,6 +145,24 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     @Override public Query fieldQuery(String value, QueryParseContext context) {
         return new AllTermQuery(termFactory.createTerm(value));
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        // we parse in post parse
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
     }
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {

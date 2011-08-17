@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,6 +61,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private final Object typeParsersMutex = new Object();
 
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
+    private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
     public DocumentMapperParser(Index index, AnalysisService analysisService) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService);
@@ -87,11 +87,29 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(MultiFieldMapper.CONTENT_TYPE, new MultiFieldMapper.TypeParser())
                 .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser())
                 .immutableMap();
+
+        rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>()
+                .put(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser())
+                .put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser())
+                .put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser())
+                .put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser())
+                .put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser())
+                .put(AnalyzerMapper.NAME, new AnalyzerMapper.TypeParser())
+                .immutableMap();
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
         synchronized (typeParsersMutex) {
             typeParsers = new MapBuilder<String, Mapper.TypeParser>()
+                    .putAll(typeParsers)
+                    .put(type, typeParser)
+                    .immutableMap();
+        }
+    }
+
+    public void putRootTypeParser(String type, Mapper.TypeParser typeParser) {
+        synchronized (typeParsersMutex) {
+            rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>()
                     .putAll(typeParsers)
                     .put(type, typeParser)
                     .immutableMap();
@@ -141,16 +159,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
-            if (SourceFieldMapper.CONTENT_TYPE.equals(fieldName) || "sourceField".equals(fieldName)) {
-                docBuilder.sourceField(parseSourceField((Map<String, Object>) fieldNode, parserContext));
-            } else if (SizeFieldMapper.CONTENT_TYPE.equals(fieldName)) {
-                docBuilder.sizeField(parseSizeField((Map<String, Object>) fieldNode, parserContext));
-            } else if (IdFieldMapper.CONTENT_TYPE.equals(fieldName) || "idField".equals(fieldName)) {
+            if (IdFieldMapper.CONTENT_TYPE.equals(fieldName) || "idField".equals(fieldName)) {
                 docBuilder.idField(parseIdField((Map<String, Object>) fieldNode, parserContext));
-            } else if (IndexFieldMapper.CONTENT_TYPE.equals(fieldName) || "indexField".equals(fieldName)) {
-                docBuilder.indexField(parseIndexField((Map<String, Object>) fieldNode, parserContext));
-            } else if (TypeFieldMapper.CONTENT_TYPE.equals(fieldName) || "typeField".equals(fieldName)) {
-                docBuilder.typeField(parseTypeField((Map<String, Object>) fieldNode, parserContext));
             } else if (UidFieldMapper.CONTENT_TYPE.equals(fieldName) || "uidField".equals(fieldName)) {
                 docBuilder.uidField(parseUidField((Map<String, Object>) fieldNode, parserContext));
             } else if (RoutingFieldMapper.CONTENT_TYPE.equals(fieldName)) {
@@ -159,10 +169,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 docBuilder.parentFiled(parseParentField((Map<String, Object>) fieldNode, parserContext));
             } else if (BoostFieldMapper.CONTENT_TYPE.equals(fieldName) || "boostField".equals(fieldName)) {
                 docBuilder.boostField(parseBoostField((Map<String, Object>) fieldNode, parserContext));
-            } else if (AllFieldMapper.CONTENT_TYPE.equals(fieldName) || "allField".equals(fieldName)) {
-                docBuilder.allField(parseAllField((Map<String, Object>) fieldNode, parserContext));
-            } else if (AnalyzerMapper.CONTENT_TYPE.equals(fieldName)) {
-                docBuilder.analyzerField(parseAnalyzerField((Map<String, Object>) fieldNode, parserContext));
             } else if ("index_analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
             } else if ("search_analyzer".equals(fieldName)) {
@@ -170,6 +176,11 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             } else if ("analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
                 docBuilder.searchAnalyzer(analysisService.analyzer(fieldNode.toString()));
+            } else {
+                Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
+                if (typeParser != null) {
+                    docBuilder.put(typeParser.parse(fieldName, (Map<String, Object>) fieldNode, parserContext));
+                }
             }
         }
 
@@ -211,13 +222,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return builder;
     }
 
-    private TypeFieldMapper.Builder parseTypeField(Map<String, Object> typeNode, Mapper.TypeParser.ParserContext parserContext) {
-        TypeFieldMapper.Builder builder = type();
-        parseField(builder, builder.name, typeNode, parserContext);
-        return builder;
-    }
-
-
     private IdFieldMapper.Builder parseIdField(Map<String, Object> idNode, Mapper.TypeParser.ParserContext parserContext) {
         IdFieldMapper.Builder builder = id();
         parseField(builder, builder.name, idNode, parserContext);
@@ -247,83 +251,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             Object fieldNode = entry.getValue();
             if (fieldName.equals("type")) {
                 builder.type(fieldNode.toString());
-            }
-        }
-        return builder;
-    }
-
-    private AnalyzerMapper.Builder parseAnalyzerField(Map<String, Object> analyzerNode, Mapper.TypeParser.ParserContext parserContext) {
-        AnalyzerMapper.Builder builder = analyzer();
-        for (Map.Entry<String, Object> entry : analyzerNode.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("path")) {
-                builder.field(fieldNode.toString());
-            }
-        }
-        return builder;
-    }
-
-    private AllFieldMapper.Builder parseAllField(Map<String, Object> allNode, Mapper.TypeParser.ParserContext parserContext) {
-        AllFieldMapper.Builder builder = all();
-        parseField(builder, builder.name, allNode, parserContext);
-        for (Map.Entry<String, Object> entry : allNode.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("enabled")) {
-                builder.enabled(nodeBooleanValue(fieldNode));
-            }
-        }
-        return builder;
-    }
-
-    private SizeFieldMapper.Builder parseSizeField(Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext) {
-        SizeFieldMapper.Builder builder = new SizeFieldMapper.Builder();
-
-        for (Map.Entry<String, Object> entry : node.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("enabled")) {
-                builder.enabled(nodeBooleanValue(fieldNode));
-            } else if (fieldName.equals("store")) {
-                builder.store(parseStore(fieldName, fieldNode.toString()));
-            }
-        }
-        return builder;
-    }
-
-    private SourceFieldMapper.Builder parseSourceField(Map<String, Object> sourceNode, Mapper.TypeParser.ParserContext parserContext) {
-        SourceFieldMapper.Builder builder = source();
-
-        for (Map.Entry<String, Object> entry : sourceNode.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("enabled")) {
-                builder.enabled(nodeBooleanValue(fieldNode));
-            } else if (fieldName.equals("compress") && fieldNode != null) {
-                builder.compress(nodeBooleanValue(fieldNode));
-            } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
-                if (fieldNode instanceof Number) {
-                    builder.compressThreshold(((Number) fieldNode).longValue());
-                    builder.compress(true);
-                } else {
-                    builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
-                    builder.compress(true);
-                }
-            }
-        }
-        return builder;
-    }
-
-    private IndexFieldMapper.Builder parseIndexField(Map<String, Object> indexNode, Mapper.TypeParser.ParserContext parserContext) {
-        IndexFieldMapper.Builder builder = MapperBuilders.index();
-        parseField(builder, builder.name, indexNode, parserContext);
-
-        for (Map.Entry<String, Object> entry : indexNode.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("enabled")) {
-                builder.enabled(nodeBooleanValue(fieldNode));
             }
         }
         return builder;

@@ -75,7 +75,7 @@ public class DefaultSourceMappingTests {
         MapperService mapperService = MapperTests.newMapperService();
         mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping);
 
-        DocumentMapper mapper = (DocumentMapper) mapperService.documentMapperWithAutoCreate("my_type");
+        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }
@@ -93,7 +93,7 @@ public class DefaultSourceMappingTests {
                 .endObject().endObject().string();
         mapperService.add("my_type", mapping);
 
-        DocumentMapper mapper = (DocumentMapper) mapperService.documentMapper("my_type");
+        DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }

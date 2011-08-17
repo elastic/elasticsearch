@@ -32,19 +32,25 @@ import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class TypeFieldMapper extends AbstractFieldMapper<String> implements InternalMapper {
+public class TypeFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
     public static final String NAME = "_type";
 
@@ -76,6 +82,15 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
             return new TypeFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
         }
     }
+
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            TypeFieldMapper.Builder builder = type();
+            parseField(builder, builder.name, node, parserContext);
+            return builder;
+        }
+    }
+
 
     public TypeFieldMapper() {
         this(Defaults.NAME, Defaults.INDEX_NAME);
@@ -130,6 +145,24 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override public boolean useFieldQueryWithQueryString() {
         return true;
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        // we parse in pre parse
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {

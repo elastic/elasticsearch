@@ -40,8 +40,9 @@ public class IndexTypeMapperTests {
                 .startObject("_index").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        assertThat(docMapper.indexMapper().enabled(), equalTo(true));
-        assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.YES));
+        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.NAME);
+        assertThat(indexMapper.enabled(), equalTo(true));
+        assertThat(indexMapper.store(), equalTo(Field.Store.YES));
         assertThat(docMapper.mappers().indexName("_index").mapper(), instanceOf(IndexFieldMapper.class));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -59,8 +60,9 @@ public class IndexTypeMapperTests {
                 .startObject("_index").field("enabled", false).field("store", "yes").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        assertThat(docMapper.indexMapper().enabled(), equalTo(false));
-        assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.YES));
+        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.NAME);
+        assertThat(indexMapper.enabled(), equalTo(false));
+        assertThat(indexMapper.store(), equalTo(Field.Store.YES));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -76,8 +78,9 @@ public class IndexTypeMapperTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        assertThat(docMapper.indexMapper().enabled(), equalTo(false));
-        assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.NO));
+        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.NAME);
+        assertThat(indexMapper.enabled(), equalTo(false));
+        assertThat(indexMapper.store(), equalTo(Field.Store.NO));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

@@ -126,7 +126,8 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         return value;
     }
 
-    public void validate(ParseContext context, String routing) throws MapperParsingException {
+    public void validate(ParseContext context) throws MapperParsingException {
+        String routing = context.sourceToParse().routing();
         if (path != null && routing != null) {
             // we have a path, check if we can validate we have the same routing value as the one in the doc...
             String value = context.doc().get(path);

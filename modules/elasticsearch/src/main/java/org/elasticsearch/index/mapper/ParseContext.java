@@ -54,13 +54,10 @@ public class ParseContext {
 
     private String index;
 
-    private String type;
-
+    private SourceToParse sourceToParse;
     private byte[] source;
 
     private String id;
-
-    private boolean flyweight;
 
     private DocumentMapper.ParseListener listener;
 
@@ -87,7 +84,7 @@ public class ParseContext {
         this.path = path;
     }
 
-    public void reset(XContentParser parser, Document document, String type, byte[] source, boolean flyweight, DocumentMapper.ParseListener listener) {
+    public void reset(XContentParser parser, Document document, SourceToParse source, DocumentMapper.ParseListener listener) {
         this.parser = parser;
         this.document = document;
         if (document != null) {
@@ -99,9 +96,8 @@ public class ParseContext {
         this.analyzer = null;
         this.uid = null;
         this.id = null;
-        this.type = type;
-        this.source = source;
-        this.flyweight = flyweight;
+        this.sourceToParse = source;
+        this.source = source == null ? null : sourceToParse.source();
         this.path.reset();
         this.parsedIdState = ParsedIdState.NO;
         this.mappersAdded = false;
@@ -111,7 +107,7 @@ public class ParseContext {
     }
 
     public boolean flyweight() {
-        return this.flyweight;
+        return sourceToParse.flyweight();
     }
 
     public DocumentMapperParser docMapperParser() {
@@ -131,11 +127,15 @@ public class ParseContext {
     }
 
     public String type() {
-        return this.type;
+        return sourceToParse.type();
+    }
+
+    public SourceToParse sourceToParse() {
+        return this.sourceToParse;
     }
 
     public byte[] source() {
-        return this.source;
+        return source;
     }
 
     // only should be used by SourceFieldMapper to update with a compressed source

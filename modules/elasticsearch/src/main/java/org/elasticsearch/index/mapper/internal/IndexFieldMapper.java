@@ -23,21 +23,29 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexFieldMapper extends AbstractFieldMapper<String> implements InternalMapper {
+public class IndexFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
     public static final String NAME = "_index";
 
@@ -73,6 +81,22 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override public IndexFieldMapper build(BuilderContext context) {
             return new IndexFieldMapper(name, indexName, store, termVector, boost, omitNorms, omitTermFreqAndPositions, enabled);
+        }
+    }
+
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            IndexFieldMapper.Builder builder = MapperBuilders.index();
+            parseField(builder, builder.name, node, parserContext);
+
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("enabled")) {
+                    builder.enabled(nodeBooleanValue(fieldNode));
+                }
+            }
+            return builder;
         }
     }
 
@@ -121,6 +145,25 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     public Term term(String value) {
         return termFactory.createTerm(value);
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+        // we pre parse it and not in parse, since its not part of the root object
+        super.parse(context);
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {

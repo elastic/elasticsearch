@@ -53,7 +53,7 @@ public interface Mapper extends ToXContent {
     @NotThreadSafe
     public static abstract class Builder<T extends Builder, Y extends Mapper> {
 
-        protected String name;
+        public String name;
 
         protected T builder;
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.InternalMapper;
@@ -29,14 +30,19 @@ import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class AnalyzerMapper implements Mapper, InternalMapper {
+public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
 
+    public static final String NAME = "_analyzer";
     public static final String CONTENT_TYPE = "_analyzer";
 
     public static class Defaults {
@@ -62,20 +68,19 @@ public class AnalyzerMapper implements Mapper, InternalMapper {
         }
     }
 
-    // for now, it is parsed directly in the document parser, need to move this internal types parsing to be done here as well...
-//    public static class TypeParser implements XContentMapper.TypeParser {
-//        @Override public XContentMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-//            AnalyzerMapper.Builder builder = analyzer();
-//            for (Map.Entry<String, Object> entry : node.entrySet()) {
-//                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-//                Object fieldNode = entry.getValue();
-//                if ("path".equals(fieldName)) {
-//                    builder.field(fieldNode.toString());
-//                }
-//            }
-//            return builder;
-//        }
-//    }
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            AnalyzerMapper.Builder builder = analyzer();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("path")) {
+                    builder.field(fieldNode.toString());
+                }
+            }
+            return builder;
+        }
+    }
 
     private final String path;
 
@@ -91,7 +96,10 @@ public class AnalyzerMapper implements Mapper, InternalMapper {
         return CONTENT_TYPE;
     }
 
-    @Override public void parse(ParseContext context) throws IOException {
+    @Override public void preParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
         Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
         if (path != null) {
             String value = context.doc().get(path);
@@ -107,6 +115,16 @@ public class AnalyzerMapper implements Mapper, InternalMapper {
             }
         }
         context.analyzer(analyzer);
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
     }
 
     @Override public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

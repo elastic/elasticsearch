@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.compress.lzf.LZFEncoder;
@@ -32,17 +33,23 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements InternalMapper {
+public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements InternalMapper, RootMapper {
 
     public static final String NAME = "_source";
 
@@ -90,6 +97,32 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         }
     }
 
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            SourceFieldMapper.Builder builder = source();
+
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("enabled")) {
+                    builder.enabled(nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("compress") && fieldNode != null) {
+                    builder.compress(nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
+                    if (fieldNode instanceof Number) {
+                        builder.compressThreshold(((Number) fieldNode).longValue());
+                        builder.compress(true);
+                    } else {
+                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
+                        builder.compress(true);
+                    }
+                }
+            }
+            return builder;
+        }
+    }
+
+
     private final boolean enabled;
 
     private Boolean compress;
@@ -114,6 +147,24 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     public ResetFieldSelector fieldSelector() {
         return SourceFieldSelector.INSTANCE;
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        // nothing to do here, we will call it in pre parse
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {

@@ -184,6 +184,8 @@ public class QueryParserSettings {
         if (defaultField != null ? !defaultField.equals(that.defaultField) : that.defaultField != null) return false;
         if (defaultOperator != that.defaultOperator) return false;
         if (queryString != null ? !queryString.equals(that.queryString) : that.queryString != null) return false;
+        if (rewriteMethod != null ? !rewriteMethod.equals(that.rewriteMethod) : that.rewriteMethod != null)
+            return false;
 
         return true;
     }

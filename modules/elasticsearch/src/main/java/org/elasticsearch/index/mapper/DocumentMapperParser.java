@@ -335,7 +335,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         XContentParser xContentParser = null;
         try {
             xContentParser = XContentFactory.xContent(source).createParser(source);
-            root = xContentParser.map();
+            root = xContentParser.mapOrdered();
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse mapping definition", e);
         } finally {

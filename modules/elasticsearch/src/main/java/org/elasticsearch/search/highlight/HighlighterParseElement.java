@@ -141,7 +141,7 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.fragmentOffset(parser.intValue());
                                     } else if ("highlight_filter".equals(fieldName) || "highlightFilter".equals(fieldName)) {
                                         field.highlightFilter(parser.booleanValue());
-                                    } else if ("score".equals(fieldName)) {
+                                    } else if ("order".equals(fieldName)) {
                                         field.scoreOrdered("score".equals(parser.text()));
                                     }
                                 }

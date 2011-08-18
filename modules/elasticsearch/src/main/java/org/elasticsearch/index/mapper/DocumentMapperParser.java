@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -97,6 +96,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(BoostFieldMapper.NAME, new BoostFieldMapper.TypeParser())
                 .put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser())
                 .put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser())
+                .put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser())
+                .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
                 .immutableMap();
     }
 
@@ -161,11 +162,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
-            if (IdFieldMapper.CONTENT_TYPE.equals(fieldName) || "idField".equals(fieldName)) {
-                docBuilder.idField(parseIdField((Map<String, Object>) fieldNode, parserContext));
-            } else if (UidFieldMapper.CONTENT_TYPE.equals(fieldName) || "uidField".equals(fieldName)) {
-                docBuilder.uidField(parseUidField((Map<String, Object>) fieldNode, parserContext));
-            } else if ("index_analyzer".equals(fieldName)) {
+            if ("index_analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
             } else if ("search_analyzer".equals(fieldName)) {
                 docBuilder.searchAnalyzer(analysisService.analyzer(fieldNode.toString()));
@@ -197,17 +194,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         // update the source with the generated one
         documentMapper.refreshSource();
         return documentMapper;
-    }
-
-    private UidFieldMapper.Builder parseUidField(Map<String, Object> uidNode, Mapper.TypeParser.ParserContext parserContext) {
-        UidFieldMapper.Builder builder = uid();
-        return builder;
-    }
-
-    private IdFieldMapper.Builder parseIdField(Map<String, Object> idNode, Mapper.TypeParser.ParserContext parserContext) {
-        IdFieldMapper.Builder builder = id();
-        parseField(builder, builder.name, idNode, parserContext);
-        return builder;
     }
 
     @SuppressWarnings({"unchecked"})

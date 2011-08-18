@@ -67,8 +67,6 @@ public class ParseContext {
 
     private Map<String, String> ignoredValues = new HashMap<String, String>();
 
-    private ParsedIdState parsedIdState;
-
     private boolean mappersAdded = false;
 
     private boolean externalValueSet;
@@ -99,7 +97,6 @@ public class ParseContext {
         this.sourceToParse = source;
         this.source = source == null ? null : sourceToParse.source();
         this.path.reset();
-        this.parsedIdState = ParsedIdState.NO;
         this.mappersAdded = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
@@ -193,14 +190,6 @@ public class ParseContext {
         return id;
     }
 
-    public void parsedId(ParsedIdState parsedIdState) {
-        this.parsedIdState = parsedIdState;
-    }
-
-    public ParsedIdState parsedIdState() {
-        return this.parsedIdState;
-    }
-
     public void ignoredValue(String indexName, String value) {
         ignoredValues.put(indexName, value);
     }
@@ -272,11 +261,5 @@ public class ParseContext {
     public StringBuilder stringBuilder() {
         stringBuilder.setLength(0);
         return this.stringBuilder;
-    }
-
-    public static enum ParsedIdState {
-        NO,
-        PARSED,
-        EXTERNAL
     }
 }

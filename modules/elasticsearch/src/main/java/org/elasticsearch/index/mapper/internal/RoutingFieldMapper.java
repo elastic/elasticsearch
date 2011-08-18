@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
@@ -30,15 +31,22 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class RoutingFieldMapper extends AbstractFieldMapper<String> implements InternalMapper {
+public class RoutingFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
+    public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
@@ -77,6 +85,24 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
             return new RoutingFieldMapper(store, index, required, path);
         }
     }
+
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            RoutingFieldMapper.Builder builder = routing();
+            parseField(builder, builder.name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("required")) {
+                    builder.required(nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("path")) {
+                    builder.path(fieldNode.toString());
+                }
+            }
+            return builder;
+        }
+    }
+
 
     private boolean required;
 
@@ -126,7 +152,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         return value;
     }
 
-    public void validate(ParseContext context) throws MapperParsingException {
+    @Override public void validate(ParseContext context) throws MapperParsingException {
         String routing = context.sourceToParse().routing();
         if (path != null && routing != null) {
             // we have a path, check if we can validate we have the same routing value as the one in the doc...
@@ -140,9 +166,26 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         }
     }
 
+    @Override public void preParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        // no need ot parse here, we either get the routing in the sourceToParse
+        // or we don't have routing, if we get it in sourceToParse, we process it in preParse
+        // which will always be called
+    }
+
+    @Override public boolean includeInObject() {
+        return true;
+    }
+
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            String routing = (String) context.externalValue();
+        if (context.sourceToParse().routing() != null) {
+            String routing = context.sourceToParse().routing();
             if (routing != null) {
                 if (!indexed() && !stored()) {
                     context.ignoredValue(names.indexName(), routing);

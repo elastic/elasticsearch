@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -35,21 +36,29 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class BoostFieldMapper extends NumberFieldMapper<Float> implements InternalMapper {
+public class BoostFieldMapper extends NumberFieldMapper<Float> implements InternalMapper, RootMapper {
 
     public static final String CONTENT_TYPE = "_boost";
+    public static final String NAME = "_boost";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NAME = "_boost";
@@ -80,6 +89,21 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         }
     }
 
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.get("name").toString();
+            BoostFieldMapper.Builder builder = MapperBuilders.boost(name);
+            parseNumberField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String propName = Strings.toUnderscoreCase(entry.getKey());
+                Object propNode = entry.getValue();
+                if (propName.equals("null_value")) {
+                    builder.nullValue(nodeFloatValue(propNode));
+                }
+            }
+            return builder;
+        }
+    }
 
     private final Float nullValue;
 
@@ -158,6 +182,19 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return true;
     }
 
     @Override public void parse(ParseContext context) throws IOException {

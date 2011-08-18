@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
@@ -30,15 +31,17 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper {
+public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
 
     public static final String NAME = "_parent";
 
@@ -75,6 +78,20 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
     }
 
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("type")) {
+                    builder.type(fieldNode.toString());
+                }
+            }
+            return builder;
+        }
+    }
+
     private final String type;
 
     protected ParentFieldMapper(String name, String indexName, String type) {
@@ -85,6 +102,20 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     public String type() {
         return type;
+    }
+
+    @Override public void preParse(ParseContext context) throws IOException {
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+        parse(context);
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return true;
     }
 
     @Override protected Field parseCreateField(ParseContext context) throws IOException {

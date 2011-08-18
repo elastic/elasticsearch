@@ -45,7 +45,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
@@ -95,6 +94,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser())
                 .put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser())
                 .put(AnalyzerMapper.NAME, new AnalyzerMapper.TypeParser())
+                .put(BoostFieldMapper.NAME, new BoostFieldMapper.TypeParser())
+                .put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser())
+                .put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser())
                 .immutableMap();
     }
 
@@ -163,12 +165,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 docBuilder.idField(parseIdField((Map<String, Object>) fieldNode, parserContext));
             } else if (UidFieldMapper.CONTENT_TYPE.equals(fieldName) || "uidField".equals(fieldName)) {
                 docBuilder.uidField(parseUidField((Map<String, Object>) fieldNode, parserContext));
-            } else if (RoutingFieldMapper.CONTENT_TYPE.equals(fieldName)) {
-                docBuilder.routingField(parseRoutingField((Map<String, Object>) fieldNode, parserContext));
-            } else if (ParentFieldMapper.CONTENT_TYPE.equals(fieldName)) {
-                docBuilder.parentFiled(parseParentField((Map<String, Object>) fieldNode, parserContext));
-            } else if (BoostFieldMapper.CONTENT_TYPE.equals(fieldName) || "boostField".equals(fieldName)) {
-                docBuilder.boostField(parseBoostField((Map<String, Object>) fieldNode, parserContext));
             } else if ("index_analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
             } else if ("search_analyzer".equals(fieldName)) {
@@ -208,51 +204,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return builder;
     }
 
-    private BoostFieldMapper.Builder parseBoostField(Map<String, Object> boostNode, Mapper.TypeParser.ParserContext parserContext) {
-        String name = boostNode.get("name") == null ? BoostFieldMapper.Defaults.NAME : boostNode.get("name").toString();
-        BoostFieldMapper.Builder builder = boost(name);
-        parseNumberField(builder, name, boostNode, parserContext);
-        for (Map.Entry<String, Object> entry : boostNode.entrySet()) {
-            String propName = Strings.toUnderscoreCase(entry.getKey());
-            Object propNode = entry.getValue();
-            if (propName.equals("null_value")) {
-                builder.nullValue(nodeFloatValue(propNode));
-            }
-        }
-        return builder;
-    }
-
     private IdFieldMapper.Builder parseIdField(Map<String, Object> idNode, Mapper.TypeParser.ParserContext parserContext) {
         IdFieldMapper.Builder builder = id();
         parseField(builder, builder.name, idNode, parserContext);
-        return builder;
-    }
-
-    // NOTE, we also parse this in MappingMetaData
-    private RoutingFieldMapper.Builder parseRoutingField(Map<String, Object> routingNode, Mapper.TypeParser.ParserContext parserContext) {
-        RoutingFieldMapper.Builder builder = routing();
-        parseField(builder, builder.name, routingNode, parserContext);
-        for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("required")) {
-                builder.required(nodeBooleanValue(fieldNode));
-            } else if (fieldName.equals("path")) {
-                builder.path(fieldNode.toString());
-            }
-        }
-        return builder;
-    }
-
-    private ParentFieldMapper.Builder parseParentField(Map<String, Object> parentNode, Mapper.TypeParser.ParserContext parserContext) {
-        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder();
-        for (Map.Entry<String, Object> entry : parentNode.entrySet()) {
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
-            Object fieldNode = entry.getValue();
-            if (fieldName.equals("type")) {
-                builder.type(fieldNode.toString());
-            }
-        }
         return builder;
     }
 

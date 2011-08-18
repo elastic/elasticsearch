@@ -24,20 +24,26 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IdFieldMapper extends AbstractFieldMapper<String> implements InternalMapper {
+public class IdFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
     public static final String NAME = "_id";
 
@@ -65,6 +71,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override public IdFieldMapper build(BuilderContext context) {
             return new IdFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
+        }
+    }
+
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            IdFieldMapper.Builder builder = id();
+            parseField(builder, builder.name, node, parserContext);
+            return builder;
         }
     }
 
@@ -108,28 +122,50 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         return value;
     }
 
+    @Override public void preParse(ParseContext context) throws IOException {
+        if (context.sourceToParse().id() != null) {
+            context.id(context.sourceToParse().id());
+            super.parse(context);
+        }
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+        if (context.id() == null && !context.sourceToParse().flyweight()) {
+            throw new MapperParsingException("No id found while parsing the content source");
+        }
+        // it either get built in the preParse phase, or get parsed...
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return true;
+    }
+
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
-        if (context.parsedIdState() == ParseContext.ParsedIdState.NO) {
-            String id = context.parser().text();
+        XContentParser parser = context.parser();
+        if (parser.currentName() != null && parser.currentName().equals(Defaults.NAME) && parser.currentToken().isValue()) {
+            // we are in the parse Phase
+            String id = parser.text();
             if (context.id() != null && !context.id().equals(id)) {
                 throw new MapperParsingException("Provided id [" + context.id() + "] does not match the content one [" + id + "]");
             }
             context.id(id);
-            context.parsedId(ParseContext.ParsedIdState.PARSED);
-            if (index == Field.Index.NO && store == Field.Store.NO) {
-                return null;
-            }
-            return new Field(names.indexName(), false, context.id(), store, index, termVector);
-        } else if (context.parsedIdState() == ParseContext.ParsedIdState.EXTERNAL) {
-            if (context.id() == null) {
-                throw new MapperParsingException("No id mapping with [" + names.name() + "] found in the content, and not explicitly set");
-            }
             if (index == Field.Index.NO && store == Field.Store.NO) {
                 return null;
             }
             return new Field(names.indexName(), false, context.id(), store, index, termVector);
         } else {
-            throw new MapperParsingException("Illegal parsed id state");
+            // we are in the pre/post parse phase
+            if (index == Field.Index.NO && store == Field.Store.NO) {
+                return null;
+            }
+            return new Field(names.indexName(), false, context.id(), store, index, termVector);
         }
     }
 

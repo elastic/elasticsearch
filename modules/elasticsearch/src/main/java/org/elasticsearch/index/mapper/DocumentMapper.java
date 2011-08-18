@@ -35,7 +35,6 @@ import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -133,10 +132,6 @@ public class DocumentMapper implements ToXContent {
 
     public static class Builder {
 
-        private UidFieldMapper uidFieldMapper = new UidFieldMapper();
-
-        private IdFieldMapper idFieldMapper = new IdFieldMapper();
-
         private Map<Class<? extends RootMapper>, RootMapper> rootMappers = Maps.newHashMap();
 
         private NamedAnalyzer indexAnalyzer;
@@ -154,12 +149,14 @@ public class DocumentMapper implements ToXContent {
         public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder) {
             this.index = index;
             this.rootObjectMapper = builder.build(builderContext);
+            IdFieldMapper idFieldMapper = new IdFieldMapper();
             if (indexSettings != null) {
                 String idIndexed = indexSettings.get("index.mapping._id.indexed");
                 if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
                     idFieldMapper = new IdFieldMapper(Field.Index.NOT_ANALYZED);
                 }
             }
+            this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
             // add default mappers
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper());
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
@@ -169,6 +166,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper());
             this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
+            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
             // don't add parent field, by default its "null"
         }
 
@@ -180,16 +178,6 @@ public class DocumentMapper implements ToXContent {
         public Builder put(RootMapper.Builder mapper) {
             RootMapper rootMapper = (RootMapper) mapper.build(builderContext);
             rootMappers.put(rootMapper.getClass(), rootMapper);
-            return this;
-        }
-
-        public Builder idField(IdFieldMapper.Builder builder) {
-            this.idFieldMapper = builder.build(builderContext);
-            return this;
-        }
-
-        public Builder uidField(UidFieldMapper.Builder builder) {
-            this.uidFieldMapper = builder.build(builderContext);
             return this;
         }
 
@@ -213,7 +201,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(index, docMapperParser, rootObjectMapper, meta, uidFieldMapper, idFieldMapper,
+            return new DocumentMapper(index, docMapperParser, rootObjectMapper, meta,
                     indexAnalyzer, searchAnalyzer,
                     rootMappers);
         }
@@ -235,10 +223,6 @@ public class DocumentMapper implements ToXContent {
     private volatile ImmutableMap<String, Object> meta;
 
     private volatile CompressedString mappingSource;
-
-    private final UidFieldMapper uidFieldMapper;
-
-    private final IdFieldMapper idFieldMapper;
 
     private final RootObjectMapper rootObjectMapper;
 
@@ -267,8 +251,6 @@ public class DocumentMapper implements ToXContent {
     public DocumentMapper(String index, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
-                          UidFieldMapper uidFieldMapper,
-                          IdFieldMapper idFieldMapper,
                           NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers) {
         this.index = index;
@@ -276,8 +258,6 @@ public class DocumentMapper implements ToXContent {
         this.docMapperParser = docMapperParser;
         this.meta = meta;
         this.rootObjectMapper = rootObjectMapper;
-        this.uidFieldMapper = uidFieldMapper;
-        this.idFieldMapper = idFieldMapper;
 
         this.rootMappers = ImmutableMap.copyOf(rootMappers);
         this.rootMappersOrdered = rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]);
@@ -294,7 +274,6 @@ public class DocumentMapper implements ToXContent {
 
         this.typeFilter = typeMapper().fieldFilter(type);
 
-        rootObjectMapper.putMapper(idFieldMapper);
         if (rootMapper(ParentFieldMapper.class) != null) {
             // mark the routing field mapper as required
             rootMapper(RoutingFieldMapper.class).markAsRequired();
@@ -311,8 +290,6 @@ public class DocumentMapper implements ToXContent {
             }
         }
 
-        // add the basic ones
-        tempFieldMappers.add(uidFieldMapper);
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(new FieldMapperListener() {
             @Override public void fieldMapper(FieldMapper fieldMapper) {
@@ -355,7 +332,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public UidFieldMapper uidMapper() {
-        return this.uidFieldMapper;
+        return rootMapper(UidFieldMapper.class);
     }
 
     @SuppressWarnings({"unchecked"}) public <T extends RootMapper> T rootMapper(Class<T> type) {
@@ -473,49 +450,12 @@ public class DocumentMapper implements ToXContent {
                 rootMapper.preParse(context);
             }
 
-            // set the id if we have it so we can validate it later on, also, add the uid if we can
-            if (source.id() != null) {
-                context.id(source.id());
-                uidFieldMapper.parse(context);
-            }
-
             if (!emptyDoc) {
                 rootObjectMapper.parse(context);
             }
 
             for (int i = 0; i < countDownTokens; i++) {
                 parser.nextToken();
-            }
-
-            // if we did not get the id, we need to parse the uid into the document now, after it was added
-            if (source.id() == null) {
-                if (context.id() == null) {
-                    if (!source.flyweight()) {
-                        throw new MapperParsingException("No id found while parsing the content source");
-                    }
-                } else {
-                    uidFieldMapper.parse(context);
-                    if (context.docs().size() > 1) {
-                        UidField uidField = (UidField) context.doc().getFieldable(UidFieldMapper.NAME);
-                        assert uidField != null;
-                        // we need to go over the docs and add it...
-                        for (int i = 1; i < context.docs().size(); i++) {
-                            // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                            context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
-                        }
-                    }
-                }
-            }
-            if (context.parsedIdState() != ParseContext.ParsedIdState.PARSED) {
-                if (context.id() == null) {
-                    if (!source.flyweight()) {
-                        throw new MapperParsingException("No id mapping with [_id] found in the content, and not explicitly set");
-                    }
-                } else {
-                    // mark it as external, so we can parse it
-                    context.parsedId(ParseContext.ParsedIdState.EXTERNAL);
-                    idFieldMapper.parse(context);
-                }
             }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
@@ -556,7 +496,6 @@ public class DocumentMapper implements ToXContent {
     public void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting) {
         fieldMapperListeners.add(fieldMapperListener);
         if (includeExisting) {
-            fieldMapperListener.fieldMapper(uidFieldMapper);
             for (RootMapper rootMapper : rootMappersOrdered) {
                 if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
                     fieldMapperListener.fieldMapper((FieldMapper) rootMapper);
@@ -624,7 +563,6 @@ public class DocumentMapper implements ToXContent {
     public void close() {
         cache.remove();
         rootObjectMapper.close();
-        idFieldMapper.close();
         for (RootMapper rootMapper : rootMappersOrdered) {
             rootMapper.close();
         }

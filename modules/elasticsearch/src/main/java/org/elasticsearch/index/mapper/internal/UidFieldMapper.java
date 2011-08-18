@@ -31,15 +31,19 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class UidFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper {
+public class UidFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
 
     public static final String NAME = "_uid";
 
@@ -68,6 +72,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         }
     }
 
+    public static class TypeParser implements Mapper.TypeParser {
+        @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            return uid();
+        }
+    }
+
     private ThreadLocal<UidField> fieldCache = new ThreadLocal<UidField>() {
         @Override protected UidField initialValue() {
             return new UidField(names().indexName(), "", 0);
@@ -87,10 +97,48 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
-    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
-        if (context.id() == null) {
+    @Override public void preParse(ParseContext context) throws IOException {
+        // if we have the id provided, fill it, and parse now
+        if (context.sourceToParse().id() != null) {
+            context.id(context.sourceToParse().id());
+            super.parse(context);
+        }
+    }
+
+    @Override public void postParse(ParseContext context) throws IOException {
+        if (context.id() == null && !context.sourceToParse().flyweight()) {
             throw new MapperParsingException("No id found while parsing the content source");
         }
+        // if we did not have the id as part of the sourceToParse, then we need to parse it here
+        // it would have been filled in the _id parse phase
+        if (context.sourceToParse().id() == null) {
+            super.parse(context);
+            // since we did not have the uid in the pre phase, we did not add it automatically to the nested docs
+            // as they were created we need to make sure we add it to all the nested docs...
+            if (context.docs().size() > 1) {
+                UidField uidField = (UidField) context.rootDoc().getFieldable(UidFieldMapper.NAME);
+                assert uidField != null;
+                // we need to go over the docs and add it...
+                for (int i = 1; i < context.docs().size(); i++) {
+                    // we don't need to add it as a full uid field in nested docs, since we don't need versioning
+                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                }
+            }
+        }
+    }
+
+    @Override public void parse(ParseContext context) throws IOException {
+        // nothing to do here, we either do it in post parse, or in pre parse.
+    }
+
+    @Override public void validate(ParseContext context) throws MapperParsingException {
+    }
+
+    @Override public boolean includeInObject() {
+        return false;
+    }
+
+    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
         // so, caching uid stream and field is fine
         // since we don't do any mapping parsing without immediate indexing

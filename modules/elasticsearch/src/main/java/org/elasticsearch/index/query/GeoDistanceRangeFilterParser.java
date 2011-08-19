@@ -205,11 +205,13 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         } else {
             from = DistanceUnit.parse((String) vFrom, unit, DistanceUnit.MILES);
         }
+        from = geoDistance.normalize(from, DistanceUnit.MILES);
         if (vTo instanceof Number) {
             to = unit.toMiles(((Number) vTo).doubleValue());
         } else {
             to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.MILES);
         }
+        to = geoDistance.normalize(to, DistanceUnit.MILES);
 
         MapperService mapperService = parseContext.mapperService();
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);

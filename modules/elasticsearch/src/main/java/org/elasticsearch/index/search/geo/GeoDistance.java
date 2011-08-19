@@ -32,14 +32,30 @@ public enum GeoDistance {
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
      */
     PLANE() {
-        private final static double EARTH_CIRCUMFERENCE_MILES = 24901;
-        private final static double DISTANCE_PER_DEGREE = EARTH_CIRCUMFERENCE_MILES / 360;
-
         @Override public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             double px = targetLongitude - sourceLongitude;
             double py = targetLatitude - sourceLatitude;
-            double distanceMiles = Math.sqrt(px * px + py * py) * DISTANCE_PER_DEGREE;
-            return DistanceUnit.convert(distanceMiles, DistanceUnit.MILES, unit);
+            return Math.sqrt(px * px + py * py) * unit.getDistancePerDegree();
+        }
+
+        @Override public double normalize(double distance, DistanceUnit unit) {
+            return distance;
+        }
+    },
+    /**
+     * Calculates distance factor.
+     */
+    FACTOR() {
+        @Override public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
+            // TODO: we might want to normalize longitude as we did in LatLng...
+            double longitudeDifference = targetLongitude - sourceLongitude;
+            double a = Math.toRadians(90D - sourceLatitude);
+            double c = Math.toRadians(90D - targetLatitude);
+            return (Math.cos(a) * Math.cos(c)) + (Math.sin(a) * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
+        }
+
+        @Override public double normalize(double distance, DistanceUnit unit) {
+            return Math.cos(distance / unit.getEarthRadius());
         }
     },
     /**
@@ -47,10 +63,27 @@ public enum GeoDistance {
      */
     ARC() {
         @Override public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            LatLng sourcePoint = new LatLng(sourceLatitude, sourceLongitude);
-            LatLng targetPoint = new LatLng(targetLatitude, targetLongitude);
-            return DistanceUnit.convert(sourcePoint.arcDistance(targetPoint, DistanceUnit.MILES), DistanceUnit.MILES, unit);
-        }};
+            // TODO: we might want to normalize longitude as we did in LatLng...
+            double longitudeDifference = targetLongitude - sourceLongitude;
+            double a = Math.toRadians(90D - sourceLatitude);
+            double c = Math.toRadians(90D - targetLatitude);
+            double factor = (Math.cos(a) * Math.cos(c)) + (Math.sin(a) * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
+
+            if (factor < -1D) {
+                return Math.PI * unit.getEarthRadius();
+            } else if (factor >= 1D) {
+                return 0;
+            } else {
+                return Math.acos(factor) * unit.getEarthRadius();
+            }
+        }
+
+        @Override public double normalize(double distance, DistanceUnit unit) {
+            return distance;
+        }
+    };
+
+    public abstract double normalize(double distance, DistanceUnit unit);
 
     public abstract double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit);
 
@@ -59,6 +92,8 @@ public enum GeoDistance {
             return PLANE;
         } else if ("arc".equals(s)) {
             return ARC;
+        } else if ("factor".equals(s)) {
+            return FACTOR;
         }
         throw new ElasticSearchIllegalArgumentException("No geo distance for [" + s + "]");
     }

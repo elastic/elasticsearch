@@ -82,6 +82,14 @@ public abstract class GeoPointFieldData extends FieldData<GeoPointDocFieldData> 
         return GeoDistance.PLANE.calculate(latValue(docId), lonValue(docId), lat, lon, unit);
     }
 
+    public double arcDistance(int docId, DistanceUnit unit, double lat, double lon) {
+        return GeoDistance.ARC.calculate(latValue(docId), lonValue(docId), lat, lon, unit);
+    }
+
+    public double factorDistance(int docId, DistanceUnit unit, double lat, double lon) {
+        return GeoDistance.FACTOR.calculate(latValue(docId), lonValue(docId), lat, lon, unit);
+    }
+
     public double distanceGeohash(int docId, DistanceUnit unit, String geoHash) {
         GeoPointHash geoPointHash = geoHashCache.get().get();
         if (geoPointHash.geoHash != geoHash) {

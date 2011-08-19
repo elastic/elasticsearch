@@ -154,6 +154,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         } else {
             distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.MILES);
         }
+        distance = geoDistance.normalize(distance, DistanceUnit.MILES);
 
         MapperService mapperService = parseContext.mapperService();
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);

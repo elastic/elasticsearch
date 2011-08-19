@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.geo;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -121,6 +122,18 @@ public class GeoDistanceTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
         }
+
+        // now with a PLANE type
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").geoDistance(GeoDistance.PLANE).point(40.7143528, -74.0059731)))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(5l));
+        assertThat(searchResponse.hits().hits().length, equalTo(5));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
+        }
+
+        // factor type is really too small for this resolution
 
         searchResponse = client.prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731)))

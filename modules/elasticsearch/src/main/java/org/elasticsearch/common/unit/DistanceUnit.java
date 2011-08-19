@@ -32,25 +32,37 @@ public enum DistanceUnit {
     MILES(3959, 24902) {
         @Override public String toString() {
             return "miles";
-        }@Override public double toMiles(double distance) {
+        }
+
+        @Override public double toMiles(double distance) {
             return distance;
-        }@Override public double toKilometers(double distance) {
+        }
+
+        @Override public double toKilometers(double distance) {
             return distance * MILES_KILOMETRES_RATIO;
         }
+
         @Override public String toString(double distance) {
             return distance + "mi";
-        }},
+        }
+    },
     KILOMETERS(6371, 40076) {
         @Override public String toString() {
             return "km";
-        }@Override public double toMiles(double distance) {
+        }
+
+        @Override public double toMiles(double distance) {
             return distance / MILES_KILOMETRES_RATIO;
-        }@Override public double toKilometers(double distance) {
+        }
+
+        @Override public double toKilometers(double distance) {
             return distance;
         }
+
         @Override public String toString(double distance) {
             return distance + "km";
-        }};
+        }
+    };
 
     static final double MILES_KILOMETRES_RATIO = 1.609344;
 
@@ -95,10 +107,24 @@ public enum DistanceUnit {
 
     protected final double earthCircumference;
     protected final double earthRadius;
+    protected final double distancePerDegree;
 
     DistanceUnit(double earthRadius, double earthCircumference) {
         this.earthCircumference = earthCircumference;
         this.earthRadius = earthRadius;
+        this.distancePerDegree = earthCircumference / 360;
+    }
+
+    public double getEarthCircumference() {
+        return earthCircumference;
+    }
+
+    public double getEarthRadius() {
+        return earthRadius;
+    }
+
+    public double getDistancePerDegree() {
+        return distancePerDegree;
     }
 
     public abstract double toMiles(double distance);

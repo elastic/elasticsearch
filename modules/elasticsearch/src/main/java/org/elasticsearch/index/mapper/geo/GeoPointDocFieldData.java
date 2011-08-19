@@ -39,6 +39,18 @@ public class GeoPointDocFieldData extends DocFieldData<GeoPointFieldData> {
         return fieldData.values(docId);
     }
 
+    public double factorDistance(double lat, double lon) {
+        return fieldData.factorDistance(docId, DistanceUnit.MILES, lat, lon);
+    }
+
+    public double arcDistance(double lat, double lon) {
+        return fieldData.arcDistance(docId, DistanceUnit.MILES, lat, lon);
+    }
+
+    public double arcDistanceInKm(double lat, double lon) {
+        return fieldData.arcDistance(docId, DistanceUnit.KILOMETERS, lat, lon);
+    }
+
     public double distance(double lat, double lon) {
         return fieldData.distance(docId, DistanceUnit.MILES, lat, lon);
     }

@@ -91,6 +91,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
     protected final DistanceUnit unit;
 
     protected final GeoDistance geoDistance;
+    protected final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
     protected final FieldDataCache fieldDataCache;
 
@@ -110,6 +111,8 @@ public class GeoDistanceDataComparator extends FieldComparator {
         this.unit = unit;
         this.geoDistance = geoDistance;
         this.fieldDataCache = fieldDataCache;
+
+        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, unit);
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         if (mapper == null) {
@@ -143,7 +146,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
             // is this true? push this to the "end"
             distance = Double.MAX_VALUE;
         } else {
-            distance = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), unit);
+            distance = fixedSourceDistance.calculate(fieldData.latValue(doc), fieldData.lonValue(doc));
         }
         final double v2 = distance;
         if (bottom > v2) {
@@ -161,7 +164,7 @@ public class GeoDistanceDataComparator extends FieldComparator {
             // is this true? push this to the "end"
             distance = Double.MAX_VALUE;
         } else {
-            distance = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), unit);
+            distance = fixedSourceDistance.calculate(fieldData.latValue(doc), fieldData.lonValue(doc));
         }
         values[slot] = distance;
     }

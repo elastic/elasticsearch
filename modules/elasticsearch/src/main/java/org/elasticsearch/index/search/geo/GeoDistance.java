@@ -41,6 +41,10 @@ public enum GeoDistance {
         @Override public double normalize(double distance, DistanceUnit unit) {
             return distance;
         }
+
+        @Override public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            return new PlaneFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
+        }
     },
     /**
      * Calculates distance factor.
@@ -56,6 +60,10 @@ public enum GeoDistance {
 
         @Override public double normalize(double distance, DistanceUnit unit) {
             return Math.cos(distance / unit.getEarthRadius());
+        }
+
+        @Override public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
         }
     },
     /**
@@ -81,11 +89,17 @@ public enum GeoDistance {
         @Override public double normalize(double distance, DistanceUnit unit) {
             return distance;
         }
+
+        @Override public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            return new ArcFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
+        }
     };
 
     public abstract double normalize(double distance, DistanceUnit unit);
 
     public abstract double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit);
+
+    public abstract FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit);
 
     public static GeoDistance fromString(String s) {
         if ("plane".equals(s)) {
@@ -96,5 +110,92 @@ public enum GeoDistance {
             return FACTOR;
         }
         throw new ElasticSearchIllegalArgumentException("No geo distance for [" + s + "]");
+    }
+
+    public static interface FixedSourceDistance {
+
+        double calculate(double targetLatitude, double targetLongitude);
+    }
+
+    public static class PlaneFixedSourceDistance implements FixedSourceDistance {
+
+        private final double sourceLatitude;
+        private final double sourceLongitude;
+        private final double distancePerDegree;
+
+        public PlaneFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            this.sourceLatitude = sourceLatitude;
+            this.sourceLongitude = sourceLongitude;
+            this.distancePerDegree = unit.getDistancePerDegree();
+        }
+
+        @Override public double calculate(double targetLatitude, double targetLongitude) {
+            double px = targetLongitude - sourceLongitude;
+            double py = targetLatitude - sourceLatitude;
+            return Math.sqrt(px * px + py * py) * distancePerDegree;
+        }
+    }
+
+    public static class FactorFixedSourceDistance implements FixedSourceDistance {
+
+        private final double sourceLatitude;
+        private final double sourceLongitude;
+        private final double earthRadius;
+
+        private final double a;
+        private final double sinA;
+        private final double cosA;
+
+        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            this.sourceLatitude = sourceLatitude;
+            this.sourceLongitude = sourceLongitude;
+            this.earthRadius = unit.getEarthRadius();
+            this.a = Math.toRadians(90D - sourceLatitude);
+            this.sinA = Math.sin(a);
+            this.cosA = Math.cos(a);
+        }
+
+        @Override public double calculate(double targetLatitude, double targetLongitude) {
+            // TODO: we might want to normalize longitude as we did in LatLng...
+            double longitudeDifference = targetLongitude - sourceLongitude;
+            double c = Math.toRadians(90D - targetLatitude);
+            return (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
+        }
+    }
+
+
+    public static class ArcFixedSourceDistance implements FixedSourceDistance {
+
+        private final double sourceLatitude;
+        private final double sourceLongitude;
+        private final double earthRadius;
+
+        private final double a;
+        private final double sinA;
+        private final double cosA;
+
+        public ArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            this.sourceLatitude = sourceLatitude;
+            this.sourceLongitude = sourceLongitude;
+            this.earthRadius = unit.getEarthRadius();
+            this.a = Math.toRadians(90D - sourceLatitude);
+            this.sinA = Math.sin(a);
+            this.cosA = Math.cos(a);
+        }
+
+        @Override public double calculate(double targetLatitude, double targetLongitude) {
+            // TODO: we might want to normalize longitude as we did in LatLng...
+            double longitudeDifference = targetLongitude - sourceLongitude;
+            double c = Math.toRadians(90D - targetLatitude);
+            double factor = (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
+
+            if (factor < -1D) {
+                return Math.PI * earthRadius;
+            } else if (factor >= 1D) {
+                return 0;
+            } else {
+                return Math.acos(factor) * earthRadius;
+            }
+        }
     }
 }

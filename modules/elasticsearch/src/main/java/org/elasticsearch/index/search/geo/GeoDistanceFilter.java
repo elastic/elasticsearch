@@ -47,6 +47,8 @@ public class GeoDistanceFilter extends Filter {
 
     private final FieldDataCache fieldDataCache;
 
+    private final GeoDistance.FixedSourceDistance fixedSourceDistance;
+
     public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String fieldName, FieldDataCache fieldDataCache) {
         this.lat = lat;
         this.lon = lon;
@@ -54,6 +56,8 @@ public class GeoDistanceFilter extends Filter {
         this.geoDistance = geoDistance;
         this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
+
+        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
     }
 
     public double lat() {
@@ -78,7 +82,7 @@ public class GeoDistanceFilter extends Filter {
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        return new GeoDistanceDocSet(reader.maxDoc(), geoDistance, fieldData, lat, lon, distance);
+        return new GeoDistanceDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distance);
     }
 
     @Override
@@ -113,18 +117,14 @@ public class GeoDistanceFilter extends Filter {
     }
 
     public static class GeoDistanceDocSet extends GetDocSet {
-        private final GeoDistance geoDistance;
+        private final double distance; // in miles
         private final GeoPointFieldData fieldData;
-        private final double lat;
-        private final double lon;
-        private final double distance;
+        private final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
-        public GeoDistanceDocSet(int maxDoc, GeoDistance geoDistance, GeoPointFieldData fieldData, double lat, double lon, double distance) {
+        public GeoDistanceDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, double distance) {
             super(maxDoc);
-            this.geoDistance = geoDistance;
             this.fieldData = fieldData;
-            this.lat = lat;
-            this.lon = lon;
+            this.fixedSourceDistance = fixedSourceDistance;
             this.distance = distance;
         }
 
@@ -144,14 +144,14 @@ public class GeoDistanceFilter extends Filter {
                 double[] lats = fieldData.latValues(doc);
                 double[] lons = fieldData.lonValues(doc);
                 for (int i = 0; i < lats.length; i++) {
-                    double d = geoDistance.calculate(lat, lon, lats[i], lons[i], DistanceUnit.MILES);
+                    double d = fixedSourceDistance.calculate(lats[i], lons[i]);
                     if (d < distance) {
                         return true;
                     }
                 }
                 return false;
             } else {
-                double d = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), DistanceUnit.MILES);
+                double d = fixedSourceDistance.calculate(fieldData.latValue(doc), fieldData.lonValue(doc));
                 return d < distance;
             }
         }

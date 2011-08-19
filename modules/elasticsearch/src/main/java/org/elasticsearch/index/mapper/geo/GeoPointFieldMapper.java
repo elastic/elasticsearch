@@ -382,18 +382,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             geohashMapper.parse(context);
         }
         if (enableLatLon) {
-            if (validateLat) {
-                if (lat > 90.0 || lat < -90.0) {
-                    throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name);
-                }
-            }
             context.externalValue(lat);
             latMapper.parse(context);
-            if (validateLon) {
-                if (lon > 180.0 || lon < -180) {
-                    throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name);
-                }
-            }
             context.externalValue(lon);
             lonMapper.parse(context);
         }
@@ -445,7 +435,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
 
         double newLng = lon;
-        while (newLng <= -180 || newLng >= 180) {
+        while (newLng < -180 || newLng > 180) {
             newLng += delta;
         }
         return newLng;
@@ -460,7 +450,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
 
         double newLat = lat;
-        while (newLat <= -90 || newLat >= 90) {
+        while (newLat < -90 || newLat > 90) {
             newLat += delta;
         }
         return newLat;

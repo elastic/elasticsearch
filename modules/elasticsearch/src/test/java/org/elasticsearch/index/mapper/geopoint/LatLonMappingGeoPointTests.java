@@ -131,7 +131,7 @@ public class LatLonMappingGeoPointTests {
 
     @Test public void testNoValidateLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("normalize", false).field("validate", false).endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);

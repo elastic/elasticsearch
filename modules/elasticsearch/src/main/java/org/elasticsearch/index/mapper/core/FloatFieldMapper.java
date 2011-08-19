@@ -187,7 +187,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             } else {
                 value = ((Number) externalValue).floatValue();
             }
-            if (context.includeInAll(includeInAll)) {
+            if (context.includeInAll(includeInAll, this)) {
                 context.allEntries().addText(names.fullName(), Float.toString(value), boost);
             }
         } else {
@@ -197,7 +197,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -224,7 +224,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                 value = objValue;
             } else {
                 value = parser.floatValue();
-                if (context.includeInAll(includeInAll)) {
+                if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }
             }

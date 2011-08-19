@@ -166,7 +166,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (value == null) {
             return null;
         }
-        if (context.includeInAll(includeInAll)) {
+        if (context.includeInAll(includeInAll, this)) {
             context.allEntries().addText(names.fullName(), value, boost);
         }
         if (!indexed() && !stored()) {

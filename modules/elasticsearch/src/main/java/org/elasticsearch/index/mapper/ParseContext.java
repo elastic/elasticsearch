@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -216,16 +217,24 @@ public class ParseContext {
         this.uid = uid;
     }
 
+    public boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
+        return includeInAll(includeInAll, mapper.index());
+    }
+
     /**
      * Is all included or not. Will always disable it if {@link org.elasticsearch.index.mapper.internal.AllFieldMapper#enabled()}
      * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
-     * its actual value (so, if not set, defaults to "true").
+     * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
-    public boolean includeInAll(Boolean specificIncludeInAll) {
+    private boolean includeInAll(Boolean specificIncludeInAll, Field.Index index) {
         if (!docMapper.allFieldMapper().enabled()) {
             return false;
         }
-        return specificIncludeInAll == null || specificIncludeInAll;
+        // not explicitly set
+        if (specificIncludeInAll == null) {
+            return index != Field.Index.NO;
+        }
+        return specificIncludeInAll;
     }
 
     public AllEntries allEntries() {

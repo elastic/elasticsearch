@@ -192,7 +192,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             } else {
                 value = ((Number) externalValue).byteValue();
             }
-            if (context.includeInAll(includeInAll)) {
+            if (context.includeInAll(includeInAll, this)) {
                 context.allEntries().addText(names.fullName(), Byte.toString(value), boost);
             }
         } else {
@@ -202,7 +202,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -229,7 +229,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 value = objValue;
             } else {
                 value = (byte) parser.shortValue();
-                if (context.includeInAll(includeInAll)) {
+                if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }
             }

@@ -192,7 +192,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             } else {
                 value = ((Number) externalValue).shortValue();
             }
-            if (context.includeInAll(includeInAll)) {
+            if (context.includeInAll(includeInAll, this)) {
                 context.allEntries().addText(names.fullName(), Short.toString(value), boost);
             }
         } else {
@@ -202,7 +202,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -229,7 +229,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 value = objValue;
             } else {
                 value = parser.shortValue();
-                if (context.includeInAll(includeInAll)) {
+                if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }
             }

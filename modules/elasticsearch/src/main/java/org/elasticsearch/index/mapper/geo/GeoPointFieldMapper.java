@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -358,10 +359,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
         if (normalizeLon) {
-            lon = normalizeLon(lon);
+            lon = GeoUtils.normalizeLon(lon);
         }
         if (normalizeLat) {
-            lat = normalizeLat(lat);
+            lat = GeoUtils.normalizeLat(lat);
         }
 
         if (validateLat) {
@@ -395,10 +396,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         double lon = values[1];
 
         if (normalizeLon) {
-            lon = normalizeLon(lon);
+            lon = GeoUtils.normalizeLon(lon);
         }
         if (normalizeLat) {
-            lat = normalizeLat(lat);
+            lat = GeoUtils.normalizeLat(lat);
         }
 
         if (validateLat) {
@@ -424,36 +425,6 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             context.externalValue(lon);
             lonMapper.parse(context);
         }
-    }
-
-    private double normalizeLon(double lon) {
-        double delta = 0;
-        if (lon < 0) {
-            delta = 360;
-        } else if (lon >= 0) {
-            delta = -360;
-        }
-
-        double newLng = lon;
-        while (newLng < -180 || newLng > 180) {
-            newLng += delta;
-        }
-        return newLng;
-    }
-
-    private double normalizeLat(double lat) {
-        double delta = 0;
-        if (lat < 0) {
-            delta = 180;
-        } else if (lat >= 0) {
-            delta = -180;
-        }
-
-        double newLat = lat;
-        while (newLat < -90 || newLat > 90) {
-            newLat += delta;
-        }
-        return newLat;
     }
 
     @Override public void close() {

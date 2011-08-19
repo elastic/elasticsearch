@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoDistanceDataComparator;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoUtils;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -45,6 +46,8 @@ public class GeoDistanceSortParser implements SortParser {
         GeoDistance geoDistance = GeoDistance.ARC;
         boolean reverse = false;
 
+        boolean normalizeLon = true;
+        boolean normalizeLat = true;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -87,6 +90,9 @@ public class GeoDistanceSortParser implements SortParser {
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (currentName.equals("distance_type") || currentName.equals("distanceType")) {
                     geoDistance = GeoDistance.fromString(parser.text());
+                } else if ("normalize".equals(currentName)) {
+                    normalizeLat = parser.booleanValue();
+                    normalizeLon = parser.booleanValue();
                 } else {
                     // assume the value is the actual value
                     String value = parser.text();
@@ -103,6 +109,13 @@ public class GeoDistanceSortParser implements SortParser {
                     fieldName = currentName;
                 }
             }
+        }
+
+        if (normalizeLat) {
+            lat = GeoUtils.normalizeLat(lat);
+        }
+        if (normalizeLon) {
+            lon = GeoUtils.normalizeLon(lon);
         }
 
         return new SortField(fieldName, GeoDistanceDataComparator.comparatorSource(fieldName, lat, lon, unit, geoDistance, context.fieldDataCache(), context.mapperService()), reverse);

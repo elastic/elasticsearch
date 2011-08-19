@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoUtils;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -63,6 +64,9 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
         DistanceUnit unit = DistanceUnit.KILOMETERS;
         GeoDistance geoDistance = GeoDistance.ARC;
         List<GeoDistanceFacet.Entry> entries = Lists.newArrayList();
+
+        boolean normalizeLon = true;
+        boolean normalizeLat = true;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -135,6 +139,9 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                     valueScript = parser.text();
                 } else if ("lang".equals(currentName)) {
                     scriptLang = parser.text();
+                } else if ("normalize".equals(currentName)) {
+                    normalizeLat = parser.booleanValue();
+                    normalizeLon = parser.booleanValue();
                 } else {
                     // assume the value is the actual value
                     String value = parser.text();
@@ -159,6 +166,13 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
 
         if (entries.isEmpty()) {
             throw new FacetPhaseExecutionException(facetName, "no ranges defined for geo_distance facet");
+        }
+
+        if (normalizeLat) {
+            lat = GeoUtils.normalizeLat(lat);
+        }
+        if (normalizeLon) {
+            lon = GeoUtils.normalizeLon(lon);
         }
 
         if (valueFieldName != null) {

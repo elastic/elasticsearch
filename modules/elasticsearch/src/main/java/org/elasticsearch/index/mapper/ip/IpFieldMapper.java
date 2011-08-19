@@ -180,13 +180,13 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         long iValue = ipToLong(value);
         long iSim;
         try {
-          iSim = ipToLong(minSim);
+            iSim = ipToLong(minSim);
         } catch (ElasticSearchIllegalArgumentException e) {
-          try {
-            iSim = Long.parseLong(minSim);
-          } catch (NumberFormatException e1) {
-            iSim = (long) Double.parseDouble(minSim);
-          }
+            try {
+                iSim = Long.parseLong(minSim);
+            } catch (NumberFormatException e1) {
+                iSim = (long) Double.parseDouble(minSim);
+            }
         }
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -237,7 +237,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         if (ipAsString == null) {
             return null;
         }
-        if (context.includeInAll(includeInAll)) {
+        if (context.includeInAll(includeInAll, this)) {
             context.allEntries().addText(names.fullName(), ipAsString, boost);
         }
 

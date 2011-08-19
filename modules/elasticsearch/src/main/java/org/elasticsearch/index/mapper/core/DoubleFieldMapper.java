@@ -188,7 +188,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             } else {
                 value = ((Number) externalValue).doubleValue();
             }
-            if (context.includeInAll(includeInAll)) {
+            if (context.includeInAll(includeInAll, this)) {
                 context.allEntries().addText(names.fullName(), Double.toString(value), boost);
             }
         } else {
@@ -198,7 +198,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                     return null;
                 }
                 value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll))) {
+                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
                     context.allEntries().addText(names.fullName(), nullValueAsString, boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -225,7 +225,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                 value = objValue;
             } else {
                 value = parser.doubleValue();
-                if (context.includeInAll(includeInAll)) {
+                if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }
             }

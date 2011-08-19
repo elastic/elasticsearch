@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoUtils;
 import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
@@ -61,6 +62,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
+        boolean normalizeLon = true;
+        boolean normalizeLat = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -145,8 +148,20 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("normalize".equals(currentFieldName)) {
+                    normalizeLat = parser.booleanValue();
+                    normalizeLon = parser.booleanValue();
                 }
             }
+        }
+
+        if (normalizeLat) {
+            topLeft.lat = GeoUtils.normalizeLat(topLeft.lat);
+            bottomRight.lat = GeoUtils.normalizeLat(bottomRight.lat);
+        }
+        if (normalizeLon) {
+            topLeft.lon = GeoUtils.normalizeLon(topLeft.lon);
+            bottomRight.lon = GeoUtils.normalizeLon(bottomRight.lon);
         }
 
         MapperService mapperService = parseContext.mapperService();

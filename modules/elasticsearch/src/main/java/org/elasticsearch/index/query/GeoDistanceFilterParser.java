@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoUtils;
 
 import java.io.IOException;
 
@@ -74,6 +75,8 @@ public class GeoDistanceFilterParser implements FilterParser {
         DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
         GeoDistance geoDistance = GeoDistance.ARC;
         boolean optimizeBbox = true;
+        boolean normalizeLon = true;
+        boolean normalizeLat = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -135,6 +138,9 @@ public class GeoDistanceFilterParser implements FilterParser {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
                     optimizeBbox = parser.booleanValue();
+                } else if ("normalize".equals(currentFieldName)) {
+                    normalizeLat = parser.booleanValue();
+                    normalizeLon = parser.booleanValue();
                 } else {
                     // assume the value is the actual value
                     String value = parser.text();
@@ -158,6 +164,13 @@ public class GeoDistanceFilterParser implements FilterParser {
             distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.MILES);
         }
         distance = geoDistance.normalize(distance, DistanceUnit.MILES);
+
+        if (normalizeLat) {
+            lat = GeoUtils.normalizeLat(lat);
+        }
+        if (normalizeLon) {
+            lon = GeoUtils.normalizeLon(lon);
+        }
 
         MapperService mapperService = parseContext.mapperService();
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);

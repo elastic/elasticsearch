@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
+import org.elasticsearch.index.search.geo.GeoUtils;
 import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
@@ -70,6 +71,8 @@ public class GeoPolygonFilterParser implements FilterParser {
         String fieldName = null;
         List<Point> points = Lists.newArrayList();
 
+        boolean normalizeLon = true;
+        boolean normalizeLat = true;
 
         String filterName = null;
         String currentFieldName = null;
@@ -142,12 +145,24 @@ public class GeoPolygonFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("normalize".equals(currentFieldName)) {
+                    normalizeLat = parser.booleanValue();
+                    normalizeLon = parser.booleanValue();
                 }
             }
         }
 
         if (points.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "no points defined for geo_polygon filter");
+        }
+
+        for (Point point : points) {
+            if (normalizeLat) {
+                point.lat = GeoUtils.normalizeLat(point.lat);
+            }
+            if (normalizeLon) {
+                point.lon = GeoUtils.normalizeLon(point.lon);
+            }
         }
 
         MapperService mapperService = parseContext.mapperService();

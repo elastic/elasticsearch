@@ -78,8 +78,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
         public static final int PRECISION = GeoHashUtils.PRECISION;
-        public static final boolean VALIDATE_LAT = false;
-        public static final boolean VALIDATE_LON = false;
+        public static final boolean NORMALIZE_LAT = true;
+        public static final boolean NORMALIZE_LON = true;
+        public static final boolean VALIDATE_LAT = true;
+        public static final boolean VALIDATE_LON = true;
     }
 
     public static class Builder extends Mapper.Builder<Builder, GeoPointFieldMapper> {
@@ -98,6 +100,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         boolean validateLat = Defaults.VALIDATE_LAT;
         boolean validateLon = Defaults.VALIDATE_LON;
+        boolean normalizeLat = Defaults.NORMALIZE_LAT;
+        boolean normalizeLon = Defaults.NORMALIZE_LON;
 
         public Builder(String name) {
             super(name);
@@ -166,7 +170,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
             return new GeoPointFieldMapper(name, pathType, enableLatLon, enableGeoHash, precisionStep, precision,
                     latMapper, lonMapper, geohashMapper, geoStringMapper,
-                    validateLon, validateLat);
+                    validateLon, validateLat, normalizeLon, normalizeLat);
         }
     }
 
@@ -196,6 +200,13 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
                 } else if (fieldName.equals("validate_lat")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("normalize")) {
+                    builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("normalize_lat")) {
+                    builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("normalize_lon")) {
+                    builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
                 }
             }
             return builder;
@@ -225,9 +236,13 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     private final boolean validateLon;
     private final boolean validateLat;
 
+    private final boolean normalizeLon;
+    private final boolean normalizeLat;
+
     public GeoPointFieldMapper(String name, ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, Integer precisionStep, int precision,
                                NumberFieldMapper latMapper, NumberFieldMapper lonMapper, StringFieldMapper geohashMapper, StringFieldMapper geoStringMapper,
-                               boolean validateLon, boolean validateLat) {
+                               boolean validateLon, boolean validateLat,
+                               boolean normalizeLon, boolean normalizeLat) {
         this.name = name;
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
@@ -242,6 +257,9 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         this.validateLat = validateLat;
         this.validateLon = validateLon;
+
+        this.normalizeLat = normalizeLat;
+        this.normalizeLon = normalizeLon;
     }
 
     @Override public String name() {
@@ -260,9 +278,9 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                 // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
                 while (token != XContentParser.Token.END_ARRAY) {
                     token = context.parser().nextToken();
-                    Double lon = context.parser().doubleValue();
+                    double lon = context.parser().doubleValue();
                     token = context.parser().nextToken();
-                    Double lat = context.parser().doubleValue();
+                    double lat = context.parser().doubleValue();
                     while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
 
                     }
@@ -272,9 +290,9 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             } else {
                 // its an array of other possible values
                 if (token == XContentParser.Token.VALUE_NUMBER) {
-                    Double lon = context.parser().doubleValue();
+                    double lon = context.parser().doubleValue();
                     token = context.parser().nextToken();
-                    Double lat = context.parser().doubleValue();
+                    double lat = context.parser().doubleValue();
                     while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
 
                     }
@@ -338,8 +356,26 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
     }
 
-    private void parseLatLon(ParseContext context, Double lat, Double lon) throws IOException {
-        context.externalValue(lat.toString() + ',' + lon.toString());
+    private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
+        if (normalizeLon) {
+            lon = normalizeLon(lon);
+        }
+        if (normalizeLat) {
+            lat = normalizeLat(lat);
+        }
+
+        if (validateLat) {
+            if (lat > 90.0 || lat < -90.0) {
+                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name);
+            }
+        }
+        if (validateLon) {
+            if (lon > 180.0 || lon < -180) {
+                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name);
+            }
+        }
+
+        context.externalValue(Double.toString(lat) + ',' + Double.toString(lon));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
             context.externalValue(GeoHashUtils.encode(lat, lon, precision));
@@ -367,6 +403,25 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         double[] values = GeoHashUtils.decode(geohash);
         double lat = values[0];
         double lon = values[1];
+
+        if (normalizeLon) {
+            lon = normalizeLon(lon);
+        }
+        if (normalizeLat) {
+            lat = normalizeLat(lat);
+        }
+
+        if (validateLat) {
+            if (lat > 90.0 || lat < -90.0) {
+                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name);
+            }
+        }
+        if (validateLon) {
+            if (lon > 180.0 || lon < -180) {
+                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name);
+            }
+        }
+
         context.externalValue(Double.toString(lat) + ',' + Double.toString(lon));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
@@ -374,21 +429,41 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             geohashMapper.parse(context);
         }
         if (enableLatLon) {
-            if (validateLat) {
-                if (lat > 90.0 || lat < -90.0) {
-                    throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name);
-                }
-            }
             context.externalValue(lat);
             latMapper.parse(context);
-            if (validateLon) {
-                if (lon > 180.0 || lon < -180) {
-                    throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name);
-                }
-            }
             context.externalValue(lon);
             lonMapper.parse(context);
         }
+    }
+
+    private double normalizeLon(double lon) {
+        double delta = 0;
+        if (lon < 0) {
+            delta = 360;
+        } else if (lon >= 0) {
+            delta = -360;
+        }
+
+        double newLng = lon;
+        while (newLng <= -180 || newLng >= 180) {
+            newLng += delta;
+        }
+        return newLng;
+    }
+
+    private double normalizeLat(double lat) {
+        double delta = 0;
+        if (lat < 0) {
+            delta = 180;
+        } else if (lat >= 0) {
+            delta = -180;
+        }
+
+        double newLat = lat;
+        while (newLat <= -90 || newLat >= 90) {
+            newLat += delta;
+        }
+        return newLat;
     }
 
     @Override public void close() {
@@ -445,14 +520,24 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         if (precisionStep != null) {
             builder.field("precision_step", precisionStep);
         }
-        if (validateLat && validateLon) {
-            builder.field("validate", true);
+        if (!validateLat && !validateLon) {
+            builder.field("validate", false);
         } else {
             if (validateLat != Defaults.VALIDATE_LAT) {
                 builder.field("validate_lat", validateLat);
             }
             if (validateLon != Defaults.VALIDATE_LON) {
                 builder.field("validate_lon", validateLon);
+            }
+        }
+        if (!normalizeLat && !normalizeLon) {
+            builder.field("normalize", false);
+        } else {
+            if (normalizeLat != Defaults.NORMALIZE_LAT) {
+                builder.field("normalize_lat", normalizeLat);
+            }
+            if (normalizeLon != Defaults.NORMALIZE_LON) {
+                builder.field("normalize_lon", normalizeLon);
             }
         }
 

@@ -102,7 +102,7 @@ public class GeoBoundingBoxFilter extends Filter {
                 for (int i = 0; i < lats.length; i++) {
                     double lat = lats[i];
                     double lon = lons[i];
-                    if (((topLeft.lon <= lon && 180 >= lon) || (-180 <= lon && bottomRight.lon >= lon)) &&
+                    if (((topLeft.lon <= lon || bottomRight.lon >= lon)) &&
                             (topLeft.lat >= lat && bottomRight.lat <= lat)) {
                         return true;
                     }
@@ -111,7 +111,7 @@ public class GeoBoundingBoxFilter extends Filter {
                 double lat = fieldData.latValue(doc);
                 double lon = fieldData.lonValue(doc);
 
-                if (((topLeft.lon <= lon && 180 >= lon) || (-180 <= lon && bottomRight.lon >= lon)) &&
+                if (((topLeft.lon <= lon || bottomRight.lon >= lon)) &&
                         (topLeft.lat >= lat && bottomRight.lat <= lat)) {
                     return true;
                 }
@@ -164,10 +164,5 @@ public class GeoBoundingBoxFilter extends Filter {
             }
             return false;
         }
-    }
-
-    public static class Point {
-        public double lat;
-        public double lon;
     }
 }

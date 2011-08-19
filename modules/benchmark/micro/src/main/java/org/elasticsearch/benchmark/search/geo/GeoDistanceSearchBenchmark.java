@@ -104,46 +104,63 @@ public class GeoDistanceSearchBenchmark {
             client.admin().indices().prepareRefresh().execute().actionGet();
         }
 
-        System.err.println("--> Warming up (ARC)");
+        System.err.println("--> Warming up (ARC) - optimize_bbox");
         long start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.ARC);
+            run(client, GeoDistance.ARC, true);
         }
         long totalTime = System.currentTimeMillis() - start;
-        System.out.println("--> Warmup (ARC) " + (totalTime / NUM_WARM) + "ms");
+        System.err.println("--> Warmup (ARC)  - optimize_bbox " + (totalTime / NUM_WARM) + "ms");
 
-        System.err.println("--> Perf (ARC)");
+        System.err.println("--> Perf (ARC) - optimize_bbox");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.ARC);
+            run(client, GeoDistance.ARC, true);
         }
         totalTime = System.currentTimeMillis() - start;
-        System.out.println("--> Perf (ARC) " + (totalTime / NUM_RUNS) + "ms");
+        System.err.println("--> Perf (ARC) - optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
+
+        System.err.println("--> Warming up (ARC)  - no optimize_bbox");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < NUM_WARM; i++) {
+            run(client, GeoDistance.ARC, false);
+        }
+        totalTime = System.currentTimeMillis() - start;
+        System.err.println("--> Warmup (ARC) - no optimize_bbox " + (totalTime / NUM_WARM) + "ms");
+
+        System.err.println("--> Perf (ARC) - no optimize_bbox");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < NUM_RUNS; i++) {
+            run(client, GeoDistance.ARC, false);
+        }
+        totalTime = System.currentTimeMillis() - start;
+        System.err.println("--> Perf (ARC) - no optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
 
         System.err.println("--> Warming up (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.PLANE);
+            run(client, GeoDistance.PLANE, true);
         }
         totalTime = System.currentTimeMillis() - start;
-        System.out.println("--> Warmup (PLANE) " + (totalTime / NUM_WARM) + "ms");
+        System.err.println("--> Warmup (PLANE) " + (totalTime / NUM_WARM) + "ms");
 
         System.err.println("--> Perf (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.PLANE);
+            run(client, GeoDistance.PLANE, true);
         }
         totalTime = System.currentTimeMillis() - start;
-        System.out.println("--> Perf (PLANE) " + (totalTime / NUM_RUNS) + "ms");
+        System.err.println("--> Perf (PLANE) " + (totalTime / NUM_RUNS) + "ms");
 
         node.close();
     }
 
-    public static void run(Client client, GeoDistance geoDistance) {
+    public static void run(Client client, GeoDistance geoDistance, boolean optimizeBbox) {
         client.prepareSearch() // from NY
                 .setSearchType(SearchType.COUNT)
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location")
                         .distance("2km")
+                        .optimizeBbox(optimizeBbox)
                         .geoDistance(geoDistance)
                         .point(40.7143528, -74.0059731)))
                 .execute().actionGet();

@@ -75,6 +75,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         boolean includeUpper = true;
         DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
         GeoDistance geoDistance = GeoDistance.ARC;
+        boolean optimizeBbox = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -181,6 +182,8 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
+                    optimizeBbox = parser.booleanValue();
                 } else {
                     // assume the value is the actual value
                     String value = parser.text();
@@ -223,7 +226,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         }
         fieldName = mapper.names().indexName();
 
-        Filter filter = new GeoDistanceRangeFilter(lat, lon, from, to, includeLower, includeUpper, geoDistance, fieldName, parseContext.indexCache().fieldData());
+        Filter filter = new GeoDistanceRangeFilter(lat, lon, from, to, includeLower, includeUpper, geoDistance, fieldName, parseContext.indexCache().fieldData(), optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

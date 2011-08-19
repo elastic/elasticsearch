@@ -44,12 +44,14 @@ public class GeoDistanceRangeFilter extends Filter {
 
     private final GeoDistance geoDistance;
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
+    private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
 
     private final String fieldName;
 
     private final FieldDataCache fieldDataCache;
 
-    public GeoDistanceRangeFilter(double lat, double lon, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, String fieldName, FieldDataCache fieldDataCache) {
+    public GeoDistanceRangeFilter(double lat, double lon, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, String fieldName, FieldDataCache fieldDataCache,
+                                  boolean optimizeBbox) {
         this.lat = lat;
         this.lon = lon;
         this.geoDistance = geoDistance;
@@ -71,7 +73,10 @@ public class GeoDistanceRangeFilter extends Filter {
             inclusiveUpperPoint = NumericUtils.sortableLongToDouble(includeUpper ? i : (i - 1L));
         } else {
             inclusiveUpperPoint = Double.POSITIVE_INFINITY;
+            optimizeBbox = false;
         }
+
+        this.distanceBoundingCheck = optimizeBbox ? GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.MILES) : GeoDistance.ALWAYS_INSTANCE;
     }
 
     public double lat() {
@@ -92,7 +97,7 @@ public class GeoDistanceRangeFilter extends Filter {
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        return new GeoDistanceRangeDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, inclusiveLowerPoint, inclusiveUpperPoint);
+        return new GeoDistanceRangeDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, inclusiveLowerPoint, inclusiveUpperPoint);
     }
 
     @Override
@@ -133,13 +138,16 @@ public class GeoDistanceRangeFilter extends Filter {
 
         private final GeoPointFieldData fieldData;
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
+        private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
         private final double inclusiveLowerPoint; // in miles
         private final double inclusiveUpperPoint; // in miles
 
-        public GeoDistanceRangeDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, double inclusiveLowerPoint, double inclusiveUpperPoint) {
+        public GeoDistanceRangeDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
+                                      double inclusiveLowerPoint, double inclusiveUpperPoint) {
             super(maxDoc);
             this.fieldData = fieldData;
             this.fixedSourceDistance = fixedSourceDistance;
+            this.distanceBoundingCheck = distanceBoundingCheck;
             this.inclusiveLowerPoint = inclusiveLowerPoint;
             this.inclusiveUpperPoint = inclusiveUpperPoint;
         }
@@ -160,16 +168,24 @@ public class GeoDistanceRangeFilter extends Filter {
                 double[] lats = fieldData.latValues(doc);
                 double[] lons = fieldData.lonValues(doc);
                 for (int i = 0; i < lats.length; i++) {
-                    double d = fixedSourceDistance.calculate(lats[i], lons[i]);
-                    if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
-                        return true;
+                    double lat = lats[i];
+                    double lon = lons[i];
+                    if (distanceBoundingCheck.isWithin(lat, lon)) {
+                        double d = fixedSourceDistance.calculate(lat, lon);
+                        if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
+                            return true;
+                        }
                     }
                 }
                 return false;
             } else {
-                double d = fixedSourceDistance.calculate(fieldData.latValue(doc), fieldData.lonValue(doc));
-                if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
-                    return true;
+                double lat = fieldData.latValue(doc);
+                double lon = fieldData.lonValue(doc);
+                if (distanceBoundingCheck.isWithin(lat, lon)) {
+                    double d = fixedSourceDistance.calculate(lat, lon);
+                    if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
+                        return true;
+                    }
                 }
                 return false;
             }

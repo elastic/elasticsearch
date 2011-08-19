@@ -50,7 +50,7 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
         }
         this.indexValueFieldName = valueFieldName;
         this.valueFieldDataType = mapper.fieldDataType();
-        this.aggregator = new Aggregator(lat, lon, geoDistance, unit, entries);
+        this.aggregator = new Aggregator(fixedSourceDistance, entries);
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
@@ -60,30 +60,20 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
     public static class Aggregator implements GeoPointFieldData.ValueInDocProc {
 
-        protected final double lat;
-
-        protected final double lon;
-
-        private final GeoDistance geoDistance;
-
-        private final DistanceUnit unit;
-
+        private final GeoDistance.FixedSourceDistance fixedSourceDistance;
         private final GeoDistanceFacet.Entry[] entries;
 
         NumericFieldData valueFieldData;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        public Aggregator(double lat, double lon, GeoDistance geoDistance, DistanceUnit unit, GeoDistanceFacet.Entry[] entries) {
-            this.lat = lat;
-            this.lon = lon;
-            this.geoDistance = geoDistance;
-            this.unit = unit;
+        public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
+            this.fixedSourceDistance = fixedSourceDistance;
             this.entries = entries;
         }
 
         @Override public void onValue(int docId, double lat, double lon) {
-            double distance = geoDistance.calculate(this.lat, this.lon, lat, lon, unit);
+            double distance = fixedSourceDistance.calculate(lat, lon);
             for (GeoDistanceFacet.Entry entry : entries) {
                 if (entry.foundInDoc) {
                     continue;

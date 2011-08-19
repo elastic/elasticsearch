@@ -43,6 +43,7 @@ public class GeoDistanceRangeFilter extends Filter {
     private final double inclusiveUpperPoint; // in miles
 
     private final GeoDistance geoDistance;
+    private final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
     private final String fieldName;
 
@@ -54,6 +55,8 @@ public class GeoDistanceRangeFilter extends Filter {
         this.geoDistance = geoDistance;
         this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
+
+        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
 
         if (lowerVal != null) {
             double f = lowerVal.doubleValue();
@@ -89,7 +92,7 @@ public class GeoDistanceRangeFilter extends Filter {
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        return new GeoDistanceRangeDocSet(reader.maxDoc(), fieldData, geoDistance, lat, lon, inclusiveLowerPoint, inclusiveUpperPoint);
+        return new GeoDistanceRangeDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, inclusiveLowerPoint, inclusiveUpperPoint);
     }
 
     @Override
@@ -129,18 +132,14 @@ public class GeoDistanceRangeFilter extends Filter {
     public static class GeoDistanceRangeDocSet extends GetDocSet {
 
         private final GeoPointFieldData fieldData;
-        private final GeoDistance geoDistance;
-        private final double lat;
-        private final double lon;
+        private final GeoDistance.FixedSourceDistance fixedSourceDistance;
         private final double inclusiveLowerPoint; // in miles
         private final double inclusiveUpperPoint; // in miles
 
-        public GeoDistanceRangeDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance geoDistance, double lat, double lon, double inclusiveLowerPoint, double inclusiveUpperPoint) {
+        public GeoDistanceRangeDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, double inclusiveLowerPoint, double inclusiveUpperPoint) {
             super(maxDoc);
             this.fieldData = fieldData;
-            this.geoDistance = geoDistance;
-            this.lat = lat;
-            this.lon = lon;
+            this.fixedSourceDistance = fixedSourceDistance;
             this.inclusiveLowerPoint = inclusiveLowerPoint;
             this.inclusiveUpperPoint = inclusiveUpperPoint;
         }
@@ -161,14 +160,14 @@ public class GeoDistanceRangeFilter extends Filter {
                 double[] lats = fieldData.latValues(doc);
                 double[] lons = fieldData.lonValues(doc);
                 for (int i = 0; i < lats.length; i++) {
-                    double d = geoDistance.calculate(lat, lon, lats[i], lons[i], DistanceUnit.MILES);
+                    double d = fixedSourceDistance.calculate(lats[i], lons[i]);
                     if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
                         return true;
                     }
                 }
                 return false;
             } else {
-                double d = geoDistance.calculate(lat, lon, fieldData.latValue(doc), fieldData.lonValue(doc), DistanceUnit.MILES);
+                double d = fixedSourceDistance.calculate(fieldData.latValue(doc), fieldData.lonValue(doc));
                 if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
                     return true;
                 }

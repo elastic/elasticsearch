@@ -36,9 +36,42 @@ import static org.hamcrest.Matchers.*;
  */
 public class LatLonMappingGeoPointTests {
 
+    @Test public void testNormalizeLatLonValuesDefault() throws Exception {
+        // default to normalize
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", 91).field("lon", 181).endObject()
+                .endObject()
+                .copiedBytes());
+
+        assertThat(doc.rootDoc().get("point"), equalTo("-89.0,-179.0"));
+
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", -91).field("lon", -181).endObject()
+                .endObject()
+                .copiedBytes());
+
+        assertThat(doc.rootDoc().get("point"), equalTo("89.0,179.0"));
+
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("point").field("lat", 181).field("lon", 361).endObject()
+                .endObject()
+                .copiedBytes());
+
+        assertThat(doc.rootDoc().get("point"), equalTo("1.0,1.0"));
+    }
+
     @Test public void testValidateLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("validate", true).endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("normalize", false).field("validate", true).endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);

@@ -101,6 +101,44 @@ public enum GeoDistance {
 
     public abstract FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit);
 
+    private static final double MIN_LAT = Math.toRadians(-90d);  // -PI/2
+    private static final double MAX_LAT = Math.toRadians(90d);   //  PI/2
+    private static final double MIN_LON = Math.toRadians(-180d); // -PI
+    private static final double MAX_LON = Math.toRadians(180d);  //  PI
+
+    public static DistanceBoundingCheck distanceBoundingCheck(double sourceLatitude, double sourceLongitude, double distance, DistanceUnit unit) {
+        // angular distance in radians on a great circle
+        double radDist = distance / unit.getEarthRadius();
+
+        double radLat = Math.toRadians(sourceLatitude);
+        double radLon = Math.toRadians(sourceLongitude);
+
+        double minLat = radLat - radDist;
+        double maxLat = radLat + radDist;
+
+        double minLon, maxLon;
+        if (minLat > MIN_LAT && maxLat < MAX_LAT) {
+            double deltaLon = Math.asin(Math.sin(radDist) / Math.cos(radLat));
+            minLon = radLon - deltaLon;
+            if (minLon < MIN_LON) minLon += 2d * Math.PI;
+            maxLon = radLon + deltaLon;
+            if (maxLon > MAX_LON) maxLon -= 2d * Math.PI;
+        } else {
+            // a pole is within the distance
+            minLat = Math.max(minLat, MIN_LAT);
+            maxLat = Math.min(maxLat, MAX_LAT);
+            minLon = MIN_LON;
+            maxLon = MAX_LON;
+        }
+
+        Point left = new Point(Math.toDegrees(minLat), Math.toDegrees(minLon));
+        Point right = new Point(Math.toDegrees(maxLat), Math.toDegrees(maxLon));
+        if (minLon > maxLon) {
+            return new Meridian180DistanceBoundingCheck(left, right);
+        }
+        return new SimpleDistanceBoundingCheck(left, right);
+    }
+
     public static GeoDistance fromString(String s) {
         if ("plane".equals(s)) {
             return PLANE;
@@ -115,6 +153,50 @@ public enum GeoDistance {
     public static interface FixedSourceDistance {
 
         double calculate(double targetLatitude, double targetLongitude);
+    }
+
+    public static interface DistanceBoundingCheck {
+
+        boolean isWithin(double targetLatitude, double targetLongitude);
+    }
+
+    public static AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
+
+    private static class AlwaysDistanceBoundingCheck implements DistanceBoundingCheck {
+        @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
+            return true;
+        }
+    }
+
+    public static class Meridian180DistanceBoundingCheck implements DistanceBoundingCheck {
+
+        private final Point left;
+        private final Point right;
+
+        public Meridian180DistanceBoundingCheck(Point left, Point right) {
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
+            return (targetLatitude >= left.lat && targetLatitude <= right.lat) &&
+                    (targetLongitude >= left.lon || targetLongitude <= right.lon);
+        }
+    }
+
+    public static class SimpleDistanceBoundingCheck implements DistanceBoundingCheck {
+        private final Point left;
+        private final Point right;
+
+        public SimpleDistanceBoundingCheck(Point left, Point right) {
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
+            return (targetLatitude >= left.lat && targetLatitude <= right.lat) &&
+                    (targetLongitude >= left.lon && targetLongitude <= right.lon);
+        }
     }
 
     public static class PlaneFixedSourceDistance implements FixedSourceDistance {

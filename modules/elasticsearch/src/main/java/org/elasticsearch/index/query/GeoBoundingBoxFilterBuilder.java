@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
+import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 
@@ -31,11 +31,11 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
     private final String name;
 
-    private GeoBoundingBoxFilter.Point topLeft;
+    private Point topLeft;
 
     private String topLeftGeohash;
 
-    private GeoBoundingBoxFilter.Point bottomRight;
+    private Point bottomRight;
 
     private String bottomRightGeohash;
 
@@ -55,7 +55,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
      * @param lon The longitude
      */
     public GeoBoundingBoxFilterBuilder topLeft(double lat, double lon) {
-        topLeft = new GeoBoundingBoxFilter.Point();
+        topLeft = new Point();
         topLeft.lat = lat;
         topLeft.lon = lon;
         return this;
@@ -68,7 +68,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
      * @param lon The longitude
      */
     public GeoBoundingBoxFilterBuilder bottomRight(double lat, double lon) {
-        bottomRight = new GeoBoundingBoxFilter.Point();
+        bottomRight = new Point();
         bottomRight.lat = lat;
         bottomRight.lon = lon;
         return this;

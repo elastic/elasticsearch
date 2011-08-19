@@ -115,17 +115,4 @@ public class GeoPolygonFilter extends Filter {
             return inPoly;
         }
     }
-
-    public static class Point {
-        public double lat;
-        public double lon;
-
-        public Point() {
-        }
-
-        public Point(double lat, double lon) {
-            this.lat = lat;
-            this.lon = lon;
-        }
-    }
 }

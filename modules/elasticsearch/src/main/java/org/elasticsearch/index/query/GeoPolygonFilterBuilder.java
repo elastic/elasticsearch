@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoPolygonFilter;
+import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
     private final String name;
 
-    private final List<GeoPolygonFilter.Point> points = Lists.newArrayList();
+    private final List<Point> points = Lists.newArrayList();
 
     private Boolean cache;
     private String cacheKey;
@@ -53,7 +53,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
      * @return
      */
     public GeoPolygonFilterBuilder addPoint(double lat, double lon) {
-        points.add(new GeoPolygonFilter.Point(lat, lon));
+        points.add(new Point(lat, lon));
         return this;
     }
 
@@ -88,7 +88,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
         builder.startObject(name);
         builder.startArray("points");
-        for (GeoPolygonFilter.Point point : points) {
+        for (Point point : points) {
             builder.startArray().value(point.lon).value(point.lat).endArray();
         }
         builder.endArray();

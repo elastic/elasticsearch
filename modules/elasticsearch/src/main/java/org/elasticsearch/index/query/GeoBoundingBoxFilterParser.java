@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 
@@ -54,8 +55,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        GeoBoundingBoxFilter.Point topLeft = new GeoBoundingBoxFilter.Point();
-        GeoBoundingBoxFilter.Point bottomRight = new GeoBoundingBoxFilter.Point();
+        Point topLeft = new Point();
+        Point bottomRight = new Point();
 
         String filterName = null;
         String currentFieldName = null;
@@ -70,7 +71,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        GeoBoundingBoxFilter.Point point = null;
+                        Point point = null;
                         if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
                             point = topLeft;
                         } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
@@ -87,7 +88,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                             }
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        GeoBoundingBoxFilter.Point point = null;
+                        Point point = null;
                         if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
                             point = topLeft;
                         } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
@@ -115,7 +116,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                         if ("field".equals(currentFieldName)) {
                             fieldName = parser.text();
                         } else {
-                            GeoBoundingBoxFilter.Point point = null;
+                            Point point = null;
                             if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
                                 point = topLeft;
                             } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {

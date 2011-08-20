@@ -28,11 +28,11 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Iterator;
 import java.util.List;
@@ -53,7 +53,7 @@ public class ShardsAllocation extends AbstractComponent {
     }
 
     public ShardsAllocation(Settings settings) {
-        this(settings, new NodeAllocations(settings, new ClusterSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS)));
+        this(settings, new NodeAllocations(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS)));
     }
 
     @Inject public ShardsAllocation(Settings settings, NodeAllocations nodeAllocations) {

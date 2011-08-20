@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,14 +43,14 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
     private volatile int primariesInitialRecoveries;
     private volatile int concurrentRecoveries;
 
-    @Inject public ThrottlingNodeAllocation(Settings settings, ClusterSettingsService clusterSettingsService) {
+    @Inject public ThrottlingNodeAllocation(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
 
         this.primariesInitialRecoveries = componentSettings.getAsInt("node_initial_primaries_recoveries", 4);
         this.concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", componentSettings.getAsInt("node_concurrent_recoveries", 2));
         logger.debug("using node_concurrent_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentRecoveries, primariesInitialRecoveries);
 
-        clusterSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -95,7 +95,7 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
         }
     }
 
-    class ApplySettings implements ClusterSettingsService.Listener {
+    class ApplySettings implements NodeSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
             int primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", ThrottlingNodeAllocation.this.primariesInitialRecoveries);
             if (primariesInitialRecoveries != ThrottlingNodeAllocation.this.primariesInitialRecoveries) {

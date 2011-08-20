@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.settings;
+package org.elasticsearch.node.settings;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -31,14 +31,16 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
+ * A service that allows to register for node settings change that can come from cluster
+ * events holding new settings.
  */
-public class ClusterSettingsService extends AbstractComponent implements ClusterStateListener {
+public class NodeSettingsService extends AbstractComponent implements ClusterStateListener {
 
     private volatile Settings lastSettingsApplied;
 
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
-    @Inject public ClusterSettingsService(Settings settings) {
+    @Inject public NodeSettingsService(Settings settings) {
         super(settings);
     }
 

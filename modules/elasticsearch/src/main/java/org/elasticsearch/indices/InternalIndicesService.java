@@ -62,6 +62,7 @@ import org.elasticsearch.index.percolator.PercolatorModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
@@ -174,6 +175,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         long numberOfDocs = 0;
         CacheStats cacheStats = new CacheStats();
         MergeStats mergeStats = new MergeStats();
+        RefreshStats refreshStats = new RefreshStats();
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 try {
@@ -191,10 +193,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                     }
                 }
                 mergeStats.add(((InternalIndexShard) indexShard).mergeScheduler().stats());
+                refreshStats.add(indexShard.refreshStats());
             }
             cacheStats.add(indexService.cache().stats());
         }
-        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats);
+        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats, refreshStats);
     }
 
     /**

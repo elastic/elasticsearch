@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.support.AbstractConcurrentMapFieldDataCache;
@@ -30,14 +31,13 @@ import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache implements MapEvictionListener<String, FieldData> {
 
-    private final AtomicLong evictions = new AtomicLong();
+    private final CounterMetric evictions = new CounterMetric();
 
     @Inject public SoftFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -48,7 +48,7 @@ public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache impl
     }
 
     @Override public long evictions() {
-        return evictions.get();
+        return evictions.count();
     }
 
     @Override public String type() {
@@ -56,6 +56,6 @@ public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache impl
     }
 
     @Override public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
-        evictions.incrementAndGet();
+        evictions.inc();
     }
 }

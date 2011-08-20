@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -108,7 +109,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public TransportStats stats() {
-        return new TransportStats(transport.serverOpen(), adapter.rxCount.get(), adapter.rxSize.get(), adapter.txCount.get(), adapter.txSize.get());
+        return new TransportStats(transport.serverOpen(), adapter.rxMetric.count(), adapter.rxMetric.sum(), adapter.txMetric.count(), adapter.txMetric.sum());
     }
 
     public BoundTransportAddress boundAddress() {
@@ -231,19 +232,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     class Adapter implements TransportServiceAdapter {
 
-        final AtomicLong rxCount = new AtomicLong();
-        final AtomicLong rxSize = new AtomicLong();
-        final AtomicLong txCount = new AtomicLong();
-        final AtomicLong txSize = new AtomicLong();
+        final MeanMetric rxMetric = new MeanMetric();
+        final MeanMetric txMetric = new MeanMetric();
 
         @Override public void received(long size) {
-            rxCount.incrementAndGet();
-            rxSize.addAndGet(size);
+            rxMetric.inc(size);
         }
 
         @Override public void sent(long size) {
-            txCount.incrementAndGet();
-            txSize.addAndGet(size);
+            txMetric.inc(size);
         }
 
         @Override public TransportRequestHandler handler(String action) {

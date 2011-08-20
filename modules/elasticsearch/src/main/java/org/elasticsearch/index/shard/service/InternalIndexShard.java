@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -68,7 +69,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.mapper.SourceToParse.*;
 
@@ -122,8 +122,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
-    private final AtomicLong totalRefresh = new AtomicLong();
-    private final AtomicLong totalRefreshTime = new AtomicLong();
+    private final MeanMetric totalRefreshMetric = new MeanMetric();
 
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService) {
@@ -382,12 +381,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         long time = System.currentTimeMillis();
         engine.refresh(refresh);
-        totalRefresh.incrementAndGet();
-        totalRefreshTime.addAndGet(System.currentTimeMillis() - time);
+        totalRefreshMetric.inc(System.currentTimeMillis() - time);
     }
 
     @Override public RefreshStats refreshStats() {
-        return new RefreshStats(totalRefresh.get(), totalRefreshTime.get());
+        return new RefreshStats(totalRefreshMetric.count(), totalRefreshMetric.sum());
     }
 
     @Override public void flush(Engine.Flush flush) throws ElasticSearchException {

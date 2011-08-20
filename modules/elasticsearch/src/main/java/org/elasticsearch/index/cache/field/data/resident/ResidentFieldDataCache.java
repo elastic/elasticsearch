@@ -26,6 +26,7 @@ import org.elasticsearch.common.base.Objects;
 import org.elasticsearch.common.collect.MapEvictionListener;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -36,7 +37,6 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
@@ -48,7 +48,7 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
     private volatile int maxSize;
     private volatile TimeValue expire;
 
-    private final AtomicLong evictions = new AtomicLong();
+    private final CounterMetric evictions = new CounterMetric();
 
     private final ApplySettings applySettings = new ApplySettings();
 
@@ -85,11 +85,11 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
     }
 
     @Override public long evictions() {
-        return evictions.get();
+        return evictions.count();
     }
 
     @Override public void onEviction(@Nullable String s, @Nullable FieldData fieldData) {
-        evictions.incrementAndGet();
+        evictions.inc();
     }
 
     static {

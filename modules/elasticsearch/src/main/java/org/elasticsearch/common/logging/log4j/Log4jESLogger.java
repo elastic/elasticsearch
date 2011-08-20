@@ -35,6 +35,20 @@ public class Log4jESLogger extends AbstractESLogger {
         this.logger = logger;
     }
 
+    public void setLevel(String level) {
+        if ("error".equalsIgnoreCase(level)) {
+            logger.setLevel(Level.ERROR);
+        } else if ("warn".equalsIgnoreCase(level)) {
+            logger.setLevel(Level.WARN);
+        } else if ("info".equalsIgnoreCase(level)) {
+            logger.setLevel(Level.INFO);
+        } else if ("debug".equalsIgnoreCase(level)) {
+            logger.setLevel(Level.DEBUG);
+        } else if ("trace".equalsIgnoreCase(level)) {
+            logger.setLevel(Level.TRACE);
+        }
+    }
+
     @Override public String getName() {
         return logger.getName();
     }

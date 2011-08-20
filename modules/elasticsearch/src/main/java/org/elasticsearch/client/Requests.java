@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -351,6 +352,10 @@ public class Requests {
      */
     public static ClusterStateRequest clusterStateRequest() {
         return new ClusterStateRequest();
+    }
+
+    public static ClusterUpdateSettingsRequest clusterUpdateSettingsRequest() {
+        return new ClusterUpdateSettingsRequest();
     }
 
     /**

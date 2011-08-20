@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard.recovery;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
@@ -42,13 +44,17 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.VoidTransportResponseHandler;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -58,6 +64,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author kimchy (shay.banon)
  */
 public class RecoverySource extends AbstractComponent {
+
+    static {
+        MetaData.addDynamicSettings("index.shard.recovery.concurrent_streams");
+    }
 
     public static class Actions {
         public static final String START_RECOVERY = "index/shard/recovery/startRecovery";
@@ -77,16 +87,18 @@ public class RecoverySource extends AbstractComponent {
     private final int translogOps;
     private final ByteSizeValue translogSize;
 
-    private final ExecutorService concurrentStreamPool;
+    private volatile int concurrentStreams;
+    private final ThreadPoolExecutor concurrentStreamPool;
 
-    @Inject public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService) {
+    @Inject public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
+                                  ClusterSettingsService clusterSettingsService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.indicesService = indicesService;
 
-        int concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
-        this.concurrentStreamPool = DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
+        this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
+        this.concurrentStreamPool = (ThreadPoolExecutor) DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
         this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(100, ByteSizeUnit.KB));
         this.translogOps = componentSettings.getAsInt("translog_ops", 1000);
@@ -97,6 +109,8 @@ public class RecoverySource extends AbstractComponent {
                 concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
+
+        clusterSettingsService.addListener(new ApplySettings());
     }
 
     public void close() {
@@ -295,6 +309,17 @@ public class RecoverySource extends AbstractComponent {
         @Override public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
             RecoveryResponse response = recover(request);
             channel.sendResponse(response);
+        }
+    }
+
+    class ApplySettings implements ClusterSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int concurrentStreams = settings.getAsInt("index.shard.recovery.concurrent_streams", RecoverySource.this.concurrentStreams);
+            if (concurrentStreams != RecoverySource.this.concurrentStreams) {
+                logger.info("updating [index.shard.recovery.concurrent_streams] from [{}] to [{}]", RecoverySource.this.concurrentStreams, concurrentStreams);
+                RecoverySource.this.concurrentStreams = concurrentStreams;
+                RecoverySource.this.concurrentStreamPool.setMaximumPoolSize(concurrentStreams);
+            }
         }
     }
 }

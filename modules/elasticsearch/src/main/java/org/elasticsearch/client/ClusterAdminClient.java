@@ -37,6 +37,8 @@ import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRe
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -47,6 +49,7 @@ import org.elasticsearch.client.action.admin.cluster.node.stats.NodesStatsReques
 import org.elasticsearch.client.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.ping.single.SinglePingRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBuilder;
 
 /**
@@ -102,6 +105,21 @@ public interface ClusterAdminClient {
      * The state of the cluster.
      */
     ClusterStateRequestBuilder prepareState();
+
+    /**
+     * Updates settings in the cluster.
+     */
+    ActionFuture<ClusterUpdateSettingsResponse> updateSettings(ClusterUpdateSettingsRequest request);
+
+    /**
+     * Update settings in the cluster.
+     */
+    void updateSettings(ClusterUpdateSettingsRequest request, ActionListener<ClusterUpdateSettingsResponse> listener);
+
+    /**
+     * Update settings in the cluster.
+     */
+    ClusterUpdateSettingsRequestBuilder prepareUpdateSettings();
 
     /**
      * Nodes info of the cluster.

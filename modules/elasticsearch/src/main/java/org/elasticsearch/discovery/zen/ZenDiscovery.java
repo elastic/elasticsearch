@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -108,7 +109,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     @Inject public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                TransportService transportService, ClusterService clusterService,
+                                TransportService transportService, ClusterService clusterService, ClusterSettingsService clusterSettingsService,
                                 ZenPingService pingService) {
         super(settings);
         this.clusterName = clusterName;
@@ -123,7 +124,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.debug("using ping.timeout [{}]", pingTimeout);
 
-        this.electMaster = new ElectMasterService(settings);
+        this.electMaster = new ElectMasterService(settings, clusterSettingsService);
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this);
         this.masterFD.addListener(new MasterNodeFailureListener());

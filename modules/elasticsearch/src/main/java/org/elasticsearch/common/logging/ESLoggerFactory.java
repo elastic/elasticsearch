@@ -32,15 +32,15 @@ public abstract class ESLoggerFactory {
 
     static {
         try {
-            Class.forName("org.slf4j.Logger");
-            defaultFactory = new Slf4jESLoggerFactory();
+            Class.forName("org.apache.log4j.Logger");
+            defaultFactory = new Log4jESLoggerFactory();
         } catch (Throwable e) {
-            // no slf4j
+            // no log4j
             try {
-                Class.forName("org.apache.log4j.Logger");
-                defaultFactory = new Log4jESLoggerFactory();
+                Class.forName("org.slf4j.Logger");
+                defaultFactory = new Slf4jESLoggerFactory();
             } catch (Throwable e1) {
-                // no log4j
+                // no slf4j
             }
         }
     }

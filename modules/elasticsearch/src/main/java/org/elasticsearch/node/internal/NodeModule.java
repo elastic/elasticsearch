@@ -21,6 +21,7 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
@@ -37,5 +38,6 @@ public class NodeModule extends AbstractModule {
     @Override protected void configure() {
         bind(Node.class).toInstance(node);
         bind(NodeSettingsService.class).asEagerSingleton();
+        bind(NodeService.class).asEagerSingleton();
     }
 }

@@ -26,6 +26,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  */
 public interface TransportServiceAdapter {
 
+    void received(long size);
+
+    void sent(long size);
+
     TransportRequestHandler handler(String action);
 
     TransportResponseHandler remove(long requestId);

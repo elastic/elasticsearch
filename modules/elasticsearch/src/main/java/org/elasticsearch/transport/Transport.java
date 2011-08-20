@@ -75,5 +75,5 @@ public interface Transport extends LifecycleComponent<Transport> {
      */
     <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message, TransportRequestOptions options) throws IOException, TransportException;
 
-    TransportStats stats();
+    long serverOpen();
 }

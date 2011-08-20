@@ -144,8 +144,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public TransportStats stats() {
-        return new TransportStats(0);
+    @Override public long serverOpen() {
+        return 0;
     }
 
     @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
@@ -168,6 +168,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
             final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
 
+            transportServiceAdapter.sent(data.length);
+
             threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
@@ -183,6 +185,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final Long sendRequestId) {
+        transportServiceAdapter.received(data.length);
         StreamInput stream = new BytesStreamInput(data);
         stream = CachedStreamInput.cachedHandles(stream);
 

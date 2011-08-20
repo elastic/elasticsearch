@@ -25,13 +25,9 @@ import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServer;
-import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,29 +40,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesInfoAction extends TransportNodesOperationAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfoAction.NodeInfoRequest, NodeInfo> {
 
-    private final MonitorService monitorService;
-
-    private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
-
-    @Nullable private HttpServer httpServer;
+    private final NodeService nodeService;
 
     @Inject public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                             ClusterService clusterService, TransportService transportService,
-                                            MonitorService monitorService) {
+                                            NodeService nodeService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
-        this.monitorService = monitorService;
-    }
-
-    public void setHttpServer(@Nullable HttpServer httpServer) {
-        this.httpServer = httpServer;
-    }
-
-    public synchronized void putNodeAttribute(String key, String value) {
-        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).put(key, value).immutableMap();
-    }
-
-    public synchronized void removeNodeAttribute(String key) {
-        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).remove(key).immutableMap();
+        this.nodeService = nodeService;
     }
 
     @Override protected String executor() {
@@ -109,10 +89,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
-        return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
-                monitorService.osService().info(), monitorService.processService().info(),
-                monitorService.jvmService().info(), monitorService.networkService().info(),
-                transportService.info(), httpServer == null ? null : httpServer.info());
+        return nodeService.info();
     }
 
     @Override protected boolean accumulateExceptions() {

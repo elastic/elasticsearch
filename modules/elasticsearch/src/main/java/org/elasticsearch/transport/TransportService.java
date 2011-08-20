@@ -69,6 +69,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     });
 
     private boolean throwConnectException = false;
+    private TransportService.Adapter adapter;
 
     public TransportService(Transport transport, ThreadPool threadPool) {
         this(EMPTY_SETTINGS, transport, threadPool);
@@ -82,7 +83,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     @Override protected void doStart() throws ElasticSearchException {
         // register us as an adapter for the transport service
-        transport.transportServiceAdapter(new Adapter());
+        adapter = new Adapter();
+        transport.transportServiceAdapter(adapter);
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
@@ -106,7 +108,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public TransportStats stats() {
-        return transport.stats();
+        return new TransportStats(transport.serverOpen(), adapter.rxCount.get(), adapter.rxSize.get(), adapter.txCount.get(), adapter.txSize.get());
     }
 
     public BoundTransportAddress boundAddress() {
@@ -228,6 +230,21 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     class Adapter implements TransportServiceAdapter {
+
+        final AtomicLong rxCount = new AtomicLong();
+        final AtomicLong rxSize = new AtomicLong();
+        final AtomicLong txCount = new AtomicLong();
+        final AtomicLong txSize = new AtomicLong();
+
+        @Override public void received(long size) {
+            rxCount.incrementAndGet();
+            rxSize.addAndGet(size);
+        }
+
+        @Override public void sent(long size) {
+            txCount.incrementAndGet();
+            txSize.addAndGet(size);
+        }
 
         @Override public TransportRequestHandler handler(String action) {
             return serverHandlers.get(action);

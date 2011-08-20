@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationModule;
 import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
@@ -62,8 +61,6 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
     @Override
     protected void configure() {
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
-
-        bind(ClusterSettingsService.class).asEagerSingleton();
 
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();

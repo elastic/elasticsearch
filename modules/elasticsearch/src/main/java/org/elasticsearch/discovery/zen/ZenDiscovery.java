@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -49,6 +48,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -109,7 +109,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     @Inject public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                TransportService transportService, ClusterService clusterService, ClusterSettingsService clusterSettingsService,
+                                TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
                                 ZenPingService pingService) {
         super(settings);
         this.clusterName = clusterName;
@@ -124,7 +124,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.debug("using ping.timeout [{}]", pingTimeout);
 
-        this.electMaster = new ElectMasterService(settings, clusterSettingsService);
+        this.electMaster = new ElectMasterService(settings, nodeSettingsService);
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this);
         this.masterFD.addListener(new MasterNodeFailureListener());

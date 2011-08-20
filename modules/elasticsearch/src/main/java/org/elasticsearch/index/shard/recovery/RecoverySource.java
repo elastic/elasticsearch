@@ -22,7 +22,6 @@ package org.elasticsearch.index.shard.recovery;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
@@ -43,6 +42,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -91,7 +91,7 @@ public class RecoverySource extends AbstractComponent {
     private final ThreadPoolExecutor concurrentStreamPool;
 
     @Inject public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
-                                  ClusterSettingsService clusterSettingsService) {
+                                  NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -110,7 +110,7 @@ public class RecoverySource extends AbstractComponent {
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
 
-        clusterSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     public void close() {
@@ -312,7 +312,7 @@ public class RecoverySource extends AbstractComponent {
         }
     }
 
-    class ApplySettings implements ClusterSettingsService.Listener {
+    class ApplySettings implements NodeSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
             int concurrentStreams = settings.getAsInt("index.shard.recovery.concurrent_streams", RecoverySource.this.concurrentStreams);
             if (concurrentStreams != RecoverySource.this.concurrentStreams) {

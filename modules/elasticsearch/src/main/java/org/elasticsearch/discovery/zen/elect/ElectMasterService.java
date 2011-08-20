@@ -21,10 +21,10 @@ package org.elasticsearch.discovery.zen.elect;
 
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -44,11 +44,11 @@ public class ElectMasterService extends AbstractComponent {
 
     private volatile int minimumMasterNodes;
 
-    public ElectMasterService(Settings settings, ClusterSettingsService clusterSettingsService) {
+    public ElectMasterService(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
-        clusterSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
@@ -111,7 +111,7 @@ public class ElectMasterService extends AbstractComponent {
         return possibleNodes;
     }
 
-    class ApplySettings implements ClusterSettingsService.Listener {
+    class ApplySettings implements NodeSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
             int minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", ElectMasterService.this.minimumMasterNodes);
             if (minimumMasterNodes != ElectMasterService.this.minimumMasterNodes) {

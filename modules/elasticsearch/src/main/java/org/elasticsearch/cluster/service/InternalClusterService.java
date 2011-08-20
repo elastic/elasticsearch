@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
-import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,7 +71,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final TransportService transportService;
 
-    private final ClusterSettingsService clusterSettingsService;
+    private final NodeSettingsService nodeSettingsService;
 
     private final TimeValue reconnectInterval;
 
@@ -89,21 +89,21 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private volatile ScheduledFuture reconnectToNodes;
 
     @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                          ClusterSettingsService clusterSettingsService, ThreadPool threadPool) {
+                                          NodeSettingsService nodeSettingsService, ThreadPool threadPool) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
-        this.clusterSettingsService = clusterSettingsService;
+        this.nodeSettingsService = nodeSettingsService;
 
-        this.clusterSettingsService.setClusterService(this);
+        this.nodeSettingsService.setClusterService(this);
 
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
     }
 
-    public ClusterSettingsService settingsService() {
-        return this.clusterSettingsService;
+    public NodeSettingsService settingsService() {
+        return this.nodeSettingsService;
     }
 
     public void addInitialStateBlock(ClusterBlock block) throws ElasticSearchIllegalStateException {

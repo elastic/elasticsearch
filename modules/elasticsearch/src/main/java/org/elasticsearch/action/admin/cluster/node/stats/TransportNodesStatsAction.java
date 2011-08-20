@@ -25,13 +25,10 @@ import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServer;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,22 +40,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesStatsAction extends TransportNodesOperationAction<NodesStatsRequest, NodesStatsResponse, TransportNodesStatsAction.NodeStatsRequest, NodeStats> {
 
-    private final MonitorService monitorService;
-
-    private final IndicesService indicesService;
-
-    @Nullable private HttpServer httpServer;
+    private final NodeService nodeService;
 
     @Inject public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                              ClusterService clusterService, TransportService transportService,
-                                             MonitorService monitorService, IndicesService indicesService) {
+                                             NodeService nodeService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
-        this.monitorService = monitorService;
-        this.indicesService = indicesService;
-    }
-
-    public void setHttpServer(@Nullable HttpServer httpServer) {
-        this.httpServer = httpServer;
+        this.nodeService = nodeService;
     }
 
     @Override protected String executor() {
@@ -101,10 +89,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override protected NodeStats nodeOperation(NodeStatsRequest request) throws ElasticSearchException {
-        return new NodeStats(clusterService.state().nodes().localNode(), indicesService.stats(),
-                monitorService.osService().stats(), monitorService.processService().stats(),
-                monitorService.jvmService().stats(), monitorService.networkService().stats(),
-                transportService.stats(), httpServer == null ? null : httpServer.stats());
+        return nodeService.stats();
     }
 
     @Override protected boolean accumulateExceptions() {

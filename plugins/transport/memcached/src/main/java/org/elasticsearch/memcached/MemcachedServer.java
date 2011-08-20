@@ -20,10 +20,10 @@
 package org.elasticsearch.memcached;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.RestController;
 
 /**
@@ -33,16 +33,16 @@ public class MemcachedServer extends AbstractLifecycleComponent<MemcachedServer>
 
     private final MemcachedServerTransport transport;
 
-    private final TransportNodesInfoAction nodesInfoAction;
+    private final NodeService nodeService;
 
     private final RestController restController;
 
     @Inject public MemcachedServer(Settings settings, MemcachedServerTransport transport,
-                                   RestController restController, TransportNodesInfoAction nodesInfoAction) {
+                                   RestController restController, NodeService nodeService) {
         super(settings);
         this.transport = transport;
         this.restController = restController;
-        this.nodesInfoAction = nodesInfoAction;
+        this.nodeService = nodeService;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -50,11 +50,11 @@ public class MemcachedServer extends AbstractLifecycleComponent<MemcachedServer>
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
-        nodesInfoAction.putNodeAttribute("memcached_address", transport.boundAddress().publishAddress().toString());
+        nodeService.putNodeAttribute("memcached_address", transport.boundAddress().publishAddress().toString());
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        nodesInfoAction.removeNodeAttribute("memcached_address");
+        nodeService.removeNodeAttribute("memcached_address");
         transport.stop();
     }
 

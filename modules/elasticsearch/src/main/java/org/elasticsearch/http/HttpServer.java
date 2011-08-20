@@ -20,14 +20,13 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -51,21 +50,19 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final RestController restController;
 
-    private final TransportNodesInfoAction nodesInfoAction;
+    private final NodeService nodeService;
 
     private final boolean disableSites;
 
     @Inject public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
                               RestController restController,
-                              TransportNodesInfoAction nodesInfoAction, TransportNodesStatsAction nodesStatsAction) {
+                              NodeService nodeService) {
         super(settings);
         this.environment = environment;
         this.transport = transport;
         this.restController = restController;
-        this.nodesInfoAction = nodesInfoAction;
-        this.nodesInfoAction.setHttpServer(this);
-
-        nodesStatsAction.setHttpServer(this);
+        this.nodeService = nodeService;
+        nodeService.setHttpServer(this);
 
         this.disableSites = componentSettings.getAsBoolean("disable_sites", false);
 
@@ -90,11 +87,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
-        nodesInfoAction.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
+        nodeService.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        nodesInfoAction.removeNodeAttribute("http_address");
+        nodeService.removeNodeAttribute("http_address");
         transport.stop();
     }
 

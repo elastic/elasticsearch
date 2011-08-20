@@ -28,13 +28,13 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportFactory;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.BindTransportException;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
 
     private final NetworkService networkService;
 
-    private final TransportNodesInfoAction nodesInfoAction;
+    private final NodeService nodeService;
 
     private final ThriftRestImpl client;
 
@@ -69,11 +69,11 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
 
     private volatile int portNumber;
 
-    @Inject public ThriftServer(Settings settings, NetworkService networkService, TransportNodesInfoAction nodesInfoAction, ThriftRestImpl client) {
+    @Inject public ThriftServer(Settings settings, NetworkService networkService, NodeService nodeService, ThriftRestImpl client) {
         super(settings);
         this.client = client;
         this.networkService = networkService;
-        this.nodesInfoAction = nodesInfoAction;
+        this.nodeService = nodeService;
         this.frame = (int) componentSettings.getAsBytesSize("frame", new ByteSizeValue(-1)).bytes();
         this.port = componentSettings.get("port", "9500-9600");
         this.bindHost = componentSettings.get("bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
@@ -134,7 +134,7 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
         }
         logger.info("bound on port [{}]", portNumber);
         try {
-            nodesInfoAction.putNodeAttribute("thrift_address", new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), portNumber).toString());
+            nodeService.putNodeAttribute("thrift_address", new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), portNumber).toString());
         } catch (Exception e) {
             // ignore
         }
@@ -147,7 +147,7 @@ public class ThriftServer extends AbstractLifecycleComponent<ThriftServer> {
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        nodesInfoAction.removeNodeAttribute("thrift_address");
+        nodeService.removeNodeAttribute("thrift_address");
         server.stop();
     }
 

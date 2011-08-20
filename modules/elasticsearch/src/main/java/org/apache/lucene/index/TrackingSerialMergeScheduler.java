@@ -20,34 +20,34 @@
 package org.apache.lucene.index;
 
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 
 // LUCENE MONITOR - Copied from SerialMergeScheduler
 public class TrackingSerialMergeScheduler extends MergeScheduler {
 
     private final ESLogger logger;
 
-    private final AtomicLong totalMerges = new AtomicLong();
-    private final AtomicLong totalMergeTime = new AtomicLong();
-    private final AtomicLong currentMerges = new AtomicLong();
+    private final MeanMetric totalMerges = new MeanMetric();
+    private final CounterMetric currentMerges = new CounterMetric();
 
     public TrackingSerialMergeScheduler(ESLogger logger) {
         this.logger = logger;
     }
 
     public long totalMerges() {
-        return totalMerges.get();
+        return totalMerges.count();
     }
 
     public long totalMergeTime() {
-        return totalMergeTime.get();
+        return totalMerges.sum();
     }
 
     public long currentMerges() {
-        return currentMerges.get();
+        return currentMerges.count();
     }
 
     /**
@@ -67,14 +67,13 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             }
 
             long time = System.currentTimeMillis();
-            currentMerges.incrementAndGet();
+            currentMerges.inc();
             try {
                 writer.merge(merge);
             } finally {
-                currentMerges.decrementAndGet();
-                totalMerges.incrementAndGet();
+                currentMerges.dec();
                 long took = System.currentTimeMillis() - time;
-                totalMergeTime.addAndGet(took);
+                totalMerges.inc(took);
                 if (took > 20000) { // if more than 20 seconds, DEBUG log it
                     logger.debug("merge [{}] done, took [{}]", merge.info.name, TimeValue.timeValueMillis(took));
                 } else if (logger.isTraceEnabled()) {

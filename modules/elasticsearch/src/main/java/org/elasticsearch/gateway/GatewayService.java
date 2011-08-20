@@ -250,6 +250,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .metaData(currentState.metaData());
                     metaDataBuilder.version(recoveredState.version());
 
+                    metaDataBuilder.persistentSettings(recoveredState.metaData().persistentSettings());
+
                     // add the index templates
                     for (Map.Entry<String, IndexTemplateMetaData> entry : recoveredState.metaData().templates().entrySet()) {
                         metaDataBuilder.put(entry.getValue());

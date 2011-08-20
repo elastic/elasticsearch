@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
+import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -70,6 +71,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final TransportService transportService;
 
+    private final ClusterSettingsService clusterSettingsService;
+
     private final TimeValue reconnectInterval;
 
     private volatile ExecutorService updateTasksExecutor;
@@ -85,14 +88,22 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ScheduledFuture reconnectToNodes;
 
-    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService, ThreadPool threadPool) {
+    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
+                                          ClusterSettingsService clusterSettingsService, ThreadPool threadPool) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
+        this.clusterSettingsService = clusterSettingsService;
+
+        this.clusterSettingsService.setClusterService(this);
 
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
+    }
+
+    public ClusterSettingsService settingsService() {
+        return this.clusterSettingsService;
     }
 
     public void addInitialStateBlock(ClusterBlock block) throws ElasticSearchIllegalStateException {

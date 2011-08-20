@@ -51,12 +51,6 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     private final XContentBuilder builder;
 
-    public XContentRestResponse(RestRequest request, RestStatus status) {
-        this.builder = null;
-        this.status = status;
-        this.prefixUtf8Result = startJsonp(request);
-    }
-
     public XContentRestResponse(RestRequest request, RestStatus status, XContentBuilder builder) throws IOException {
         this.builder = builder;
         this.status = status;

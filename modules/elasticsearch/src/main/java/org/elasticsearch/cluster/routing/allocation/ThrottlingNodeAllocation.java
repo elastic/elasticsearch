@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
@@ -31,15 +33,24 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class ThrottlingNodeAllocation extends NodeAllocation {
 
-    private final int primariesInitialRecoveries;
-    private final int concurrentRecoveries;
+    static {
+        MetaData.addDynamicSettings(
+                "cluster.routing.allocation.node_initial_primaries_recoveries",
+                "cluster.routing.allocation.node_concurrent_recoveries"
+        );
+    }
 
-    @Inject public ThrottlingNodeAllocation(Settings settings) {
+    private volatile int primariesInitialRecoveries;
+    private volatile int concurrentRecoveries;
+
+    @Inject public ThrottlingNodeAllocation(Settings settings, ClusterSettingsService clusterSettingsService) {
         super(settings);
 
         this.primariesInitialRecoveries = componentSettings.getAsInt("node_initial_primaries_recoveries", 4);
         this.concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", componentSettings.getAsInt("node_concurrent_recoveries", 2));
         logger.debug("using node_concurrent_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentRecoveries, primariesInitialRecoveries);
+
+        clusterSettingsService.addListener(new ApplySettings());
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -81,6 +92,22 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
             return Decision.THROTTLE;
         } else {
             return Decision.YES;
+        }
+    }
+
+    class ApplySettings implements ClusterSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", ThrottlingNodeAllocation.this.primariesInitialRecoveries);
+            if (primariesInitialRecoveries != ThrottlingNodeAllocation.this.primariesInitialRecoveries) {
+                logger.info("updating [cluster.routing.allocation.node_initial_primaries_recoveries] from [{}] to [{}]", ThrottlingNodeAllocation.this.primariesInitialRecoveries, primariesInitialRecoveries);
+                ThrottlingNodeAllocation.this.primariesInitialRecoveries = primariesInitialRecoveries;
+            }
+
+            int concurrentRecoveries = settings.getAsInt("cluster.routing.allocation.node_concurrent_recoveries", ThrottlingNodeAllocation.this.concurrentRecoveries);
+            if (concurrentRecoveries != ThrottlingNodeAllocation.this.concurrentRecoveries) {
+                logger.info("updating [cluster.routing.allocation.node_concurrent_recoveries] from [{}] to [{}]", ThrottlingNodeAllocation.this.concurrentRecoveries, concurrentRecoveries);
+                ThrottlingNodeAllocation.this.concurrentRecoveries = concurrentRecoveries;
+            }
         }
     }
 }

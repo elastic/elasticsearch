@@ -19,7 +19,9 @@
 
 package org.elasticsearch.discovery.zen.elect;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.settings.ClusterSettingsService;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -34,13 +36,19 @@ import java.util.List;
  */
 public class ElectMasterService extends AbstractComponent {
 
+    static {
+        MetaData.addDynamicSettings("discovery.zen.minimum_master_nodes");
+    }
+
     private final NodeComparator nodeComparator = new NodeComparator();
 
-    private final int minimumMasterNodes;
+    private volatile int minimumMasterNodes;
 
-    public ElectMasterService(Settings settings) {
+    public ElectMasterService(Settings settings, ClusterSettingsService clusterSettingsService) {
         super(settings);
         this.minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
+        logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
+        clusterSettingsService.addListener(new ApplySettings());
     }
 
     public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
@@ -101,6 +109,16 @@ public class ElectMasterService extends AbstractComponent {
         }
         Collections.sort(possibleNodes, nodeComparator);
         return possibleNodes;
+    }
+
+    class ApplySettings implements ClusterSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", ElectMasterService.this.minimumMasterNodes);
+            if (minimumMasterNodes != ElectMasterService.this.minimumMasterNodes) {
+                logger.info("updating [discovery.zen.minimum_master_nodes] from [{}] to [{}]", ElectMasterService.this.minimumMasterNodes, minimumMasterNodes);
+                ElectMasterService.this.minimumMasterNodes = minimumMasterNodes;
+            }
+        }
     }
 
     private static class NodeComparator implements Comparator<DiscoveryNode> {

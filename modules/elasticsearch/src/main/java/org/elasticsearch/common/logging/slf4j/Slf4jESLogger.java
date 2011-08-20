@@ -34,6 +34,10 @@ public class Slf4jESLogger extends AbstractESLogger {
         this.logger = logger;
     }
 
+    @Override public void setLevel(String level) {
+        // can't set it in slf4j...
+    }
+
     @Override public String getName() {
         return logger.getName();
     }

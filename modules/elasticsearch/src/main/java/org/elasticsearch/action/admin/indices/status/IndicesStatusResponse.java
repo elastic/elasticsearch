@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 
@@ -158,6 +159,10 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
             if (refreshStats != null) {
                 refreshStats.toXContent(builder, params);
             }
+            FlushStats flushStats = indexStatus.flushStats();
+            if (flushStats != null) {
+                flushStats.toXContent(builder, params);
+            }
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardStatus indexShardStatus : indexStatus) {
@@ -204,6 +209,10 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                     refreshStats = shardStatus.refreshStats();
                     if (refreshStats != null) {
                         refreshStats.toXContent(builder, params);
+                    }
+                    flushStats = shardStatus.flushStats();
+                    if (flushStats != null) {
+                        flushStats.toXContent(builder, params);
                     }
 
                     if (shardStatus.peerRecoveryStatus() != null) {

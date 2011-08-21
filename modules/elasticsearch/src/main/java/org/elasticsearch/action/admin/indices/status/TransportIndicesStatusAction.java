@@ -156,6 +156,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
             shardStatus.mergeStats = indexShard.mergeScheduler().stats();
             shardStatus.refreshStats = indexShard.refreshStats();
+            shardStatus.flushStats = indexShard.flushStats();
         }
 
         if (request.recovery) {

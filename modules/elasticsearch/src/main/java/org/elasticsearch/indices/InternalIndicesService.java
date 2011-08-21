@@ -53,6 +53,7 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperService;
@@ -176,6 +177,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         CacheStats cacheStats = new CacheStats();
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
+        FlushStats flushStats = new FlushStats();
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 try {
@@ -194,10 +196,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 }
                 mergeStats.add(((InternalIndexShard) indexShard).mergeScheduler().stats());
                 refreshStats.add(indexShard.refreshStats());
+                flushStats.add(indexShard.flushStats());
             }
             cacheStats.add(indexService.cache().stats());
         }
-        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats, refreshStats);
+        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats, refreshStats, flushStats);
     }
 
     /**

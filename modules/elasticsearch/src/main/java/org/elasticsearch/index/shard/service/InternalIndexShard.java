@@ -46,6 +46,7 @@ import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.OptimizeFailedEngineException;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -69,6 +70,7 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.mapper.SourceToParse.*;
 
@@ -122,7 +124,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
-    private final MeanMetric totalRefreshMetric = new MeanMetric();
+    private final MeanMetric refreshMetric = new MeanMetric();
+    private final MeanMetric flushMetric = new MeanMetric();
 
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService) {
@@ -379,13 +382,17 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with {}", refresh);
         }
-        long time = System.currentTimeMillis();
+        long time = System.nanoTime();
         engine.refresh(refresh);
-        totalRefreshMetric.inc(System.currentTimeMillis() - time);
+        refreshMetric.inc(System.nanoTime() - time);
     }
 
     @Override public RefreshStats refreshStats() {
-        return new RefreshStats(totalRefreshMetric.count(), totalRefreshMetric.sum());
+        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()));
+    }
+
+    @Override public FlushStats flushStats() {
+        return new FlushStats(flushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
     }
 
     @Override public void flush(Engine.Flush flush) throws ElasticSearchException {
@@ -393,7 +400,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (logger.isTraceEnabled()) {
             logger.trace("flush with {}", flush);
         }
+        long time = System.nanoTime();
         engine.flush(flush);
+        flushMetric.inc(System.nanoTime() - time);
     }
 
     @Override public void optimize(Engine.Optimize optimize) throws ElasticSearchException {

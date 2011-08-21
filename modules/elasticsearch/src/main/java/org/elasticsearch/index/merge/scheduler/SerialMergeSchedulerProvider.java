@@ -58,7 +58,8 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
     @Override public MergeStats stats() {
         MergeStats mergeStats = new MergeStats();
         for (CustomSerialMergeScheduler scheduler : schedulers) {
-            mergeStats.add(scheduler.totalMerges(), scheduler.currentMerges(), scheduler.totalMergeTime());
+            mergeStats.add(scheduler.totalMerges(), scheduler.totalMergeTime(), scheduler.totalMergeNumDocs(), scheduler.totalMergeSizeInBytes(),
+                    scheduler.currentMerges(), scheduler.currentMergesNumDocs(), scheduler.currentMergesSizeInBytes());
         }
         return mergeStats;
     }

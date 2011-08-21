@@ -32,7 +32,11 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
     private final ESLogger logger;
 
     private final MeanMetric totalMerges = new MeanMetric();
+    private final CounterMetric totalMergesNumDocs = new CounterMetric();
+    private final CounterMetric totalMergesSizeInBytes = new CounterMetric();
     private final CounterMetric currentMerges = new CounterMetric();
+    private final CounterMetric currentMergesNumDocs = new CounterMetric();
+    private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
 
     public TrackingSerialMergeScheduler(ESLogger logger) {
         this.logger = logger;
@@ -46,8 +50,24 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
         return totalMerges.sum();
     }
 
+    public long totalMergeNumDocs() {
+        return totalMergesNumDocs.count();
+    }
+
+    public long totalMergeSizeInBytes() {
+        return totalMergesSizeInBytes.count();
+    }
+
     public long currentMerges() {
         return currentMerges.count();
+    }
+
+    public long currentMergesNumDocs() {
+        return currentMergesNumDocs.count();
+    }
+
+    public long currentMergesSizeInBytes() {
+        return currentMergesSizeInBytes.count();
     }
 
     /**
@@ -66,13 +86,23 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
                 logger.trace("merge [{}] starting...", merge.info.name);
             }
 
+            int totalNumDocs = merge.totalNumDocs();
+            long totalSizeInBytes = merge.totalBytesSize();
             long time = System.currentTimeMillis();
             currentMerges.inc();
+            currentMergesNumDocs.inc(totalNumDocs);
+            currentMergesSizeInBytes.inc(totalSizeInBytes);
             try {
                 writer.merge(merge);
             } finally {
-                currentMerges.dec();
                 long took = System.currentTimeMillis() - time;
+
+                currentMerges.dec();
+                currentMergesNumDocs.dec(totalNumDocs);
+                currentMergesSizeInBytes.dec(totalSizeInBytes);
+
+                totalMergesNumDocs.inc(totalNumDocs);
+                totalMergesSizeInBytes.inc(totalSizeInBytes);
                 totalMerges.inc(took);
                 if (took > 20000) { // if more than 20 seconds, DEBUG log it
                     logger.debug("merge [{}] done, took [{}]", merge.info.name, TimeValue.timeValueMillis(took));

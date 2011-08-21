@@ -65,7 +65,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     @Override public MergeStats stats() {
         MergeStats mergeStats = new MergeStats();
         for (CustomConcurrentMergeScheduler scheduler : schedulers) {
-            mergeStats.add(scheduler.totalMerges(), scheduler.currentMerges(), scheduler.totalMergeTime());
+            mergeStats.add(scheduler.totalMerges(), scheduler.totalMergeTime(), scheduler.totalMergeNumDocs(), scheduler.totalMergeSizeInBytes(),
+                    scheduler.currentMerges(), scheduler.currentMergesNumDocs(), scheduler.currentMergesSizeInBytes());
         }
         return mergeStats;
     }

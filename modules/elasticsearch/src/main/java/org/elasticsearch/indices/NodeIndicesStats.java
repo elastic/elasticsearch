@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.CacheStats;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 
@@ -50,15 +51,18 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private RefreshStats refreshStats;
 
+    private FlushStats flushStats;
+
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats) {
+    public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
         this.storeSize = storeSize;
         this.numDocs = numDocs;
         this.cacheStats = cacheStats;
         this.mergeStats = mergeStats;
         this.refreshStats = refreshStats;
+        this.flushStats = flushStats;
     }
 
     /**
@@ -113,6 +117,14 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         return this.refresh();
     }
 
+    public FlushStats flush() {
+        return this.flushStats;
+    }
+
+    public FlushStats getFlush() {
+        return this.flushStats;
+    }
+
     public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {
         NodeIndicesStats stats = new NodeIndicesStats();
         stats.readFrom(in);
@@ -125,6 +137,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         cacheStats = CacheStats.readCacheStats(in);
         mergeStats = MergeStats.readMergeStats(in);
         refreshStats = RefreshStats.readRefreshStats(in);
+        flushStats = FlushStats.readFlushStats(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -133,6 +146,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         cacheStats.writeTo(out);
         mergeStats.writeTo(out);
         refreshStats.writeTo(out);
+        flushStats.writeTo(out);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -148,6 +162,7 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         cacheStats.toXContent(builder, params);
         mergeStats.toXContent(builder, params);
         refreshStats.toXContent(builder, params);
+        flushStats.toXContent(builder, params);
 
         builder.endObject();
         return builder;

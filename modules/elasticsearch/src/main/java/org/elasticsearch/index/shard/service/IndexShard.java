@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -44,6 +45,8 @@ public interface IndexShard extends IndexShardComponent {
     ShardRouting routingEntry();
 
     RefreshStats refreshStats();
+
+    FlushStats flushStats();
 
     IndexShardState state();
 

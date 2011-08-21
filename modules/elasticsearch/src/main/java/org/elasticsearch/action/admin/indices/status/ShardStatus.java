@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -55,6 +56,8 @@ public class ShardStatus extends BroadcastShardOperationResponse {
     MergeStats mergeStats;
 
     RefreshStats refreshStats;
+
+    FlushStats flushStats;
 
     PeerRecoveryStatus peerRecoveryStatus;
 
@@ -182,6 +185,14 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         return refreshStats();
     }
 
+    public FlushStats flushStats() {
+        return this.flushStats;
+    }
+
+    public FlushStats getFlushStats() {
+        return this.flushStats;
+    }
+
     /**
      * Peer recovery status (<tt>null</tt> if not applicable). Both real time if an on going recovery
      * is in progress and summary once it is done.
@@ -303,6 +314,12 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeBoolean(true);
             refreshStats.writeTo(out);
         }
+        if (flushStats == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            flushStats.writeTo(out);
+        }
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
@@ -340,6 +357,9 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         }
         if (in.readBoolean()) {
             refreshStats = RefreshStats.readRefreshStats(in);
+        }
+        if (in.readBoolean()) {
+            flushStats = FlushStats.readFlushStats(in);
         }
     }
 }

@@ -34,8 +34,11 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -45,6 +48,7 @@ import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
@@ -115,6 +119,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private String id;
     @Nullable private String routing;
     @Nullable private String parent;
+    @Nullable private String timestamp;
 
     private byte[] source;
     private int sourceOffset;
@@ -274,6 +279,31 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     public String parent() {
         return this.parent;
+    }
+
+    public IndexRequest timestamp(String timestamp) {
+        this.timestamp = timestamp;
+        return this;
+    }
+
+    public String timestamp() {
+        return this.timestamp;
+    }
+
+    public long getFinalTimestamp() {
+        if (timestamp != null) {
+            try {
+                return Long.parseLong(timestamp);
+            } catch (NumberFormatException e1) {
+
+            }
+        }
+        return -1;
+    }
+
+    public IndexRequest generateTimestamp() {
+        timestamp = String.valueOf(new Date().getTime());
+        return this;
     }
 
     /**
@@ -562,15 +592,24 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.percolate;
     }
 
-    public void processRouting(MappingMetaData mappingMd) throws ElasticSearchException {
-        if (routing == null && mappingMd.routing().hasPath()) {
+    public void processRoutingAndTimestamp(MappingMetaData mappingMd) throws ElasticSearchException {
+        boolean shouldParseRouting = (routing == null && mappingMd.routing().hasPath());
+        boolean shouldParseTimestamp = (timestamp == null && mappingMd.timestamp().hasPath());
+
+        if (shouldParseRouting || shouldParseTimestamp) {
             XContentParser parser = null;
             try {
                 parser = XContentFactory.xContent(source, sourceOffset, sourceLength)
                         .createParser(source, sourceOffset, sourceLength);
-                routing = mappingMd.parseRouting(parser);
+                Tuple<String, String> parseResult = mappingMd.parseRoutingAndTimestamp(parser, shouldParseRouting, shouldParseTimestamp);
+                if (shouldParseRouting) {
+                    routing = parseResult.v1();
+                }
+                if (shouldParseTimestamp) {
+                    timestamp = parseResult.v2();
+                }
             } catch (Exception e) {
-                throw new ElasticSearchParseException("failed to parse doc to extract routing", e);
+                throw new ElasticSearchParseException("failed to parse doc to extract routing/timestamp", e);
             } finally {
                 if (parser != null) {
                     parser.close();
@@ -580,6 +619,25 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         // might as well check for routing here
         if (mappingMd.routing().required() && routing == null) {
             throw new RoutingMissingException(index, type, id);
+        }
+        // Process timestamp here. We should maybe test an external timestamp before? Otherwise it won't take the timestamp
+        // defined in source if necessary?
+        if (timestamp != null) {
+            long ts = -1;
+            FormatDateTimeFormatter dateTimeFormatter = Joda.forPattern(mappingMd.timestamp().format());
+            try {
+                ts = dateTimeFormatter.parser().parseMillis(timestamp);
+            } catch (RuntimeException e) {
+                try {
+                ts = Long.parseLong(timestamp);
+                } catch (NumberFormatException e1) {
+                    // What we do in case of error? Do we still generate a timestamp if required or raise an exception?
+                    timestamp = null;
+                }
+            }
+            if (timestamp != null) {
+                timestamp = String.valueOf(ts);
+            }
         }
     }
 
@@ -594,6 +652,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
         if (in.readBoolean()) {
             parent = in.readUTF();
+        }
+        if (in.readBoolean()) {
+            timestamp = in.readUTF();
         }
 
         sourceUnsafe = false;
@@ -631,6 +692,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         } else {
             out.writeBoolean(true);
             out.writeUTF(parent);
+        }
+        if (timestamp == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(timestamp);
         }
         out.writeVInt(sourceLength);
         out.writeBytes(source, sourceOffset, sourceLength);

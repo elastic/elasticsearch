@@ -61,4 +61,16 @@ public class Tuple<V1, V2> {
         result = 31 * result + (v2 != null ? v2.hashCode() : 0);
         return result;
     }
+
+   /**
+   * Helper function to create a tuple.
+   *
+   * @param v1 the first element for the resulting tuple
+   * @param v2 the second element for the resulting tuple
+   * @return the tuple (<code>v1</code>,<code>v2</code>)
+   */
+  public static <V1, V2> Tuple<V1, V2> create(V1 v1, V2 v2)
+  {
+    return new Tuple<V1, V2>(v1, v2);
+  }
 }

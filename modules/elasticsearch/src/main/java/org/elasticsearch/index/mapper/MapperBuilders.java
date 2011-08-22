@@ -22,15 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.*;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.AnalyzerMapper;
-import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -75,6 +67,10 @@ public final class MapperBuilders {
 
     public static IndexFieldMapper.Builder index() {
         return new IndexFieldMapper.Builder();
+    }
+
+    public static TimestampFieldMapper.Builder timestamp() {
+        return new TimestampFieldMapper.Builder();
     }
 
     public static BoostFieldMapper.Builder boost(String name) {

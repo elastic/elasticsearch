@@ -360,6 +360,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.routing();
         }
 
+        public long timestamp() {
+            return this.doc.timestamp();
+        }
+
         public long version() {
             return this.version;
         }
@@ -478,6 +482,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public String parent() {
             return this.doc.parent();
+        }
+
+        public long timestamp() {
+            return this.doc.timestamp();
         }
 
         public byte[] source() {

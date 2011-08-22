@@ -41,6 +41,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -165,12 +166,18 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 MappingMetaData mappingMd = clusterState.metaData().index(indexRequest.index()).mapping(indexRequest.type());
                 if (mappingMd != null) {
                     try {
-                        indexRequest.processRouting(mappingMd);
+                        indexRequest.processRoutingAndTimestamp(mappingMd);
                     } catch (ElasticSearchException e) {
                         responses[i] = new BulkItemResponse(i, indexRequest.opType().toString().toLowerCase(),
                                 new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e.getDetailedMessage()));
                         continue;
                     }
+                }
+                // The timestamp is missing but required either by mapping or by default. It is generated here in case
+                // there is no mapping and the default configuration for TimestampFieldMapper is set to required.
+                if (indexRequest.timestamp() == null &&
+                        (mappingMd != null && mappingMd.timestamp().required() || TimestampFieldMapper.Defaults.REQUIRED)) {
+                    indexRequest.generateTimestamp();
                 }
 
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();

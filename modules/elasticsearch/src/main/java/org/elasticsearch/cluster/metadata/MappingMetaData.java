@@ -150,12 +150,11 @@ public class MappingMetaData {
             // And then the value...
             t = parser.nextToken();
             if (routingPart.equals(fieldName)) {
-                location++;
-                if (location == routing.pathElements().length) {
+                if (location + 1 == routing.pathElements().length) {
                     return parser.textOrNull();
                 }
                 if (t == XContentParser.Token.START_OBJECT) {
-                    return parseRouting(parser, location);
+                    return parseRouting(parser, location + 1);
                 }
             } else {
                 parser.skipChildren();

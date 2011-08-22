@@ -108,7 +108,10 @@ public class NetworkService extends AbstractComponent {
             if (address == null) {
                 address = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
                 if (address == null) {
-                    return NetworkUtils.getLocalAddress();
+                    address = NetworkUtils.getLocalAddress();
+                    if (address == null) {
+                        return NetworkUtils.getLocalhost(NetworkUtils.StackType.IPv4);
+                    }
                 }
             }
         }

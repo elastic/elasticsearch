@@ -59,4 +59,46 @@ public class ParseRoutingTests {
                 .endObject().copiedBytes();
         assertThat(md.parseRouting(XContentFactory.xContent(bytes).createParser(bytes)), equalTo("value2"));
     }
+
+    @Test public void testParseRoutingWithRepeatedField() throws Exception {
+        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""), new MappingMetaData.Routing(true, "field1.field1"));
+
+        byte[] bytes = jsonBuilder().startObject()
+                .field("aaa", "wr")
+                .array("arr1", "1", "2", "3")
+                .field("field1", "foo")
+                .field("field1", "bar")
+                .field("test", "value")
+                .field("zzz", "wr")
+                .endObject().copiedBytes();
+        assertThat(md.parseRouting(XContentFactory.xContent(bytes).createParser(bytes)), equalTo(null));
+    }
+
+    @Test public void testParseRoutingWithRepeatedFieldAndObject() throws Exception {
+        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""), new MappingMetaData.Routing(true, "field1.field1.field2"));
+
+        byte[] bytes = jsonBuilder().startObject()
+                .field("aaa", "wr")
+                .array("arr1", "1", "2", "3")
+                .field("field1", "foo")
+                .startObject("field1").field("field2", "bar").endObject()
+                .field("test", "value")
+                .field("zzz", "wr")
+                .endObject().copiedBytes();
+        assertThat(md.parseRouting(XContentFactory.xContent(bytes).createParser(bytes)), equalTo(null));
+    }
+
+    @Test public void testParseRoutingWithRepeatedFieldAndValidRouting() throws Exception {
+        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""), new MappingMetaData.Routing(true, "field1.field2"));
+
+        byte[] bytes = jsonBuilder().startObject()
+                .field("aaa", "wr")
+                .array("arr1", "1", "2", "3")
+                .field("field1", "foo")
+                .startObject("field1").field("field2", "bar").endObject()
+                .field("test", "value")
+                .field("zzz", "wr")
+                .endObject().copiedBytes();
+        assertThat(md.parseRouting(XContentFactory.xContent(bytes).createParser(bytes)), equalTo("bar"));
+    }
 }

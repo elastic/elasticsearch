@@ -120,7 +120,7 @@ public class TransportClientNodesService extends AbstractComponent {
                  ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
                  listedNodes = builder.addAll(listedNodes).add(new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress)).build();
              }
-             nodesSampler.run();
+             nodesSampler.sample();
     	}
         return this;
     }
@@ -246,12 +246,14 @@ public class TransportClientNodesService extends AbstractComponent {
                                 }
 
                                 @Override public void handleException(TransportException exp) {
-                                    logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list", exp);
+                                    logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list and from transport list", exp);
+                                    removeTransportAddress(listedNode.address());
                                     latch.countDown();
                                 }
                             });
                         } catch (Exception e) {
                             logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list", e);
+                            removeTransportAddress(listedNode.address());
                             latch.countDown();
                         }
                     }
@@ -272,8 +274,8 @@ public class TransportClientNodesService extends AbstractComponent {
                     } else {
                         if (nodeInfo.node().dataNode()) { // only add data nodes to connect to
                             newNodes.add(nodeInfo.node());
+			                addTransportAddress(nodeInfo.node().getAddress());
                         }
-			addTransportAddress(nodeInfo.node().getAddress());
                     }
                 }
             }
@@ -284,7 +286,8 @@ public class TransportClientNodesService extends AbstractComponent {
                     transportService.connectToNode(node);
                 } catch (Exception e) {
                     it.remove();
-                    logger.debug("Failed to connect to discovered node [" + node + "]", e);
+                    logger.debug("Failed to connect to discovered node [" + node + "]", e);   
+                    removeTransportAddress(node.getAddress());
                 }
             }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();

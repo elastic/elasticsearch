@@ -66,8 +66,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         Settings settings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.zen.ping_timeout", "500ms")
-                .put("discovery.initial_state_timeout", "1s")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
                 .put("gateway.type", "local")
                 .put("index.number_of_shards", 1)
                 .build();
@@ -82,7 +82,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> start second node, cluster should be formed");
         startNode("node2", settings);
 
-        Thread.sleep(3000);
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
@@ -120,7 +121,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(masterNodeName, settings);
 
-        Thread.sleep(3000);
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
@@ -155,7 +157,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(nonMasterNodeName, settings);
 
-        Thread.sleep(3000);
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
@@ -189,8 +192,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         Settings settings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 3)
-                .put("discovery.zen.ping_timeout", "500ms")
-                .put("discovery.initial_state_timeout", "1s")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
                 .put("gateway.type", "local")
                 .build();
 
@@ -199,6 +202,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         startNode("node2", settings);
 
         Thread.sleep(500);
+
         ClusterState state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
         state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
@@ -208,7 +212,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         startNode("node3", settings);
         startNode("node4", settings);
 
-        Thread.sleep(1000);
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
         assertThat(state.nodes().size(), equalTo(4));
@@ -241,7 +246,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             closeNode(nodeToShutdown);
         }
 
-        Thread.sleep(3000);
+        Thread.sleep(500);
 
         String lastNonMasterNodeUp = nonMasterNodes.removeLast();
         logger.info("--> verify that there is no master anymore on remaining nodes");
@@ -255,7 +260,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             startNode(nodeToShutdown, settings);
         }
 
-        Thread.sleep(1000);
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();

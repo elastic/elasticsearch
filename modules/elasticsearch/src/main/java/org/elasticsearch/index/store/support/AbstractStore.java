@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreStats;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -125,8 +126,12 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         deleteContent();
     }
 
+    @Override public StoreStats stats() throws IOException {
+        return new StoreStats(Directories.estimateSize(directory()));
+    }
+
     @Override public ByteSizeValue estimateSize() throws IOException {
-        return Directories.estimateSize(directory());
+        return new ByteSizeValue(Directories.estimateSize(directory()));
     }
 
     @Override public void renameFile(String from, String to) throws IOException {

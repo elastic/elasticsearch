@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,24 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.service;
+package org.elasticsearch.index.indexing;
 
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
- * @author kimchy (shay.banon)
  */
-public abstract class OperationListener {
+public class ShardIndexingModule extends AbstractModule {
 
-    public Engine.Create beforeCreate(Engine.Create create) {
-        return create;
-    }
-
-    public Engine.Index beforeIndex(Engine.Index index) {
-        return index;
-    }
-
-    public Engine.Delete beforeDelete(Engine.Delete delete) {
-        return delete;
+    @Override protected void configure() {
+        bind(ShardIndexingService.class).asEagerSingleton();
     }
 }

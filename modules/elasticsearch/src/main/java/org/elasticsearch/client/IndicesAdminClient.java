@@ -53,6 +53,8 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
@@ -75,6 +77,7 @@ import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBui
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -109,6 +112,21 @@ public interface IndicesAdminClient {
      * Indices exists.
      */
     IndicesExistsRequestBuilder prepareExists(String... indices);
+
+    /**
+     * Indices stats.
+     */
+    ActionFuture<IndicesStats> stats(IndicesStatsRequest request);
+
+    /**
+     * Indices stats.
+     */
+    void stats(IndicesStatsRequest request, ActionListener<IndicesStats> listener);
+
+    /**
+     * Indices stats.
+     */
+    IndicesStatsRequestBuilder prepareStats(String... indices);
 
     /**
      * The status of one or more indices.

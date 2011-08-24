@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -35,7 +34,7 @@ public class Directories {
     /**
      * Returns the estimated size of a {@link Directory}.
      */
-    public static ByteSizeValue estimateSize(Directory directory) throws IOException {
+    public static long estimateSize(Directory directory) throws IOException {
         long estimatedSize = 0;
         String[] files = directory.listAll();
         for (String file : files) {
@@ -45,7 +44,7 @@ public class Directories {
                 // ignore, the file is not there no more
             }
         }
-        return new ByteSizeValue(estimatedSize);
+        return estimatedSize;
     }
 
     private Directories() {

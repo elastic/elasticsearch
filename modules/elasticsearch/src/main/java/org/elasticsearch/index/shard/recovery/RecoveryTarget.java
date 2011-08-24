@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard.recovery;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -246,6 +247,11 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof IndexShardClosedException) {
+                listener.onIgnoreRecovery(true, "source shard is closed (" + request.sourceNode() + ")");
+                return;
+            }
+
+            if (cause instanceof AlreadyClosedException) {
                 listener.onIgnoreRecovery(true, "source shard is closed (" + request.sourceNode() + ")");
                 return;
             }

@@ -64,6 +64,8 @@ public interface Store extends IndexShardComponent {
      */
     void fullDelete() throws IOException;
 
+    StoreStats stats() throws IOException;
+
     /**
      * The estimated size this store is using.
      */

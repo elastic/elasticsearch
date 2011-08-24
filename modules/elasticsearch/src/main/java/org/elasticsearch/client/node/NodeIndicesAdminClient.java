@@ -69,6 +69,9 @@ import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsA
 import org.elasticsearch.action.admin.indices.settings.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
@@ -92,6 +95,8 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
     private final ThreadPool threadPool;
 
     private final TransportIndicesExistsAction indicesExistsAction;
+
+    private final TransportIndicesStatsAction indicesStatsAction;
 
     private final TransportIndicesStatusAction indicesStatusAction;
 
@@ -129,7 +134,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportDeleteIndexTemplateAction deleteIndexTemplateAction;
 
-    @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesExistsAction indicesExistsAction, TransportIndicesStatusAction indicesStatusAction, TransportIndicesSegmentsAction indicesSegmentsAction,
+    @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesExistsAction indicesExistsAction, TransportIndicesStatsAction indicesStatsAction, TransportIndicesStatusAction indicesStatusAction, TransportIndicesSegmentsAction indicesSegmentsAction,
                                           TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                           TransportCloseIndexAction closeIndexAction, TransportOpenIndexAction openIndexAction,
                                           TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
@@ -139,6 +144,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
                                           TransportPutIndexTemplateAction putIndexTemplateAction, TransportDeleteIndexTemplateAction deleteIndexTemplateAction) {
         this.threadPool = threadPool;
         this.indicesExistsAction = indicesExistsAction;
+        this.indicesStatsAction = indicesStatsAction;
         this.indicesStatusAction = indicesStatusAction;
         this.indicesSegmentsAction = indicesSegmentsAction;
         this.createIndexAction = createIndexAction;
@@ -169,6 +175,14 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @Override public void exists(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener) {
         indicesExistsAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<IndicesStats> stats(IndicesStatsRequest request) {
+        return indicesStatsAction.execute(request);
+    }
+
+    @Override public void stats(IndicesStatsRequest request, ActionListener<IndicesStats> lister) {
+        indicesStatsAction.execute(request, lister);
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request) {

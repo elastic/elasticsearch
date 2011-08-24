@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -70,13 +72,17 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     @Override protected PrimaryResponse<ShardDeleteByQueryResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        indexShard(shardRequest).deleteByQuery(request.querySource(), request.filteringAliases(), request.types());
+        IndexShard indexShard = indexShard(shardRequest);
+        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types());
+        indexShard.deleteByQuery(deleteByQuery);
         return new PrimaryResponse<ShardDeleteByQueryResponse>(new ShardDeleteByQueryResponse(), null);
     }
 
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        indexShard(shardRequest).deleteByQuery(request.querySource(), request.filteringAliases(), request.types());
+        IndexShard indexShard = indexShard(shardRequest);
+        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types());
+        indexShard.deleteByQuery(deleteByQuery);
     }
 
     @Override protected ShardIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {

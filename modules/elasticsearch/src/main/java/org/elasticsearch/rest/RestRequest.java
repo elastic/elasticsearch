@@ -82,7 +82,7 @@ public interface RestRequest extends ToXContent.Params {
 
     boolean paramAsBoolean(String key, boolean defaultValue);
 
-    Boolean paramAsBoolean(String key, Boolean defaultValue);
+    Boolean paramAsBooleanOptional(String key, Boolean defaultValue);
 
     TimeValue paramAsTime(String key, TimeValue defaultValue);
 

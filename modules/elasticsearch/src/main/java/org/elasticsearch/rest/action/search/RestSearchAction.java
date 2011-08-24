@@ -178,8 +178,8 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
 
-        searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
-        searchSourceBuilder.version(request.paramAsBoolean("version", null));
+        searchSourceBuilder.explain(request.paramAsBooleanOptional("explain", null));
+        searchSourceBuilder.version(request.paramAsBooleanOptional("version", null));
 
         String sField = request.param("fields");
         if (sField != null) {

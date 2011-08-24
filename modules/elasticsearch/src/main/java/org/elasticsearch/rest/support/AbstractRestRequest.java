@@ -78,7 +78,7 @@ public abstract class AbstractRestRequest implements RestRequest {
         return Booleans.parseBoolean(param(key), defaultValue);
     }
 
-    @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+    @Override public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
             return defaultValue;

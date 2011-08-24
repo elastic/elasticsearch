@@ -26,11 +26,16 @@ import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.indexing.IndexingStats;
+import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.store.StoreStats;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,11 +43,17 @@ import org.elasticsearch.index.shard.IndexShardState;
 @ThreadSafe
 public interface IndexShard extends IndexShardComponent {
 
-    void addListener(OperationListener listener);
-
-    void removeListener(OperationListener listener);
+    ShardIndexingService indexingService();
 
     ShardRouting routingEntry();
+
+    DocsStats docStats();
+
+    StoreStats storeStats();
+
+    IndexingStats indexingStats(String... types);
+
+    MergeStats mergeStats();
 
     RefreshStats refreshStats();
 
@@ -62,7 +73,9 @@ public interface IndexShard extends IndexShardComponent {
 
     void delete(Engine.Delete delete) throws ElasticSearchException;
 
-    void deleteByQuery(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+    Engine.DeleteByQuery prepareDeleteByQuery(byte[] querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+
+    void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException;
 
     Engine.GetResult get(Engine.Get get) throws ElasticSearchException;
 

@@ -34,6 +34,9 @@ public class IndicesStatusRequestBuilder extends BaseIndicesRequestBuilder<Indic
         super(indicesClient, new IndicesStatusRequest());
     }
 
+    /**
+     * Sets specific indices to return the status for.
+     */
     public IndicesStatusRequestBuilder setIndices(String... indices) {
         request.indices(indices);
         return this;

@@ -317,6 +317,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
+        private long startTime;
+        private long endTime;
+
         public Create(DocumentMapper docMapper, Term uid, ParsedDocument doc) {
             this.docMapper = docMapper;
             this.uid = uid;
@@ -397,6 +400,31 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public UidField uidField() {
             return (UidField) doc.rootDoc().getFieldable(UidFieldMapper.NAME);
         }
+
+
+        public Create startTime(long startTime) {
+            this.startTime = startTime;
+            return this;
+        }
+
+        /**
+         * Returns operation start time in nanoseconds.
+         */
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public Create endTime(long endTime) {
+            this.endTime = endTime;
+            return this;
+        }
+
+        /**
+         * Returns operation end time in nanoseconds.
+         */
+        public long endTime() {
+            return this.endTime;
+        }
     }
 
     static class Index implements IndexingOperation {
@@ -406,6 +434,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private long version;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
+
+        private long startTime;
+        private long endTime;
 
         public Index(DocumentMapper docMapper, Term uid, ParsedDocument doc) {
             this.docMapper = docMapper;
@@ -487,6 +518,30 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public UidField uidField() {
             return (UidField) doc.rootDoc().getFieldable(UidFieldMapper.NAME);
         }
+
+        public Index startTime(long startTime) {
+            this.startTime = startTime;
+            return this;
+        }
+
+        /**
+         * Returns operation start time in nanoseconds.
+         */
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public Index endTime(long endTime) {
+            this.endTime = endTime;
+            return this;
+        }
+
+        /**
+         * Returns operation end time in nanoseconds.
+         */
+        public long endTime() {
+            return this.endTime;
+        }
     }
 
     static class Delete implements Operation {
@@ -497,6 +552,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
         private boolean notFound;
+
+        private long startTime;
+        private long endTime;
 
         public Delete(String type, String id, Term uid) {
             this.type = type;
@@ -555,6 +613,31 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.notFound = notFound;
             return this;
         }
+
+
+        public Delete startTime(long startTime) {
+            this.startTime = startTime;
+            return this;
+        }
+
+        /**
+         * Returns operation start time in nanoseconds.
+         */
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public Delete endTime(long endTime) {
+            this.endTime = endTime;
+            return this;
+        }
+
+        /**
+         * Returns operation end time in nanoseconds.
+         */
+        public long endTime() {
+            return this.endTime;
+        }
     }
 
     static class DeleteByQuery {
@@ -563,6 +646,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
+
+        private long startTime;
+        private long endTime;
 
         public DeleteByQuery(Query query, byte[] source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
             this.query = query;
@@ -590,6 +676,30 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Filter aliasFilter() {
             return aliasFilter;
+        }
+
+        public DeleteByQuery startTime(long startTime) {
+            this.startTime = startTime;
+            return this;
+        }
+
+        /**
+         * Returns operation start time in nanoseconds.
+         */
+        public long startTime() {
+            return this.startTime;
+        }
+
+        public DeleteByQuery endTime(long endTime) {
+            this.endTime = endTime;
+            return this;
+        }
+
+        /**
+         * Returns operation end time in nanoseconds.
+         */
+        public long endTime() {
+            return this.endTime;
         }
     }
 

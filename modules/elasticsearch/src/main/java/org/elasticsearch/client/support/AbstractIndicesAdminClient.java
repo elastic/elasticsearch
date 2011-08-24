@@ -35,6 +35,7 @@ import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBui
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -95,6 +96,10 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
 
     @Override public RefreshRequestBuilder prepareRefresh(String... indices) {
         return new RefreshRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public IndicesStatsRequestBuilder prepareStats(String... indices) {
+        return new IndicesStatsRequestBuilder(this).setIndices(indices);
     }
 
     @Override public IndicesStatusRequestBuilder prepareStatus(String... indices) {

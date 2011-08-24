@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.get;
+package org.elasticsearch.rest.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,54 +32,49 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.XContentRestResponse;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
- * @author kimchy (Shay Banon)
  */
-public class RestGetAction extends BaseRestHandler {
+public class RestIndicesStatsAction extends BaseRestHandler {
 
-    @Inject public RestGetAction(Settings settings, Client client, RestController controller) {
+    @Inject public RestIndicesStatsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/{index}/{type}/{id}", this);
+        controller.registerHandler(GET, "/_stats", this);
+        controller.registerHandler(GET, "/{index}/_stats", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
-        // no need to have a threaded listener since we just send back a response
-        getRequest.listenerThreaded(false);
-        // if we have a local operation, execute it on a thread since we don't spawn
-        getRequest.operationThreaded(true);
-        getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.routing(request.param("routing"));
-        getRequest.preference(request.param("preference"));
-        getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
-
-        String sField = request.param("fields");
-        if (sField != null) {
-            String[] sFields = Strings.splitStringByCommaToArray(sField);
-            if (sFields != null) {
-                getRequest.fields(sFields);
-            }
+        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.indices(splitIndices(request.param("index")));
+        indicesStatsRequest.types(splitTypes(request.param("types")));
+        boolean clear = request.paramAsBoolean("clear", false);
+        if (clear) {
+            indicesStatsRequest.clear();
         }
+        indicesStatsRequest.docs(request.paramAsBoolean("docs", indicesStatsRequest.docs()));
+        indicesStatsRequest.store(request.paramAsBoolean("store", indicesStatsRequest.store()));
+        indicesStatsRequest.indexing(request.paramAsBoolean("indexing", indicesStatsRequest.indexing()));
+        indicesStatsRequest.merge(request.paramAsBoolean("merge", indicesStatsRequest.merge()));
+        indicesStatsRequest.refresh(request.paramAsBoolean("refresh", indicesStatsRequest.refresh()));
+        indicesStatsRequest.flush(request.paramAsBoolean("flush", indicesStatsRequest.flush()));
 
-
-        client.get(getRequest, new ActionListener<GetResponse>() {
-            @Override public void onResponse(GetResponse response) {
-
+        client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+            @Override public void onResponse(IndicesStats response) {
                 try {
-                    XContentBuilder builder = restContentBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    builder.startObject();
+                    builder.field("ok", true);
+                    buildBroadcastShardsHeader(builder, response);
                     response.toXContent(builder, request);
-                    if (!response.exists()) {
-                        channel.sendResponse(new XContentRestResponse(request, NOT_FOUND, builder));
-                    } else {
-                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                    }
+                    builder.endObject();
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

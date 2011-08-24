@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,45 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.common.metrics;
+package org.elasticsearch.index.indexing;
 
-import org.elasticsearch.common.util.concurrent.jsr166e.LongAdder;
+import org.elasticsearch.index.engine.Engine;
 
 /**
+ * @author kimchy (shay.banon)
  */
-public class MeanMetric implements Metric {
+public abstract class IndexingOperationListener {
 
-    private final LongAdder counter = new LongAdder();
-    private final LongAdder sum = new LongAdder();
-
-    public void inc(long n) {
-        counter.increment();
-        sum.add(n);
+    public Engine.Create preCreate(Engine.Create create) {
+        return create;
     }
 
-    public void dec(long n) {
-        counter.decrement();
-        sum.add(-n);
+    public void postCreate(Engine.Create create) {
+
     }
 
-    public long count() {
-        return counter.sum();
+    public Engine.Index preIndex(Engine.Index index) {
+        return index;
     }
 
-    public long sum() {
-        return sum.sum();
+    public void postIndex(Engine.Index index) {
+
     }
 
-    public double mean() {
-        long count = count();
-        if (count > 0) {
-            return sum.sum() / (double) count;
-        }
-        return 0.0;
+    public Engine.Delete preDelete(Engine.Delete delete) {
+        return delete;
     }
 
-    public void clear() {
-        counter.reset();
-        sum.reset();
+    public void postDelete(Engine.Delete delete) {
+
+    }
+
+    public Engine.DeleteByQuery preDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
+        return deleteByQuery;
+    }
+
+    public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
+
     }
 }

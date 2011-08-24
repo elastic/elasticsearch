@@ -38,7 +38,7 @@ public interface ToXContent {
 
         boolean paramAsBoolean(String key, boolean defaultValue);
 
-        Boolean paramAsBoolean(String key, Boolean defaultValue);
+        Boolean paramAsBooleanOptional(String key, Boolean defaultValue);
     }
 
     public static final Params EMPTY_PARAMS = new Params() {
@@ -54,7 +54,7 @@ public interface ToXContent {
             return defaultValue;
         }
 
-        @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+        @Override public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
             return defaultValue;
         }
     };
@@ -83,7 +83,7 @@ public interface ToXContent {
             return Booleans.parseBoolean(param(key), defaultValue);
         }
 
-        @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+        @Override public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
             String sValue = param(key);
             if (sValue == null) {
                 return defaultValue;

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -43,7 +44,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.OperationListener;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 
@@ -84,7 +85,7 @@ public class PercolatorService extends AbstractIndexComponent {
             if (percolatorIndexService != null) {
                 for (IndexShard indexShard : percolatorIndexService) {
                     try {
-                        indexShard.addListener(realTimePercolatorOperationListener);
+                        indexShard.indexingService().addListener(realTimePercolatorOperationListener);
                     } catch (Exception e) {
                         // ignore
                     }
@@ -101,7 +102,7 @@ public class PercolatorService extends AbstractIndexComponent {
         if (percolatorIndexService != null) {
             for (IndexShard indexShard : percolatorIndexService) {
                 try {
-                    indexShard.removeListener(realTimePercolatorOperationListener);
+                    indexShard.indexingService().removeListener(realTimePercolatorOperationListener);
                 } catch (Exception e) {
                     // ignore
                 }
@@ -197,7 +198,7 @@ public class PercolatorService extends AbstractIndexComponent {
             // add a listener that will update based on changes done to the _percolate index
             // the relevant indices with loaded queries
             if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
-                indexShard.addListener(realTimePercolatorOperationListener);
+                ((InternalIndexShard) indexShard).indexingService().addListener(realTimePercolatorOperationListener);
             }
         }
 
@@ -250,23 +251,23 @@ public class PercolatorService extends AbstractIndexComponent {
         }
     }
 
-    class RealTimePercolatorOperationListener extends OperationListener {
+    class RealTimePercolatorOperationListener extends IndexingOperationListener {
 
-        @Override public Engine.Create beforeCreate(Engine.Create create) {
+        @Override public Engine.Create preCreate(Engine.Create create) {
             if (create.type().equals(index().name())) {
                 percolator.addQuery(create.id(), create.source());
             }
             return create;
         }
 
-        @Override public Engine.Index beforeIndex(Engine.Index index) {
+        @Override public Engine.Index preIndex(Engine.Index index) {
             if (index.type().equals(index().name())) {
                 percolator.addQuery(index.id(), index.source());
             }
             return index;
         }
 
-        @Override public Engine.Delete beforeDelete(Engine.Delete delete) {
+        @Override public Engine.Delete preDelete(Engine.Delete delete) {
             if (delete.type().equals(index().name())) {
                 percolator.removeQuery(delete.id());
             }

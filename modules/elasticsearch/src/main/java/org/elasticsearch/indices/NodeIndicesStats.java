@@ -22,14 +22,16 @@ package org.elasticsearch.indices;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -41,9 +43,11 @@ import java.io.Serializable;
  */
 public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
-    private ByteSizeValue storeSize;
+    private StoreStats storeStats;
 
-    private long numDocs;
+    private DocsStats docsStats;
+
+    private IndexingStats indexingStats;
 
     private CacheStats cacheStats;
 
@@ -56,41 +60,41 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(ByteSizeValue storeSize, long numDocs, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
-        this.storeSize = storeSize;
-        this.numDocs = numDocs;
+    public NodeIndicesStats(StoreStats storeStats, DocsStats docsStats, IndexingStats indexingStats, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
+        this.storeStats = storeStats;
+        this.docsStats = docsStats;
+        this.indexingStats = indexingStats;
         this.cacheStats = cacheStats;
         this.mergeStats = mergeStats;
         this.refreshStats = refreshStats;
         this.flushStats = flushStats;
     }
 
-    /**
-     * The size of the index storage taken on the node.
-     */
-    public ByteSizeValue storeSize() {
-        return this.storeSize;
+    public StoreStats store() {
+        return this.storeStats;
     }
 
     /**
      * The size of the index storage taken on the node.
      */
-    public ByteSizeValue getStoreSize() {
-        return storeSize;
+    public StoreStats getStore() {
+        return storeStats;
     }
 
-    /**
-     * The number of docs on the node (an aggregation of the number of docs of all the shards allocated on the node).
-     */
-    public long numDocs() {
-        return numDocs;
+    public DocsStats docs() {
+        return this.docsStats;
     }
 
-    /**
-     * The number of docs on the node (an aggregation of the number of docs of all the shards allocated on the node).
-     */
-    public long getNumDocs() {
-        return numDocs();
+    public DocsStats getDocs() {
+        return this.docsStats;
+    }
+
+    public IndexingStats indexing() {
+        return indexingStats;
+    }
+
+    public IndexingStats getIndexing() {
+        return indexing();
     }
 
     public CacheStats cache() {
@@ -132,8 +136,9 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        storeSize = ByteSizeValue.readBytesSizeValue(in);
-        numDocs = in.readVLong();
+        storeStats = StoreStats.readStoreStats(in);
+        docsStats = DocsStats.readDocStats(in);
+        indexingStats = IndexingStats.readIndexingStats(in);
         cacheStats = CacheStats.readCacheStats(in);
         mergeStats = MergeStats.readMergeStats(in);
         refreshStats = RefreshStats.readRefreshStats(in);
@@ -141,8 +146,9 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        storeSize.writeTo(out);
-        out.writeVLong(numDocs);
+        storeStats.writeTo(out);
+        docsStats.writeTo(out);
+        indexingStats.writeTo(out);
         cacheStats.writeTo(out);
         mergeStats.writeTo(out);
         refreshStats.writeTo(out);
@@ -152,13 +158,9 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
 
-        builder.field(Fields.SIZE, storeSize.toString());
-        builder.field(Fields.SIZE_IN_BYTES, storeSize.bytes());
-
-        builder.startObject(Fields.DOCS);
-        builder.field(Fields.NUM_DOCS, numDocs);
-        builder.endObject();
-
+        storeStats.toXContent(builder, params);
+        docsStats.toXContent(builder, params);
+        indexingStats.toXContent(builder, params);
         cacheStats.toXContent(builder, params);
         mergeStats.toXContent(builder, params);
         refreshStats.toXContent(builder, params);
@@ -170,11 +172,5 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     static final class Fields {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-
-        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
-        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
     }
 }

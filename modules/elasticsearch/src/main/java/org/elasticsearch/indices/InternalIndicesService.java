@@ -33,7 +33,6 @@ import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.NodeEnvironment;
@@ -50,12 +49,12 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
+import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
@@ -67,18 +66,17 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -172,35 +170,25 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override public NodeIndicesStats stats() {
-        long storeTotalSize = 0;
-        long numberOfDocs = 0;
+        DocsStats docsStats = new DocsStats();
+        StoreStats storeStats = new StoreStats();
+        IndexingStats indexingStats = new IndexingStats();
         CacheStats cacheStats = new CacheStats();
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
         FlushStats flushStats = new FlushStats();
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
-                try {
-                    storeTotalSize += ((InternalIndexShard) indexShard).store().estimateSize().bytes();
-                } catch (IOException e) {
-                    // ignore
-                }
-
-                if (indexShard.state() == IndexShardState.STARTED) {
-                    Engine.Searcher searcher = indexShard.searcher();
-                    try {
-                        numberOfDocs += searcher.reader().numDocs();
-                    } finally {
-                        searcher.release();
-                    }
-                }
-                mergeStats.add(((InternalIndexShard) indexShard).mergeScheduler().stats());
+                storeStats.add(indexShard.storeStats());
+                docsStats.add(indexShard.docStats());
+                indexingStats.add(indexShard.indexingStats());
+                mergeStats.add(indexShard.mergeStats());
                 refreshStats.add(indexShard.refreshStats());
                 flushStats.add(indexShard.flushStats());
             }
             cacheStats.add(indexService.cache().stats());
         }
-        return new NodeIndicesStats(new ByteSizeValue(storeTotalSize), numberOfDocs, cacheStats, mergeStats, refreshStats, flushStats);
+        return new NodeIndicesStats(storeStats, docsStats, indexingStats, cacheStats, mergeStats, refreshStats, flushStats);
     }
 
     /**

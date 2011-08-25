@@ -56,14 +56,14 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         public static final String NAME = "_timestamp";
         public static final Field.Store STORE = Field.Store.NO;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final boolean REQUIRED = false;
+        public static final boolean ENABLED = false;
         public static final String PATH = null;
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TimestampFieldMapper> {
 
-        private boolean required = Defaults.REQUIRED;
+        private boolean enabled = Defaults.ENABLED;
         private String path = Defaults.PATH;
         private FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
@@ -73,8 +73,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             index = Defaults.INDEX;
         }
 
-        public Builder required(boolean required) {
-            this.required = required;
+        public Builder enabled(boolean enabled) {
+            this.enabled = enabled;
             return builder;
         }
 
@@ -89,7 +89,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         }
 
         @Override public TimestampFieldMapper build(BuilderContext context) {
-            return new TimestampFieldMapper(store, index, required, path, dateTimeFormatter);
+            return new TimestampFieldMapper(store, index, enabled, path, dateTimeFormatter);
         }
     }
 
@@ -100,8 +100,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("required")) {
-                    builder.required(nodeBooleanValue(fieldNode));
+                if (fieldName.equals("enabled")) {
+                    builder.enabled(nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
                 } else if (fieldName.equals("format")) {
@@ -113,31 +113,27 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
 
-    private boolean required;
+    private boolean enabled;
 
     private final String path;
 
     private final FormatDateTimeFormatter dateTimeFormatter;
 
     public TimestampFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.REQUIRED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER);
     }
 
-    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean required, String path, FormatDateTimeFormatter dateTimeFormatter) {
+    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path, FormatDateTimeFormatter dateTimeFormatter) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS,
                 Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE);
-        this.required = required;
+        this.enabled = enabled;
         this.path = path;
         this.dateTimeFormatter = dateTimeFormatter;
     }
 
-    public void markAsRequired() {
-        this.required = true;
-    }
-
-    public boolean required() {
-        return this.required;
+    public boolean enabled() {
+        return this.enabled;
     }
 
     public String path() {
@@ -182,7 +178,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
-        if (context.sourceToParse().timestamp() != -1) {
+        if (enabled) {
             long timestamp = context.sourceToParse().timestamp();
                 if (!indexed() && !stored()) {
                     context.ignoredValue(names.indexName(), String.valueOf(timestamp));
@@ -199,7 +195,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (index == Defaults.INDEX && store == Defaults.STORE && required == Defaults.REQUIRED && path == Defaults.PATH
+        if (index == Defaults.INDEX && store == Defaults.STORE && enabled == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
             return builder;
         }
@@ -210,8 +206,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (store != Defaults.STORE) {
             builder.field("store", store.name().toLowerCase());
         }
-        if (required != Defaults.REQUIRED) {
-            builder.field("required", required);
+        if (enabled != Defaults.ENABLED) {
+            builder.field("enabled", enabled);
         }
         if (path != Defaults.PATH) {
             builder.field("path", path);

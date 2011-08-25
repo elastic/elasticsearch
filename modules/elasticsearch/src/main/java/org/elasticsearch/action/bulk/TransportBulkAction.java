@@ -162,10 +162,15 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                // handle routing
+                // handle routing & timestamp
+                boolean needToParseExternalTimestamp = indexRequest.timestamp() != null;
                 MappingMetaData mappingMd = clusterState.metaData().index(indexRequest.index()).mapping(indexRequest.type());
                 if (mappingMd != null) {
                     try {
+                        if (needToParseExternalTimestamp) {
+                            indexRequest.parseTimestamp(indexRequest.timestamp(), mappingMd.tsDateTimeFormatter());
+                            needToParseExternalTimestamp = false;
+                        }
                         indexRequest.processRoutingAndTimestamp(mappingMd);
                     } catch (ElasticSearchException e) {
                         responses[i] = new BulkItemResponse(i, indexRequest.opType().toString().toLowerCase(),
@@ -173,13 +178,16 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                         continue;
                     }
                 }
-                // The timestamp is missing but required either by mapping or by default. It is generated here in case
-                // there is no mapping and the default configuration for TimestampFieldMapper is set to required.
-                if (indexRequest.timestamp() == null &&
-                        (mappingMd != null && mappingMd.timestamp().required() || TimestampFieldMapper.Defaults.REQUIRED)) {
+
+                // Try to parse external timestamp if necessary with no mapping
+                if (needToParseExternalTimestamp) {
+                    indexRequest.parseTimestamp(indexRequest.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+                }
+                // The timestamp has not been set neither externally nor in the doc so we generate it
+                if (indexRequest.timestamp() == null) {
                     indexRequest.generateTimestamp();
                 }
-
+                
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {

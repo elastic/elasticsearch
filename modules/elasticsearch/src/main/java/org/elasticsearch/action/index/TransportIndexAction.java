@@ -126,20 +126,28 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        boolean needToParseExternalTimestamp = request.timestamp() != null;
         MetaData metaData = clusterService.state().metaData();
         request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
         request.index(metaData.concreteIndex(request.index()));
-        MappingMetaData mappingMd = null;
         if (metaData.hasIndex(request.index())) {
-            mappingMd = metaData.index(request.index()).mapping(request.type());
+            MappingMetaData mappingMd = metaData.index(request.index()).mapping(request.type());
             if (mappingMd != null) {
+                // Try to parse external timestamp if necessary with a mapping
+                if (needToParseExternalTimestamp) {
+                    request.parseTimestamp(request.timestamp(), mappingMd.tsDateTimeFormatter());
+                    needToParseExternalTimestamp = false;
+                }
                 request.processRoutingAndTimestamp(mappingMd);
             }
         }
-        // The timestamp is missing but required either by mapping or by default. It is generated here in case
-        // there is no mapping and the default configuration for TimestampFieldMapper is set to required.
-        if (request.timestamp() == null &&
-                (mappingMd != null && mappingMd.timestamp().required() || TimestampFieldMapper.Defaults.REQUIRED)) {
+
+        // Try to parse external timestamp if necessary with no mapping
+        if (needToParseExternalTimestamp) {
+            request.parseTimestamp(request.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        }
+        // The timestamp has not been set neither externally nor in the doc so we generate it
+        if (request.timestamp() == null) {
             request.generateTimestamp();
         }
         super.doExecute(request, listener);
@@ -187,7 +195,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         IndexShard indexShard = indexShard(shardRequest);
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent()).timestamp(request.getFinalTimestamp());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.getParsedTimestamp());
         long version;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
@@ -242,7 +250,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent()).timestamp(request.getFinalTimestamp());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.getParsedTimestamp());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())

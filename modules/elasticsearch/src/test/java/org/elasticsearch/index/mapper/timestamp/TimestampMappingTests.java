@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class TimestampMappingTests {
 
-    @Test public void testSimple() throws Exception {
+    @Test public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] source = XContentFactory.jsonBuilder()
@@ -46,14 +46,12 @@ public class TimestampMappingTests {
                 .copiedBytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").timestamp(1));
 
-        assertThat(doc.rootDoc().getFieldable("_timestamp").isStored(), equalTo(false));
-        assertThat(doc.rootDoc().getFieldable("_timestamp").isIndexed(), equalTo(true));
-        assertThat(doc.rootDoc().getFieldable("_timestamp").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getFieldable("_timestamp"), equalTo(null));
     }
 
-    @Test public void testStoredEnabled() throws Exception {
+    @Test public void testEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("store", true).endObject()
+                .startObject("_timestamp").field("enabled", "yes").field("store", "yes").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         byte[] source = XContentFactory.jsonBuilder()
@@ -71,7 +69,7 @@ public class TimestampMappingTests {
     @Test public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().required(), equalTo(TimestampFieldMapper.Defaults.REQUIRED));
+        assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED));
         assertThat(docMapper.timestampFieldMapper().store(), equalTo(TimestampFieldMapper.Defaults.STORE));
         assertThat(docMapper.timestampFieldMapper().index(), equalTo(TimestampFieldMapper.Defaults.INDEX));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo(null));
@@ -82,12 +80,12 @@ public class TimestampMappingTests {
     @Test public void testSetValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                .field("required", "yes").field("store", "yes").field("index", "no")
+                .field("enabled", "yes").field("store", "yes").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().required(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.timestampFieldMapper().store(), equalTo(Field.Store.YES));
         assertThat(docMapper.timestampFieldMapper().index(), equalTo(Field.Index.NO));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));

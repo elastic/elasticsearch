@@ -25,6 +25,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -81,7 +85,7 @@ public class MappingMetaData {
 
         public static final Timestamp EMPTY = new Timestamp(false, null, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT);
 
-        private final boolean required;
+        private final boolean enabled;
 
         private final String path;
 
@@ -89,8 +93,8 @@ public class MappingMetaData {
 
         private final String[] pathElements;
 
-        public Timestamp(boolean required, String path, String format) {
-            this.required = required;
+        public Timestamp(boolean enabled, String path, String format) {
+            this.enabled = enabled;
             this.path = path;
             if (path == null) {
                 pathElements = Strings.EMPTY_ARRAY;
@@ -100,8 +104,8 @@ public class MappingMetaData {
             this.format = format;
         }
 
-        public boolean required() {
-            return required;
+        public boolean enabled() {
+            return enabled;
         }
 
         public boolean hasPath() {
@@ -127,12 +131,14 @@ public class MappingMetaData {
 
     private final Routing routing;
     private final Timestamp timestamp;
+    private final FormatDateTimeFormatter tsDateTimeFormatter;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
-        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().required(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
+        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
+        this.tsDateTimeFormatter = docMapper.timestampFieldMapper().dateTimeFormatter();
     }
 
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
@@ -160,25 +166,26 @@ public class MappingMetaData {
             this.routing = Routing.EMPTY;
         }
         if (withoutType.containsKey("_timestamp")) {
-            boolean required = false;
+            boolean enabled = false;
             String path = null;
             String format = TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT;
             Map<String, Object> timestampNode = (Map<String, Object>) withoutType.get("_timestamp");
             for (Map.Entry<String, Object> entry : timestampNode.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("required")) {
-                    required = nodeBooleanValue(fieldNode);
+                if (fieldName.equals("enabled")) {
+                    enabled = nodeBooleanValue(fieldNode);
                 } else if (fieldName.equals("path")) {
                     path = fieldNode.toString();
                 } else if (fieldName.equals("format")) {
                     format = fieldNode.toString();
                 }
             }
-            this.timestamp = new Timestamp(required, path, format);
+            this.timestamp = new Timestamp(enabled, path, format);
         } else {
             this.timestamp = Timestamp.EMPTY;
         }
+        this.tsDateTimeFormatter = Joda.forPattern(timestamp.format());
     }
 
     MappingMetaData(String type, CompressedString source, Routing routing, Timestamp timestamp) {
@@ -186,6 +193,7 @@ public class MappingMetaData {
         this.source = source;
         this.routing = routing;
         this.timestamp = timestamp;
+        this.tsDateTimeFormatter = Joda.forPattern(timestamp.format());
     }
 
     public String type() {
@@ -202,6 +210,10 @@ public class MappingMetaData {
 
     public Timestamp timestamp() {
         return this.timestamp;
+    }
+
+    public FormatDateTimeFormatter tsDateTimeFormatter() {
+        return this.tsDateTimeFormatter;
     }
 
     public Tuple<String, String> parseRoutingAndTimestamp(XContentParser parser,
@@ -299,7 +311,7 @@ public class MappingMetaData {
             out.writeBoolean(false);
         }
         // timestamp
-        out.writeBoolean(mappingMd.timestamp().required());
+        out.writeBoolean(mappingMd.timestamp().enabled());
         if (mappingMd.timestamp().hasPath()) {
             out.writeBoolean(true);
             out.writeUTF(mappingMd.timestamp().path());

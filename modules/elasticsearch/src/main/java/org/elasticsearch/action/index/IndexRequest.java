@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
@@ -290,7 +291,24 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.timestamp;
     }
 
-    public long getFinalTimestamp() {
+    public void parseTimestamp(String timestampToParse, FormatDateTimeFormatter dateTimeFormatter) {
+        long ts = -1;
+        try {
+            ts = dateTimeFormatter.parser().parseMillis(timestampToParse);
+        } catch (RuntimeException e) {
+            try {
+                ts = Long.parseLong(timestampToParse);
+                if (ts < 0) {
+                    throw new NumberFormatException("a timestamp should not be negative");
+                }
+            } catch (NumberFormatException e1) {
+                throw new TimestampParsingException(timestampToParse);
+            }
+        }
+        timestamp = String.valueOf(ts);
+    }
+
+    public long getParsedTimestamp() {
         if (timestamp != null) {
             try {
                 return Long.parseLong(timestamp);
@@ -620,24 +638,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (mappingMd.routing().required() && routing == null) {
             throw new RoutingMissingException(index, type, id);
         }
-        // Process timestamp here. We should maybe test an external timestamp before? Otherwise it won't take the timestamp
-        // defined in source if necessary?
+        // Process parsed timestamp here
         if (timestamp != null) {
-            long ts = -1;
-            FormatDateTimeFormatter dateTimeFormatter = Joda.forPattern(mappingMd.timestamp().format());
-            try {
-                ts = dateTimeFormatter.parser().parseMillis(timestamp);
-            } catch (RuntimeException e) {
-                try {
-                ts = Long.parseLong(timestamp);
-                } catch (NumberFormatException e1) {
-                    // What we do in case of error? Do we still generate a timestamp if required or raise an exception?
-                    timestamp = null;
-                }
-            }
-            if (timestamp != null) {
-                timestamp = String.valueOf(ts);
-            }
+            parseTimestamp(timestamp, mappingMd.tsDateTimeFormatter());
         }
     }
 

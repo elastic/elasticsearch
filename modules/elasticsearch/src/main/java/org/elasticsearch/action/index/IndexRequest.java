@@ -291,18 +291,15 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.timestamp;
     }
 
-    public void parseTimestamp(String timestampToParse, FormatDateTimeFormatter dateTimeFormatter) {
-        long ts = -1;
+    public void parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) {
+        long ts;
         try {
-            ts = dateTimeFormatter.parser().parseMillis(timestampToParse);
-        } catch (RuntimeException e) {
+            ts = Long.parseLong(timestampAsString);
+        } catch (NumberFormatException e) {
             try {
-                ts = Long.parseLong(timestampToParse);
-                if (ts < 0) {
-                    throw new NumberFormatException("a timestamp should not be negative");
-                }
-            } catch (NumberFormatException e1) {
-                throw new TimestampParsingException(timestampToParse);
+                ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
+            } catch (RuntimeException e1) {
+                throw new TimestampParsingException(timestampAsString);
             }
         }
         timestamp = String.valueOf(ts);
@@ -316,6 +313,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
             }
         }
+
+        // The timestamp is always set as a parsable long
         return -1;
     }
 
@@ -638,9 +637,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (mappingMd.routing().required() && routing == null) {
             throw new RoutingMissingException(index, type, id);
         }
-        // Process parsed timestamp here
-        if (timestamp != null) {
-            parseTimestamp(timestamp, mappingMd.tsDateTimeFormatter());
+        // Process parsed timestamp found in source
+        if (shouldParseTimestamp && timestamp != null) {
+            parseStringTimestamp(timestamp, mappingMd.tsDateTimeFormatter());
         }
     }
 

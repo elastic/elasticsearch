@@ -48,7 +48,7 @@ public class SourceToParse {
 
     private String parentId;
 
-    private long timestamp = -1;
+    private long timestamp;
 
     public SourceToParse(XContentParser parser) {
         this.parser = parser;

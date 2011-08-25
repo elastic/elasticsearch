@@ -168,7 +168,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 if (mappingMd != null) {
                     try {
                         if (needToParseExternalTimestamp) {
-                            indexRequest.parseTimestamp(indexRequest.timestamp(), mappingMd.tsDateTimeFormatter());
+                            indexRequest.parseStringTimestamp(indexRequest.timestamp(), mappingMd.tsDateTimeFormatter());
                             needToParseExternalTimestamp = false;
                         }
                         indexRequest.processRoutingAndTimestamp(mappingMd);
@@ -181,9 +181,10 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
                 // Try to parse external timestamp if necessary with no mapping
                 if (needToParseExternalTimestamp) {
-                    indexRequest.parseTimestamp(indexRequest.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+                    indexRequest.parseStringTimestamp(indexRequest.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
                 }
-                // The timestamp has not been set neither externally nor in the doc so we generate it
+
+                // The timestamp has not been set neither externally nor in the source doc so we generate it
                 if (indexRequest.timestamp() == null) {
                     indexRequest.generateTimestamp();
                 }

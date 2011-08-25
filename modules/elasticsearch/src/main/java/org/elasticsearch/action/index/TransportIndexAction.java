@@ -133,20 +133,20 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         if (metaData.hasIndex(request.index())) {
             MappingMetaData mappingMd = metaData.index(request.index()).mapping(request.type());
             if (mappingMd != null) {
-                // Try to parse external timestamp if necessary with a mapping
+                // Try to parse externally provided timestamp if necessary (with a mapping)
                 if (needToParseExternalTimestamp) {
-                    request.parseTimestamp(request.timestamp(), mappingMd.tsDateTimeFormatter());
-                    needToParseExternalTimestamp = false;
+                    request.parseStringTimestamp(request.timestamp(), mappingMd.tsDateTimeFormatter());
+                    needToParseExternalTimestamp = false; // parseTimestamp throws an exception if something gone wrong
                 }
                 request.processRoutingAndTimestamp(mappingMd);
             }
         }
 
-        // Try to parse external timestamp if necessary with no mapping
+        // Try to parse external timestamp if necessary (without mapping)
         if (needToParseExternalTimestamp) {
-            request.parseTimestamp(request.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+            request.parseStringTimestamp(request.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
         }
-        // The timestamp has not been set neither externally nor in the doc so we generate it
+        // The timestamp has not been sets neither externally nor in the source doc so we generate it
         if (request.timestamp() == null) {
             request.generateTimestamp();
         }

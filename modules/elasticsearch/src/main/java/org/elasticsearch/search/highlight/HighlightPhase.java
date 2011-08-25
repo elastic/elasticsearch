@@ -57,7 +57,9 @@ import static org.elasticsearch.common.collect.Maps.*;
  */
 public class HighlightPhase implements SearchHitPhase {
 
-    private static final Encoder DEFAULT_ENCODER = new DefaultEncoder();
+    private Encoder encoder;
+    private FragListBuilder fraglistbuilder;
+    private FragmentsBuilder fragmentbuiler;
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("highlight", new HighlighterParseElement());
@@ -73,6 +75,10 @@ public class HighlightPhase implements SearchHitPhase {
 
             Map<String, HighlightField> highlightFields = newHashMap();
             for (SearchContextHighlight.Field field : context.highlight().fields()) {
+                if (field.encoder().equals("html"))
+                    encoder = new SimpleHTMLEncoder();
+                else
+                    encoder = new DefaultEncoder();
                 FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
                 if (mapper == null) {
                     MapperService.SmartNameFieldMappers fullMapper = context.mapperService().smartName(field.field());
@@ -110,7 +116,10 @@ public class HighlightPhase implements SearchHitPhase {
                         fragmenter = new SimpleSpanFragmenter(queryScorer, field.fragmentCharSize());
                     }
                     Formatter formatter = new SimpleHTMLFormatter(field.preTags()[0], field.postTags()[0]);
-                    Highlighter highlighter = new Highlighter(formatter, DEFAULT_ENCODER, queryScorer);
+
+
+
+                    Highlighter highlighter = new Highlighter(formatter, encoder, queryScorer);
                     highlighter.setTextFragmenter(fragmenter);
 
                     List<Object> textsToHighlight;
@@ -186,7 +195,8 @@ public class HighlightPhase implements SearchHitPhase {
                     try {
                         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
                         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
-                        fragments = highlighter.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments);
+                        fragments = highlighter.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments,
+                                this.fraglistbuilder, this.fragmentbuiler, field.preTags(), field.postTags(), encoder);
                     } catch (IOException e) {
                         throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                     }
@@ -241,7 +251,9 @@ public class HighlightPhase implements SearchHitPhase {
                 }
             }
         }
-
+        this.fraglistbuilder = fragListBuilder;
+        this.fragmentbuiler = fragmentsBuilder;
         return new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
     }
+
 }

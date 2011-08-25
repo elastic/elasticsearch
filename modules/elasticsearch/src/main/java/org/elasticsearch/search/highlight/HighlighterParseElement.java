@@ -72,6 +72,7 @@ public class HighlighterParseElement implements SearchParseElement {
         boolean globalHighlightFilter = true;
         int globalFragmentSize = 100;
         int globalNumOfFragments = 5;
+        String globalEncoder = "default";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -105,6 +106,9 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalFragmentSize = parser.intValue();
                 } else if ("number_of_fragments".equals(topLevelFieldName) || "numberOfFragments".equals(topLevelFieldName)) {
                     globalNumOfFragments = parser.intValue();
+                }
+                else if ("encoder".equals(topLevelFieldName)){
+                   globalEncoder = parser.text();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -176,6 +180,10 @@ public class HighlighterParseElement implements SearchParseElement {
             if (field.numberOfFragments() == -1) {
                 field.numberOfFragments(globalNumOfFragments);
             }
+            if (field.encoder() == null){
+                field.encoder(globalEncoder);
+            }
+
         }
 
         context.highlight(new SearchContextHighlight(fields));

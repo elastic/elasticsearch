@@ -415,6 +415,8 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return this;
     }
 
+
+
     /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
      * default number of fragments of 5.
@@ -488,6 +490,15 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      */
     public SearchRequestBuilder setHighlighterOrder(String order) {
         highlightBuilder().order(order);
+        return this;
+    }
+
+
+    /**
+     * The encoder to set for highlighting
+     */
+    public SearchRequestBuilder setEncoder(String encoder) {
+        highlightBuilder().encoder(encoder);
         return this;
     }
 

@@ -67,6 +67,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStoreModule;
@@ -115,6 +116,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
+    private final OldShardsStats oldShardsStats = new OldShardsStats();
+
     @Inject public InternalIndicesService(Settings settings, NodeEnvironment nodeEnv, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
         this.nodeEnv = nodeEnv;
@@ -125,6 +128,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         this.injector = injector;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
+
+        this.indicesLifecycle.addListener(oldShardsStats);
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -169,7 +174,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return this.indicesLifecycle;
     }
 
-    @Override public NodeIndicesStats stats() {
+    @Override public NodeIndicesStats stats(boolean includePrevious) {
         DocsStats docsStats = new DocsStats();
         StoreStats storeStats = new StoreStats();
         IndexingStats indexingStats = new IndexingStats();
@@ -177,6 +182,14 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
         FlushStats flushStats = new FlushStats();
+
+        if (includePrevious) {
+            indexingStats.add(oldShardsStats.indexingStats);
+            mergeStats.add(oldShardsStats.mergeStats);
+            refreshStats.add(oldShardsStats.refreshStats);
+            flushStats.add(oldShardsStats.flushStats);
+        }
+
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 storeStats.add(indexShard.storeStats());
@@ -330,6 +343,23 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         if (delete) {
             FileSystemUtils.deleteRecursively(nodeEnv.indexLocation(new Index(index)));
+        }
+    }
+
+    static class OldShardsStats extends IndicesLifecycle.Listener {
+
+        final IndexingStats indexingStats = new IndexingStats();
+        final MergeStats mergeStats = new MergeStats();
+        final RefreshStats refreshStats = new RefreshStats();
+        final FlushStats flushStats = new FlushStats();
+
+        @Override public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+            if (indexShard != null) {
+                indexingStats.add(indexShard.indexingStats(), false);
+                mergeStats.add(indexShard.mergeStats());
+                refreshStats.add(indexShard.refreshStats());
+                flushStats.add(indexShard.flushStats());
+            }
         }
     }
 }

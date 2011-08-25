@@ -45,9 +45,11 @@ public class HighlightBuilder implements ToXContent {
 
     private String order;
 
+    private String encoder;
+
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
-     * default number of fragments of 5.
+     * default number of fragments of 5 using the default encoder
      *
      * @param name The field to highlight
      */
@@ -58,6 +60,8 @@ public class HighlightBuilder implements ToXContent {
         fields.add(new Field(name));
         return this;
     }
+
+
 
     /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
@@ -73,6 +77,7 @@ public class HighlightBuilder implements ToXContent {
         fields.add(new Field(name).fragmentSize(fragmentSize));
         return this;
     }
+
 
     /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
@@ -90,6 +95,8 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+
+
      /**
      * Adds a field to be highlighted with a provided fragment size (in characters), and
      * a provided (maximum) number of fragments.
@@ -103,9 +110,11 @@ public class HighlightBuilder implements ToXContent {
         if (fields == null) {
             fields = newArrayList();
         }
-        fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments).fragmentOffset(fragmentOffset));
+        fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments)
+                .fragmentOffset(fragmentOffset));
         return this;
     }
+
 
     /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
@@ -118,6 +127,17 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+
+    /**
+     * Set encoder for the highlighting
+     * are <tt>styled</tt> and <tt>default</tt>.
+     *
+     * @param encoder name
+     */
+    public HighlightBuilder encoder(String encoder) {
+        this.encoder = encoder;
+        return this;
+    }
     /**
      * Explicitly set the pre tags that will be used for highlighting.
      */
@@ -158,6 +178,9 @@ public class HighlightBuilder implements ToXContent {
         if (order != null) {
             builder.field("order", order);
         }
+        if (encoder != null) {
+            builder.field("encoder", encoder);
+        }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
@@ -171,10 +194,12 @@ public class HighlightBuilder implements ToXContent {
                 if (field.fragmentOffset() != -1) {
                     builder.field("fragment_offset", field.fragmentOffset());
                 }
+
                 builder.endObject();
             }
             builder.endObject();
         }
+
         builder.endObject();
         return builder;
     }
@@ -184,7 +209,6 @@ public class HighlightBuilder implements ToXContent {
         private int fragmentSize = -1;
         private int fragmentOffset = -1;
         private int numOfFragments = -1;
-
 
         private Field(String name) {
             this.name = name;
@@ -220,5 +244,6 @@ public class HighlightBuilder implements ToXContent {
             this.numOfFragments = numOfFragments;
             return this;
         }
+
     }
 }

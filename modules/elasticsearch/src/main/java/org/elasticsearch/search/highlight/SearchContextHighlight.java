@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
 import java.util.List;
 
 /**
@@ -45,6 +47,8 @@ public class SearchContextHighlight {
         private int numberOfFragments = -1;
 
         private int fragmentOffset = -1;
+
+        private String encoder;
 
         private String[] preTags;
 
@@ -86,7 +90,15 @@ public class SearchContextHighlight {
             this.fragmentOffset = fragmentOffset;
         }
 
-        public String[] preTags() {
+        public String encoder(){
+            return encoder;
+        }
+
+       public void encoder(String encoder){
+            this.encoder = encoder;
+       }
+
+       public String[] preTags() {
             return preTags;
         }
 
@@ -117,5 +129,6 @@ public class SearchContextHighlight {
         public void highlightFilter(boolean highlightFilter) {
             this.highlightFilter = highlightFilter;
         }
+
     }
 }

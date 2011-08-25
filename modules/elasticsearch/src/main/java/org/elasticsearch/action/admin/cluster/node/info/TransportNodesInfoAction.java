@@ -50,7 +50,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override protected String transportAction() {

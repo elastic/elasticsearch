@@ -152,11 +152,15 @@ public class IndexingStats implements Streamable, ToXContent {
     }
 
     public void add(IndexingStats indexingStats) {
+        add(indexingStats, true);
+    }
+
+    public void add(IndexingStats indexingStats, boolean includeTypes) {
         if (indexingStats == null) {
             return;
         }
         totalStats.add(indexingStats.totalStats);
-        if (indexingStats.typeStats != null && !indexingStats.typeStats.isEmpty()) {
+        if (includeTypes && indexingStats.typeStats != null && !indexingStats.typeStats.isEmpty()) {
             if (typeStats == null) {
                 typeStats = new HashMap<String, Stats>(indexingStats.typeStats.size());
             }

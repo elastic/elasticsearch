@@ -38,7 +38,12 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
      */
     public boolean changesAllowed();
 
-    NodeIndicesStats stats();
+    /**
+     * Returns the node stats indices stats. The <tt>includePrevious</tt> flag controls
+     * if old shards stats will be aggregated as well (only for relevant stats, such as
+     * refresh and indexing, not for docs/store).
+     */
+    NodeIndicesStats stats(boolean includePrevious);
 
     boolean hasIndex(String index);
 

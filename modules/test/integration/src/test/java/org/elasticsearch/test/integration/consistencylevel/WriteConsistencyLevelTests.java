@@ -55,7 +55,7 @@ public class WriteConsistencyLevelTests extends AbstractNodesTests {
         try {
             client("node1").prepareIndex("test", "type1", "1").setSource(source("1", "test"))
                     .setConsistencyLevel(WriteConsistencyLevel.QUORUM)
-                    .setTimeout(timeValueSeconds(1)).execute().actionGet();
+                    .setTimeout(timeValueMillis(100)).execute().actionGet();
             assert false : "can't index, does not match consistency";
         } catch (UnavailableShardsException e) {
             // all is well
@@ -76,7 +76,7 @@ public class WriteConsistencyLevelTests extends AbstractNodesTests {
         try {
             client("node1").prepareIndex("test", "type1", "1").setSource(source("1", "test"))
                     .setConsistencyLevel(WriteConsistencyLevel.ALL)
-                    .setTimeout(timeValueSeconds(1)).execute().actionGet();
+                    .setTimeout(timeValueMillis(100)).execute().actionGet();
             assert false : "can't index, does not match consistency";
         } catch (UnavailableShardsException e) {
             // all is well

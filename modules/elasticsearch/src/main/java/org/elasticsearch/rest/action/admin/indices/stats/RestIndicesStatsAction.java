@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.XContentRestResponse;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
@@ -48,6 +49,20 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/_stats", this);
         controller.registerHandler(GET, "/{index}/_stats", this);
+        controller.registerHandler(GET, "_stats/docs", new RestDocsStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/docs", new RestDocsStatsHandler());
+        controller.registerHandler(GET, "/_stats/store", new RestStoreStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/store", new RestStoreStatsHandler());
+        controller.registerHandler(GET, "/_stats/indexing", new RestIndexingStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/indexing", new RestIndexingStatsHandler());
+        controller.registerHandler(GET, "/_stats/indexing/{indexingTypes}", new RestIndexingStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/indexing/{indexingTypes}", new RestIndexingStatsHandler());
+        controller.registerHandler(GET, "/_stats/refresh", new RestRefreshStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/refresh", new RestRefreshStatsHandler());
+        controller.registerHandler(GET, "/_stats/merge", new RestMergeStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/merge", new RestMergeStatsHandler());
+        controller.registerHandler(GET, "/_stats/flush", new RestFlushStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/flush", new RestFlushStatsHandler());
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
@@ -88,5 +103,213 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    class RestDocsStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.clear().docs(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestStoreStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.clear().docs(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestIndexingStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            if (request.param("types") != null) {
+                indicesStatsRequest.types(splitTypes(request.param("types")));
+            } else {
+                indicesStatsRequest.types(splitTypes(request.param("indexingTypes")));
+            }
+            indicesStatsRequest.clear().docs(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestMergeStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.clear().merge(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestFlushStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.clear().flush(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestRefreshStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.clear().refresh(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
     }
 }

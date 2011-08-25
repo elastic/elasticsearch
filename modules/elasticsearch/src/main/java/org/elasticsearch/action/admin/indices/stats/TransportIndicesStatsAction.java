@@ -60,11 +60,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override protected String executor() {
-        return ThreadPool.Names.CACHED;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override protected String transportAction() {
-        return TransportActions.Admin.Indices.STATUS;
+        return TransportActions.Admin.Indices.STATS;
     }
 
     @Override protected String transportShardAction() {

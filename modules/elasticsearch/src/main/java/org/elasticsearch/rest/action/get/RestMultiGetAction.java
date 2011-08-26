@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,8 +59,14 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.preference(request.param("preference"));
         multiGetRequest.realtime(request.paramAsBoolean("realtime", null));
 
+        String[] sFields = null;
+        String sField = request.param("fields");
+        if (sField != null) {
+            sFields = Strings.splitStringByCommaToArray(sField);
+        }
+
         try {
-            multiGetRequest.add(request.param("index"), request.param("type"), request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

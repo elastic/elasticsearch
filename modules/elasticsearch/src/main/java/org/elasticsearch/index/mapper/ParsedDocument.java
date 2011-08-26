@@ -40,6 +40,8 @@ public class ParsedDocument {
 
     private final String routing;
 
+    private final long timestamp;
+
     private final List<Document> documents;
 
     private final Analyzer analyzer;
@@ -50,15 +52,16 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(String uid, String id, String type, String routing, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
-        this(uid, id, type, routing, Arrays.asList(document), analyzer, source, mappersAdded);
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
+        this(uid, id, type, routing, timestamp, Arrays.asList(document), analyzer, source, mappersAdded);
     }
 
-    public ParsedDocument(String uid, String id, String type, String routing, List<Document> documents, Analyzer analyzer, byte[] source, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, List<Document> documents, Analyzer analyzer, byte[] source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
         this.routing = routing;
+        this.timestamp = timestamp;
         this.documents = documents;
         this.source = source;
         this.analyzer = analyzer;
@@ -79,6 +82,10 @@ public class ParsedDocument {
 
     public String routing() {
         return this.routing;
+    }
+
+    public long timestamp() {
+        return this.timestamp;
     }
 
     public Document rootDoc() {

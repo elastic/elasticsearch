@@ -41,6 +41,7 @@ public class FieldDataLoader {
 
         field = StringHelper.intern(field);
         ArrayList<int[]> ordinals = new ArrayList<int[]>();
+        int[] idx = new int[reader.maxDoc()];
         ordinals.add(new int[reader.maxDoc()]);
 
         int t = 1;  // current term number
@@ -55,22 +56,15 @@ public class FieldDataLoader {
                 termDocs.seek(termEnum);
                 while (termDocs.next()) {
                     int doc = termDocs.doc();
-                    boolean found = false;
-                    for (int i = 0; i < ordinals.size(); i++) {
-                        int[] ordinal = ordinals.get(i);
-                        if (ordinal[doc] == 0) {
-                            // we found a spot, use it
-                            ordinal[doc] = t;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        // did not find one, increase by one and redo
-                        int[] ordinal = new int[reader.maxDoc()];
+                    int[] ordinal;
+                    if (idx[doc] >= ordinals.size()) {
+                        ordinal = new int[reader.maxDoc()];
                         ordinals.add(ordinal);
-                        ordinal[doc] = t;
+                    } else {
+                        ordinal = ordinals.get(idx[doc]);
                     }
+                    ordinal[doc] = t;
+                    idx[doc]++;                    
                 }
                 t++;
             } while (termEnum.next());

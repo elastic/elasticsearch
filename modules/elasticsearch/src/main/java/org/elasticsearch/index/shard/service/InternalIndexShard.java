@@ -520,13 +520,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             case CREATE:
                 Translog.Create create = (Translog.Create) operation;
                 engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
-                        .routing(create.routing()).parent(create.parent())).version(create.version())
+                        .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp())).version(create.version())
                         .origin(Engine.Operation.Origin.RECOVERY));
                 break;
             case SAVE:
                 Translog.Index index = (Translog.Index) operation;
                 engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
-                        .routing(index.routing()).parent(index.parent())).version(index.version())
+                        .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp())).version(index.version())
                         .origin(Engine.Operation.Origin.RECOVERY));
                 break;
             case DELETE:

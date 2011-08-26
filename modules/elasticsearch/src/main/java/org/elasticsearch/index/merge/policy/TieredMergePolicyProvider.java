@@ -68,11 +68,11 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         this.maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", 10);
         this.maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", 30);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
-        this.maxMergedSegment = componentSettings.getAsBytesSize("max_merge_segment", new ByteSizeValue(20, ByteSizeUnit.GB));
+        this.maxMergedSegment = componentSettings.getAsBytesSize("max_merged_segment", componentSettings.getAsBytesSize("max_merge_segment", new ByteSizeValue(20, ByteSizeUnit.GB)));
         this.segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", 10d);
         this.reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", 2.0d);
 
-        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merge_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}], async_merge[{}]",
+        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}], async_merge[{}]",
                 expungeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight, asyncMerge);
 
         indexSettingsService.addListener(applySettings);

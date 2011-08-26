@@ -112,6 +112,7 @@ public class BulkRequest implements ActionRequest {
             String id = null;
             String routing = null;
             String parent = null;
+            String timestamp = null;
             String opType = null;
             long version = 0;
             VersionType versionType = VersionType.INTERNAL;
@@ -132,6 +133,8 @@ public class BulkRequest implements ActionRequest {
                         routing = parser.text();
                     } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                         parent = parser.text();
+                    } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
+                        timestamp = parser.text();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
                     } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
@@ -154,17 +157,17 @@ public class BulkRequest implements ActionRequest {
                 // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     } else {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
+                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     }
                 } else if ("create".equals(action)) {
-                    add(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
+                    add(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe)
                             .percolate(percolate));

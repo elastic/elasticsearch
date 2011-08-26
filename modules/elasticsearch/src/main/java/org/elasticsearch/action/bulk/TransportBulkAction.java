@@ -41,6 +41,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,11 +162,16 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                // handle routing
+                // handle routing & timestamp
+                boolean needToParseExternalTimestamp = indexRequest.timestamp() != null;
                 MappingMetaData mappingMd = clusterState.metaData().index(indexRequest.index()).mapping(indexRequest.type());
                 if (mappingMd != null) {
                     try {
-                        indexRequest.processRouting(mappingMd);
+                        if (needToParseExternalTimestamp) {
+                            indexRequest.parseStringTimestamp(indexRequest.timestamp(), mappingMd.tsDateTimeFormatter());
+                            needToParseExternalTimestamp = false;
+                        }
+                        indexRequest.processRoutingAndTimestamp(mappingMd);
                     } catch (ElasticSearchException e) {
                         responses[i] = new BulkItemResponse(i, indexRequest.opType().toString().toLowerCase(),
                                 new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e.getDetailedMessage()));
@@ -173,6 +179,16 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                     }
                 }
 
+                // Try to parse external timestamp if necessary with no mapping
+                if (needToParseExternalTimestamp) {
+                    indexRequest.parseStringTimestamp(indexRequest.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+                }
+
+                // The timestamp has not been set neither externally nor in the source doc so we generate it
+                if (indexRequest.timestamp() == null) {
+                    indexRequest.generateTimestamp();
+                }
+                
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {

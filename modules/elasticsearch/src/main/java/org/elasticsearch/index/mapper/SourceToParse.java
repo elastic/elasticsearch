@@ -48,6 +48,8 @@ public class SourceToParse {
 
     private String parentId;
 
+    private long timestamp;
+
     public SourceToParse(XContentParser parser) {
         this.parser = parser;
         this.source = null;
@@ -108,6 +110,15 @@ public class SourceToParse {
 
     public SourceToParse routing(String routing) {
         this.routing = routing;
+        return this;
+    }
+
+    public long timestamp() {
+        return this.timestamp;
+    }
+
+    public SourceToParse timestamp(long timestamp) {
+        this.timestamp = timestamp;
         return this;
     }
 }

@@ -43,6 +43,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -52,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -124,14 +126,29 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        boolean needToParseExternalTimestamp = request.timestamp() != null;
         MetaData metaData = clusterService.state().metaData();
         request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
         request.index(metaData.concreteIndex(request.index()));
         if (metaData.hasIndex(request.index())) {
             MappingMetaData mappingMd = metaData.index(request.index()).mapping(request.type());
             if (mappingMd != null) {
-                request.processRouting(mappingMd);
+                // Try to parse externally provided timestamp if necessary (with a mapping)
+                if (needToParseExternalTimestamp) {
+                    request.parseStringTimestamp(request.timestamp(), mappingMd.tsDateTimeFormatter());
+                    needToParseExternalTimestamp = false; // parseTimestamp throws an exception if something gone wrong
+                }
+                request.processRoutingAndTimestamp(mappingMd);
             }
+        }
+
+        // Try to parse external timestamp if necessary (without mapping)
+        if (needToParseExternalTimestamp) {
+            request.parseStringTimestamp(request.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        }
+        // The timestamp has not been sets neither externally nor in the source doc so we generate it
+        if (request.timestamp() == null) {
+            request.generateTimestamp();
         }
         super.doExecute(request, listener);
     }
@@ -178,7 +195,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         IndexShard indexShard = indexShard(shardRequest);
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.getParsedTimestamp());
         long version;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
@@ -233,7 +250,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.getParsedTimestamp());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())

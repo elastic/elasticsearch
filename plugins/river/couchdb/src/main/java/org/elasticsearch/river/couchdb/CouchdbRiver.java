@@ -254,7 +254,6 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             }
             
 			// Remove _attachement from doc if needed
-            // TODO : check if couchDB support now attachment filter : https://issues.apache.org/jira/browse/COUCHDB-1263
 			if (couchIgnoreAttachements) {
 				if (doc.containsKey("_attachments")) {
 					Map<String, Object> _attachments = (Map<String, Object>) doc
@@ -266,6 +265,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 						}
 					}
 				}
+			} else {
+				// TODO by now, couchDB river does not really store attachments in Elastic Search but only attachments meta informations
+				// So we perhaps need to fully support attachments
 			}
 
 			bulk.add(indexRequest(index).type(type).id(id).source(doc).routing(extractRouting(ctx)));
@@ -403,7 +405,6 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                         file = file + couchFilterParamsUrl;
                     }
                 }
-                // TODO : check if couchDB support now attachment filter : https://issues.apache.org/jira/browse/COUCHDB-1263
                 
                 if (lastSeq != null) {
                     file = file + "&since=" + lastSeq;

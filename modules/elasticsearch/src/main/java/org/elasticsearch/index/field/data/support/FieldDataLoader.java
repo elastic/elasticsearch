@@ -64,7 +64,7 @@ public class FieldDataLoader {
                         ordinal = ordinals.get(idx[doc]);
                     }
                     ordinal[doc] = t;
-                    idx[doc]++;                    
+                    idx[doc]++;
                 }
                 t++;
             } while (termEnum.next());

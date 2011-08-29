@@ -76,7 +76,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
     private final String couchFilter;
     private final String couchFilterParamsUrl;
     private final String basicAuth;
-    private final boolean couchIgnoreAttachements;
+    private final boolean couchIgnoreAttachments;
 
     private final String indexName;
     private final String typeName;
@@ -118,7 +118,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             } else {
                 couchFilterParamsUrl = null;
             }
-            couchIgnoreAttachements = XContentMapValues.nodeBooleanValue(couchSettings.get("ignore_attachments"), false);
+            couchIgnoreAttachments = XContentMapValues.nodeBooleanValue(couchSettings.get("ignore_attachments"), false);
             if (couchSettings.containsKey("user") && couchSettings.containsKey("password")) {
                 String user = couchSettings.get("user").toString();
                 String password = couchSettings.get("password").toString();
@@ -138,7 +138,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             couchDb = "db";
             couchFilter = null;
             couchFilterParamsUrl = null;
-            couchIgnoreAttachements = false;
+            couchIgnoreAttachments = false;
             basicAuth = null;
             script = null;
         }
@@ -218,9 +218,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
         // Ignore design documents
         if (id.startsWith("_design/")) {
-        	 if (logger.isTraceEnabled()) {
-        		 logger.trace("ignoring design document {}", id);
-        	 }
+            if (logger.isTraceEnabled()) {
+                logger.trace("ignoring design document {}", id);
+            }
             return seq;
         }
 
@@ -249,28 +249,21 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             String index = extractIndex(ctx);
             String type = extractType(ctx);
             Map<String, Object> doc = (Map<String, Object>) ctx.get("doc");
+
+            // Remove _attachment from doc if needed
+            if (couchIgnoreAttachments) {
+                // no need to log that we removed it, the doc indexed will be shown without it
+                doc.remove("_attachments");
+            } else {
+                // TODO by now, couchDB river does not really store attachments but only attachments meta infomration
+                // So we perhaps need to fully support attachments
+            }
+
             if (logger.isTraceEnabled()) {
                 logger.trace("processing [index ]: [{}]/[{}]/[{}], source {}", index, type, id, doc);
             }
-            
-			// Remove _attachement from doc if needed
-			if (couchIgnoreAttachements) {
-				if (doc.containsKey("_attachments")) {
-					Map<String, Object> _attachments = (Map<String, Object>) doc
-							.get("_attachments");
-					if (_attachments != null) {
-						doc.remove("_attachments");
-						if (logger.isTraceEnabled()) {
-							logger.trace("_attachments found and removed from doc");
-						}
-					}
-				}
-			} else {
-				// TODO by now, couchDB river does not really store attachments in Elastic Search but only attachments meta informations
-				// So we perhaps need to fully support attachments
-			}
 
-			bulk.add(indexRequest(index).type(type).id(id).source(doc).routing(extractRouting(ctx)));
+            bulk.add(indexRequest(index).type(type).id(id).source(doc).routing(extractRouting(ctx)));
         } else {
             logger.warn("ignoring unknown change {}", s);
         }
@@ -405,7 +398,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                         file = file + couchFilterParamsUrl;
                     }
                 }
-                
+
                 if (lastSeq != null) {
                     file = file + "&since=" + lastSeq;
                 }

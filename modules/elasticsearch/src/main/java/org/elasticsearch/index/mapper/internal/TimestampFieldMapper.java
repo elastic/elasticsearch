@@ -180,10 +180,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (enabled) {
             long timestamp = context.sourceToParse().timestamp();
-                if (!indexed() && !stored()) {
-                    context.ignoredValue(names.indexName(), String.valueOf(timestamp));
-                    return null;
-                }
+            if (!indexed() && !stored()) {
+                context.ignoredValue(names.indexName(), String.valueOf(timestamp));
+                return null;
+            }
             return new LongFieldMapper.CustomLongNumericField(this, timestamp);
         }
         return null;

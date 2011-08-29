@@ -304,6 +304,14 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
+     * Sets the timestamp either as millis since the epoch, or, in the configured date format.
+     */
+    public IndexRequestBuilder setTimestamp(String timestamp) {
+        request.timestamp(timestamp);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     public IndexRequestBuilder setListenerThreaded(boolean listenerThreaded) {

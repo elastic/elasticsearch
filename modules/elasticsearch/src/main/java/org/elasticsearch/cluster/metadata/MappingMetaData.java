@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -27,8 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.joda.time.format.DateTimeFormat;
-import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -83,6 +82,21 @@ public class MappingMetaData {
 
     public static class Timestamp {
 
+        public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
+            long ts;
+            try {
+                ts = Long.parseLong(timestampAsString);
+            } catch (NumberFormatException e) {
+                try {
+                    ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
+                } catch (RuntimeException e1) {
+                    throw new TimestampParsingException(timestampAsString);
+                }
+            }
+            return String.valueOf(ts);
+        }
+
+
         public static final Timestamp EMPTY = new Timestamp(false, null, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT);
 
         private final boolean enabled;
@@ -93,6 +107,8 @@ public class MappingMetaData {
 
         private final String[] pathElements;
 
+        private final FormatDateTimeFormatter dateTimeFormatter;
+
         public Timestamp(boolean enabled, String path, String format) {
             this.enabled = enabled;
             this.path = path;
@@ -102,6 +118,7 @@ public class MappingMetaData {
                 pathElements = Strings.delimitedListToStringArray(path, ".");
             }
             this.format = format;
+            this.dateTimeFormatter = Joda.forPattern(format);
         }
 
         public boolean enabled() {
@@ -123,6 +140,10 @@ public class MappingMetaData {
         public String format() {
             return this.format;
         }
+
+        public FormatDateTimeFormatter dateTimeFormatter() {
+            return this.dateTimeFormatter;
+        }
     }
 
     private final String type;
@@ -131,14 +152,12 @@ public class MappingMetaData {
 
     private final Routing routing;
     private final Timestamp timestamp;
-    private final FormatDateTimeFormatter tsDateTimeFormatter;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
-        this.tsDateTimeFormatter = docMapper.timestampFieldMapper().dateTimeFormatter();
     }
 
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
@@ -185,7 +204,6 @@ public class MappingMetaData {
         } else {
             this.timestamp = Timestamp.EMPTY;
         }
-        this.tsDateTimeFormatter = Joda.forPattern(timestamp.format());
     }
 
     MappingMetaData(String type, CompressedString source, Routing routing, Timestamp timestamp) {
@@ -193,7 +211,6 @@ public class MappingMetaData {
         this.source = source;
         this.routing = routing;
         this.timestamp = timestamp;
-        this.tsDateTimeFormatter = Joda.forPattern(timestamp.format());
     }
 
     public String type() {
@@ -212,23 +229,19 @@ public class MappingMetaData {
         return this.timestamp;
     }
 
-    public FormatDateTimeFormatter tsDateTimeFormatter() {
-        return this.tsDateTimeFormatter;
-    }
-
     public Tuple<String, String> parseRoutingAndTimestamp(XContentParser parser,
-                                                         boolean shouldParseRouting,
-                                                         boolean shouldParseTimestamp) throws IOException {
+                                                          boolean shouldParseRouting,
+                                                          boolean shouldParseTimestamp) throws IOException {
         return parseRoutingAndTimestamp(parser, 0, 0, null, null, shouldParseRouting, shouldParseTimestamp);
     }
 
     private Tuple<String, String> parseRoutingAndTimestamp(XContentParser parser,
-                                                          int locationRouting,
-                                                          int locationTimestamp,
-                                                          @Nullable String routingValue,
-                                                          @Nullable String timestampValue,
-                                                          boolean shouldParseRouting,
-                                                          boolean shouldParseTimestamp) throws IOException {
+                                                           int locationRouting,
+                                                           int locationTimestamp,
+                                                           @Nullable String routingValue,
+                                                           @Nullable String timestampValue,
+                                                           boolean shouldParseRouting,
+                                                           boolean shouldParseTimestamp) throws IOException {
         XContentParser.Token t = parser.currentToken();
         if (t == null) {
             t = parser.nextToken();

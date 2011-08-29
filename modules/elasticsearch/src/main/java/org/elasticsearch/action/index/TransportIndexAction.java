@@ -43,7 +43,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -53,7 +52,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -93,13 +91,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        if (allowIdGeneration) {
-            if (request.id() == null) {
-                request.id(UUID.randomBase64UUID());
-                // since we generate the id, change it to CREATE
-                request.opType(IndexRequest.OpType.CREATE);
-            }
-        }
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
             request.beforeLocalFork(); // we fork on another thread...
             createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
@@ -126,30 +117,22 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        boolean needToParseExternalTimestamp = request.timestamp() != null;
-        MetaData metaData = clusterService.state().metaData();
-        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
-        request.index(metaData.concreteIndex(request.index()));
-        if (metaData.hasIndex(request.index())) {
-            MappingMetaData mappingMd = metaData.index(request.index()).mapping(request.type());
-            if (mappingMd != null) {
-                // Try to parse externally provided timestamp if necessary (with a mapping)
-                if (needToParseExternalTimestamp) {
-                    request.parseStringTimestamp(request.timestamp(), mappingMd.tsDateTimeFormatter());
-                    needToParseExternalTimestamp = false; // parseTimestamp throws an exception if something gone wrong
-                }
-                request.processRoutingAndTimestamp(mappingMd);
+        if (allowIdGeneration) {
+            if (request.id() == null) {
+                request.id(UUID.randomBase64UUID());
+                // since we generate the id, change it to CREATE
+                request.opType(IndexRequest.OpType.CREATE);
             }
         }
 
-        // Try to parse external timestamp if necessary (without mapping)
-        if (needToParseExternalTimestamp) {
-            request.parseStringTimestamp(request.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        MetaData metaData = clusterService.state().metaData();
+        String aliasOrIndex = request.index();
+        request.index(metaData.concreteIndex(request.index()));
+        MappingMetaData mappingMd = null;
+        if (metaData.hasIndex(request.index())) {
+            mappingMd = metaData.index(request.index()).mapping(request.type());
         }
-        // The timestamp has not been sets neither externally nor in the source doc so we generate it
-        if (request.timestamp() == null) {
-            request.generateTimestamp();
-        }
+        request.process(metaData, aliasOrIndex, mappingMd);
         super.doExecute(request, listener);
     }
 
@@ -195,7 +178,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         IndexShard indexShard = indexShard(shardRequest);
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent()).timestamp(request.getParsedTimestamp());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp());
         long version;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
@@ -250,7 +233,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent()).timestamp(request.getParsedTimestamp());
+                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
                     .version(request.version())

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -33,6 +32,7 @@ import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.UUID;
@@ -41,7 +41,6 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -136,11 +135,10 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
 
     private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener) {
         ClusterState clusterState = clusterService.state();
+        MetaData metaData = clusterState.metaData();
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                indexRequest.routing(clusterState.metaData().resolveIndexRouting(indexRequest.routing(), indexRequest.index()));
-                indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
                 if (allowIdGeneration) {
                     if (indexRequest.id() == null) {
                         indexRequest.id(UUID.randomBase64UUID());
@@ -148,6 +146,15 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                         indexRequest.opType(IndexRequest.OpType.CREATE);
                     }
                 }
+
+                String aliasOrIndex = indexRequest.index();
+                indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
+
+                MappingMetaData mappingMd = null;
+                if (metaData.hasIndex(indexRequest.index())) {
+                    mappingMd = metaData.index(indexRequest.index()).mapping(indexRequest.type());
+                }
+                indexRequest.process(metaData, aliasOrIndex, mappingMd);
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
@@ -162,33 +169,6 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                // handle routing & timestamp
-                boolean needToParseExternalTimestamp = indexRequest.timestamp() != null;
-                MappingMetaData mappingMd = clusterState.metaData().index(indexRequest.index()).mapping(indexRequest.type());
-                if (mappingMd != null) {
-                    try {
-                        if (needToParseExternalTimestamp) {
-                            indexRequest.parseStringTimestamp(indexRequest.timestamp(), mappingMd.tsDateTimeFormatter());
-                            needToParseExternalTimestamp = false;
-                        }
-                        indexRequest.processRoutingAndTimestamp(mappingMd);
-                    } catch (ElasticSearchException e) {
-                        responses[i] = new BulkItemResponse(i, indexRequest.opType().toString().toLowerCase(),
-                                new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e.getDetailedMessage()));
-                        continue;
-                    }
-                }
-
-                // Try to parse external timestamp if necessary with no mapping
-                if (needToParseExternalTimestamp) {
-                    indexRequest.parseStringTimestamp(indexRequest.timestamp(), TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
-                }
-
-                // The timestamp has not been set neither externally nor in the source doc so we generate it
-                if (indexRequest.timestamp() == null) {
-                    indexRequest.generateTimestamp();
-                }
-                
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {

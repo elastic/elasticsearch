@@ -26,30 +26,28 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
@@ -282,6 +280,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.parent;
     }
 
+    /**
+     * Sets the timestamp either as millis since the epoch, or, in the configured date format.
+     */
     public IndexRequest timestamp(String timestamp) {
         this.timestamp = timestamp;
         return this;
@@ -289,38 +290,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     public String timestamp() {
         return this.timestamp;
-    }
-
-    public void parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) {
-        long ts;
-        try {
-            ts = Long.parseLong(timestampAsString);
-        } catch (NumberFormatException e) {
-            try {
-                ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
-            } catch (RuntimeException e1) {
-                throw new TimestampParsingException(timestampAsString);
-            }
-        }
-        timestamp = String.valueOf(ts);
-    }
-
-    public long getParsedTimestamp() {
-        if (timestamp != null) {
-            try {
-                return Long.parseLong(timestamp);
-            } catch (NumberFormatException e1) {
-
-            }
-        }
-
-        // The timestamp is always set as a parsable long
-        return -1;
-    }
-
-    public IndexRequest generateTimestamp() {
-        timestamp = String.valueOf(new Date().getTime());
-        return this;
     }
 
     /**
@@ -609,37 +578,47 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.percolate;
     }
 
-    public void processRoutingAndTimestamp(MappingMetaData mappingMd) throws ElasticSearchException {
-        boolean shouldParseRouting = (routing == null && mappingMd.routing().hasPath());
-        boolean shouldParseTimestamp = (timestamp == null && mappingMd.timestamp().hasPath());
+    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd) throws ElasticSearchException {
+        // resolve the routing if needed
+        routing(metaData.resolveIndexRouting(routing, aliasOrIndex));
+        // resolve timestamp if provided externally
+        if (timestamp != null) {
+            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
+                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        }
+        // extract values if needed
+        if (mappingMd != null) {
+            boolean shouldParseRouting = (routing == null && mappingMd.routing().hasPath());
+            boolean shouldParseTimestamp = (timestamp == null && mappingMd.timestamp().hasPath());
 
-        if (shouldParseRouting || shouldParseTimestamp) {
-            XContentParser parser = null;
-            try {
-                parser = XContentFactory.xContent(source, sourceOffset, sourceLength)
-                        .createParser(source, sourceOffset, sourceLength);
-                Tuple<String, String> parseResult = mappingMd.parseRoutingAndTimestamp(parser, shouldParseRouting, shouldParseTimestamp);
-                if (shouldParseRouting) {
-                    routing = parseResult.v1();
-                }
-                if (shouldParseTimestamp) {
-                    timestamp = parseResult.v2();
-                }
-            } catch (Exception e) {
-                throw new ElasticSearchParseException("failed to parse doc to extract routing/timestamp", e);
-            } finally {
-                if (parser != null) {
-                    parser.close();
+            if (shouldParseRouting || shouldParseTimestamp) {
+                XContentParser parser = null;
+                try {
+                    parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
+                    Tuple<String, String> parseResult = mappingMd.parseRoutingAndTimestamp(parser, shouldParseRouting, shouldParseTimestamp);
+                    if (shouldParseRouting) {
+                        routing = parseResult.v1();
+                    }
+                    if (shouldParseTimestamp) {
+                        timestamp = parseResult.v2();
+                        timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
+                    }
+                } catch (Exception e) {
+                    throw new ElasticSearchParseException("failed to parse doc to extract routing/timestamp", e);
+                } finally {
+                    if (parser != null) {
+                        parser.close();
+                    }
                 }
             }
+            // might as well check for routing here
+            if (mappingMd.routing().required() && routing == null) {
+                throw new RoutingMissingException(index, type, id);
+            }
         }
-        // might as well check for routing here
-        if (mappingMd.routing().required() && routing == null) {
-            throw new RoutingMissingException(index, type, id);
-        }
-        // Process parsed timestamp found in source
-        if (shouldParseTimestamp && timestamp != null) {
-            parseStringTimestamp(timestamp, mappingMd.tsDateTimeFormatter());
+        // generate timestamp if not provided, we always have one post this stage...
+        if (timestamp == null) {
+            timestamp = String.valueOf(System.currentTimeMillis());
         }
     }
 

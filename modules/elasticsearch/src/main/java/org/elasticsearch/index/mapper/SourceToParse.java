@@ -117,6 +117,11 @@ public class SourceToParse {
         return this.timestamp;
     }
 
+    public SourceToParse timestamp(String timestamp) {
+        this.timestamp = Long.parseLong(timestamp);
+        return this;
+    }
+
     public SourceToParse timestamp(long timestamp) {
         this.timestamp = timestamp;
         return this;

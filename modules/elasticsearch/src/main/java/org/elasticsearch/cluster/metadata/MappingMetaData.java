@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -229,19 +228,22 @@ public class MappingMetaData {
         return this.timestamp;
     }
 
-    public Tuple<String, String> parseRoutingAndTimestamp(XContentParser parser,
-                                                          boolean shouldParseRouting,
-                                                          boolean shouldParseTimestamp) throws IOException {
-        return parseRoutingAndTimestamp(parser, 0, 0, null, null, shouldParseRouting, shouldParseTimestamp);
+    public ParseContext createParseContext(@Nullable String routing, @Nullable String timestamp) {
+        return new ParseContext(
+                routing == null && routing().hasPath(),
+                timestamp == null && timestamp().hasPath()
+        );
     }
 
-    private Tuple<String, String> parseRoutingAndTimestamp(XContentParser parser,
-                                                           int locationRouting,
-                                                           int locationTimestamp,
-                                                           @Nullable String routingValue,
-                                                           @Nullable String timestampValue,
-                                                           boolean shouldParseRouting,
-                                                           boolean shouldParseTimestamp) throws IOException {
+    public void parse(XContentParser parser, ParseContext parseContext) throws IOException {
+        innerParse(parser, parseContext);
+    }
+
+    private void innerParse(XContentParser parser, ParseContext context) throws IOException {
+        if (!context.parsingStillNeeded()) {
+            return;
+        }
+
         XContentParser.Token t = parser.currentToken();
         if (t == null) {
             t = parser.nextToken();
@@ -249,8 +251,8 @@ public class MappingMetaData {
         if (t == XContentParser.Token.START_OBJECT) {
             t = parser.nextToken();
         }
-        String routingPart = shouldParseRouting ? routing().pathElements()[locationRouting] : null;
-        String timestampPart = shouldParseTimestamp ? timestamp().pathElements()[locationTimestamp] : null;
+        String routingPart = context.routingParsingStillNeeded() ? routing().pathElements()[context.locationRouting] : null;
+        String timestampPart = context.timestampParsingStillNeeded() ? timestamp().pathElements()[context.locationTimestamp] : null;
 
         for (; t == XContentParser.Token.FIELD_NAME; t = parser.nextToken()) {
             // Must point to field name
@@ -260,18 +262,18 @@ public class MappingMetaData {
 
             boolean incLocationRouting = false;
             boolean incLocationTimestamp = false;
-            if (shouldParseRouting && routingPart.equals(fieldName)) {
-                if (locationRouting + 1 == routing.pathElements().length) {
-                    routingValue = parser.textOrNull();
-                    shouldParseRouting = false;
+            if (context.routingParsingStillNeeded() && fieldName.equals(routingPart)) {
+                if (context.locationRouting + 1 == routing.pathElements().length) {
+                    context.routing = parser.textOrNull();
+                    context.routingResolved = true;
                 } else {
                     incLocationRouting = true;
                 }
             }
-            if (shouldParseTimestamp && timestampPart.equals(fieldName)) {
-                if (locationTimestamp + 1 == timestamp.pathElements().length) {
-                    timestampValue = parser.textOrNull();
-                    shouldParseTimestamp = false;
+            if (context.timestampParsingStillNeeded() && fieldName.equals(timestampPart)) {
+                if (context.locationTimestamp + 1 == timestamp.pathElements().length) {
+                    context.timestamp = parser.textOrNull();
+                    context.timestampResolved = true;
                 } else {
                     incLocationTimestamp = true;
                 }
@@ -279,37 +281,20 @@ public class MappingMetaData {
 
             if (incLocationRouting || incLocationTimestamp) {
                 if (t == XContentParser.Token.START_OBJECT) {
-                    locationRouting += incLocationRouting ? 1 : 0;
-                    locationTimestamp += incLocationTimestamp ? 1 : 0;
-                    Tuple<String, String> result = parseRoutingAndTimestamp(parser, locationRouting, locationTimestamp, routingValue, timestampValue,
-                            shouldParseRouting, shouldParseTimestamp);
-                    routingValue = result.v1();
-                    timestampValue = result.v2();
-                    if (incLocationRouting) {
-                        if (routingValue != null) {
-                            shouldParseRouting = false;
-                        } else {
-                            locationRouting--;
-                        }
-                    }
-                    if (incLocationTimestamp) {
-                        if (timestampValue != null) {
-                            shouldParseTimestamp = false;
-                        } else {
-                            locationTimestamp--;
-                        }
-                    }
+                    context.locationRouting += incLocationRouting ? 1 : 0;
+                    context.locationTimestamp += incLocationTimestamp ? 1 : 0;
+                    innerParse(parser, context);
+                    context.locationRouting -= incLocationRouting ? 1 : 0;
+                    context.locationTimestamp -= incLocationTimestamp ? 1 : 0;
                 }
             } else {
                 parser.skipChildren();
             }
 
-            if (!shouldParseRouting && !shouldParseTimestamp) {
-                return Tuple.create(routingValue, timestampValue);
+            if (!context.parsingStillNeeded()) {
+                return;
             }
         }
-
-        return Tuple.create(routingValue, timestampValue);
     }
 
     public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
@@ -342,5 +327,107 @@ public class MappingMetaData {
         // timestamp
         Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readUTF() : null, in.readUTF());
         return new MappingMetaData(type, source, routing, timestamp);
+    }
+
+    public static class ParseResult {
+        public final String routing;
+        public final boolean routingResolved;
+        public final String timestamp;
+        public final boolean timestampResolved;
+
+        public ParseResult(String routing, boolean routingResolved, String timestamp, boolean timestampResolved) {
+            this.routing = routing;
+            this.routingResolved = routingResolved;
+            this.timestamp = timestamp;
+            this.timestampResolved = timestampResolved;
+        }
+    }
+
+    public static class ParseContext {
+
+        final boolean shouldParseRouting;
+        final boolean shouldParseTimestamp;
+
+        int locationRouting = 0;
+        int locationTimestamp = 0;
+        boolean routingResolved;
+        boolean timestampResolved;
+        String routing;
+        String timestamp;
+
+        public ParseContext(boolean shouldParseRouting, boolean shouldParseTimestamp) {
+            this.shouldParseRouting = shouldParseRouting;
+            this.shouldParseTimestamp = shouldParseTimestamp;
+        }
+
+        /**
+         * The routing value parsed, <tt>null</tt> if does not require parsing, or not resolved.
+         */
+        public String routing() {
+            return routing;
+        }
+
+        /**
+         * Does routing parsing really needed at all?
+         */
+        public boolean shouldParseRouting() {
+            return shouldParseRouting;
+        }
+
+        /**
+         * Has routing been resolved during the parsing phase.
+         */
+        public boolean routingResolved() {
+            return routingResolved;
+        }
+
+        /**
+         * Is routing parsing still needed?
+         */
+        public boolean routingParsingStillNeeded() {
+            return shouldParseRouting && !routingResolved;
+        }
+
+        /**
+         * The timestamp value parsed, <tt>null</tt> if does not require parsing, or not resolved.
+         */
+        public String timestamp() {
+            return timestamp;
+        }
+
+        /**
+         * Does timestamp parsing really needed at all?
+         */
+        public boolean shouldParseTimestamp() {
+            return shouldParseTimestamp;
+        }
+
+        /**
+         * Has timestamp been resolved during the parsing phase.
+         */
+        public boolean timestampResolved() {
+            return timestampResolved;
+        }
+
+        /**
+         * Is timestamp parsing still needed?
+         */
+        public boolean timestampParsingStillNeeded() {
+            return shouldParseTimestamp && !timestampResolved;
+        }
+
+        /**
+         * Do we really need parsing?
+         */
+        public boolean shouldParse() {
+            return shouldParseRouting || shouldParseTimestamp;
+        }
+
+        /**
+         * Is parsing still needed?
+         */
+        public boolean parsingStillNeeded() {
+            return routingParsingStillNeeded() || timestampParsingStillNeeded();
+        }
     }
 }

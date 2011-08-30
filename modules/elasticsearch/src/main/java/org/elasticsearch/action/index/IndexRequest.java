@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -588,19 +587,18 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
         // extract values if needed
         if (mappingMd != null) {
-            boolean shouldParseRouting = (routing == null && mappingMd.routing().hasPath());
-            boolean shouldParseTimestamp = (timestamp == null && mappingMd.timestamp().hasPath());
+            MappingMetaData.ParseContext parseContext = mappingMd.createParseContext(routing, timestamp);
 
-            if (shouldParseRouting || shouldParseTimestamp) {
+            if (parseContext.shouldParse()) {
                 XContentParser parser = null;
                 try {
                     parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
-                    Tuple<String, String> parseResult = mappingMd.parseRoutingAndTimestamp(parser, shouldParseRouting, shouldParseTimestamp);
-                    if (shouldParseRouting) {
-                        routing = parseResult.v1();
+                    mappingMd.parse(parser, parseContext);
+                    if (parseContext.shouldParseRouting()) {
+                        routing = parseContext.routing();
                     }
-                    if (shouldParseTimestamp) {
-                        timestamp = parseResult.v2();
+                    if (parseContext.shouldParseTimestamp()) {
+                        timestamp = parseContext.timestamp();
                         timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
                     }
                 } catch (Exception e) {

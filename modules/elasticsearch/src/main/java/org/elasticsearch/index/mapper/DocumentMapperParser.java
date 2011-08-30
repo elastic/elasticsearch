@@ -97,6 +97,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser())
                 .put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser())
                 .put(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser())
+                .put(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser())
                 .put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser())
                 .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
                 .immutableMap();

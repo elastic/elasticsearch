@@ -119,6 +119,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     @Nullable private String routing;
     @Nullable private String parent;
     @Nullable private String timestamp;
+    private long ttl = -1;
 
     private byte[] source;
     private int sourceOffset;
@@ -285,6 +286,19 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     public String timestamp() {
         return this.timestamp;
+    }
+
+    // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
+    public IndexRequest ttl(long ttl) throws ElasticSearchGenerationException {
+        if (ttl <= 0) {
+            throw new ElasticSearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
+        }
+        this.ttl  = ttl;
+        return this;
+    }
+
+    public long ttl() {
+        return this.ttl;
     }
 
     /**
@@ -644,7 +658,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (in.readBoolean()) {
             timestamp = in.readUTF();
         }
-
+        ttl = in.readLong();
         sourceUnsafe = false;
         sourceOffset = 0;
         sourceLength = in.readVInt();
@@ -687,6 +701,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(timestamp);
         }
+        out.writeLong(ttl);
         out.writeVInt(sourceLength);
         out.writeBytes(source, sourceOffset, sourceLength);
         out.writeByte(opType.id());

@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
@@ -254,6 +255,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             value = source.parent;
                         } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().stored()) {
                             value = source.timestamp;
+                        } else if (field.equals(TTLFieldMapper.NAME) && docMapper.TTLFieldMapper().stored()) {
+                            // Call value for search with timestamp + ttl here to display the live remaining ttl value and be consistent with the search result display
+                            if (source.ttl > 0) {
+                                value = docMapper.TTLFieldMapper().valueForSearch(source.timestamp + source.ttl);
+                            }
                         } else {
                             String script = null;
                             if (field.contains("_source.")) {

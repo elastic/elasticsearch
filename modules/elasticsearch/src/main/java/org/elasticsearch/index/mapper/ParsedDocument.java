@@ -42,6 +42,8 @@ public class ParsedDocument {
 
     private final long timestamp;
 
+    private final long ttl;
+
     private final List<Document> documents;
 
     private final Analyzer analyzer;
@@ -54,16 +56,17 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
-        this(uid, id, type, routing, timestamp, Arrays.asList(document), analyzer, source, 0, source.length, mappersAdded);
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
+        this(uid, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, 0, source.length, mappersAdded);
     }
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, List<Document> documents, Analyzer analyzer, byte[] source, int sourceOffset, int sourceLength, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, byte[] source, int sourceOffset, int sourceLength, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
         this.routing = routing;
         this.timestamp = timestamp;
+        this.ttl = ttl;
         this.documents = documents;
         this.source = source;
         this.sourceOffset = sourceOffset;
@@ -90,6 +93,10 @@ public class ParsedDocument {
 
     public long timestamp() {
         return this.timestamp;
+    }
+
+    public long ttl() {
+        return this.ttl;
     }
 
     public Document rootDoc() {

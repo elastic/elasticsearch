@@ -27,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -743,13 +742,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class GetResult {
         private final boolean exists;
         private final long version;
-        private final BytesHolder source;
+        private final Translog.Source source;
         private final UidField.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
         public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
 
-        public GetResult(boolean exists, long version, @Nullable BytesHolder source) {
+        public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
             this.source = source;
             this.exists = exists;
             this.version = version;
@@ -773,7 +772,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.version;
         }
 
-        @Nullable public BytesHolder source() {
+        @Nullable public Translog.Source source() {
             return source;
         }
 

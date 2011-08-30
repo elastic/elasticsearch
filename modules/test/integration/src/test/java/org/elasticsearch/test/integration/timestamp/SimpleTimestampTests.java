@@ -64,9 +64,18 @@ public class SimpleTimestampTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
         long now2 = System.currentTimeMillis();
 
-        // we need to add support for fetching _timestamp from the translog in realtime case...
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
+        // we check both realtime get and non realtime get
+        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(true).execute().actionGet();
         long timestamp = ((Number) getResponse.field("_timestamp").value()).longValue();
+        assertThat(timestamp, greaterThanOrEqualTo(now1));
+        assertThat(timestamp, lessThanOrEqualTo(now2));
+        // verify its the same timestamp when going the replica
+        getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(true).execute().actionGet();
+        assertThat(((Number) getResponse.field("_timestamp").value()).longValue(), equalTo(timestamp));
+
+        // non realtime get (stored)
+        getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
+        timestamp = ((Number) getResponse.field("_timestamp").value()).longValue();
         assertThat(timestamp, greaterThanOrEqualTo(now1));
         assertThat(timestamp, lessThanOrEqualTo(now2));
         // verify its the same timestamp when going the replica

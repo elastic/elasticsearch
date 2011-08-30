@@ -214,7 +214,7 @@ public abstract class AbstractSimpleEngineTests {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), equalTo(new BytesHolder(B_1)));
+        assertThat(getResult.source().source, equalTo(new BytesHolder(B_1)));
         assertThat(getResult.docIdAndVersion(), nullValue());
 
         // but, not there non realtime
@@ -249,7 +249,7 @@ public abstract class AbstractSimpleEngineTests {
         // but, we can still get it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), equalTo(new BytesHolder(B_2)));
+        assertThat(getResult.source().source, equalTo(new BytesHolder(B_2)));
         assertThat(getResult.docIdAndVersion(), nullValue());
 
         // refresh and it should be updated

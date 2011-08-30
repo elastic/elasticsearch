@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,7 +53,7 @@ public class TranslogStreams {
         return operation;
     }
 
-    public static BytesHolder readSource(byte[] data) throws IOException {
+    public static Translog.Source readSource(byte[] data) throws IOException {
         BytesStreamInput in = new BytesStreamInput(data);
         in.readInt(); // the size header
         Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());

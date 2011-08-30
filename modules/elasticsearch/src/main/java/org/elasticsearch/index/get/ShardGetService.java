@@ -35,12 +35,16 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -224,7 +228,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
                 return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesHolder(source), fields);
             } else {
-                BytesHolder source = get.source();
+                Translog.Source source = get.source();
 
                 Map<String, GetField> fields = null;
                 boolean sourceRequested = false;
@@ -236,56 +240,70 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     // no fields, and no source
                     sourceRequested = false;
                 } else {
-                    Map<String, Object> sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
+                    Map<String, Object> sourceAsMap = null;
                     SearchLookup searchLookup = null;
                     for (String field : gFields) {
                         if (field.equals("_source")) {
                             sourceRequested = true;
                             continue;
                         }
-                        String script = null;
-                        if (field.contains("_source.")) {
-                            script = field;
+                        Object value = null;
+                        if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().stored()) {
+                            value = source.routing;
+                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper().stored()) {
+                            value = source.parent;
+                        } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().stored()) {
+                            value = source.timestamp;
                         } else {
-                            FieldMappers x = docMapper.mappers().smartName(field);
-                            if (x != null) {
-                                script = "_source." + x.mapper().names().fullName();
+                            String script = null;
+                            if (field.contains("_source.")) {
+                                script = field;
+                            } else {
+                                FieldMappers x = docMapper.mappers().smartName(field);
+                                if (x != null) {
+                                    script = "_source." + x.mapper().names().fullName();
+                                }
+                            }
+                            if (script != null) {
+                                if (searchLookup == null) {
+                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                }
+                                if (sourceAsMap == null) {
+                                    sourceAsMap = SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length());
+                                }
+                                SearchScript searchScript = scriptService.search(searchLookup, "mvel", script, null);
+                                // we can't do this, only allow to run scripts against the source
+                                //searchScript.setNextReader(docIdAndVersion.reader);
+                                //searchScript.setNextDocId(docIdAndVersion.docId);
+
+                                // but, we need to inject the parsed source into the script, so it will be used...
+                                searchScript.setNextSource(sourceAsMap);
+
+                                try {
+                                    value = searchScript.run();
+                                } catch (RuntimeException e) {
+                                    if (logger.isTraceEnabled()) {
+                                        logger.trace("failed to execute get request script field [{}]", e, script);
+                                    }
+                                    // ignore
+                                }
                             }
                         }
-                        if (script != null) {
-                            if (searchLookup == null) {
-                                searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                        if (value != null) {
+                            if (fields == null) {
+                                fields = newHashMapWithExpectedSize(2);
                             }
-                            SearchScript searchScript = scriptService.search(searchLookup, "mvel", script, null);
-                            // we can't do this, only allow to run scripts against the source
-                            //searchScript.setNextReader(docIdAndVersion.reader);
-                            //searchScript.setNextDocId(docIdAndVersion.docId);
-
-                            // but, we need to inject the parsed source into the script, so it will be used...
-                            searchScript.setNextSource(sourceAsMap);
-
-                            try {
-                                Object value = searchScript.run();
-                                if (fields == null) {
-                                    fields = newHashMapWithExpectedSize(2);
-                                }
-                                GetField getField = fields.get(field);
-                                if (getField == null) {
-                                    getField = new GetField(field, new ArrayList<Object>(2));
-                                    fields.put(field, getField);
-                                }
-                                getField.values().add(value);
-                            } catch (RuntimeException e) {
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("failed to execute get request script field [{}]", e, script);
-                                }
-                                // ignore
+                            GetField getField = fields.get(field);
+                            if (getField == null) {
+                                getField = new GetField(field, new ArrayList<Object>(2));
+                                fields.put(field, getField);
                             }
+                            getField.values().add(value);
                         }
                     }
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceRequested ? source : null, fields);
+                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceRequested ? source.source : null, fields);
             }
         } finally {
             get.release();

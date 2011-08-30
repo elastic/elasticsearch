@@ -42,6 +42,36 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
  */
 public class MappingMetaData {
 
+    public static class Id {
+
+        public static final Id EMPTY = new Id(null);
+
+        private final String path;
+
+        private final String[] pathElements;
+
+        public Id(String path) {
+            this.path = path;
+            if (path == null) {
+                pathElements = Strings.EMPTY_ARRAY;
+            } else {
+                pathElements = Strings.delimitedListToStringArray(path, ".");
+            }
+        }
+
+        public boolean hasPath() {
+            return path != null;
+        }
+
+        public String path() {
+            return this.path;
+        }
+
+        public String[] pathElements() {
+            return this.pathElements;
+        }
+    }
+
     public static class Routing {
 
         public static final Routing EMPTY = new Routing(false, null);
@@ -149,12 +179,14 @@ public class MappingMetaData {
 
     private final CompressedString source;
 
+    private final Id id;
     private final Routing routing;
     private final Timestamp timestamp;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
+        this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
     }
@@ -165,6 +197,20 @@ public class MappingMetaData {
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
+        }
+        if (withoutType.containsKey("_id")) {
+            String path = null;
+            Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_id");
+            for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("path")) {
+                    path = fieldNode.toString();
+                }
+            }
+            this.id = new Id(path);
+        } else {
+            this.id = Id.EMPTY;
         }
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
@@ -205,9 +251,10 @@ public class MappingMetaData {
         }
     }
 
-    MappingMetaData(String type, CompressedString source, Routing routing, Timestamp timestamp) {
+    MappingMetaData(String type, CompressedString source, Id id, Routing routing, Timestamp timestamp) {
         this.type = type;
         this.source = source;
+        this.id = id;
         this.routing = routing;
         this.timestamp = timestamp;
     }
@@ -220,6 +267,10 @@ public class MappingMetaData {
         return this.source;
     }
 
+    public Id id() {
+        return this.id;
+    }
+
     public Routing routing() {
         return this.routing;
     }
@@ -228,8 +279,9 @@ public class MappingMetaData {
         return this.timestamp;
     }
 
-    public ParseContext createParseContext(@Nullable String routing, @Nullable String timestamp) {
+    public ParseContext createParseContext(@Nullable String id, @Nullable String routing, @Nullable String timestamp) {
         return new ParseContext(
+                id == null && id().hasPath(),
                 routing == null && routing().hasPath(),
                 timestamp == null && timestamp().hasPath()
         );
@@ -251,6 +303,7 @@ public class MappingMetaData {
         if (t == XContentParser.Token.START_OBJECT) {
             t = parser.nextToken();
         }
+        String idPart = context.idParsingStillNeeded() ? id().pathElements()[context.locationId] : null;
         String routingPart = context.routingParsingStillNeeded() ? routing().pathElements()[context.locationRouting] : null;
         String timestampPart = context.timestampParsingStillNeeded() ? timestamp().pathElements()[context.locationTimestamp] : null;
 
@@ -259,9 +312,17 @@ public class MappingMetaData {
             String fieldName = parser.currentName();
             // And then the value...
             t = parser.nextToken();
-
+            boolean incLocationId = false;
             boolean incLocationRouting = false;
             boolean incLocationTimestamp = false;
+            if (context.idParsingStillNeeded() && fieldName.equals(idPart)) {
+                if (context.locationId + 1 == id.pathElements().length) {
+                    context.id = parser.textOrNull();
+                    context.idResolved = true;
+                } else {
+                    incLocationId = true;
+                }
+            }
             if (context.routingParsingStillNeeded() && fieldName.equals(routingPart)) {
                 if (context.locationRouting + 1 == routing.pathElements().length) {
                     context.routing = parser.textOrNull();
@@ -279,11 +340,13 @@ public class MappingMetaData {
                 }
             }
 
-            if (incLocationRouting || incLocationTimestamp) {
+            if (incLocationId || incLocationRouting || incLocationTimestamp) {
                 if (t == XContentParser.Token.START_OBJECT) {
+                    context.locationId += incLocationId ? 1 : 0;
                     context.locationRouting += incLocationRouting ? 1 : 0;
                     context.locationTimestamp += incLocationTimestamp ? 1 : 0;
                     innerParse(parser, context);
+                    context.locationId -= incLocationId ? 1 : 0;
                     context.locationRouting -= incLocationRouting ? 1 : 0;
                     context.locationTimestamp -= incLocationTimestamp ? 1 : 0;
                 }
@@ -300,6 +363,13 @@ public class MappingMetaData {
     public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
         out.writeUTF(mappingMd.type());
         mappingMd.source().writeTo(out);
+        // id
+        if (mappingMd.id().hasPath()) {
+            out.writeBoolean(true);
+            out.writeUTF(mappingMd.id().path());
+        } else {
+            out.writeBoolean(false);
+        }
         // routing
         out.writeBoolean(mappingMd.routing().required());
         if (mappingMd.routing().hasPath()) {
@@ -322,11 +392,13 @@ public class MappingMetaData {
     public static MappingMetaData readFrom(StreamInput in) throws IOException {
         String type = in.readUTF();
         CompressedString source = CompressedString.readCompressedString(in);
+        // id
+        Id id = new Id(in.readBoolean() ? in.readUTF() : null);
         // routing
         Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readUTF() : null);
         // timestamp
         Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readUTF() : null, in.readUTF());
-        return new MappingMetaData(type, source, routing, timestamp);
+        return new MappingMetaData(type, source, id, routing, timestamp);
     }
 
     public static class ParseResult {
@@ -344,20 +416,52 @@ public class MappingMetaData {
     }
 
     public static class ParseContext {
-
+        final boolean shouldParseId;
         final boolean shouldParseRouting;
         final boolean shouldParseTimestamp;
 
+        int locationId = 0;
         int locationRouting = 0;
         int locationTimestamp = 0;
+        boolean idResolved;
         boolean routingResolved;
         boolean timestampResolved;
+        String id;
         String routing;
         String timestamp;
 
-        public ParseContext(boolean shouldParseRouting, boolean shouldParseTimestamp) {
+        public ParseContext(boolean shouldParseId, boolean shouldParseRouting, boolean shouldParseTimestamp) {
+            this.shouldParseId = shouldParseId;
             this.shouldParseRouting = shouldParseRouting;
             this.shouldParseTimestamp = shouldParseTimestamp;
+        }
+
+        /**
+         * The id value parsed, <tt>null</tt> if does not require parsing, or not resolved.
+         */
+        public String id() {
+            return id;
+        }
+
+        /**
+         * Does id parsing really needed at all?
+         */
+        public boolean shouldParseId() {
+            return shouldParseId;
+        }
+
+        /**
+         * Has id been resolved during the parsing phase.
+         */
+        public boolean idResolved() {
+            return idResolved;
+        }
+
+        /**
+         * Is id parsing still needed?
+         */
+        public boolean idParsingStillNeeded() {
+            return shouldParseId && !idResolved;
         }
 
         /**
@@ -420,14 +524,14 @@ public class MappingMetaData {
          * Do we really need parsing?
          */
         public boolean shouldParse() {
-            return shouldParseRouting || shouldParseTimestamp;
+            return shouldParseId || shouldParseRouting || shouldParseTimestamp;
         }
 
         /**
          * Is parsing still needed?
          */
         public boolean parsingStillNeeded() {
-            return routingParsingStillNeeded() || timestampParsingStillNeeded();
+            return idParsingStillNeeded() || routingParsingStillNeeded() || timestampParsingStillNeeded();
         }
     }
 }

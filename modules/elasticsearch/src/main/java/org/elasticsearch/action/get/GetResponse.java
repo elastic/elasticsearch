@@ -22,26 +22,17 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.BytesHolder;
-import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.index.get.GetField;
+import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-
-import static org.elasticsearch.action.get.GetField.*;
-import static org.elasticsearch.common.collect.Iterators.*;
-import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * The response of a get action.
@@ -52,155 +43,111 @@ import static org.elasticsearch.common.collect.Maps.*;
  */
 public class GetResponse implements ActionResponse, Streamable, Iterable<GetField>, ToXContent {
 
-    private String index;
-
-    private String type;
-
-    private String id;
-
-    private long version;
-
-    private boolean exists;
-
-    private Map<String, GetField> fields;
-
-    private Map<String, Object> sourceAsMap;
-
-    private BytesHolder source;
-
-    private byte[] sourceAsBytes;
+    private GetResult getResult;
 
     GetResponse() {
     }
 
-    GetResponse(String index, String type, String id, long version, boolean exists, BytesHolder source, Map<String, GetField> fields) {
-        this.index = index;
-        this.type = type;
-        this.id = id;
-        this.version = version;
-        this.exists = exists;
-        this.source = source;
-        this.fields = fields;
-        if (this.fields == null) {
-            this.fields = ImmutableMap.of();
-        }
+    GetResponse(GetResult getResult) {
+        this.getResult = getResult;
     }
 
     /**
      * Does the document exists.
      */
     public boolean exists() {
-        return exists;
+        return getResult.exists();
     }
 
     /**
      * Does the document exists.
      */
     public boolean isExists() {
-        return exists;
+        return exists();
     }
 
     /**
      * The index the document was fetched from.
      */
     public String index() {
-        return this.index;
+        return getResult.index();
     }
 
     /**
      * The index the document was fetched from.
      */
     public String getIndex() {
-        return index;
+        return index();
     }
 
     /**
      * The type of the document.
      */
     public String type() {
-        return type;
+        return getResult.type();
     }
 
     /**
      * The type of the document.
      */
     public String getType() {
-        return type;
+        return type();
     }
 
     /**
      * The id of the document.
      */
     public String id() {
-        return id;
+        return getResult.id();
     }
 
     /**
      * The id of the document.
      */
     public String getId() {
-        return id;
+        return id();
     }
 
     /**
      * The version of the doc.
      */
     public long version() {
-        return this.version;
+        return getResult.version();
     }
 
     /**
      * The version of the doc.
      */
     public long getVersion() {
-        return this.version;
+        return version();
     }
 
     /**
      * The source of the document if exists.
      */
     public byte[] source() {
-        if (source == null) {
-            return null;
-        }
-        if (sourceAsBytes != null) {
-            return sourceAsBytes;
-        }
-        this.sourceAsBytes = sourceRef().copyBytes();
-        return this.sourceAsBytes;
+        return getResult.source();
     }
 
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesHolder sourceRef() {
-        if (LZF.isCompressed(source.bytes(), source.offset(), source.length())) {
-            try {
-                // TODO decompress without doing an extra copy!
-                this.source = new BytesHolder(LZFDecoder.decode(source.copyBytes()));
-            } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to decompress source", e);
-            }
-        }
-        return this.source;
+        return getResult.sourceRef();
     }
 
     /**
      * Is the source empty (not available) or not.
      */
     public boolean isSourceEmpty() {
-        return source == null;
+        return getResult.isSourceEmpty();
     }
 
     /**
      * The source of the document (as a string).
      */
     public String sourceAsString() {
-        if (source == null) {
-            return null;
-        }
-        BytesHolder source = sourceRef();
-        return Unicode.fromBytes(source.bytes(), source.offset(), source.length());
+        return getResult.sourceAsString();
     }
 
     /**
@@ -208,140 +155,38 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
      */
     @SuppressWarnings({"unchecked"})
     public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
-        if (source == null) {
-            return null;
-        }
-        if (sourceAsMap != null) {
-            return sourceAsMap;
-        }
-
-        sourceAsMap = SourceLookup.sourceAsMap(source.bytes(), source.offset(), source.length());
-        return sourceAsMap;
+        return getResult.sourceAsMap();
     }
 
     public Map<String, Object> getSource() {
-        return sourceAsMap();
+        return getResult.getSource();
     }
 
     public Map<String, GetField> fields() {
-        return this.fields;
+        return getResult.fields();
     }
 
     public Map<String, GetField> getFields() {
-        return fields;
+        return fields();
     }
 
     public GetField field(String name) {
-        return fields.get(name);
+        return getResult.field(name);
     }
 
     @Override public Iterator<GetField> iterator() {
-        if (fields == null) {
-            return emptyIterator();
-        }
-        return fields.values().iterator();
-    }
-
-    static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString EXISTS = new XContentBuilderString("exists");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        return getResult.iterator();
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!exists()) {
-            builder.startObject();
-            builder.field(Fields._INDEX, index);
-            builder.field(Fields._TYPE, type);
-            builder.field(Fields._ID, id);
-            builder.field(Fields.EXISTS, false);
-            builder.endObject();
-        } else {
-            builder.startObject();
-            builder.field(Fields._INDEX, index);
-            builder.field(Fields._TYPE, type);
-            builder.field(Fields._ID, id);
-            if (version != -1) {
-                builder.field(Fields._VERSION, version);
-            }
-            builder.field(Fields.EXISTS, true);
-            if (source != null) {
-                RestXContentBuilder.restDocumentSource(source.bytes(), source.offset(), source.length(), builder, params);
-            }
-
-            if (fields != null && !fields.isEmpty()) {
-                builder.startObject(Fields.FIELDS);
-                for (GetField field : fields.values()) {
-                    if (field.values().isEmpty()) {
-                        continue;
-                    }
-                    if (field.values().size() == 1) {
-                        builder.field(field.name(), field.values().get(0));
-                    } else {
-                        builder.field(field.name());
-                        builder.startArray();
-                        for (Object value : field.values()) {
-                            builder.value(value);
-                        }
-                        builder.endArray();
-                    }
-                }
-                builder.endObject();
-            }
-
-
-            builder.endObject();
-        }
-        return builder;
+        return getResult.toXContent(builder, params);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
-        type = in.readUTF();
-        id = in.readUTF();
-        version = in.readLong();
-        exists = in.readBoolean();
-        if (exists) {
-            if (in.readBoolean()) {
-                source = BytesHolder.readBytesHolder(in);
-            }
-            int size = in.readVInt();
-            if (size == 0) {
-                fields = ImmutableMap.of();
-            } else {
-                fields = newHashMapWithExpectedSize(size);
-                for (int i = 0; i < size; i++) {
-                    GetField field = readGetField(in);
-                    fields.put(field.name(), field);
-                }
-            }
-        }
+        getResult = GetResult.readGetResult(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
-        out.writeUTF(type);
-        out.writeUTF(id);
-        out.writeLong(version);
-        out.writeBoolean(exists);
-        if (exists) {
-            if (source == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                source.writeTo(out);
-            }
-            if (fields == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(fields.size());
-                for (GetField field : fields.values()) {
-                    field.writeTo(out);
-                }
-            }
-        }
+        getResult.writeTo(out);
     }
 }

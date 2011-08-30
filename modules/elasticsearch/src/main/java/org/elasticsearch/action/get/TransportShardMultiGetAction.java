@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -105,8 +106,8 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
             String[] fields = request.fields.get(i);
 
             try {
-                GetResponse getResponse = TransportGetAction.load(logger, scriptService, indexService, indexShard, request.index(), type, id, fields, request.realtime());
-                response.add(request.locations.get(i), getResponse);
+                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime());
+                response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Exception e) {
                 logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", e, request.index(), shardId, type, id);
                 response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(e)));

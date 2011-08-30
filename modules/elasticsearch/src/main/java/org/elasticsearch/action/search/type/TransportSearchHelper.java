@@ -61,7 +61,7 @@ public abstract class TransportSearchHelper {
         return ret;
     }
 
-    public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases) {
+    public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis) {
         InternalSearchRequest internalRequest = new InternalSearchRequest(shardRouting, numberOfShards, request.searchType());
         internalRequest.source(request.source(), request.sourceOffset(), request.sourceLength());
         internalRequest.extraSource(request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
@@ -69,6 +69,7 @@ public abstract class TransportSearchHelper {
         internalRequest.timeout(request.timeout());
         internalRequest.filteringAliases(filteringAliases);
         internalRequest.types(request.types());
+        internalRequest.nowInMillis(nowInMillis);
         return internalRequest;
     }
 

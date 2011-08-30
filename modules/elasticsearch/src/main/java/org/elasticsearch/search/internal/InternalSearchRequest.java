@@ -79,6 +79,8 @@ public class InternalSearchRequest implements Streamable {
     private int extraSourceOffset;
     private int extraSourceLength;
 
+    private long nowInMillis;
+
     public InternalSearchRequest() {
     }
 
@@ -149,6 +151,15 @@ public class InternalSearchRequest implements Streamable {
         this.extraSourceOffset = offset;
         this.extraSourceLength = length;
         return this;
+    }
+
+    public InternalSearchRequest nowInMillis(long nowInMillis) {
+        this.nowInMillis = nowInMillis;
+        return this;
+    }
+
+    public long nowInMillis() {
+        return this.nowInMillis;
     }
 
     public Scroll scroll() {
@@ -228,6 +239,7 @@ public class InternalSearchRequest implements Streamable {
         } else {
             filteringAliases = null;
         }
+        nowInMillis = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -271,5 +283,6 @@ public class InternalSearchRequest implements Streamable {
         } else {
             out.writeVInt(0);
         }
+        out.writeVLong(nowInMillis);
     }
 }

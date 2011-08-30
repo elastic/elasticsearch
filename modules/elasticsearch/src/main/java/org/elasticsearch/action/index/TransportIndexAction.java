@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -117,14 +116,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        if (allowIdGeneration) {
-            if (request.id() == null) {
-                request.id(UUID.randomBase64UUID());
-                // since we generate the id, change it to CREATE
-                request.opType(IndexRequest.OpType.CREATE);
-            }
-        }
-
         MetaData metaData = clusterService.state().metaData();
         String aliasOrIndex = request.index();
         request.index(metaData.concreteIndex(request.index()));
@@ -132,7 +123,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         if (metaData.hasIndex(request.index())) {
             mappingMd = metaData.index(request.index()).mapping(request.type());
         }
-        request.process(metaData, aliasOrIndex, mappingMd);
+        request.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
+
         super.doExecute(request, listener);
     }
 

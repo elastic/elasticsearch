@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
+import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -577,7 +578,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.percolate;
     }
 
-    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd) throws ElasticSearchException {
+    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticSearchException {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, aliasOrIndex));
         // resolve timestamp if provided externally
@@ -587,13 +588,16 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
         // extract values if needed
         if (mappingMd != null) {
-            MappingMetaData.ParseContext parseContext = mappingMd.createParseContext(routing, timestamp);
+            MappingMetaData.ParseContext parseContext = mappingMd.createParseContext(id, routing, timestamp);
 
             if (parseContext.shouldParse()) {
                 XContentParser parser = null;
                 try {
                     parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
                     mappingMd.parse(parser, parseContext);
+                    if (parseContext.shouldParseId()) {
+                        id = parseContext.id();
+                    }
                     if (parseContext.shouldParseRouting()) {
                         routing = parseContext.routing();
                     }
@@ -609,11 +613,22 @@ public class IndexRequest extends ShardReplicationOperationRequest {
                     }
                 }
             }
+
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
                 throw new RoutingMissingException(index, type, id);
             }
         }
+
+        // generate id if not already provided and id generation is allowed
+        if (allowIdGeneration) {
+            if (id == null) {
+                id(UUID.randomBase64UUID());
+                // since we generate the id, change it to CREATE
+                opType(IndexRequest.OpType.CREATE);
+            }
+        }
+
         // generate timestamp if not provided, we always have one post this stage...
         if (timestamp == null) {
             timestamp = String.valueOf(System.currentTimeMillis());

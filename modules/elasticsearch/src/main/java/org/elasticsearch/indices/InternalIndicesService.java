@@ -54,6 +54,7 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
+import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
@@ -178,12 +179,14 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         DocsStats docsStats = new DocsStats();
         StoreStats storeStats = new StoreStats();
         IndexingStats indexingStats = new IndexingStats();
+        GetStats getStats = new GetStats();
         CacheStats cacheStats = new CacheStats();
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
         FlushStats flushStats = new FlushStats();
 
         if (includePrevious) {
+            getStats.add(oldShardsStats.getStats);
             indexingStats.add(oldShardsStats.indexingStats);
             mergeStats.add(oldShardsStats.mergeStats);
             refreshStats.add(oldShardsStats.refreshStats);
@@ -194,6 +197,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             for (IndexShard indexShard : indexService) {
                 storeStats.add(indexShard.storeStats());
                 docsStats.add(indexShard.docStats());
+                getStats.add(indexShard.getStats());
                 indexingStats.add(indexShard.indexingStats());
                 mergeStats.add(indexShard.mergeStats());
                 refreshStats.add(indexShard.refreshStats());
@@ -348,6 +352,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     static class OldShardsStats extends IndicesLifecycle.Listener {
 
+        final GetStats getStats = new GetStats();
         final IndexingStats indexingStats = new IndexingStats();
         final MergeStats mergeStats = new MergeStats();
         final RefreshStats refreshStats = new RefreshStats();
@@ -355,6 +360,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         @Override public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
             if (indexShard != null) {
+                getStats.add(indexShard.getStats());
                 indexingStats.add(indexShard.indexingStats(), false);
                 mergeStats.add(indexShard.mergeStats());
                 refreshStats.add(indexShard.refreshStats());

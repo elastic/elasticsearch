@@ -47,6 +47,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.OptimizeFailedEngineException;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
@@ -410,6 +411,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override public IndexingStats indexingStats(String... types) {
         return indexingService.stats(types);
+    }
+
+    @Override public GetStats getStats() {
+        return getService.stats();
     }
 
     @Override public StoreStats storeStats() {

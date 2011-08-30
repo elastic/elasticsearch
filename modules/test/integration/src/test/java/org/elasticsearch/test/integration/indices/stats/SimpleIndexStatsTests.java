@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.indices.stats;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -52,7 +53,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         return client("node2");
     }
 
-    @Test public void simpleIndexTemplateTests() throws Exception {
+    @Test public void simpleStats() throws Exception {
         // rely on 1 replica for this tests
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         client.admin().indices().prepareCreate("test2").execute().actionGet();
@@ -109,5 +110,24 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.primaries().indexing().typeStats().get("type1").indexCount(), equalTo(1l));
         assertThat(stats.primaries().indexing().typeStats().get("type").indexCount(), equalTo(1l));
         assertThat(stats.primaries().indexing().typeStats().get("type2"), nullValue());
+
+        assertThat(stats.total().get().count(), equalTo(0l));
+        // check get
+        GetResponse getResponse = client.prepareGet("test1", "type1", "1").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+
+        stats = client.admin().indices().prepareStats().execute().actionGet();
+        assertThat(stats.total().get().count(), equalTo(1l));
+        assertThat(stats.total().get().existsCount(), equalTo(1l));
+        assertThat(stats.total().get().missingCount(), equalTo(0l));
+
+        // missing get
+        getResponse = client.prepareGet("test1", "type1", "2").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(false));
+
+        stats = client.admin().indices().prepareStats().execute().actionGet();
+        assertThat(stats.total().get().count(), equalTo(2l));
+        assertThat(stats.total().get().existsCount(), equalTo(1l));
+        assertThat(stats.total().get().missingCount(), equalTo(1l));
     }
 }

@@ -39,6 +39,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
     private boolean docs = true;
     private boolean store = true;
     private boolean indexing = true;
+    private boolean get = true;
     private boolean merge = false;
     private boolean refresh = false;
     private boolean flush = false;
@@ -55,6 +56,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
     public IndicesStatsRequest clear() {
         docs = false;
         store = false;
+        get = false;
         indexing = false;
         merge = false;
         refresh = false;
@@ -106,6 +108,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
         return this.indexing;
     }
 
+    public IndicesStatsRequest get(boolean get) {
+        this.get = get;
+        return this;
+    }
+
+    public boolean get() {
+        return this.get;
+    }
+
     public IndicesStatsRequest merge(boolean merge) {
         this.merge = merge;
         return this;
@@ -138,6 +149,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
         out.writeBoolean(docs);
         out.writeBoolean(store);
         out.writeBoolean(indexing);
+        out.writeBoolean(get);
         out.writeBoolean(merge);
         out.writeBoolean(flush);
         out.writeBoolean(refresh);
@@ -156,6 +168,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest {
         docs = in.readBoolean();
         store = in.readBoolean();
         indexing = in.readBoolean();
+        get = in.readBoolean();
         merge = in.readBoolean();
         flush = in.readBoolean();
         refresh = in.readBoolean();

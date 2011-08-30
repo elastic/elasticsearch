@@ -15,12 +15,10 @@
     <orderEntry type="module-library">
       <library name="rhino">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/rhino/js/jars/js-1.7R2.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.mozilla/rhino/jars/rhino-1.7R3.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES>
-          <root url="file://$USER_HOME$/opt/rhino1_7R2/src" />
-        </SOURCES>
+        <SOURCES />
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.testng.annotations.Test;
@@ -28,10 +27,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
-/**
- * @author kimchy (shay.banon)
- */
-public class ParseRoutingTimestampTests {
+@Test
+public class MappingMetaDataParserTests {
 
     @Test public void testParseRoutingAlone() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
@@ -39,9 +36,12 @@ public class ParseRoutingTimestampTests {
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, false);
-        assertThat(parsed.v1(), equalTo("routing_value"));
-        assertThat(parsed.v2(), equalTo(null));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, "1");
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.routingResolved(), equalTo(true));
+        assertThat(parseContext.timestamp(), nullValue());
+        assertThat(parseContext.timestampResolved(), equalTo(false));
     }
 
     @Test public void testParseTimestampAlone() throws Exception {
@@ -50,9 +50,10 @@ public class ParseRoutingTimestampTests {
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), false, true);
-        assertThat(parsed.v1(), equalTo(null));
-        assertThat(parsed.v2(), equalTo("1"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext("routing_value1", null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), nullValue());
+        assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
     @Test public void testParseRoutingAndTimestamp() throws Exception {
@@ -61,9 +62,10 @@ public class ParseRoutingTimestampTests {
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("routing", "routing_value").field("timestamp", "1").endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo("routing_value"));
-        assertThat(parsed.v2(), equalTo("1"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
     @Test public void testParseRoutingAndTimestampWithPath() throws Exception {
@@ -75,9 +77,44 @@ public class ParseRoutingTimestampTests {
                 .startObject("obj1").field("routing", "routing_value").endObject()
                 .startObject("obj2").field("timestamp", "1").endObject()
                 .endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo("routing_value"));
-        assertThat(parsed.v2(), equalTo("1"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.timestamp(), equalTo("1"));
+    }
+
+    @Test public void testParseRoutingWithPath() throws Exception {
+        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Routing(true, "obj1.routing"),
+                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime"));
+        byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
+                .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
+                .startObject("obj1").field("routing", "routing_value").endObject()
+                .startObject("obj2").field("timestamp", "1").endObject()
+                .endObject().copiedBytes();
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, "2");
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.routingResolved(), equalTo(true));
+        assertThat(parseContext.timestamp(), nullValue());
+        assertThat(parseContext.timestampResolved(), equalTo(false));
+    }
+
+    @Test public void testParseTimestampWithPath() throws Exception {
+        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Routing(true, "obj1.routing"),
+                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime"));
+        byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
+                .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
+                .startObject("obj1").field("routing", "routing_value").endObject()
+                .startObject("obj2").field("timestamp", "1").endObject()
+                .endObject().copiedBytes();
+        MappingMetaData.ParseContext parseContext = md.createParseContext("routing_value1", null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), nullValue());
+        assertThat(parseContext.routingResolved(), equalTo(false));
+        assertThat(parseContext.timestamp(), equalTo("1"));
+        assertThat(parseContext.timestampResolved(), equalTo(true));
     }
 
     @Test public void testParseRoutingAndTimestampWithinSamePath() throws Exception {
@@ -89,9 +126,10 @@ public class ParseRoutingTimestampTests {
                 .startObject("obj1").field("routing", "routing_value").field("timestamp", "1").endObject()
                 .startObject("obj2").field("field1", "value1").endObject()
                 .endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo("routing_value"));
-        assertThat(parsed.v2(), equalTo("1"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
     @Test public void testParseRoutingAndTimestampWithinSamePathAndMoreLevels() throws Exception {
@@ -101,18 +139,19 @@ public class ParseRoutingTimestampTests {
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1")
-                    .startObject("obj2")
-                        .field("routing", "routing_value")
-                    .endObject()
-                    .startObject("obj3")
-                        .field("timestamp", "1")
-                    .endObject()
+                .startObject("obj2")
+                .field("routing", "routing_value")
+                .endObject()
+                .startObject("obj3")
+                .field("timestamp", "1")
+                .endObject()
                 .endObject()
                 .startObject("obj2").field("field1", "value1").endObject()
                 .endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo("routing_value"));
-        assertThat(parsed.v2(), equalTo("1"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
 
@@ -125,11 +164,13 @@ public class ParseRoutingTimestampTests {
                 .startObject("obj1").field("routing", "routing_value").endObject()
                 .startObject("obj1").field("timestamp", "1").endObject()
                 .endObject().copiedBytes();
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo("routing_value"));
-        assertThat(parsed.v2(), equalTo("1"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
+    //
     @Test public void testParseRoutingTimestampWithRepeatedField() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Routing(true, "field1.field1"),
@@ -144,9 +185,10 @@ public class ParseRoutingTimestampTests {
                 .field("zzz", "wr")
                 .endObject().copiedBytes();
 
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo(null));
-        assertThat(parsed.v2(), equalTo("foo"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), nullValue());
+        assertThat(parseContext.timestamp(), equalTo("foo"));
     }
 
     @Test public void testParseRoutingWithRepeatedFieldAndObject() throws Exception {
@@ -163,9 +205,10 @@ public class ParseRoutingTimestampTests {
                 .field("zzz", "wr")
                 .endObject().copiedBytes();
 
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo(null));
-        assertThat(parsed.v2(), equalTo("foo"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), nullValue());
+        assertThat(parseContext.timestamp(), equalTo("foo"));
     }
 
     @Test public void testParseRoutingWithRepeatedFieldAndValidRouting() throws Exception {
@@ -182,8 +225,9 @@ public class ParseRoutingTimestampTests {
                 .field("zzz", "wr")
                 .endObject().copiedBytes();
 
-        Tuple<String, String> parsed = md.parseRoutingAndTimestamp(XContentFactory.xContent(bytes).createParser(bytes), true, true);
-        assertThat(parsed.v1(), equalTo("bar"));
-        assertThat(parsed.v2(), equalTo("foo"));
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, null);
+        md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assertThat(parseContext.routing(), equalTo("bar"));
+        assertThat(parseContext.timestamp(), equalTo("foo"));
     }
 }

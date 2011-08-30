@@ -33,6 +33,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.indices.ttl.IndicesTTLService;
 
 /**
  * @author kimchy (shay.banon)
@@ -62,5 +63,6 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndexingMemoryBufferController.class).asEagerSingleton();
         bind(IndicesNodeFilterCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
+        bind(IndicesTTLService.class).asEagerSingleton();
     }
 }

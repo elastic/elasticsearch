@@ -311,6 +311,12 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
         return this;
     }
 
+    // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
+    public IndexRequestBuilder setTTL(long ttl) {
+        request.ttl(ttl);
+        return this;
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */

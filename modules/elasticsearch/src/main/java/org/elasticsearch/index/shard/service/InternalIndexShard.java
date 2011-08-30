@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.engine.OptimizeFailedEngineException;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.flush.FlushStats;
@@ -542,31 +543,50 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        switch (operation.opType()) {
-            case CREATE:
-                Translog.Create create = (Translog.Create) operation;
-                engine.create(prepareCreate(source(create.source(), create.sourceOffset(), create.sourceLength()).type(create.type()).id(create.id())
-                        .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp())).version(create.version())
-                        .origin(Engine.Operation.Origin.RECOVERY));
-                break;
-            case SAVE:
-                Translog.Index index = (Translog.Index) operation;
-                engine.index(prepareIndex(source(index.source(), index.sourceOffset(), index.sourceLength()).type(index.type()).id(index.id())
-                        .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp())).version(index.version())
-                        .origin(Engine.Operation.Origin.RECOVERY));
-                break;
-            case DELETE:
-                Translog.Delete delete = (Translog.Delete) operation;
-                Uid uid = Uid.createUid(delete.uid().text());
-                engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid()).version(delete.version())
-                        .origin(Engine.Operation.Origin.RECOVERY));
-                break;
-            case DELETE_BY_QUERY:
-                Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types()));
-                break;
-            default:
-                throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
+        try {
+            switch (operation.opType()) {
+                case CREATE:
+                    Translog.Create create = (Translog.Create) operation;
+                    engine.create(prepareCreate(source(create.source(), create.sourceOffset(), create.sourceLength()).type(create.type()).id(create.id())
+                            .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl())).version(create.version())
+                            .origin(Engine.Operation.Origin.RECOVERY));
+                    break;
+                case SAVE:
+                    Translog.Index index = (Translog.Index) operation;
+                    engine.index(prepareIndex(source(index.source(), index.sourceOffset(), index.sourceLength()).type(index.type()).id(index.id())
+                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl())).version(index.version())
+                            .origin(Engine.Operation.Origin.RECOVERY));
+                    break;
+                case DELETE:
+                    Translog.Delete delete = (Translog.Delete) operation;
+                    Uid uid = Uid.createUid(delete.uid().text());
+                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid()).version(delete.version())
+                            .origin(Engine.Operation.Origin.RECOVERY));
+                    break;
+                case DELETE_BY_QUERY:
+                    Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
+                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types()));
+                    break;
+                default:
+                    throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
+            }
+        } catch (ElasticSearchException e) {
+            boolean hasIgnoreOnRecoveryException = false;
+            ElasticSearchException current = e;
+            while (true) {
+                if (current instanceof IgnoreOnRecoveryEngineException) {
+                    hasIgnoreOnRecoveryException = true;
+                    break;
+                }
+                if (current.getCause() instanceof ElasticSearchException) {
+                    current = (ElasticSearchException) current.getCause();
+                } else {
+                    break;
+                }
+            }
+            if (!hasIgnoreOnRecoveryException) {
+                throw e;
+            }
         }
     }
 

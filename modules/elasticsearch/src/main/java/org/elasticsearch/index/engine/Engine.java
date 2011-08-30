@@ -366,6 +366,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.timestamp();
         }
 
+        public long ttl() {
+            return this.doc.ttl();
+        }
+
         public long version() {
             return this.version;
         }
@@ -524,6 +528,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public long timestamp() {
             return this.doc.timestamp();
+        }
+
+        public long ttl() {
+            return this.doc.ttl();
         }
 
         public byte[] source() {

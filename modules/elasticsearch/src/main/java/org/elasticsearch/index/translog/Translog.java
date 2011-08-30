@@ -231,12 +231,14 @@ public interface Translog extends IndexShardComponent {
         public final String routing;
         public final String parent;
         public final long timestamp;
+        public final long ttl;
 
-        public Source(BytesHolder source, String routing, String parent, long timestamp) {
+        public Source(BytesHolder source, String routing, String parent, long timestamp, long ttl) {
             this.source = source;
             this.routing = routing;
             this.parent = parent;
             this.timestamp = timestamp;
+            this.ttl = ttl;
         }
     }
 
@@ -249,6 +251,7 @@ public interface Translog extends IndexShardComponent {
         private String routing;
         private String parent;
         private long timestamp;
+        private long ttl;
         private long version;
 
         public Create() {
@@ -263,6 +266,7 @@ public interface Translog extends IndexShardComponent {
             this.routing = create.routing();
             this.parent = create.parent();
             this.timestamp = create.timestamp();
+            this.ttl = create.ttl();
             this.version = create.version();
         }
 
@@ -314,6 +318,10 @@ public interface Translog extends IndexShardComponent {
             return this.timestamp;
         }
 
+        public long ttl() {
+            return this.ttl;
+        }
+
         public long version() {
             return this.version;
         }
@@ -343,7 +351,10 @@ public interface Translog extends IndexShardComponent {
             if (version >= 4) {
                 this.timestamp = in.readLong();
             }
-            return new Source(source, routing, parent, timestamp);
+            if (version >= 5) {
+                this.ttl = in.readLong();
+            }
+            return new Source(source, routing, parent, timestamp, ttl);
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
@@ -370,10 +381,13 @@ public interface Translog extends IndexShardComponent {
             if (version >= 4) {
                 this.timestamp = in.readLong();
             }
+            if (version >= 5) {
+                this.ttl = in.readLong();
+            }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(4); // version
+            out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
             out.writeVInt(sourceLength);
@@ -392,6 +406,7 @@ public interface Translog extends IndexShardComponent {
             }
             out.writeLong(version);
             out.writeLong(timestamp);
+            out.writeLong(ttl);
         }
     }
 
@@ -405,6 +420,7 @@ public interface Translog extends IndexShardComponent {
         private String routing;
         private String parent;
         private long timestamp;
+        private long ttl;
 
         public Index() {
         }
@@ -419,6 +435,7 @@ public interface Translog extends IndexShardComponent {
             this.parent = index.parent();
             this.version = index.version();
             this.timestamp = index.timestamp();
+            this.ttl = index.ttl();
         }
 
         public Index(String type, String id, byte[] source) {
@@ -455,6 +472,10 @@ public interface Translog extends IndexShardComponent {
 
         public long timestamp() {
             return this.timestamp;
+        }
+
+        public long ttl() {
+            return this.ttl;
         }
 
         public byte[] source() {
@@ -498,7 +519,10 @@ public interface Translog extends IndexShardComponent {
             if (version >= 4) {
                 this.timestamp = in.readLong();
             }
-            return new Source(source, routing, parent, timestamp);
+            if (version >= 5) {
+                this.ttl = in.readLong();
+            }
+            return new Source(source, routing, parent, timestamp, ttl);
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
@@ -525,10 +549,13 @@ public interface Translog extends IndexShardComponent {
             if (version >= 4) {
                 this.timestamp = in.readLong();
             }
+            if (version >= 5) {
+                this.ttl = in.readLong();
+            }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(4); // version
+            out.writeVInt(5); // version
             out.writeUTF(id);
             out.writeUTF(type);
             out.writeVInt(sourceLength);
@@ -547,6 +574,7 @@ public interface Translog extends IndexShardComponent {
             }
             out.writeLong(version);
             out.writeLong(timestamp);
+            out.writeLong(ttl);
         }
     }
 

@@ -74,6 +74,11 @@ public final class Uid {
         return uid.substring(delimiterIndex + 1);
     }
 
+    public static String typeFromUid(String uid) {
+        int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
+        return uid.substring(0, delimiterIndex);
+    }
+
     public static Uid createUid(String uid) {
         int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));

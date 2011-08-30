@@ -114,6 +114,7 @@ public class BulkRequest implements ActionRequest {
             String routing = null;
             String parent = null;
             String timestamp = null;
+            long ttl = -1;
             String opType = null;
             long version = 0;
             VersionType versionType = VersionType.INTERNAL;
@@ -136,6 +137,8 @@ public class BulkRequest implements ActionRequest {
                         parent = parser.text();
                     } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
                         timestamp = parser.text();
+                    } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
+                        ttl = parser.longValue();
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
                     } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
@@ -160,17 +163,17 @@ public class BulkRequest implements ActionRequest {
                 // of index request. All index requests are still unsafe if applicable.
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     } else {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     }
                 } else if ("create".equals(action)) {
-                    internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
+                    internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe)
                             .percolate(percolate));

@@ -56,6 +56,8 @@ public class SourceToParse {
 
     private long timestamp;
 
+    private long ttl;
+
     public SourceToParse(XContentParser parser) {
         this.parser = parser;
         this.source = null;
@@ -149,6 +151,15 @@ public class SourceToParse {
 
     public SourceToParse timestamp(long timestamp) {
         this.timestamp = timestamp;
+        return this;
+    }
+
+    public long ttl() {
+        return this.ttl;
+    }
+
+    public SourceToParse ttl(long ttl) {
+        this.ttl = ttl;
         return this;
     }
 }

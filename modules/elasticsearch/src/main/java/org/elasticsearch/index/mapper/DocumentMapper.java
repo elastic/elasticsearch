@@ -167,6 +167,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper());
             this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper());
+            this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
             this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
             // don't add parent field, by default its "null"
         }
@@ -368,6 +369,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(TimestampFieldMapper.class);
     }
 
+    public TTLFieldMapper TTLFieldMapper() {
+        return rootMapper(TTLFieldMapper.class);
+    }
+
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
@@ -486,7 +491,7 @@ public class DocumentMapper implements ToXContent {
         if (context.docs().size() > 1) {
             Collections.reverse(context.docs());
         }
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), context.docs(), context.analyzer(),
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
                 context.source(), context.sourceOffset(), context.sourceLength(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);

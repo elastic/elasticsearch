@@ -31,8 +31,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('rhino:js:1.7R2')
-    distLib('rhino:js:1.7R2') { transitive = false }
+    compile('org.mozilla:rhino:1.7R3')
+    distLib('org.mozilla:rhino:1.7R3') { transitive = false }
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

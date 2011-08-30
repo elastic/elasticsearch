@@ -33,7 +33,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
@@ -304,7 +303,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     byte[] data = translog.read(versionValue.translogLocation());
                     if (data != null) {
                         try {
-                            BytesHolder source = TranslogStreams.readSource(data);
+                            Translog.Source source = TranslogStreams.readSource(data);
                             return new GetResult(true, versionValue.version(), source);
                         } catch (IOException e) {
                             // switched on us, read it from the reader

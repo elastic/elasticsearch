@@ -223,7 +223,21 @@ public interface Translog extends IndexShardComponent {
 
         long estimateSize();
 
-        BytesHolder readSource(BytesStreamInput in) throws IOException;
+        Source readSource(BytesStreamInput in) throws IOException;
+    }
+
+    static class Source {
+        public final BytesHolder source;
+        public final String routing;
+        public final String parent;
+        public final long timestamp;
+
+        public Source(BytesHolder source, String routing, String parent, long timestamp) {
+            this.source = source;
+            this.routing = routing;
+            this.parent = parent;
+            this.timestamp = timestamp;
+        }
     }
 
     static class Create implements Operation {
@@ -288,14 +302,32 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
-        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+        @Override public Source readSource(BytesStreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
 
             int length = in.readVInt();
             int offset = in.position();
-            return new BytesHolder(in.underlyingBuffer(), offset, length);
+            BytesHolder source = new BytesHolder(in.underlyingBuffer(), offset, length);
+            in.skip(length);
+            if (version >= 1) {
+                if (in.readBoolean()) {
+                    routing = in.readUTF();
+                }
+            }
+            if (version >= 2) {
+                if (in.readBoolean()) {
+                    parent = in.readUTF();
+                }
+            }
+            if (version >= 3) {
+                this.version = in.readLong();
+            }
+            if (version >= 4) {
+                this.timestamp = in.readLong();
+            }
+            return new Source(source, routing, parent, timestamp);
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
@@ -407,14 +439,32 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
-        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+        @Override public Source readSource(BytesStreamInput in) throws IOException {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
 
             int length = in.readVInt();
             int offset = in.position();
-            return new BytesHolder(in.underlyingBuffer(), offset, length);
+            BytesHolder source = new BytesHolder(in.underlyingBuffer(), offset, length);
+            in.skip(length);
+            if (version >= 1) {
+                if (in.readBoolean()) {
+                    routing = in.readUTF();
+                }
+            }
+            if (version >= 2) {
+                if (in.readBoolean()) {
+                    parent = in.readUTF();
+                }
+            }
+            if (version >= 3) {
+                this.version = in.readLong();
+            }
+            if (version >= 4) {
+                this.timestamp = in.readLong();
+            }
+            return new Source(source, routing, parent, timestamp);
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
@@ -496,7 +546,7 @@ public interface Translog extends IndexShardComponent {
             return this.version;
         }
 
-        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+        @Override public Source readSource(BytesStreamInput in) throws IOException {
             throw new ElasticSearchIllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -554,7 +604,7 @@ public interface Translog extends IndexShardComponent {
             return this.types;
         }
 
-        @Override public BytesHolder readSource(BytesStreamInput in) throws IOException {
+        @Override public Source readSource(BytesStreamInput in) throws IOException {
             throw new ElasticSearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 

@@ -201,7 +201,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     onFirstPhaseResult(shard, shardIt, null);
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
-                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases), new SearchServiceListener<FirstResult>() {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime), new SearchServiceListener<FirstResult>() {
                         @Override public void onResult(FirstResult result) {
                             onFirstPhaseResult(shard, result, shardIt);
                         }

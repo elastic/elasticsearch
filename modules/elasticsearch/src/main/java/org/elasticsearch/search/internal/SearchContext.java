@@ -96,6 +96,8 @@ public class SearchContext implements Releasable {
 
     private final FetchSearchResult fetchResult;
 
+    private final long nowInMillis;
+
     private final TimeValue timeout;
 
     private float queryBoost = 1.0f;
@@ -153,9 +155,10 @@ public class SearchContext implements Releasable {
 
     private Map<String, BlockJoinQuery> nestedQueries;
 
-    public SearchContext(long id, SearchShardTarget shardTarget, SearchType searchType, int numberOfShards, TimeValue timeout,
+    public SearchContext(long id, SearchShardTarget shardTarget, SearchType searchType, int numberOfShards, long nowInMillis, TimeValue timeout,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
         this.id = id;
+        this.nowInMillis = nowInMillis;
         this.searchType = searchType;
         this.shardTarget = shardTarget;
         this.numberOfShards = numberOfShards;
@@ -224,6 +227,10 @@ public class SearchContext implements Releasable {
     public SearchContext queryBoost(float queryBoost) {
         this.queryBoost = queryBoost;
         return this;
+    }
+
+    public long nowInMillis() {
+        return nowInMillis;
     }
 
     public Scroll scroll() {

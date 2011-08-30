@@ -26,6 +26,7 @@ import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
@@ -63,12 +64,19 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private IndexShard indexShard;
 
+    private final MeanMetric existsMetric = new MeanMetric();
+    private final MeanMetric missingMetric = new MeanMetric();
+
     @Inject public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
                                    MapperService mapperService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.scriptService = scriptService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
+    }
+
+    public GetStats stats() {
+        return new GetStats(existsMetric.count(), existsMetric.sum(), missingMetric.count(), missingMetric.sum());
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -78,6 +86,17 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
+        long now = System.nanoTime();
+        GetResult getResult = innerGet(type, id, gFields, realtime);
+        if (getResult.exists()) {
+            existsMetric.inc(System.nanoTime() - now);
+        } else {
+            missingMetric.inc(System.nanoTime() - now);
+        }
+        return getResult;
+    }
+
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
         boolean loadSource = gFields == null || gFields.length > 0;
         Engine.GetResult get = null;
         if (type == null || type.equals("_all")) {

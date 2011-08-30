@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

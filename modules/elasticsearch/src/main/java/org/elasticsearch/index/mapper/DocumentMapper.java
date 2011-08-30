@@ -352,6 +352,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(AllFieldMapper.class);
     }
 
+    public IdFieldMapper idFieldMapper() {
+        return rootMapper(IdFieldMapper.class);
+    }
+
     public RoutingFieldMapper routingFieldMapper() {
         return rootMapper(RoutingFieldMapper.class);
     }

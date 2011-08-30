@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
@@ -139,14 +138,6 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                if (allowIdGeneration) {
-                    if (indexRequest.id() == null) {
-                        indexRequest.id(UUID.randomBase64UUID());
-                        // since we generate the id, change it to CREATE
-                        indexRequest.opType(IndexRequest.OpType.CREATE);
-                    }
-                }
-
                 String aliasOrIndex = indexRequest.index();
                 indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
 
@@ -154,7 +145,7 @@ public class TransportBulkAction extends BaseAction<BulkRequest, BulkResponse> {
                 if (metaData.hasIndex(indexRequest.index())) {
                     mappingMd = metaData.index(indexRequest.index()).mapping(indexRequest.type());
                 }
-                indexRequest.process(metaData, aliasOrIndex, mappingMd);
+                indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));

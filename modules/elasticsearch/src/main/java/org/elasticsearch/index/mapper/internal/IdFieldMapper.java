@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,9 +57,12 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public static final Field.Store STORE = Field.Store.NO;
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
+        public static final String PATH = null;
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, IdFieldMapper> {
+
+        private String path = Defaults.PATH;
 
         public Builder() {
             super(Defaults.NAME);
@@ -69,8 +73,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
         }
 
+        public Builder path(String path) {
+            this.path = path;
+            return builder;
+        }
+
         @Override public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions);
+            return new IdFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, path);
         }
     }
 
@@ -78,9 +87,18 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         @Override public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IdFieldMapper.Builder builder = id();
             parseField(builder, builder.name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("path")) {
+                    builder.path(fieldNode.toString());
+                }
+            }
             return builder;
         }
     }
+
+    private final String path;
 
     public IdFieldMapper() {
         this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.INDEX);
@@ -92,13 +110,18 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     protected IdFieldMapper(String name, String indexName, Field.Index index) {
         this(name, indexName, index, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS);
+                Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.PATH);
     }
 
     protected IdFieldMapper(String name, String indexName, Field.Index index, Field.Store store, Field.TermVector termVector,
-                            float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
+                            float boost, boolean omitNorms, boolean omitTermFreqAndPositions, String path) {
         super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        this.path = path;
+    }
+
+    public String path() {
+        return this.path;
     }
 
     public String value(Document document) {

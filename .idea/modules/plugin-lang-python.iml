@@ -15,7 +15,7 @@
     <orderEntry type="module-library">
       <library name="jython">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.python/jython/jars/jython-2.5.2rc2.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.python/jython-standalone/jars/jython-standalone-2.5.2.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

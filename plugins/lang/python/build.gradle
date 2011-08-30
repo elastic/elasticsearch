@@ -31,8 +31,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.python:jython:2.5.2rc2') { transitive = false }
-    distLib('org.python:jython:2.5.2rc2') { transitive = false }
+    compile('org.python:jython-standalone:2.5.2') { transitive = false }
+    distLib('org.python:jython-standalone:2.5.2') { transitive = false }
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

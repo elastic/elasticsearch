@@ -65,10 +65,10 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         String key = componentSettings.get("secret_key", settings.get("cloud.key"));
 
         if (account == null) {
-            throw new ElasticSearchIllegalArgumentException("No s3 access_key defined for s3 gateway");
+            throw new ElasticSearchIllegalArgumentException("No aws access_key defined for ec2 discovery");
         }
         if (key == null) {
-            throw new ElasticSearchIllegalArgumentException("No s3 secret_key defined for s3 gateway");
+            throw new ElasticSearchIllegalArgumentException("No aws secret_key defined for ec2 discovery");
         }
 
         String proxyHost = componentSettings.get("proxy_host");

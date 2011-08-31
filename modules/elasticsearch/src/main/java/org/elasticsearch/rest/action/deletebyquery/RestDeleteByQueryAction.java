@@ -100,7 +100,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
 
                     builder.startObject("_indices");
                     for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.indices().values()) {
-                        builder.startObject(indexDeleteByQueryResponse.index());
+                        builder.startObject(indexDeleteByQueryResponse.index(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.startObject("_shards");
                         builder.field("total", indexDeleteByQueryResponse.totalShards());

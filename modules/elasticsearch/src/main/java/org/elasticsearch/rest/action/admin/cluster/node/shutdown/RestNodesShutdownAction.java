@@ -68,8 +68,8 @@ public class RestNodesShutdownAction extends BaseRestHandler {
 
                     builder.startObject("nodes");
                     for (DiscoveryNode node : response.nodes()) {
-                        builder.startObject(node.id());
-                        builder.field("name", node.name());
+                        builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
+                        builder.field("name", node.name(), XContentBuilder.FieldCaseConversion.NONE);
                         builder.endObject();
                     }
                     builder.endObject();

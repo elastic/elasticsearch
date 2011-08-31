@@ -164,7 +164,7 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
 
         builder.startObject(Fields.INDICES);
         for (IndexStats indexStats : indices().values()) {
-            builder.startObject(indexStats.index());
+            builder.startObject(indexStats.index(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.startObject("primaries");
             indexStats.primaries().toXContent(builder, params);

@@ -400,6 +400,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.source();
         }
 
+        public int sourceOffset() {
+            return this.doc.sourceOffset();
+        }
+
+        public int sourceLength() {
+            return this.doc.sourceLength();
+        }
+
         public UidField uidField() {
             return (UidField) doc.rootDoc().getFieldable(UidFieldMapper.NAME);
         }
@@ -520,6 +528,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public byte[] source() {
             return this.doc.source();
+        }
+
+        public int sourceOffset() {
+            return this.doc.sourceOffset();
+        }
+
+        public int sourceLength() {
+            return this.doc.sourceLength();
         }
 
         public UidField uidField() {

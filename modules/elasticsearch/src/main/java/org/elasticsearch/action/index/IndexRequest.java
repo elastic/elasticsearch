@@ -299,6 +299,18 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return source;
     }
 
+    public byte[] underlyingSource() {
+        return this.source;
+    }
+
+    public int underlyingSourceOffset() {
+        return this.sourceOffset;
+    }
+
+    public int underlyingSourceLength() {
+        return this.sourceLength;
+    }
+
     /**
      * Index the Map as a {@link org.elasticsearch.client.Requests#INDEX_CONTENT_TYPE}.
      *

@@ -415,14 +415,14 @@ public class DocumentMapper implements ToXContent {
         XContentParser parser = source.parser();
         try {
             if (parser == null) {
-                if (LZF.isCompressed(source.source())) {
-                    BytesStreamInput siBytes = new BytesStreamInput(source.source());
+                if (LZF.isCompressed(source.source(), source.sourceOffset(), source.sourceLength())) {
+                    BytesStreamInput siBytes = new BytesStreamInput(source.source(), source.sourceOffset(), source.sourceLength());
                     LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                     XContentType contentType = XContentFactory.xContentType(siLzf);
                     siLzf.resetToBufferStart();
                     parser = XContentFactory.xContent(contentType).createParser(siLzf);
                 } else {
-                    parser = XContentFactory.xContent(source.source()).createParser(source.source());
+                    parser = XContentFactory.xContent(source.source(), source.sourceOffset(), source.sourceLength()).createParser(source.source(), source.sourceOffset(), source.sourceLength());
                 }
             }
             context.reset(parser, new Document(), source, listener);
@@ -487,7 +487,7 @@ public class DocumentMapper implements ToXContent {
             Collections.reverse(context.docs());
         }
         ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), context.docs(), context.analyzer(),
-                context.source(), context.mappersAdded()).parent(source.parent());
+                context.source(), context.sourceOffset(), context.sourceLength(), context.mappersAdded()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
         return doc;

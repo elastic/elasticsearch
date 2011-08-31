@@ -532,13 +532,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         switch (operation.opType()) {
             case CREATE:
                 Translog.Create create = (Translog.Create) operation;
-                engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
+                engine.create(prepareCreate(source(create.source(), create.sourceOffset(), create.sourceLength()).type(create.type()).id(create.id())
                         .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp())).version(create.version())
                         .origin(Engine.Operation.Origin.RECOVERY));
                 break;
             case SAVE:
                 Translog.Index index = (Translog.Index) operation;
-                engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
+                engine.index(prepareIndex(source(index.source(), index.sourceOffset(), index.sourceLength()).type(index.type()).id(index.id())
                         .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp())).version(index.version())
                         .origin(Engine.Operation.Origin.RECOVERY));
                 break;

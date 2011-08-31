@@ -131,7 +131,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         if (!enabled) {
             return null;
         }
-        return new CustomIntegerNumericField(this, context.source().length);
+        return new CustomIntegerNumericField(this, context.sourceLength());
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

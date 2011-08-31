@@ -31,14 +31,19 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
  * @author imotov
@@ -67,7 +72,7 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
                     builder.startObject();
 
                     for (IndexMetaData indexMetaData : metaData) {
-                        builder.startObject(indexMetaData.index());
+                        builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.startObject("aliases");
                         for (AliasMetaData alias : indexMetaData.aliases().values()) {

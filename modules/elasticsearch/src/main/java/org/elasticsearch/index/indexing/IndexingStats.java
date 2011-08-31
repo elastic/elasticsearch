@@ -195,7 +195,7 @@ public class IndexingStats implements Streamable, ToXContent {
         if (typeStats != null && !typeStats.isEmpty()) {
             builder.startObject(Fields.TYPES);
             for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                builder.startObject(entry.getKey());
+                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }

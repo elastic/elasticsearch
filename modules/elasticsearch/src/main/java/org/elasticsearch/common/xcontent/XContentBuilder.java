@@ -146,6 +146,12 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder startObject(XContentBuilderString name, FieldCaseConversion conversion) throws IOException {
+        field(name, conversion);
+        startObject();
+        return this;
+    }
+
     public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
         return this;
@@ -231,6 +237,17 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(XContentBuilderString name, FieldCaseConversion conversion) throws IOException {
+        if (conversion == FieldCaseConversion.UNDERSCORE) {
+            generator.writeFieldName(name.underscore());
+        } else if (conversion == FieldCaseConversion.CAMELCASE) {
+            generator.writeFieldName(name.camelCase());
+        } else {
+            generator.writeFieldName(name.underscore());
+        }
+        return this;
+    }
+
     public XContentBuilder field(String name) throws IOException {
         if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
             if (cachedStringBuilder == null) {
@@ -293,8 +310,28 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(String name, String value, FieldCaseConversion conversion) throws IOException {
+        field(name, conversion);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeString(value);
+        }
+        return this;
+    }
+
     public XContentBuilder field(XContentBuilderString name, String value) throws IOException {
         field(name);
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            generator.writeString(value);
+        }
+        return this;
+    }
+
+    public XContentBuilder field(XContentBuilderString name, String value, FieldCaseConversion conversion) throws IOException {
+        field(name, conversion);
         if (value == null) {
             generator.writeNull();
         } else {

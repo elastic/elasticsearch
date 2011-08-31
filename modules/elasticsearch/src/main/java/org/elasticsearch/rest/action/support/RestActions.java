@@ -56,7 +56,7 @@ public class RestActions {
             for (ShardOperationFailedException shardFailure : response.shardFailures()) {
                 builder.startObject();
                 if (shardFailure.index() != null) {
-                    builder.field("index", shardFailure.index());
+                    builder.field("index", shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 if (shardFailure.shardId() != -1) {
                     builder.field("shard", shardFailure.shardId());

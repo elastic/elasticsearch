@@ -109,7 +109,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                         }
                     } else {
                         for (IndexMetaData indexMetaData : metaData) {
-                            builder.startObject(indexMetaData.index());
+                            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
                             for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
                                 if (!types.isEmpty() && !types.contains(mappingMd.type())) {

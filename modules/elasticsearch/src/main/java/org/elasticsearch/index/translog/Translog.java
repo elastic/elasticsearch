@@ -244,6 +244,8 @@ public interface Translog extends IndexShardComponent {
         private String id;
         private String type;
         private byte[] source;
+        private int sourceOffset;
+        private int sourceLength;
         private String routing;
         private String parent;
         private long timestamp;
@@ -253,7 +255,11 @@ public interface Translog extends IndexShardComponent {
         }
 
         public Create(Engine.Create create) {
-            this(create.type(), create.id(), create.source());
+            this.id = create.id();
+            this.type = create.type();
+            this.source = create.source();
+            this.sourceOffset = create.sourceOffset();
+            this.sourceLength = create.sourceLength();
             this.routing = create.routing();
             this.parent = create.parent();
             this.timestamp = create.timestamp();
@@ -264,6 +270,8 @@ public interface Translog extends IndexShardComponent {
             this.id = id;
             this.type = type;
             this.source = source;
+            this.sourceOffset = 0;
+            this.sourceLength = source.length;
         }
 
         @Override public Type opType() {
@@ -280,6 +288,14 @@ public interface Translog extends IndexShardComponent {
 
         public byte[] source() {
             return this.source;
+        }
+
+        public int sourceOffset() {
+            return this.sourceOffset;
+        }
+
+        public int sourceLength() {
+            return this.sourceLength;
         }
 
         public String type() {
@@ -334,7 +350,9 @@ public interface Translog extends IndexShardComponent {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
-            source = new byte[in.readVInt()];
+            sourceOffset = 0;
+            sourceLength = in.readVInt();
+            source = new byte[sourceLength];
             in.readFully(source);
             if (version >= 1) {
                 if (in.readBoolean()) {
@@ -358,8 +376,8 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(4); // version
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeVInt(source.length);
-            out.writeBytes(source);
+            out.writeVInt(sourceLength);
+            out.writeBytes(source, sourceOffset, sourceLength);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
@@ -382,6 +400,8 @@ public interface Translog extends IndexShardComponent {
         private String type;
         private long version;
         private byte[] source;
+        private int sourceOffset;
+        private int sourceLength;
         private String routing;
         private String parent;
         private long timestamp;
@@ -390,7 +410,11 @@ public interface Translog extends IndexShardComponent {
         }
 
         public Index(Engine.Index index) {
-            this(index.type(), index.id(), index.source());
+            this.id = index.id();
+            this.type = index.type();
+            this.source = index.source();
+            this.sourceOffset = index.sourceOffset();
+            this.sourceLength = index.sourceLength();
             this.routing = index.routing();
             this.parent = index.parent();
             this.version = index.version();
@@ -401,6 +425,8 @@ public interface Translog extends IndexShardComponent {
             this.type = type;
             this.id = id;
             this.source = source;
+            this.sourceOffset = 0;
+            this.sourceLength = source.length;
         }
 
         @Override public Type opType() {
@@ -435,6 +461,14 @@ public interface Translog extends IndexShardComponent {
             return this.source;
         }
 
+        public int sourceOffset() {
+            return this.sourceOffset;
+        }
+
+        public int sourceLength() {
+            return this.sourceLength;
+        }
+
         public long version() {
             return this.version;
         }
@@ -471,7 +505,9 @@ public interface Translog extends IndexShardComponent {
             int version = in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
-            source = new byte[in.readVInt()];
+            sourceOffset = 0;
+            sourceLength = in.readVInt();
+            source = new byte[sourceLength];
             in.readFully(source);
             if (version >= 1) {
                 if (in.readBoolean()) {
@@ -495,8 +531,8 @@ public interface Translog extends IndexShardComponent {
             out.writeVInt(4); // version
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeVInt(source.length);
-            out.writeBytes(source);
+            out.writeVInt(sourceLength);
+            out.writeBytes(source, sourceOffset, sourceLength);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {

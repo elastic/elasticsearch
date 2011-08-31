@@ -169,7 +169,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
 
         IndexShard indexShard = indexShard(shardRequest);
-        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp());
         long version;
         Engine.IndexingOperation op;
@@ -224,7 +224,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         IndexShard indexShard = indexShard(shardRequest);
         IndexRequest request = shardRequest.request;
-        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)

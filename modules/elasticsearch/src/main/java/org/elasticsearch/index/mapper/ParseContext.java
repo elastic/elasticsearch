@@ -57,6 +57,8 @@ public class ParseContext {
 
     private SourceToParse sourceToParse;
     private byte[] source;
+    private int sourceOffset;
+    private int sourceLength;
 
     private String id;
 
@@ -97,6 +99,8 @@ public class ParseContext {
         this.id = null;
         this.sourceToParse = source;
         this.source = source == null ? null : sourceToParse.source();
+        this.sourceOffset = source == null ? 0 : sourceToParse.sourceOffset();
+        this.sourceLength = source == null ? 0 : sourceToParse.sourceLength();
         this.path.reset();
         this.mappersAdded = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
@@ -136,9 +140,19 @@ public class ParseContext {
         return source;
     }
 
+    public int sourceOffset() {
+        return this.sourceOffset;
+    }
+
+    public int sourceLength() {
+        return this.sourceLength;
+    }
+
     // only should be used by SourceFieldMapper to update with a compressed source
-    public void source(byte[] source) {
+    public void source(byte[] source, int offset, int length) {
         this.source = source;
+        this.sourceOffset = offset;
+        this.sourceLength = length;
     }
 
     public ContentPath path() {

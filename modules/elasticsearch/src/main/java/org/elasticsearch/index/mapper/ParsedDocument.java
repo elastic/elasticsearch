@@ -47,16 +47,18 @@ public class ParsedDocument {
     private final Analyzer analyzer;
 
     private final byte[] source;
+    private final int sourceOffset;
+    private final int sourceLength;
 
     private boolean mappersAdded;
 
     private String parent;
 
     public ParsedDocument(String uid, String id, String type, String routing, long timestamp, Document document, Analyzer analyzer, byte[] source, boolean mappersAdded) {
-        this(uid, id, type, routing, timestamp, Arrays.asList(document), analyzer, source, mappersAdded);
+        this(uid, id, type, routing, timestamp, Arrays.asList(document), analyzer, source, 0, source.length, mappersAdded);
     }
 
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, List<Document> documents, Analyzer analyzer, byte[] source, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, List<Document> documents, Analyzer analyzer, byte[] source, int sourceOffset, int sourceLength, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
@@ -64,6 +66,8 @@ public class ParsedDocument {
         this.timestamp = timestamp;
         this.documents = documents;
         this.source = source;
+        this.sourceOffset = sourceOffset;
+        this.sourceLength = sourceLength;
         this.analyzer = analyzer;
         this.mappersAdded = mappersAdded;
     }
@@ -102,6 +106,14 @@ public class ParsedDocument {
 
     public byte[] source() {
         return this.source;
+    }
+
+    public int sourceOffset() {
+        return this.sourceOffset;
+    }
+
+    public int sourceLength() {
+        return this.sourceLength;
     }
 
     public ParsedDocument parent(String parent) {

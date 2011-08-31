@@ -26,7 +26,8 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.compress.lzf.LZFEncoder;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.LZFStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -178,13 +179,25 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             return null;
         }
         byte[] data = context.source();
-        if (compress != null && compress && !LZF.isCompressed(data)) {
-            if (compressThreshold == -1 || data.length > compressThreshold) {
-                data = LZFEncoder.encode(data, data.length);
-                context.source(data);
+        int dataOffset = context.sourceOffset();
+        int dataLength = context.sourceLength();
+        if (compress != null && compress && !LZF.isCompressed(data, dataOffset, dataLength)) {
+            if (compressThreshold == -1 || dataLength > compressThreshold) {
+                CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+                LZFStreamOutput streamOutput = cachedEntry.cachedLZFBytes();
+                streamOutput.writeBytes(data, dataOffset, dataLength);
+                streamOutput.flush();
+                // we copy over the byte array, since we need to push back the cached entry
+                // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
+                data = cachedEntry.bytes().copiedByteArray();
+                dataOffset = 0;
+                dataLength = data.length;
+                CachedStreamOutput.pushEntry(cachedEntry);
+                // update the data in the context, so it can be compressed and stored compressed outside...
+                context.source(data, dataOffset, dataLength);
             }
         }
-        return new Field(names().indexName(), data);
+        return new Field(names().indexName(), data, dataOffset, dataLength);
     }
 
     public byte[] value(Document document) {

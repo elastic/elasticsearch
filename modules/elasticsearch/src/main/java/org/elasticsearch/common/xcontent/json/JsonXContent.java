@@ -24,9 +24,17 @@ import org.elasticsearch.common.jackson.JsonEncoding;
 import org.elasticsearch.common.jackson.JsonFactory;
 import org.elasticsearch.common.jackson.JsonGenerator;
 import org.elasticsearch.common.jackson.JsonParser;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
 
 /**
  * A JSON based content implementation using Jackson.
@@ -36,10 +44,6 @@ import java.io.*;
 public class JsonXContent implements XContent {
 
     public static XContentBuilder contentBuilder() throws IOException {
-        return XContentBuilder.cachedBuilder(jsonXContent);
-    }
-
-    public static XContentBuilder unCachedContentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
 

@@ -123,7 +123,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
         BytesStream bos = queryBuilder.buildAsUnsafeBytes();
-        this.querySource = bos.unsafeByteArray();
+        this.querySource = bos.underlyingBytes();
         this.querySourceOffset = 0;
         this.querySourceLength = bos.size();
         this.querySourceUnsafe = true;
@@ -158,10 +158,10 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     @Required public DeleteByQueryRequest query(XContentBuilder builder) {
         try {
-            this.querySource = builder.unsafeBytes();
+            this.querySource = builder.underlyingBytes();
             this.querySourceOffset = 0;
-            this.querySourceLength = builder.unsafeBytesLength();
-            this.querySourceUnsafe = true;
+            this.querySourceLength = builder.underlyingBytesLength();
+            this.querySourceUnsafe = false;
             return this;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);

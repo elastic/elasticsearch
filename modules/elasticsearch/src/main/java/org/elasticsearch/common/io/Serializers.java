@@ -34,7 +34,7 @@ public final class Serializers {
         ThrowableObjectOutputStream oos = new ThrowableObjectOutputStream(os);
         oos.writeObject(t);
         oos.close();
-        return os.unsafeByteArray();
+        return os.underlyingBytes();
     }
 
     public static Throwable throwableFromBytes(byte[] bytes) throws IOException, ClassNotFoundException {
@@ -62,7 +62,7 @@ public final class Serializers {
         CompactObjectOutputStream oos = new CompactObjectOutputStream(os);
         oos.writeObject(obj);
         oos.close();
-        return os.unsafeByteArray();
+        return os.underlyingBytes();
     }
 
     public static Object objectFromBytes(byte[] bytes) throws IOException, ClassNotFoundException {

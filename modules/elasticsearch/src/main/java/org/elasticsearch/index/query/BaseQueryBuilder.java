@@ -33,7 +33,7 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
 
     @Override public String toString() {
         try {
-            XContentBuilder builder = XContentFactory.safeJsonBuilder();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
             toXContent(builder, EMPTY_PARAMS);
             return builder.string();
@@ -50,7 +50,7 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);
-            return builder.unsafeStream();
+            return builder.underlyingStream();
         } catch (Exception e) {
             throw new QueryBuilderException("Failed to build query", e);
         }

@@ -23,10 +23,18 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.jackson.JsonEncoding;
 import org.elasticsearch.common.jackson.smile.SmileFactory;
 import org.elasticsearch.common.jackson.smile.SmileGenerator;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
 
 /**
  * A JSON based content implementation using Jackson.
@@ -36,10 +44,6 @@ import java.io.*;
 public class SmileXContent implements XContent {
 
     public static XContentBuilder contentBuilder() throws IOException {
-        return XContentBuilder.cachedBuilder(smileXContent);
-    }
-
-    public static XContentBuilder unCachedContentBuilder() throws IOException {
         return XContentBuilder.builder(smileXContent);
     }
 

@@ -60,10 +60,11 @@ public class BulkRequest implements ActionRequest {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkRequest add(IndexRequest request) {
-        // if the source is from a builder, we need to copy it over before adding the next one, which can come from a builder as well...
-        if (request.sourceFromBuilder()) {
-            request.beforeLocalFork();
-        }
+        request.beforeLocalFork();
+        return internalAdd(request);
+    }
+
+    private BulkRequest internalAdd(IndexRequest request) {
         requests.add(request);
         return this;
     }
@@ -155,19 +156,21 @@ public class BulkRequest implements ActionRequest {
                     break;
                 }
                 // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
+                // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
+                // of index request. All index requests are still unsafe if applicable.
                 if ("index".equals(action)) {
                     if (opType == null) {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     } else {
-                        add(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
                                 .create("create".equals(opType))
                                 .source(data, from, nextMarker - from, contentUnsafe)
                                 .percolate(percolate));
                     }
                 } else if ("create".equals(action)) {
-                    add(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
+                    internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).version(version).versionType(versionType)
                             .create(true)
                             .source(data, from, nextMarker - from, contentUnsafe)
                             .percolate(percolate));

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.CachedStreamOutput;
 public class CachedStreams {
 
     public static void clear() {
-        FastByteArrayOutputStream.Cached.clear();
         CachedStreamInput.clear();
         CachedStreamOutput.clear();
     }

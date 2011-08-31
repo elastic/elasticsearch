@@ -49,9 +49,6 @@ public class XContentFactory {
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
-     *
-     * <p>Note, this should be passed directly to an API, if its going to be used around, make sure you use
-     * {@link #safeJsonBuilder()}.
      */
     public static XContentBuilder jsonBuilder() throws IOException {
         return contentBuilder(XContentType.JSON);
@@ -65,18 +62,7 @@ public class XContentFactory {
     }
 
     /**
-     * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}
-     * that can be used outside of the scope of passing it directly to an API call.
-     */
-    public static XContentBuilder safeJsonBuilder() throws IOException {
-        return unCachedContentBuilder(XContentType.JSON);
-    }
-
-    /**
      * Returns a content builder using SMILE format ({@link org.elasticsearch.common.xcontent.XContentType#SMILE}.
-     *
-     * <p>Note, this should be passed directly to an API, if its going to be used around, make sure you use
-     * {@link #safeSmileBuilder()}.
      */
     public static XContentBuilder smileBuilder() throws IOException {
         return contentBuilder(XContentType.SMILE);
@@ -87,14 +73,6 @@ public class XContentFactory {
      */
     public static XContentBuilder smileBuilder(OutputStream os) throws IOException {
         return new XContentBuilder(SmileXContent.smileXContent, os);
-    }
-
-    /**
-     * Returns a content builder using SMILE format ({@link org.elasticsearch.common.xcontent.XContentType#SMILE}
-     * that can be used outside of the scope of passing it directly to an API call.
-     */
-    public static XContentBuilder safeSmileBuilder() throws IOException {
-        return unCachedContentBuilder(XContentType.SMILE);
     }
 
     /**
@@ -117,18 +95,6 @@ public class XContentFactory {
             return JsonXContent.contentBuilder();
         } else if (type == XContentType.SMILE) {
             return SmileXContent.contentBuilder();
-        }
-        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
-    }
-
-    /**
-     * Returns a binary content builder for the provided content type.
-     */
-    public static XContentBuilder unCachedContentBuilder(XContentType type) throws IOException {
-        if (type == XContentType.JSON) {
-            return JsonXContent.unCachedContentBuilder();
-        } else if (type == XContentType.SMILE) {
-            return SmileXContent.unCachedContentBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }

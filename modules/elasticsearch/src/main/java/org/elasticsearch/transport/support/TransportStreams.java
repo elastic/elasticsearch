@@ -117,7 +117,7 @@ public class TransportStreams {
             message.writeTo(stream);
             stream.flush();
         }
-        TransportStreams.writeHeader(cachedEntry.bytes().unsafeByteArray(), cachedEntry.bytes().size(), requestId, status);
+        TransportStreams.writeHeader(cachedEntry.bytes().underlyingBytes(), cachedEntry.bytes().size(), requestId, status);
     }
 
     public static void buildResponse(CachedStreamOutput.Entry cachedEntry, final long requestId, Streamable message, TransportResponseOptions options) throws IOException {
@@ -136,6 +136,6 @@ public class TransportStreams {
             message.writeTo(stream);
             stream.flush();
         }
-        TransportStreams.writeHeader(cachedEntry.bytes().unsafeByteArray(), cachedEntry.bytes().size(), requestId, status);
+        TransportStreams.writeHeader(cachedEntry.bytes().underlyingBytes(), cachedEntry.bytes().size(), requestId, status);
     }
 }

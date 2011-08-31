@@ -455,7 +455,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         TransportStreams.buildRequest(cachedEntry, requestId, action, message, options);
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(cachedEntry.bytes().unsafeByteArray(), 0, cachedEntry.bytes().size());
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
         ChannelFuture future = targetChannel.write(buffer);
         future.addListener(new CacheFutureListener(cachedEntry));
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future

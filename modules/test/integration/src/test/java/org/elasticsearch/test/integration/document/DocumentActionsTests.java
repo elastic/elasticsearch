@@ -199,7 +199,9 @@ public class DocumentActionsTests extends AbstractNodesTests {
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test2").string()));
+            String ste1 = getResult.sourceAsString();
+            String ste2 = source("2", "test2").string();
+            assertThat("cycle #" + i, ste1, equalTo(ste2));
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
         }
 

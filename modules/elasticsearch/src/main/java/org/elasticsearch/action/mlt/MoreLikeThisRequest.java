@@ -326,7 +326,7 @@ public class MoreLikeThisRequest implements ActionRequest {
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
         BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
-        this.searchSource = bos.unsafeByteArray();
+        this.searchSource = bos.underlyingBytes();
         this.searchSourceOffset = 0;
         this.searchSourceLength = bos.size();
         this.searchSourceUnsafe = true;
@@ -358,10 +358,10 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     public MoreLikeThisRequest searchSource(XContentBuilder builder) {
         try {
-            this.searchSource = builder.unsafeBytes();
+            this.searchSource = builder.underlyingBytes();
             this.searchSourceOffset = 0;
-            this.searchSourceLength = builder.unsafeBytesLength();
-            this.searchSourceUnsafe = true;
+            this.searchSourceLength = builder.underlyingBytesLength();
+            this.searchSourceUnsafe = false;
             return this;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);

@@ -47,7 +47,7 @@ public class BuilderRawFieldTests {
         XContentBuilder builder = XContentFactory.contentBuilder(type);
         builder.startObject();
         builder.field("field1", "value1");
-        builder.rawField("_source", XContentFactory.unCachedContentBuilder(type).startObject().field("s_field", "s_value").endObject().copiedBytes());
+        builder.rawField("_source", XContentFactory.contentBuilder(type).startObject().field("s_field", "s_value").endObject().copiedBytes());
         builder.field("field2", "value2");
         builder.endObject();
 

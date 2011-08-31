@@ -163,7 +163,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(out.unsafeByteArray(), 0, out.size()), out.size());
+            metaDataBlobContainer.writeBlob(newMetaData, new ByteArrayInputStream(out.underlyingBytes(), 0, out.size()), out.size());
         } catch (IOException e) {
             throw new GatewayException("Failed to write metadata [" + newMetaData + "]", e);
         }

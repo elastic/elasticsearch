@@ -70,11 +70,11 @@ public class XContentRestResponse extends AbstractRestResponse {
     }
 
     @Override public byte[] content() throws IOException {
-        return builder.unsafeBytes();
+        return builder.underlyingBytes();
     }
 
     @Override public int contentLength() throws IOException {
-        return builder.unsafeBytesLength();
+        return builder.underlyingBytesLength();
     }
 
     @Override public RestStatus status() {

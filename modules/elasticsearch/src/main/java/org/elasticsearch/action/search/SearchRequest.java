@@ -257,7 +257,7 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
         BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
-        this.source = bos.unsafeByteArray();
+        this.source = bos.underlyingBytes();
         this.sourceOffset = 0;
         this.sourceLength = bos.size();
         this.sourceUnsafe = true;
@@ -292,10 +292,10 @@ public class SearchRequest implements ActionRequest {
 
     public SearchRequest source(XContentBuilder builder) {
         try {
-            this.source = builder.unsafeBytes();
+            this.source = builder.underlyingBytes();
             this.sourceOffset = 0;
-            this.sourceLength = builder.unsafeBytesLength();
-            this.sourceUnsafe = true;
+            this.sourceLength = builder.underlyingBytesLength();
+            this.sourceUnsafe = false;
             return this;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
@@ -348,7 +348,7 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
         BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
-        this.extraSource = bos.unsafeByteArray();
+        this.extraSource = bos.underlyingBytes();
         this.extraSourceOffset = 0;
         this.extraSourceLength = bos.size();
         this.extraSourceUnsafe = true;
@@ -367,10 +367,10 @@ public class SearchRequest implements ActionRequest {
 
     public SearchRequest extraSource(XContentBuilder builder) {
         try {
-            this.extraSource = builder.unsafeBytes();
+            this.extraSource = builder.underlyingBytes();
             this.extraSourceOffset = 0;
-            this.extraSourceLength = builder.unsafeBytesLength();
-            this.extraSourceUnsafe = true;
+            this.extraSourceLength = builder.underlyingBytesLength();
+            this.extraSourceUnsafe = false;
             return this;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);

@@ -100,7 +100,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
      * Returns the underlying byte array. Note, use {@link #size()} in order to know
      * the length of it.
      */
-    public byte[] unsafeByteArray() {
+    public byte[] underlyingBytes() {
         return buf;
     }
 

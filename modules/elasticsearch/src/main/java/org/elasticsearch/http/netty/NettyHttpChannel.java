@@ -104,7 +104,7 @@ public class NettyHttpChannel implements HttpChannel {
                 XContentBuilder builder = ((XContentRestResponse) response).builder();
                 if (builder.payload() instanceof CachedStreamOutput.Entry) {
                     releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
-                    buf = ChannelBuffers.wrappedBuffer(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
+                    buf = ChannelBuffers.wrappedBuffer(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
                 } else if (response.contentThreadSafe()) {
                     buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
                 } else {

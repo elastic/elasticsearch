@@ -158,7 +158,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         XContentParser parser = null;
         try {
             BytesStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
-            parser = XContentFactory.xContent(unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size()).createParser(unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size());
+            parser = XContentFactory.xContent(unsafeBytes.underlyingBytes(), 0, unsafeBytes.size()).createParser(unsafeBytes.underlyingBytes(), 0, unsafeBytes.size());
             return parse(cache.get(), parser);
         } catch (QueryParsingException e) {
             throw e;

@@ -87,11 +87,13 @@ public class PercolateRequest extends SingleCustomOperationRequest {
      * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
      */
     @Override public void beforeLocalFork() {
-        source();
+        if (sourceUnsafe) {
+            source();
+        }
     }
 
     public byte[] source() {
-        if (sourceUnsafe || sourceOffset > 0) {
+        if (sourceUnsafe || sourceOffset > 0 || source.length != sourceLength) {
             source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
             sourceOffset = 0;
             sourceUnsafe = false;
@@ -99,15 +101,15 @@ public class PercolateRequest extends SingleCustomOperationRequest {
         return source;
     }
 
-    public byte[] unsafeSource() {
+    public byte[] underlyingSource() {
         return this.source;
     }
 
-    public int unsafeSourceOffset() {
+    public int underlyingSourceOffset() {
         return this.sourceOffset;
     }
 
-    public int unsafeSourceLength() {
+    public int underlyingSourceLength() {
         return this.sourceLength;
     }
 
@@ -136,10 +138,10 @@ public class PercolateRequest extends SingleCustomOperationRequest {
 
     @Required public PercolateRequest source(XContentBuilder sourceBuilder) {
         try {
-            source = sourceBuilder.unsafeBytes();
+            source = sourceBuilder.underlyingBytes();
             sourceOffset = 0;
-            sourceLength = sourceBuilder.unsafeBytesLength();
-            sourceUnsafe = true;
+            sourceLength = sourceBuilder.underlyingBytesLength();
+            sourceUnsafe = false;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + sourceBuilder + "]", e);
         }

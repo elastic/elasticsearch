@@ -72,7 +72,7 @@ public class NettyTransportChannel implements TransportChannel {
         }
         CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         TransportStreams.buildResponse(cachedEntry, requestId, message, options);
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(cachedEntry.bytes().unsafeByteArray(), 0, cachedEntry.bytes().size());
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));
     }
@@ -95,7 +95,7 @@ public class NettyTransportChannel implements TransportChannel {
             too.writeObject(tx);
             too.close();
         }
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(stream.unsafeByteArray(), 0, stream.size());
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(stream.underlyingBytes(), 0, stream.size());
         buffer.setInt(0, buffer.writerIndex() - 4); // update real size.
         ChannelFuture future = channel.write(buffer);
         future.addListener(new NettyTransport.CacheFutureListener(cachedEntry));

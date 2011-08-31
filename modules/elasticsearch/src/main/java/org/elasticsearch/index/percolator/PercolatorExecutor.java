@@ -198,8 +198,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         try {
             XContentBuilder builder = XContentFactory.smileBuilder()
                     .startObject().field("query", queryBuilder).endObject();
-            BytesStream unsafeBytes = builder.unsafeStream();
-            addQuery(name, unsafeBytes.unsafeByteArray(), 0, unsafeBytes.size());
+            BytesStream unsafeBytes = builder.underlyingStream();
+            addQuery(name, unsafeBytes.underlyingBytes(), 0, unsafeBytes.size());
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to add query [" + name + "]", e);
         }

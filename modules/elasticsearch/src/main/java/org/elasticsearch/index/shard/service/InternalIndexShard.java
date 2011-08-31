@@ -731,13 +731,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     // ignore if closed....
                     return;
                 }
-                logger.warn("check index [failure]\n{}", new String(os.unsafeByteArray(), 0, os.size()));
+                logger.warn("check index [failure]\n{}", new String(os.underlyingBytes(), 0, os.size()));
                 if (throwException) {
                     throw new IndexShardException(shardId, "index check failure");
                 }
             } else {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.unsafeByteArray(), 0, os.size()));
+                    logger.debug("check index [success]\n{}", new String(os.underlyingBytes(), 0, os.size()));
                 }
             }
         } catch (Exception e) {

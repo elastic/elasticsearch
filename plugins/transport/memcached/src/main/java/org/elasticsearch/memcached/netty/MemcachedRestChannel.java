@@ -117,10 +117,10 @@ public class MemcachedRestChannel implements RestChannel {
                         XContentBuilder builder = ((XContentRestResponse) response).builder();
                         if (builder.payload() instanceof CachedStreamOutput.Entry) {
                             releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
-                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
+                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
                             writeBuffer = ChannelBuffers.wrappedBuffer(writeBuffer, buf);
                         } else if (response.contentThreadSafe()) {
-                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
+                            ChannelBuffer buf = ChannelBuffers.wrappedBuffer(builder.underlyingBytes(), 0, builder.underlyingBytesLength());
                             writeBuffer = ChannelBuffers.wrappedBuffer(writeBuffer, buf);
                         } else {
                             writeBuffer.writeBytes(response.content(), 0, response.contentLength());

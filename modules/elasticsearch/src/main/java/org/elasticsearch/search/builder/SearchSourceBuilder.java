@@ -384,7 +384,7 @@ public class SearchSourceBuilder implements ToXContent {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.unsafeStream();
+            return builder.underlyingStream();
         } catch (Exception e) {
             throw new SearchSourceBuilderException("Failed to build search source", e);
         }

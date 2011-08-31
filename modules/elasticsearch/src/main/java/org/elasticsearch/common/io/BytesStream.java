@@ -21,7 +21,7 @@ package org.elasticsearch.common.io;
 
 public interface BytesStream {
 
-    byte[] unsafeByteArray();
+    byte[] underlyingBytes();
 
     int size();
 

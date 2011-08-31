@@ -22,7 +22,6 @@ package org.elasticsearch.common.io;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.ref.SoftReference;
 import java.util.Arrays;
 
 /**
@@ -31,32 +30,6 @@ import java.util.Arrays;
  * @author kimchy (Shay Banon)
  */
 public class FastByteArrayOutputStream extends OutputStream implements BytesStream {
-
-    /**
-     * A thread local based cache of {@link FastByteArrayOutputStream}.
-     */
-    public static class Cached {
-
-        private static final ThreadLocal<SoftReference<FastByteArrayOutputStream>> cache = new ThreadLocal<SoftReference<FastByteArrayOutputStream>>();
-
-        /**
-         * Returns the cached thread local byte stream, with its internal stream cleared.
-         */
-        public static FastByteArrayOutputStream cached() {
-            SoftReference<FastByteArrayOutputStream> ref = cache.get();
-            FastByteArrayOutputStream fos = ref == null ? null : ref.get();
-            if (fos == null) {
-                fos = new FastByteArrayOutputStream();
-                cache.set(new SoftReference(fos));
-            }
-            fos.reset();
-            return fos;
-        }
-
-        public static void clear() {
-            cache.remove();
-        }
-    }
 
     /**
      * The buffer where data is stored.
@@ -70,10 +43,13 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
 
     /**
      * Creates a new byte array output stream. The buffer capacity is
-     * initially 32 bytes, though its size increases if necessary.
+     * initially 1024 bytes, though its size increases if necessary.
+     *
+     * ES: We use 1024 bytes since we mainly use this to build json/smile
+     * content in memory, and rarely does the 32 byte default in ByteArrayOutputStream fits...
      */
     public FastByteArrayOutputStream() {
-        this(32);
+        this(1024);
     }
 
     /**
@@ -167,7 +143,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
      * Returns the underlying byte array. Note, use {@link #size()} in order to know
      * the length of it.
      */
-    public byte[] unsafeByteArray() {
+    public byte[] underlyingBytes() {
         return buf;
     }
 

@@ -124,7 +124,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private int sourceOffset;
     private int sourceLength;
     private boolean sourceUnsafe;
-    private boolean sourceFromBuilder;
 
     private OpType opType = OpType.INDEX;
 
@@ -174,14 +173,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
      */
     @Override public void beforeLocalFork() {
-        source();
-    }
-
-    /**
-     * Need this in case builders are used, we need to copy after adding...
-     */
-    public boolean sourceFromBuilder() {
-        return sourceFromBuilder;
+        // only fork if copy over if source is unsafe
+        if (sourceUnsafe) {
+            source();
+        }
     }
 
     /**
@@ -296,24 +291,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * The source of the document to index, recopied to a new array if it has an offset or unsafe.
      */
     public byte[] source() {
-        if (sourceUnsafe || sourceOffset > 0) {
+        if (sourceUnsafe || sourceOffset > 0 || source.length != sourceLength) {
             source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
             sourceOffset = 0;
             sourceUnsafe = false;
         }
         return source;
-    }
-
-    public byte[] unsafeSource() {
-        return this.source;
-    }
-
-    public int unsafeSourceOffset() {
-        return this.sourceOffset;
-    }
-
-    public int unsafeSourceLength() {
-        return this.sourceLength;
     }
 
     /**
@@ -360,11 +343,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Required public IndexRequest source(XContentBuilder sourceBuilder) {
         try {
-            source = sourceBuilder.unsafeBytes();
+            source = sourceBuilder.underlyingBytes();
             sourceOffset = 0;
-            sourceLength = sourceBuilder.unsafeBytesLength();
-            sourceUnsafe = true;
-            this.sourceFromBuilder = true;
+            sourceLength = sourceBuilder.underlyingBytesLength();
+            sourceUnsafe = false;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + sourceBuilder + "]", e);
         }

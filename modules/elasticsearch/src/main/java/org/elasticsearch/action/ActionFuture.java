@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.Future;
@@ -36,6 +37,10 @@ public interface ActionFuture<T> extends Future<T> {
      * Similar to {@link #get()}, just wrapping the {@link InterruptedException} with
      * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
      * cause of the {@link java.util.concurrent.ExecutionException}.
+     *
+     * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
+     * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
+     * still accessible using {@link #getRootFailure()}.
      */
     T actionGet() throws ElasticSearchException;
 
@@ -43,6 +48,10 @@ public interface ActionFuture<T> extends Future<T> {
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
      * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
      * cause of the {@link java.util.concurrent.ExecutionException}.
+     *
+     * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
+     * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
+     * still accessible using {@link #getRootFailure()}.
      */
     T actionGet(String timeout) throws ElasticSearchException;
 
@@ -50,6 +59,10 @@ public interface ActionFuture<T> extends Future<T> {
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
      * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
      * cause of the {@link java.util.concurrent.ExecutionException}.
+     *
+     * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
+     * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
+     * still accessible using {@link #getRootFailure()}.
      *
      * @param timeoutMillis Timeout in millis
      */
@@ -59,6 +72,10 @@ public interface ActionFuture<T> extends Future<T> {
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
      * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
      * cause of the {@link java.util.concurrent.ExecutionException}.
+     *
+     * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
+     * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
+     * still accessible using {@link #getRootFailure()}.
      */
     T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException;
 
@@ -66,6 +83,15 @@ public interface ActionFuture<T> extends Future<T> {
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
      * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
      * cause of the {@link java.util.concurrent.ExecutionException}.
+     *
+     * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
+     * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
+     * still accessible using {@link #getRootFailure()}.
      */
     T actionGet(TimeValue timeout) throws ElasticSearchException;
+
+    /**
+     * The root (possibly) wrapped failure.
+     */
+    @Nullable Throwable getRootFailure();
 }

@@ -37,17 +37,15 @@ import java.util.concurrent.TimeoutException;
  */
 public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implements ActionFuture<T>, ActionListener<L> {
 
+    private Throwable rootFailure;
+
     @Override public T actionGet() throws ElasticSearchException {
         try {
             return get();
         } catch (InterruptedException e) {
             throw new ElasticSearchInterruptedException(e.getMessage());
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e.getCause();
-            } else {
-                throw new UncategorizedExecutionException("Failed execution", e);
-            }
+            throw rethrowExecutionException(e);
         }
     }
 
@@ -71,11 +69,20 @@ public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implem
         } catch (InterruptedException e) {
             throw new ElasticSearchInterruptedException(e.getMessage());
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e.getCause();
-            } else {
-                throw new UncategorizedExecutionException("Failed execution", e);
+            throw rethrowExecutionException(e);
+        }
+    }
+
+    static ElasticSearchException rethrowExecutionException(ExecutionException e) {
+        if (e.getCause() instanceof ElasticSearchException) {
+            ElasticSearchException esEx = (ElasticSearchException) e.getCause();
+            Throwable root = esEx.unwrapCause();
+            if (root instanceof ElasticSearchException) {
+                return (ElasticSearchException) root;
             }
+            return new UncategorizedExecutionException("Failed execution", root);
+        } else {
+            return new UncategorizedExecutionException("Failed execution", e);
         }
     }
 
@@ -88,4 +95,8 @@ public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implem
     }
 
     protected abstract T convert(L listenerResponse);
+
+    @Override public Throwable getRootFailure() {
+        return rootFailure;
+    }
 }

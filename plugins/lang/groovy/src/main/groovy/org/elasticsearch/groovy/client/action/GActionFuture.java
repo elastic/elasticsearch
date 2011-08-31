@@ -160,4 +160,8 @@ public class GActionFuture<T> implements ListenableActionFuture<T>, ActionListen
     @Override public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         return future.get(timeout, unit);
     }
+
+    @Override public Throwable getRootFailure() {
+        return future.getRootFailure();
+    }
 }

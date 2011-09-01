@@ -32,7 +32,7 @@ import java.io.IOException;
  */
 public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
-    private final ESLogger logger;
+    protected final ESLogger logger;
 
     private final MeanMetric totalMerges = new MeanMetric();
     private final CounterMetric totalMergesNumDocs = new CounterMetric();

@@ -29,7 +29,7 @@ import java.io.IOException;
 // LUCENE MONITOR - Copied from SerialMergeScheduler
 public class TrackingSerialMergeScheduler extends MergeScheduler {
 
-    private final ESLogger logger;
+    protected final ESLogger logger;
 
     private final MeanMetric totalMerges = new MeanMetric();
     private final CounterMetric totalMergesNumDocs = new CounterMetric();

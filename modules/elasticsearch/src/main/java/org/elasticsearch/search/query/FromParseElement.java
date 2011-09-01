@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -31,7 +32,11 @@ public class FromParseElement implements SearchParseElement {
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            context.from(parser.intValue());
+            int from = parser.intValue();
+            if (from < 0) {
+                throw new SearchParseException(context, "from is set to [" + from + "] and is expected to be higher or equal to 0");
+            }
+            context.from(from);
         }
     }
 }

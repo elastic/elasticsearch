@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -31,7 +32,11 @@ public class SizeParseElement implements SearchParseElement {
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            context.size(parser.intValue());
+            int size = parser.intValue();
+            if (size < 0) {
+                throw new SearchParseException(context, "size is set to [" + size + "] and is expected to be higher or equal to 0");
+            }
+            context.size(size);
         }
     }
 }

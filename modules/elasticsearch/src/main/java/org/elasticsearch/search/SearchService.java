@@ -252,8 +252,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             contextProcessing(context);
             processScroll(request, context);
-            contextProcessedSuccessfully(context);
             queryPhase.execute(context);
+            contextProcessedSuccessfully(context);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
         } catch (RuntimeException e) {
             logger.trace("Query phase failed", e);

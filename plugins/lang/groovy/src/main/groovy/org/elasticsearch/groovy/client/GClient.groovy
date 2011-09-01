@@ -32,6 +32,8 @@ import org.elasticsearch.action.get.GetResponse
 import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.index.IndexResponse
 import org.elasticsearch.action.mlt.MoreLikeThisRequest
+import org.elasticsearch.action.percolate.PercolateRequest
+import org.elasticsearch.action.percolate.PercolateResponse
 import org.elasticsearch.action.search.SearchRequest
 import org.elasticsearch.action.search.SearchResponse
 import org.elasticsearch.client.Client
@@ -40,6 +42,7 @@ import org.elasticsearch.client.action.delete.DeleteRequestBuilder
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder
 import org.elasticsearch.client.action.get.GetRequestBuilder
 import org.elasticsearch.client.action.index.IndexRequestBuilder
+import org.elasticsearch.client.action.percolate.PercolateRequestBuilder
 import org.elasticsearch.client.action.search.SearchRequestBuilder
 import org.elasticsearch.client.action.support.BaseRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
@@ -145,6 +148,19 @@ class GClient {
         }
         MoreLikeThisRequest.metaClass.searchSource = {Closure c ->
             delegate.searchSource(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+
+        PercolateRequest.metaClass.setSource = {Closure c ->
+            delegate.source(new GXContentBuilder().buildAsBytes(c, indexContentType))
+        }
+        PercolateRequest.metaClass.source = {Closure c ->
+            delegate.source(new GXContentBuilder().buildAsBytes(c, indexContentType))
+        }
+        PercolateRequestBuilder.metaClass.setSource = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsBytes(c, indexContentType))
+        }
+        PercolateRequestBuilder.metaClass.source = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsBytes(c, indexContentType))
         }
     }
 
@@ -301,6 +317,24 @@ class GClient {
 
     void search(SearchRequest request, ActionListener<SearchResponse> listener) {
         client.search(request, listener)
+    }
+
+    PercolateRequestBuilder preparePercolate(String index, String type) {
+        return client.preparePercolate(index, type);
+    }
+
+    GActionFuture<PercolateResponse> percolate(Closure c) {
+        PercolateRequest request = new PercolateRequest();
+        c.resolveStrategy = resolveStrategy
+        c.setDelegate request
+        c.call()
+        percolate(request)
+    }
+
+    GActionFuture<PercolateResponse> percolate(PercolateRequest request) {
+        GActionFuture<PercolateResponse> future = new GActionFuture<PercolateResponse>(internalClient.threadPool(), request)
+        client.percolate(request, future)
+        return future
     }
 
     GActionFuture<SearchResponse> moreLikeThis(Closure c) {

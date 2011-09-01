@@ -42,6 +42,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse
+import org.elasticsearch.action.admin.indices.stats.IndicesStats
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest
@@ -60,6 +62,7 @@ import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingReque
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder
 import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder
+import org.elasticsearch.client.action.admin.indices.stats.IndicesStatsRequestBuilder
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder
 import org.elasticsearch.client.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder
 import org.elasticsearch.client.action.admin.indices.template.put.PutIndexTemplateRequestBuilder
@@ -156,6 +159,30 @@ class GIndicesAdminClient {
 
     void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener) {
         indicesAdminClient.status(request, listener)
+    }
+
+    // STATS
+
+    IndicesStatsRequestBuilder prepareStats(String... indices) {
+        indicesAdminClient.prepareStats(indices)
+    }
+
+    GActionFuture<IndicesStats> stats(Closure c) {
+        IndicesStatsRequest request = new IndicesStatsRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy
+        c.call()
+        stats(request)
+    }
+
+    GActionFuture<IndicesStats> stats(IndicesStatsRequest request) {
+        GActionFuture<IndicesStats> future = new GActionFuture<IndicesStats>(internalClient.threadPool(), request)
+        indicesAdminClient.stats(request, future)
+        return future
+    }
+
+    void stats(IndicesStatsRequest request, ActionListener<IndicesStats> listener) {
+        indicesAdminClient.stats(request, listener)
     }
 
     // CREATE

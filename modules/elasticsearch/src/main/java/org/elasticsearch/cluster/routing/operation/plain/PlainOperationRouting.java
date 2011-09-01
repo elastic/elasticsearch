@@ -216,12 +216,12 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     private int shardId(ClusterState clusterState, String index, String type, @Nullable String id, @Nullable String routing) {
         if (routing == null) {
             if (!useType) {
-                return Math.abs(hash(id)) % indexMetaData(clusterState, index).numberOfShards();
+                return Math.abs(hash(id) % indexMetaData(clusterState, index).numberOfShards());
             } else {
-                return Math.abs(hash(type, id)) % indexMetaData(clusterState, index).numberOfShards();
+                return Math.abs(hash(type, id) % indexMetaData(clusterState, index).numberOfShards());
             }
         }
-        return Math.abs(hash(routing)) % indexMetaData(clusterState, index).numberOfShards();
+        return Math.abs(hash(routing) % indexMetaData(clusterState, index).numberOfShards());
     }
 
     protected int hash(String routing) {

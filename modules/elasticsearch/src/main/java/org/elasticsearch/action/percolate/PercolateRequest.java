@@ -50,7 +50,7 @@ public class PercolateRequest extends SingleCustomOperationRequest {
     private int sourceLength;
     private boolean sourceUnsafe;
 
-    PercolateRequest() {
+    public PercolateRequest() {
 
     }
 

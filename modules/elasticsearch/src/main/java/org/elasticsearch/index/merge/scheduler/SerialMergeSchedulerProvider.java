@@ -86,7 +86,12 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
                 // since we do it outside of a lock in the RobinEngine
                 return;
             }
-            super.merge(writer);
+            try {
+                super.merge(writer);
+            } catch (IOException e) {
+                logger.warn("failed to merge", e);
+                throw e;
+            }
         }
 
         @Override public void close() {

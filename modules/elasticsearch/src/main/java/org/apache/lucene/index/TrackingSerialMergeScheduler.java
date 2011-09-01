@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 // LUCENE MONITOR - Copied from SerialMergeScheduler
 public class TrackingSerialMergeScheduler extends MergeScheduler {
 
-    private final ESLogger logger;
+    protected final ESLogger logger;
 
     private final AtomicLong totalMerges = new AtomicLong();
     private final AtomicLong totalMergeTime = new AtomicLong();

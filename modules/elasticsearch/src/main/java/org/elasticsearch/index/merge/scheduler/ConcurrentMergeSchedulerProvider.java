@@ -96,13 +96,23 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
                 // since we do it outside of a lock in the RobinEngine
                 return;
             }
-            super.merge(writer);
+            try {
+                super.merge(writer);
+            } catch (IOException e) {
+                logger.warn("failed to merge", e);
+                throw e;
+            }
         }
 
         @Override protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
             MergeThread thread = super.getMergeThread(writer, merge);
             thread.setName("[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName());
             return thread;
+        }
+
+        @Override protected void handleMergeException(Throwable exc) {
+            logger.warn("failed to merge", exc);
+            super.handleMergeException(exc);
         }
 
         @Override public void close() {

@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
-    private final ESLogger logger;
+    protected final ESLogger logger;
 
     private final AtomicLong totalMerges = new AtomicLong();
     private final AtomicLong totalMergeTime = new AtomicLong();

@@ -70,7 +70,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     });
 
     private boolean throwConnectException = false;
-    private TransportService.Adapter adapter;
+    private final TransportService.Adapter adapter = new Adapter();
 
     public TransportService(Transport transport, ThreadPool threadPool) {
         this(EMPTY_SETTINGS, transport, threadPool);
@@ -83,8 +83,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        // register us as an adapter for the transport service
-        adapter = new Adapter();
+        adapter.rxMetric.clear();
+        adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {

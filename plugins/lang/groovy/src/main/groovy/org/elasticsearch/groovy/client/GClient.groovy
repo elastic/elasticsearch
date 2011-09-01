@@ -352,6 +352,6 @@ class GClient {
     }
 
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
-        client(request, listener)
+        client.moreLikeThis(request, listener)
     }
 }

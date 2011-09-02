@@ -56,6 +56,7 @@ public class SigarProcessProbe extends AbstractComponent implements ProcessProbe
             stats.cpu.percent = (short) (cpu.getPercent() * 100);
             stats.cpu.sys = cpu.getSys();
             stats.cpu.user = cpu.getUser();
+            stats.cpu.total = cpu.getTotal();
         } catch (SigarException e) {
             // ignore
         }

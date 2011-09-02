@@ -48,6 +48,7 @@ public class ParentMappingTests {
                 .copiedBytes()).type("type").id("1"));
 
         // no _parent mapping, used as a simple field
+        assertThat(doc.parent(), equalTo(null));
         assertThat(doc.rootDoc().get("_parent"), equalTo("1122"));
     }
 
@@ -63,7 +64,8 @@ public class ParentMappingTests {
                 .field("x_field", "x_value")
                 .endObject()
                 .copiedBytes()).type("type").id("1"));
-
+        
+        assertThat(doc.parent(), equalTo("1122"));
         assertThat(doc.rootDoc().get("_parent"), equalTo(Uid.createUid("p_type", "1122")));
     }
 

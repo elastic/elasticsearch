@@ -19,9 +19,21 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.action.index.*;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
+import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
+import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
+import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.*;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.cluster.metadata.MetaDataService;
+import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationModule;
 import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
@@ -50,6 +62,8 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
     @Override
     protected void configure() {
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
+
+        bind(MetaDataService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataStateIndexService.class).asEagerSingleton();

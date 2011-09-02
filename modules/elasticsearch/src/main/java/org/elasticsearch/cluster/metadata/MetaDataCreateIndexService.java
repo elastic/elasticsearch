@@ -92,10 +92,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
 
+    private final MetaDataService metaDataService;
+
     private final String riverIndexName;
 
     @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction, @RiverIndexName String riverIndexName) {
+                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -103,6 +105,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.indicesService = indicesService;
         this.shardsAllocation = shardsAllocation;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
+        this.metaDataService = metaDataService;
         this.riverIndexName = riverIndexName;
     }
 
@@ -116,8 +119,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
         request.settings(updatedSettingsBuilder.build());
-        final CreateIndexListener listener = new CreateIndexListener(request, userListener);
 
+        // we lock here, and not within the cluster service callback since we don't want to
+        // block the whole cluster state handling
+        MetaDataService.MdLock mdLock = metaDataService.indexMetaDataLock(request.index);
+        try {
+            mdLock.lock();
+        } catch (InterruptedException e) {
+            userListener.onFailure(e);
+            return;
+        }
+
+        final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
 
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
@@ -309,7 +322,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     class CreateIndexListener implements Listener {
 
-        private AtomicBoolean notified = new AtomicBoolean();
+        private final AtomicBoolean notified = new AtomicBoolean();
+
+        private final MetaDataService.MdLock mdLock;
 
         private final Request request;
 
@@ -317,13 +332,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         volatile ScheduledFuture future;
 
-        private CreateIndexListener(Request request, Listener listener) {
+        private CreateIndexListener(MetaDataService.MdLock mdLock, Request request, Listener listener) {
+            this.mdLock = mdLock;
             this.request = request;
             this.listener = listener;
         }
 
         @Override public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
+                mdLock.unlock();
                 if (future != null) {
                     future.cancel(false);
                 }
@@ -333,6 +350,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         @Override public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
+                mdLock.unlock();
                 if (future != null) {
                     future.cancel(false);
                 }

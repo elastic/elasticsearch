@@ -250,7 +250,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         Object value = null;
                         if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().stored()) {
                             value = source.routing;
-                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper().stored()) {
+                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper() != null && docMapper.parentFieldMapper().stored()) {
                             value = source.parent;
                         } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().stored()) {
                             value = source.timestamp;

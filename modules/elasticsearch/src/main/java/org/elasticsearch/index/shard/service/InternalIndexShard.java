@@ -659,10 +659,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         } else if (e.getCause() instanceof ThreadInterruptedException) {
                             // ignore, we are being shutdown
                         } else {
-                            logger.warn("Failed to perform scheduled engine refresh", e);
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("Failed to perform scheduled engine refresh", e);
+                            }
                         }
                     } catch (Exception e) {
-                        logger.warn("Failed to perform scheduled engine refresh", e);
+                        if (state != IndexShardState.CLOSED) {
+                            logger.warn("Failed to perform scheduled engine refresh", e);
+                        }
                     }
                     synchronized (mutex) {
                         if (state != IndexShardState.CLOSED) {
@@ -700,10 +704,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         } else if (e.getCause() instanceof ThreadInterruptedException) {
                             // ignore, we are being shutdown
                         } else {
-                            logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                            }
                         }
                     } catch (Exception e) {
-                        logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                        if (state != IndexShardState.CLOSED) {
+                            logger.warn("Failed to perform scheduled engine optimize/merge", e);
+                        }
                     }
                     synchronized (mutex) {
                         if (state != IndexShardState.CLOSED) {

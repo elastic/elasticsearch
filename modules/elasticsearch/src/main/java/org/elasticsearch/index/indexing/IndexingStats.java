@@ -179,14 +179,8 @@ public class IndexingStats implements Streamable, ToXContent {
         return this.totalStats;
     }
 
-    public Map<String, Stats> typeStats() {
+    @Nullable public Map<String, Stats> typeStats() {
         return this.typeStats;
-    }
-
-    public static IndexingStats readIndexingStats(StreamInput in) throws IOException {
-        IndexingStats indexingStats = new IndexingStats();
-        indexingStats.readFrom(in);
-        return indexingStats;
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -214,6 +208,12 @@ public class IndexingStats implements Streamable, ToXContent {
         static final XContentBuilderString DELETE_TOTAL = new XContentBuilderString("delete_total");
         static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
         static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");
+    }
+
+    public static IndexingStats readIndexingStats(StreamInput in) throws IOException {
+        IndexingStats indexingStats = new IndexingStats();
+        indexingStats.readFrom(in);
+        return indexingStats;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

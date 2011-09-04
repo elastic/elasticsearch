@@ -147,7 +147,7 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     private SearchSourceBuilder parseSearchSource(RestRequest request) {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilder searchSourceBuilder = null;
         String queryString = request.param("q");
         if (queryString != null) {
             QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
@@ -165,24 +165,45 @@ public class RestSearchAction extends BaseRestHandler {
                     throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }
             }
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
             searchSourceBuilder.query(queryBuilder);
         }
 
         int from = request.paramAsInt("from", -1);
         if (from != -1) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
             searchSourceBuilder.from(from);
         }
         int size = request.paramAsInt("size", -1);
         if (size != -1) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
             searchSourceBuilder.size(size);
         }
 
-
-        searchSourceBuilder.explain(request.paramAsBooleanOptional("explain", null));
-        searchSourceBuilder.version(request.paramAsBooleanOptional("version", null));
+        if (request.hasParam("explain")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.explain(request.paramAsBooleanOptional("explain", null));
+        }
+        if (request.hasParam("version")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.version(request.paramAsBooleanOptional("version", null));
+        }
 
         String sField = request.param("fields");
         if (sField != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
             if (!Strings.hasText(sField)) {
                 searchSourceBuilder.noFields();
             } else {
@@ -197,6 +218,9 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sSorts = request.param("sort");
         if (sSorts != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
                 int delimiter = sort.lastIndexOf(":");
@@ -216,6 +240,9 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sIndicesBoost = request.param("indices_boost");
         if (sIndicesBoost != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
             String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
             for (String indexBoost : indicesBoost) {
                 int divisor = indexBoost.indexOf(',');
@@ -230,6 +257,14 @@ public class RestSearchAction extends BaseRestHandler {
                     throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
                 }
             }
+        }
+
+        String sStats = request.param("stats");
+        if (sStats != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.stats(Strings.splitStringByCommaToArray(sStats));
         }
 
         return searchSourceBuilder;

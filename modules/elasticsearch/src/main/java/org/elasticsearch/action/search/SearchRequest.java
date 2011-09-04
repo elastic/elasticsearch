@@ -347,6 +347,10 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
+        if (sourceBuilder == null) {
+            extraSource = null;
+            return this;
+        }
         BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.extraSource = bos.underlyingBytes();
         this.extraSourceOffset = 0;

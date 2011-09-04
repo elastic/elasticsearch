@@ -27,9 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 
@@ -49,6 +51,10 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private IndexingStats indexingStats;
 
+    private GetStats getStats;
+
+    private SearchStats searchStats;
+
     private CacheStats cacheStats;
 
     private MergeStats mergeStats;
@@ -60,10 +66,12 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(StoreStats storeStats, DocsStats docsStats, IndexingStats indexingStats, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
+    public NodeIndicesStats(StoreStats storeStats, DocsStats docsStats, IndexingStats indexingStats, GetStats getStats, SearchStats searchStats, CacheStats cacheStats, MergeStats mergeStats, RefreshStats refreshStats, FlushStats flushStats) {
         this.storeStats = storeStats;
         this.docsStats = docsStats;
         this.indexingStats = indexingStats;
+        this.getStats = getStats;
+        this.searchStats = searchStats;
         this.cacheStats = cacheStats;
         this.mergeStats = mergeStats;
         this.refreshStats = refreshStats;
@@ -95,6 +103,22 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     public IndexingStats getIndexing() {
         return indexing();
+    }
+
+    public GetStats get() {
+        return this.getStats;
+    }
+
+    public GetStats getGet() {
+        return this.getStats;
+    }
+
+    public SearchStats search() {
+        return this.searchStats;
+    }
+
+    public SearchStats getSearch() {
+        return this.searchStats;
     }
 
     public CacheStats cache() {
@@ -139,6 +163,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         storeStats = StoreStats.readStoreStats(in);
         docsStats = DocsStats.readDocStats(in);
         indexingStats = IndexingStats.readIndexingStats(in);
+        getStats = GetStats.readGetStats(in);
+        searchStats = SearchStats.readSearchStats(in);
         cacheStats = CacheStats.readCacheStats(in);
         mergeStats = MergeStats.readMergeStats(in);
         refreshStats = RefreshStats.readRefreshStats(in);
@@ -149,6 +175,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         storeStats.writeTo(out);
         docsStats.writeTo(out);
         indexingStats.writeTo(out);
+        getStats.writeTo(out);
+        searchStats.writeTo(out);
         cacheStats.writeTo(out);
         mergeStats.writeTo(out);
         refreshStats.writeTo(out);
@@ -161,6 +189,8 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         storeStats.toXContent(builder, params);
         docsStats.toXContent(builder, params);
         indexingStats.toXContent(builder, params);
+        getStats.toXContent(builder, params);
+        searchStats.toXContent(builder, params);
         cacheStats.toXContent(builder, params);
         mergeStats.toXContent(builder, params);
         refreshStats.toXContent(builder, params);

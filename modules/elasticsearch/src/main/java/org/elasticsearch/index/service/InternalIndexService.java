@@ -58,6 +58,7 @@ import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardCreationException;
 import org.elasticsearch.index.shard.IndexShardManagement;
@@ -282,6 +283,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexShardModule(shardId));
         modules.add(new ShardIndexingModule());
+        modules.add(new ShardSearchModule());
         modules.add(new ShardGetModule());
         modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class)));
         modules.add(new DeletionPolicyModule(indexSettings));

@@ -345,6 +345,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * The stats groups this request will be aggregated under.
+     */
+    public SearchRequestBuilder setStats(String... statsGroups) {
+        sourceBuilder().stats(statsGroups);
+        return this;
+    }
+
+    /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
     public SearchRequestBuilder setNoFields() {
@@ -489,7 +497,6 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         highlightBuilder().field(name);
         return this;
     }
-
 
 
     /**

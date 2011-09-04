@@ -244,7 +244,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             if (logger.isTraceEnabled()) {
                 logger.trace("processing [delete]: [{}]/[{}]/[{}]", index, type, id);
             }
-            bulk.add(deleteRequest(index).type(type).id(id).routing(extractRouting(ctx)));
+            bulk.add(deleteRequest(index).type(type).id(id).routing(extractRouting(ctx)).parent(extractParent(ctx)));
         } else if (ctx.containsKey("doc")) {
             String index = extractIndex(ctx);
             String type = extractType(ctx);
@@ -263,11 +263,15 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 logger.trace("processing [index ]: [{}]/[{}]/[{}], source {}", index, type, id, doc);
             }
 
-            bulk.add(indexRequest(index).type(type).id(id).source(doc).routing(extractRouting(ctx)));
+            bulk.add(indexRequest(index).type(type).id(id).source(doc).routing(extractRouting(ctx)).parent(extractParent(ctx)));
         } else {
             logger.warn("ignoring unknown change {}", s);
         }
         return seq;
+    }
+
+    private String extractParent(Map<String, Object> ctx) {
+        return (String) ctx.get("_parent");
     }
 
     private String extractRouting(Map<String, Object> ctx) {

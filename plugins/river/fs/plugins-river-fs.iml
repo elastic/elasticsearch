@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="EclipseModuleManager">
+    <libelement value="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-core/jars/hamcrest-core-1.3.RC2.jar!/" />
+    <libelement value="jar://$GRADLE_REPOSITORY$/org.beanshell/bsh/jars/bsh-2.0b4.jar!/" />
+    <libelement value="jar://$GRADLE_REPOSITORY$/com.beust/jcommander/jars/jcommander-1.5.jar!/" />
+    <libelement value="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-library/jars/hamcrest-library-1.3.RC2.jar!/" />
+    <libelement value="jar://$GRADLE_REPOSITORY$/org.testng/testng/jars/testng-6.1.1.jar!/" />
+    <src_description expected_position="0">
+      <src_folder value="file://$MODULE_DIR$/src/main/java" expected_position="1" />
+    </src_description>
+  </component>
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/build/eclipse-build" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src/main/java" isTestSource="false" />
+    </content>
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="module" module-name="test-testng" exported="" />
+    <orderEntry type="module" module-name="elasticsearch" exported="" />
+    <orderEntry type="module-library" exported="">
+      <library name="hamcrest-core-1.3.RC2.jar">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-core/jars/hamcrest-core-1.3.RC2.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-core/sources/hamcrest-core-1.3.RC2-sources.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library" exported="">
+      <library name="bsh-2.0b4.jar">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.beanshell/bsh/jars/bsh-2.0b4.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library" exported="">
+      <library name="jcommander-1.5.jar">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/com.beust/jcommander/jars/jcommander-1.5.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$GRADLE_REPOSITORY$/com.beust/jcommander/sources/jcommander-1.5-sources.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library" exported="">
+      <library name="hamcrest-library-1.3.RC2.jar">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-library/jars/hamcrest-library-1.3.RC2.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-library/sources/hamcrest-library-1.3.RC2-sources.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library" exported="">
+      <library name="testng-6.1.1.jar">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.testng/testng/jars/testng-6.1.1.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.testng/testng/sources/testng-6.1.1-sources.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+  </component>
+</module>
+

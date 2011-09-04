@@ -94,6 +94,13 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
+    public static long nodeLongValue(Object node, long defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeLongValue(node);
+    }
+
     public static boolean nodeBooleanValue(Object node, boolean defaulValue) {
         if (node == null) {
             return defaulValue;

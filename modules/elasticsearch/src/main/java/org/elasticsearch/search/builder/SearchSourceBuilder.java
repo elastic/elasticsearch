@@ -107,6 +107,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
+    private String[] stats;
+
 
     /**
      * Constructs a new search source builder.
@@ -475,6 +477,14 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * The stats groups this request will be aggregated under.
+     */
+    public SearchSourceBuilder stats(String... statsGroups) {
+        this.stats = statsGroups;
+        return this;
+    }
+
     @Override public String toString() {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
@@ -628,6 +638,14 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
+        }
+
+        if (stats != null) {
+            builder.startArray("stats");
+            for (String stat : stats) {
+                builder.value(stat);
+            }
+            builder.endArray();
         }
 
         builder.endObject();

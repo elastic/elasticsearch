@@ -62,6 +62,11 @@ public class IndicesStatsRequestBuilder extends BaseIndicesRequestBuilder<Indice
         return this;
     }
 
+    public IndicesStatsRequestBuilder setGroups(String... groups) {
+        request.groups(groups);
+        return this;
+    }
+
     public IndicesStatsRequestBuilder setDocs(boolean docs) {
         request.docs(docs);
         return this;
@@ -74,6 +79,16 @@ public class IndicesStatsRequestBuilder extends BaseIndicesRequestBuilder<Indice
 
     public IndicesStatsRequestBuilder setIndexing(boolean indexing) {
         request.indexing(indexing);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setGet(boolean get) {
+        request.get(get);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setSearch(boolean search) {
+        request.search(search);
         return this;
     }
 

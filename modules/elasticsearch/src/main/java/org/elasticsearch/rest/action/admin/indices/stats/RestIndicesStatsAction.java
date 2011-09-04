@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,20 +50,32 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/_stats", this);
         controller.registerHandler(GET, "/{index}/_stats", this);
+
         controller.registerHandler(GET, "_stats/docs", new RestDocsStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/docs", new RestDocsStatsHandler());
+
         controller.registerHandler(GET, "/_stats/store", new RestStoreStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/store", new RestStoreStatsHandler());
+
         controller.registerHandler(GET, "/_stats/indexing", new RestIndexingStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/indexing", new RestIndexingStatsHandler());
+        controller.registerHandler(GET, "/_stats/indexing/{indexingTypes1}", new RestIndexingStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/indexing/{indexingTypes2}", new RestIndexingStatsHandler());
+
+        controller.registerHandler(GET, "/_stats/search", new RestSearchStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/search", new RestSearchStatsHandler());
+        controller.registerHandler(GET, "/_stats/search/{searchGroupsStats1}", new RestSearchStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/search/{searchGroupsStats2}", new RestSearchStatsHandler());
+
         controller.registerHandler(GET, "/_stats/get", new RestGetStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/get", new RestGetStatsHandler());
-        controller.registerHandler(GET, "/_stats/indexing/{indexingTypes}", new RestIndexingStatsHandler());
-        controller.registerHandler(GET, "/{index}/_stats/indexing/{indexingTypes}", new RestIndexingStatsHandler());
+
         controller.registerHandler(GET, "/_stats/refresh", new RestRefreshStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/refresh", new RestRefreshStatsHandler());
+
         controller.registerHandler(GET, "/_stats/merge", new RestMergeStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/merge", new RestMergeStatsHandler());
+
         controller.registerHandler(GET, "/_stats/flush", new RestFlushStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/flush", new RestFlushStatsHandler());
     }
@@ -74,6 +87,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         boolean clear = request.paramAsBoolean("clear", false);
         if (clear) {
             indicesStatsRequest.clear();
+        }
+        if (request.hasParam("groups")) {
+            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
         }
         indicesStatsRequest.docs(request.paramAsBoolean("docs", indicesStatsRequest.docs()));
         indicesStatsRequest.store(request.paramAsBoolean("store", indicesStatsRequest.store()));
@@ -181,12 +197,54 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.indices(splitIndices(request.param("index")));
-            if (request.param("types") != null) {
+            if (request.hasParam("types")) {
                 indicesStatsRequest.types(splitTypes(request.param("types")));
-            } else {
-                indicesStatsRequest.types(splitTypes(request.param("indexingTypes")));
+            } else if (request.hasParam("indexingTypes1")) {
+                indicesStatsRequest.types(splitTypes(request.param("indexingTypes1")));
+            } else if (request.hasParam("indexingTypes2")) {
+                indicesStatsRequest.types(splitTypes(request.param("indexingTypes2")));
             }
             indicesStatsRequest.clear().indexing(true);
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
+                @Override public void onResponse(IndicesStats response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestSearchStatsHandler implements RestHandler {
+
+        @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            if (request.hasParam("groups")) {
+                indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
+            } else if (request.hasParam("searchGroupsStats1")) {
+                indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("searchGroupsStats1")));
+            } else if (request.hasParam("searchGroupsStats2")) {
+                indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("searchGroupsStats2")));
+            }
+            indicesStatsRequest.clear().search(true);
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStats>() {
                 @Override public void onResponse(IndicesStats response) {

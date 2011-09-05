@@ -183,7 +183,7 @@ public class ThreadPool extends AbstractComponent {
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}]", name, type, size, queueSize, rejectSetting);
             return new ThreadPoolExecutor(size, size,
                     0L, TimeUnit.MILLISECONDS,
-                    queueSize <= 0 ? new LinkedTransferQueue<Runnable>() : new LinkedBlockingQueue<Runnable>(queueSize),
+                    queueSize <= 0 ? new LinkedTransferQueue<Runnable>() : new ArrayBlockingQueue<Runnable>(queueSize),
                     threadFactory, rejectedExecutionHandler);
         } else if ("scaling".equals(type)) {
             TimeValue keepAlive = settings.getAsTime("keep_alive", defaultSettings.getAsTime("keep_alive", timeValueMinutes(5)));

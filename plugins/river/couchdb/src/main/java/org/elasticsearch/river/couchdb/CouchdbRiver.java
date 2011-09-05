@@ -53,8 +53,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.*;
@@ -164,7 +164,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
         if (throttleSize == -1) {
             stream = new LinkedTransferQueue<String>();
         } else {
-            stream = new LinkedBlockingQueue<String>(throttleSize);
+            stream = new ArrayBlockingQueue<String>(throttleSize);
         }
     }
 

@@ -19,8 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 
@@ -29,11 +33,18 @@ import java.util.List;
 /**
  * @author kimchy (shay.banon)
  */
-public class ShardAllocationModule extends AbstractModule {
+public class AllocationModule extends AbstractModule implements SpawnModules {
+
+    private final Settings settings;
 
     private List<Class<? extends NodeAllocation>> allocations = Lists.newArrayList();
 
-    public ShardAllocationModule(Settings settings) {
+    public AllocationModule(Settings settings) {
+        this.settings = settings;
+    }
+
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new ShardsAllocatorModule(settings));
     }
 
     public void addNodeAllocation(Class<? extends NodeAllocation> nodeAllocation) {
@@ -41,7 +52,7 @@ public class ShardAllocationModule extends AbstractModule {
     }
 
     @Override protected void configure() {
-        bind(ShardsAllocation.class).asEagerSingleton();
+        bind(AllocationService.class).asEagerSingleton();
 
         Multibinder<NodeAllocation> allocationMultibinder = Multibinder.newSetBinder(binder(), NodeAllocation.class);
         allocationMultibinder.addBinding().to(SameShardNodeAllocation.class);

@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -51,18 +51,18 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
     private final MetaDataService metaDataService;
 
-    @Inject public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ShardsAllocation shardsAllocation,
+    @Inject public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
                                               NodeIndexDeletedAction nodeIndexDeletedAction, MetaDataService metaDataService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.metaDataService = metaDataService;
     }
@@ -97,7 +97,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                             .remove(request.index)
                             .build();
 
-                    RoutingAllocation.Result routingResult = shardsAllocation.reroute(
+                    RoutingAllocation.Result routingResult = allocationService.reroute(
                             newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
 
                     ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();

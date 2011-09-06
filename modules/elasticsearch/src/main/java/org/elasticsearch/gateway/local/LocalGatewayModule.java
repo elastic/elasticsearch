@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway.local;
 
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationModule;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
@@ -37,8 +37,8 @@ public class LocalGatewayModule extends AbstractModule implements PreProcessModu
     }
 
     @Override public void processModule(Module module) {
-        if (module instanceof ShardAllocationModule) {
-            ((ShardAllocationModule) module).addNodeAllocation(LocalGatewayNodeAllocation.class);
+        if (module instanceof ShardsAllocatorModule) {
+            ((ShardsAllocatorModule) module).setGatewayAllocator(LocalGatewayAllocator.class);
         }
     }
 }

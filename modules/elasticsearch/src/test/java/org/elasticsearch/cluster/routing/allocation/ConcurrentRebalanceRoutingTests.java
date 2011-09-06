@@ -44,7 +44,7 @@ public class ConcurrentRebalanceRoutingTests {
     private final ESLogger logger = Loggers.getLogger(ConcurrentRebalanceRoutingTests.class);
 
     @Test public void testClusterConcurrentRebalance() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)

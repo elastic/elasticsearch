@@ -49,7 +49,7 @@ public class FailedShardsRoutingTests {
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 
     @Test public void failPrimaryStartedCheckReplicaElected() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -129,7 +129,7 @@ public class FailedShardsRoutingTests {
     }
 
     @Test public void firstAllocationFailureSingleNode() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -185,7 +185,7 @@ public class FailedShardsRoutingTests {
     }
 
     @Test public void firstAllocationFailureTwoNodes() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -241,7 +241,7 @@ public class FailedShardsRoutingTests {
     }
 
     @Test public void rebalanceFailure() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());

@@ -44,7 +44,7 @@ public class ClusterRebalanceRoutingTests {
     private final ESLogger logger = Loggers.getLogger(ClusterRebalanceRoutingTests.class);
 
     @Test public void testAlways() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -129,7 +129,7 @@ public class ClusterRebalanceRoutingTests {
 
 
     @Test public void testClusterPrimariesActive1() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -232,7 +232,7 @@ public class ClusterRebalanceRoutingTests {
     }
 
     @Test public void testClusterPrimariesActive2() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -315,7 +315,7 @@ public class ClusterRebalanceRoutingTests {
     }
 
     @Test public void testClusterAllActive1() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -437,7 +437,7 @@ public class ClusterRebalanceRoutingTests {
     }
 
     @Test public void testClusterAllActive2() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -520,7 +520,7 @@ public class ClusterRebalanceRoutingTests {
     }
 
     @Test public void testClusterAllActive3() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))

@@ -47,7 +47,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests {
 
 
     @Test public void testPrimaryNotRelocatedWhileBeingRecoveredFrom() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .build());

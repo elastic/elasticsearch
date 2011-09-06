@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -55,7 +55,7 @@ public class ClusterSerializationTests {
 
         ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
-        ShardsAllocation strategy = new ShardsAllocation();
+        AllocationService strategy = new AllocationService();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
@@ -77,7 +77,7 @@ public class ClusterSerializationTests {
 
         ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
-        ShardsAllocation strategy = new ShardsAllocation();
+        AllocationService strategy = new AllocationService();
         RoutingTable source = strategy.reroute(clusterState).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();

@@ -46,7 +46,7 @@ public class TenShardsOneReplicaRoutingTests {
     private final ESLogger logger = Loggers.getLogger(TenShardsOneReplicaRoutingTests.class);
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")

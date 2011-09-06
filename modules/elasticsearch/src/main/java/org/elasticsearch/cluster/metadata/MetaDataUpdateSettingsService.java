@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -47,13 +47,13 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final ClusterService clusterService;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
-    @Inject public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, ShardsAllocation shardsAllocation) {
+    @Inject public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterService.add(this);
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {
@@ -191,7 +191,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).build();
 
                     // now, reroute in case things change that require it (like number of replicas)
-                    RoutingAllocation.Result routingResult = shardsAllocation.reroute(updatedState);
+                    RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
                     updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
 
                     return updatedState;

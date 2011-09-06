@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,12 +47,12 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
-    @Inject public MetaDataStateIndexService(Settings settings, ClusterService clusterService, ShardsAllocation shardsAllocation) {
+    @Inject public MetaDataStateIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.clusterService = clusterService;
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
     }
 
     public void closeIndex(final Request request, final Listener listener) {
@@ -85,7 +85,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
                         .routingTable(currentState.routingTable())
                         .remove(request.index);
 
-                RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
 
                 return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
@@ -127,7 +127,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
                         .initializeEmpty(updatedState.metaData().index(request.index), false);
                 rtBuilder.add(indexRoutingBuilder);
 
-                RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
 
                 return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }

@@ -32,8 +32,10 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.iterator.TObjectLongIterator;
@@ -54,7 +56,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * @author kimchy (shay.banon)
  */
-public class LocalGatewayNodeAllocation extends NodeAllocation {
+public class LocalGatewayAllocator extends AbstractComponent implements GatewayAllocator {
 
     static {
         IndexMetaData.addDynamicSettings("index.recovery.initial_shards");
@@ -72,8 +74,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
     private final String initialShards;
 
-    @Inject public LocalGatewayNodeAllocation(Settings settings,
-                                              TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
+    @Inject public LocalGatewayAllocator(Settings settings,
+                                         TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
         super(settings);
         this.listGatewayStartedShards = listGatewayStartedShards;
         this.listShardStoreMetaData = listShardStoreMetaData;
@@ -187,10 +189,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             Set<DiscoveryNode> noNodes = Sets.newHashSet();
             for (DiscoveryNode discoNode : nodesWithHighestVersion) {
                 RoutingNode node = routingNodes.node(discoNode.id());
-                Decision decision = nodeAllocations.canAllocate(shard, node, allocation);
+                NodeAllocation.Decision decision = nodeAllocations.canAllocate(shard, node, allocation);
                 if (decision == NodeAllocation.Decision.THROTTLE) {
                     throttledNodes.add(discoNode);
-                } else if (decision == Decision.NO) {
+                } else if (decision == NodeAllocation.Decision.NO) {
                     noNodes.add(discoNode);
                 } else {
                     if (logger.isDebugEnabled()) {
@@ -284,7 +286,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 // check if we can allocate on that node...
                 // we only check for NO, since if this node is THROTTLING and it has enough "same data"
                 // then we will try and assign it next time
-                if (nodeAllocations.canAllocate(shard, node, allocation) == Decision.NO) {
+                if (nodeAllocations.canAllocate(shard, node, allocation) == NodeAllocation.Decision.NO) {
                     continue;
                 }
 

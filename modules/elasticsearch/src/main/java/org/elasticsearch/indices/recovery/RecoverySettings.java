@@ -20,6 +20,8 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.RateLimiter;
+import org.elasticsearch.common.base.Objects;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +43,8 @@ public class RecoverySettings extends AbstractComponent {
         MetaData.addDynamicSettings("indices.recovery.translog_ops");
         MetaData.addDynamicSettings("indices.recovery.translog_size");
         MetaData.addDynamicSettings("indices.recovery.compress");
-        MetaData.addDynamicSettings("`");
+        MetaData.addDynamicSettings("indices.recovery.concurrent_streams");
+        MetaData.addDynamicSettings("indices.recovery.max_size_per_sec");
     }
 
     private volatile ByteSizeValue fileChunkSize;
@@ -52,6 +55,9 @@ public class RecoverySettings extends AbstractComponent {
 
     private volatile int concurrentStreams;
     private final ThreadPoolExecutor concurrentStreamPool;
+
+    private volatile ByteSizeValue maxSizePerSec;
+    private volatile RateLimiter rateLimiter;
 
     @Inject public RecoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
@@ -64,8 +70,15 @@ public class RecoverySettings extends AbstractComponent {
         this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 5));
         this.concurrentStreamPool = (ThreadPoolExecutor) DynamicExecutors.newScalingThreadPool(1, concurrentStreams, TimeValue.timeValueSeconds(5).millis(), EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
-        logger.debug("using concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
-                concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
+        this.maxSizePerSec = componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(0));
+        if (maxSizePerSec.bytes() <= 0) {
+            rateLimiter = null;
+        } else {
+            rateLimiter = new RateLimiter(maxSizePerSec.mbFrac());
+        }
+
+        logger.debug("using max_size_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
+                maxSizePerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
 
         nodeSettingsService.addListener(new ApplySettings());
     }
@@ -98,8 +111,25 @@ public class RecoverySettings extends AbstractComponent {
         return concurrentStreamPool;
     }
 
+    public RateLimiter rateLimiter() {
+        return rateLimiter;
+    }
+
     class ApplySettings implements NodeSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
+            ByteSizeValue maxSizePerSec = settings.getAsBytesSize("indices.recovery.max_size_per_sec", RecoverySettings.this.maxSizePerSec);
+            if (!Objects.equal(maxSizePerSec, RecoverySettings.this.maxSizePerSec)) {
+                logger.info("updating [indices.recovery.max_size_per_sec] from [{}] to [{}]", RecoverySettings.this.maxSizePerSec, maxSizePerSec);
+                RecoverySettings.this.maxSizePerSec = maxSizePerSec;
+                if (maxSizePerSec.bytes() <= 0) {
+                    rateLimiter = null;
+                } else if (rateLimiter != null) {
+                    rateLimiter.setMaxRate(maxSizePerSec.mbFrac());
+                } else {
+                    rateLimiter = new RateLimiter(maxSizePerSec.mbFrac());
+                }
+            }
+
             ByteSizeValue fileChunkSize = settings.getAsBytesSize("indices.recovery.file_chunk_size", RecoverySettings.this.fileChunkSize);
             if (!fileChunkSize.equals(RecoverySettings.this.fileChunkSize)) {
                 logger.info("updating [indices.recovery.file_chunk_size] from [{}] to [{}]", RecoverySettings.this.fileChunkSize, fileChunkSize);

@@ -17,6 +17,15 @@
 #gateway.recover_after_time: 5m
 #gateway.expected_nodes: 2
 
+# Recovery Throttling
+#   The number of concurrent recoveries happening on a node
+#cluster.routing.allocation.node_initial_primaries_recoveries: 4
+#cluster.routing.allocation.node_concurrent_recoveries: 2
+#   Peer shard recovery size based throttling (set to 100mb for example to enable)
+#indices.recovery.max_size_per_sec: 0
+#   Number open concurrent recovery streams allows
+#indices.recovery.concurrent_streams: 5
+
 # Controls the minimum number of master eligible nodes this node should "see"
 # in order to operate within the cluster.
 #   Set this to a higher value (2-4) when running more than 2 nodes in the cluster

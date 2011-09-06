@@ -17,34 +17,40 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
+public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
-/**
- * Only allow rebalancing when all shards are active within the shard replication group.
- *
- * @author kimchy (shay.banon)
- */
-public class RebalanceOnlyWhenActiveNodeAllocation extends NodeAllocation {
+    private final int clusterConcurrentRebalance;
 
-    @Inject public RebalanceOnlyWhenActiveNodeAllocation(Settings settings) {
+    @Inject public ConcurrentRebalanceAllocationDecider(Settings settings) {
         super(settings);
+        this.clusterConcurrentRebalance = settings.getAsInt("cluster.routing.allocation.cluster_concurrent_rebalance", 2);
+        logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
     }
 
     @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        List<MutableShardRouting> shards = allocation.routingNodes().shardsRoutingFor(shardRouting);
-        // its ok to check for active here, since in relocation, a shard is split into two in routing
-        // nodes, once relocating, and one initializing
-        for (ShardRouting allShard : shards) {
-            if (!allShard.active()) {
-                return false;
+        if (clusterConcurrentRebalance == -1) {
+            return true;
+        }
+        int rebalance = 0;
+        for (RoutingNode node : allocation.routingNodes()) {
+            for (MutableShardRouting shard : node) {
+                if (shard.state() == ShardRoutingState.RELOCATING) {
+                    rebalance++;
+                }
             }
+        }
+        if (rebalance >= clusterConcurrentRebalance) {
+            return false;
         }
         return true;
     }

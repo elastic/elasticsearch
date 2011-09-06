@@ -27,11 +27,10 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -78,19 +77,19 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
     }
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
+    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
         for (ShardRouting shardRouting : allocation.startedShards()) {
             cachedCommitPoints.remove(shardRouting.shardId());
             cachedStores.remove(shardRouting.shardId());
         }
     }
 
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
+    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
         cachedCommitPoints.remove(allocation.failedShard().shardId());
         cachedStores.remove(allocation.failedShard().shardId());
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
+    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
 
         DiscoveryNodes nodes = allocation.nodes();
@@ -116,7 +115,7 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
                     continue;
                 }
                 // if its THROTTLING, we are not going to allocate it to this node, so ignore it as well
-                if (nodeAllocations.canAllocate(shard, node, allocation).allocate()) {
+                if (allocation.deciders().canAllocate(shard, node, allocation).allocate()) {
                     canBeAllocatedToAtLeastOneNode = true;
                     break;
                 }
@@ -150,7 +149,7 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
                 // check if we can allocate on that node...
                 // we only check for NO, since if this node is THROTTLING and it has enough "same data"
                 // then we will try and assign it next time
-                if (nodeAllocations.canAllocate(shard, node, allocation) == NodeAllocation.Decision.NO) {
+                if (allocation.deciders().canAllocate(shard, node, allocation) == AllocationDecider.Decision.NO) {
                     continue;
                 }
 
@@ -233,7 +232,7 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
             }
 
             if (lastNodeMatched != null) {
-                if (nodeAllocations.canAllocate(shard, lastNodeMatched, allocation) == NodeAllocation.Decision.THROTTLE) {
+                if (allocation.deciders().canAllocate(shard, lastNodeMatched, allocation) == AllocationDecider.Decision.THROTTLE) {
                     if (logger.isTraceEnabled()) {
                         logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 
@@ -29,9 +28,9 @@ import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
  */
 public interface GatewayAllocator {
 
-    void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation);
+    void applyStartedShards(StartedRerouteAllocation allocation);
 
-    void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation);
+    void applyFailedShards(FailedRerouteAllocation allocation);
 
-    boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation);
+    boolean allocateUnassigned(RoutingAllocation allocation);
 }

@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -29,33 +30,31 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.util.Set;
 
 /**
- * Holds several {@link NodeAllocation}s and combines them into a single allocation decision.
- *
- * @author kimchy (shay.banon)
+ * Holds several {@link AllocationDecider}s and combines them into a single allocation decision.
  */
-public class NodeAllocations extends NodeAllocation {
+public class AllocationDeciders extends AllocationDecider {
 
-    private final NodeAllocation[] allocations;
+    private final AllocationDecider[] allocations;
 
-    public NodeAllocations(Settings settings, NodeSettingsService nodeSettingsService) {
-        this(settings, ImmutableSet.<NodeAllocation>builder()
-                .add(new SameShardNodeAllocation(settings))
-                .add(new ReplicaAfterPrimaryActiveNodeAllocation(settings))
-                .add(new ThrottlingNodeAllocation(settings, nodeSettingsService))
-                .add(new RebalanceOnlyWhenActiveNodeAllocation(settings))
-                .add(new ClusterRebalanceNodeAllocation(settings))
-                .add(new ConcurrentRebalanceNodeAllocation(settings))
+    public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
+        this(settings, ImmutableSet.<AllocationDecider>builder()
+                .add(new SameShardAllocationDecider(settings))
+                .add(new ReplicaAfterPrimaryActiveAllocationDecider(settings))
+                .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
+                .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
+                .add(new ClusterRebalanceAllocationDecider(settings))
+                .add(new ConcurrentRebalanceAllocationDecider(settings))
                 .build()
         );
     }
 
-    @Inject public NodeAllocations(Settings settings, Set<NodeAllocation> allocations) {
+    @Inject public AllocationDeciders(Settings settings, Set<AllocationDecider> allocations) {
         super(settings);
-        this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
+        this.allocations = allocations.toArray(new AllocationDecider[allocations.size()]);
     }
 
     @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        for (NodeAllocation allocation1 : allocations) {
+        for (AllocationDecider allocation1 : allocations) {
             if (!allocation1.canRebalance(shardRouting, allocation)) {
                 return false;
             }
@@ -70,7 +69,7 @@ public class NodeAllocations extends NodeAllocation {
             return Decision.NO;
         }
         // now, go over the registered allocations
-        for (NodeAllocation allocation1 : allocations) {
+        for (AllocationDecider allocation1 : allocations) {
             Decision decision = allocation1.canAllocate(shardRouting, node, allocation);
             if (decision == Decision.NO) {
                 return Decision.NO;

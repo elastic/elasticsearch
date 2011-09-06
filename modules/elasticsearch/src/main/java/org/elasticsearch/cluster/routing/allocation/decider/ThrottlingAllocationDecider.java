@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
- * @author kimchy (shay.banon)
  */
-public class ThrottlingNodeAllocation extends NodeAllocation {
+public class ThrottlingAllocationDecider extends AllocationDecider {
 
     static {
         MetaData.addDynamicSettings(
@@ -43,11 +43,11 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
     private volatile int primariesInitialRecoveries;
     private volatile int concurrentRecoveries;
 
-    @Inject public ThrottlingNodeAllocation(Settings settings, NodeSettingsService nodeSettingsService) {
+    @Inject public ThrottlingAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
 
-        this.primariesInitialRecoveries = componentSettings.getAsInt("node_initial_primaries_recoveries", 4);
-        this.concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", componentSettings.getAsInt("node_concurrent_recoveries", 2));
+        this.primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", 4));
+        this.concurrentRecoveries = settings.getAsInt("cluster.routing.allocation.concurrent_recoveries", settings.getAsInt("cluster.routing.allocation.node_concurrent_recoveries", 2));
         logger.debug("using node_concurrent_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentRecoveries, primariesInitialRecoveries);
 
         nodeSettingsService.addListener(new ApplySettings());
@@ -97,16 +97,16 @@ public class ThrottlingNodeAllocation extends NodeAllocation {
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
-            int primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", ThrottlingNodeAllocation.this.primariesInitialRecoveries);
-            if (primariesInitialRecoveries != ThrottlingNodeAllocation.this.primariesInitialRecoveries) {
-                logger.info("updating [cluster.routing.allocation.node_initial_primaries_recoveries] from [{}] to [{}]", ThrottlingNodeAllocation.this.primariesInitialRecoveries, primariesInitialRecoveries);
-                ThrottlingNodeAllocation.this.primariesInitialRecoveries = primariesInitialRecoveries;
+            int primariesInitialRecoveries = settings.getAsInt("cluster.routing.allocation.node_initial_primaries_recoveries", ThrottlingAllocationDecider.this.primariesInitialRecoveries);
+            if (primariesInitialRecoveries != ThrottlingAllocationDecider.this.primariesInitialRecoveries) {
+                logger.info("updating [cluster.routing.allocation.node_initial_primaries_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.primariesInitialRecoveries, primariesInitialRecoveries);
+                ThrottlingAllocationDecider.this.primariesInitialRecoveries = primariesInitialRecoveries;
             }
 
-            int concurrentRecoveries = settings.getAsInt("cluster.routing.allocation.node_concurrent_recoveries", ThrottlingNodeAllocation.this.concurrentRecoveries);
-            if (concurrentRecoveries != ThrottlingNodeAllocation.this.concurrentRecoveries) {
-                logger.info("updating [cluster.routing.allocation.node_concurrent_recoveries] from [{}] to [{}]", ThrottlingNodeAllocation.this.concurrentRecoveries, concurrentRecoveries);
-                ThrottlingNodeAllocation.this.concurrentRecoveries = concurrentRecoveries;
+            int concurrentRecoveries = settings.getAsInt("cluster.routing.allocation.node_concurrent_recoveries", ThrottlingAllocationDecider.this.concurrentRecoveries);
+            if (concurrentRecoveries != ThrottlingAllocationDecider.this.concurrentRecoveries) {
+                logger.info("updating [cluster.routing.allocation.node_concurrent_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.concurrentRecoveries, concurrentRecoveries);
+                ThrottlingAllocationDecider.this.concurrentRecoveries = concurrentRecoveries;
             }
         }
     }

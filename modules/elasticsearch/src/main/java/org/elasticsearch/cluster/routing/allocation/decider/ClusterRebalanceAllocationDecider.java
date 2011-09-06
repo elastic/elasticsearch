@@ -17,15 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-public class ClusterRebalanceNodeAllocation extends NodeAllocation {
+public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static enum ClusterRebalanceType {
         ALWAYS,
@@ -35,9 +36,9 @@ public class ClusterRebalanceNodeAllocation extends NodeAllocation {
 
     private final ClusterRebalanceType type;
 
-    @Inject public ClusterRebalanceNodeAllocation(Settings settings) {
+    @Inject public ClusterRebalanceAllocationDecider(Settings settings) {
         super(settings);
-        String allowRebalance = componentSettings.get("allow_rebalance", "indices_all_active");
+        String allowRebalance = settings.get("cluster.routing.allocation.allow_rebalance", "indices_all_active");
         if ("always".equalsIgnoreCase(allowRebalance)) {
             type = ClusterRebalanceType.ALWAYS;
         } else if ("indices_primaries_active".equalsIgnoreCase(allowRebalance) || "indicesPrimariesActive".equalsIgnoreCase(allowRebalance)) {

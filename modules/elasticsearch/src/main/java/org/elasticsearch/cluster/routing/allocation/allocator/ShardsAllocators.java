@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -50,24 +49,24 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
         this.allocator = allocator;
     }
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
-        gatewayAllocator.applyStartedShards(nodeAllocations, allocation);
-        allocator.applyStartedShards(nodeAllocations, allocation);
+    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
+        gatewayAllocator.applyStartedShards(allocation);
+        allocator.applyStartedShards(allocation);
     }
 
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
-        gatewayAllocator.applyFailedShards(nodeAllocations, allocation);
-        allocator.applyFailedShards(nodeAllocations, allocation);
+    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
+        gatewayAllocator.applyFailedShards(allocation);
+        allocator.applyFailedShards(allocation);
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
+    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
-        changed |= gatewayAllocator.allocateUnassigned(nodeAllocations, allocation);
-        changed |= allocator.allocateUnassigned(nodeAllocations, allocation);
+        changed |= gatewayAllocator.allocateUnassigned(allocation);
+        changed |= allocator.allocateUnassigned(allocation);
         return changed;
     }
 
-    @Override public boolean rebalance(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
-        return allocator.rebalance(nodeAllocations, allocation);
+    @Override public boolean rebalance(RoutingAllocation allocation) {
+        return allocator.rebalance(allocation);
     }
 }

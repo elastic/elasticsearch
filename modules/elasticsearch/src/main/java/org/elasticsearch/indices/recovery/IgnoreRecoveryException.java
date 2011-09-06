@@ -17,38 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
+import org.elasticsearch.ElasticSearchException;
 
 /**
- * @author kimchy (shay.banon)
+ * An exception marking that this recovery attempt should be ignored (since probably, we already recovered).
+ *
+ * @author kimchy (Shay Banon)
  */
-class RecoveryFinalizeRecoveryRequest implements Streamable {
+public class IgnoreRecoveryException extends ElasticSearchException {
 
-    private ShardId shardId;
-
-    RecoveryFinalizeRecoveryRequest() {
+    public IgnoreRecoveryException(String msg) {
+        super(msg);
     }
 
-    RecoveryFinalizeRecoveryRequest(ShardId shardId) {
-        this.shardId = shardId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
-    }
-
-    @Override public void readFrom(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
-    }
-
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        shardId.writeTo(out);
+    public IgnoreRecoveryException(String msg, Throwable cause) {
+        super(msg, cause);
     }
 }

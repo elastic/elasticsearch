@@ -61,13 +61,12 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.recovery.RecoveryFailedException;
-import org.elasticsearch.index.shard.recovery.RecoverySource;
-import org.elasticsearch.index.shard.recovery.RecoveryTarget;
-import org.elasticsearch.index.shard.recovery.StartRecoveryRequest;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -87,8 +86,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final ClusterService clusterService;
 
     private final ThreadPool threadPool;
-
-    private final RecoverySource recoverySource;
 
     private final RecoveryTarget recoveryTarget;
 
@@ -113,7 +110,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
 
     @Inject public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
-                                              ThreadPool threadPool, RecoveryTarget recoveryTarget, RecoverySource recoverySource,
+                                              ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                               ShardStateAction shardStateAction,
                                               NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
                                               NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -122,7 +119,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.recoverySource = recoverySource;
         this.recoveryTarget = recoveryTarget;
         this.shardStateAction = shardStateAction;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
@@ -141,7 +137,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     @Override protected void doClose() throws ElasticSearchException {
-        recoverySource.close();
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticSearchWrapperException;
 import org.elasticsearch.common.unit.ByteSizeValue;

@@ -17,56 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
  */
-class RecoveryCleanFilesRequest implements Streamable {
+class RecoveryFinalizeRecoveryRequest implements Streamable {
 
     private ShardId shardId;
 
-    private Set<String> snapshotFiles;
-
-    RecoveryCleanFilesRequest() {
+    RecoveryFinalizeRecoveryRequest() {
     }
 
-    RecoveryCleanFilesRequest(ShardId shardId, Set<String> snapshotFiles) {
+    RecoveryFinalizeRecoveryRequest(ShardId shardId) {
         this.shardId = shardId;
-        this.snapshotFiles = snapshotFiles;
     }
 
     public ShardId shardId() {
         return shardId;
     }
 
-    public Set<String> snapshotFiles() {
-        return snapshotFiles;
-    }
-
     @Override public void readFrom(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
-        int size = in.readVInt();
-        snapshotFiles = Sets.newHashSetWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            snapshotFiles.add(in.readUTF());
-        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
-        out.writeVInt(snapshotFiles.size());
-        for (String snapshotFile : snapshotFiles) {
-            out.writeUTF(snapshotFile);
-        }
     }
 }

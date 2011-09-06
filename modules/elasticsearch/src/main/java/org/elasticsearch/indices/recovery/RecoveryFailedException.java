@@ -17,38 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-class RecoveryPrepareForTranslogOperationsRequest implements Streamable {
+public class RecoveryFailedException extends ElasticSearchException {
 
-    private ShardId shardId;
-
-    RecoveryPrepareForTranslogOperationsRequest() {
+    public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {
+        this(request.shardId(), request.sourceNode(), request.targetNode(), cause);
     }
 
-    RecoveryPrepareForTranslogOperationsRequest(ShardId shardId) {
-        this.shardId = shardId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
-    }
-
-    @Override public void readFrom(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
-    }
-
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        shardId.writeTo(out);
+    public RecoveryFailedException(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Throwable cause) {
+        super(shardId + ": Recovery failed from " + sourceNode + " into " + targetNode, cause);
     }
 }

@@ -17,57 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
-class RecoveryTranslogOperationsRequest implements Streamable {
+class RecoveryPrepareForTranslogOperationsRequest implements Streamable {
 
     private ShardId shardId;
-    private List<Translog.Operation> operations;
 
-    RecoveryTranslogOperationsRequest() {
+    RecoveryPrepareForTranslogOperationsRequest() {
     }
 
-    RecoveryTranslogOperationsRequest(ShardId shardId, List<Translog.Operation> operations) {
+    RecoveryPrepareForTranslogOperationsRequest(ShardId shardId) {
         this.shardId = shardId;
-        this.operations = operations;
     }
 
     public ShardId shardId() {
         return shardId;
     }
 
-    public List<Translog.Operation> operations() {
-        return operations;
-    }
-
     @Override public void readFrom(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
-        int size = in.readVInt();
-        operations = Lists.newArrayListWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            operations.add(TranslogStreams.readTranslogOperation(in));
-        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
-        out.writeVInt(operations.size());
-        for (Translog.Operation operation : operations) {
-            TranslogStreams.writeTranslogOperation(out, operation);
-        }
     }
 }

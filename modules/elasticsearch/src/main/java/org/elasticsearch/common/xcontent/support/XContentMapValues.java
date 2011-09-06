@@ -42,11 +42,25 @@ public class XContentMapValues {
         return node.toString();
     }
 
+    public static float nodeFloatValue(Object node, float defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeFloatValue(node);
+    }
+
     public static float nodeFloatValue(Object node) {
         if (node instanceof Number) {
             return ((Number) node).floatValue();
         }
         return Float.parseFloat(node.toString());
+    }
+
+    public static double nodeDoubleValue(Object node, double defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeDoubleValue(node);
     }
 
     public static double nodeDoubleValue(Object node) {
@@ -73,11 +87,25 @@ public class XContentMapValues {
         return Integer.parseInt(node.toString());
     }
 
+    public static short nodeShortValue(Object node, short defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeShortValue(node);
+    }
+
     public static short nodeShortValue(Object node) {
         if (node instanceof Number) {
             return ((Number) node).shortValue();
         }
         return Short.parseShort(node.toString());
+    }
+
+    public static byte nodeByteValue(Object node, byte defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeByteValue(node);
     }
 
     public static byte nodeByteValue(Object node) {
@@ -87,6 +115,13 @@ public class XContentMapValues {
         return Byte.parseByte(node.toString());
     }
 
+    public static long nodeLongValue(Object node, long defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeLongValue(node);
+    }
+
     public static long nodeLongValue(Object node) {
         if (node instanceof Number) {
             return ((Number) node).longValue();
@@ -94,9 +129,9 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
-    public static boolean nodeBooleanValue(Object node, boolean defaulValue) {
+    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
         if (node == null) {
-            return defaulValue;
+            return defaultValue;
         }
         return nodeBooleanValue(node);
     }

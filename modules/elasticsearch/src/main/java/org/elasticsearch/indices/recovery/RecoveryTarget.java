@@ -87,14 +87,17 @@ public class RecoveryTarget extends AbstractComponent {
 
     private final IndicesService indicesService;
 
+    private final RecoverySettings recoverySettings;
+
     private final ConcurrentMap<ShardId, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     @Inject public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
-                                  IndicesLifecycle indicesLifecycle) {
+                                  IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.recoverySettings = recoverySettings;
 
         transportService.registerHandler(Actions.FILES_INFO, new FilesInfoRequestHandler());
         transportService.registerHandler(Actions.FILE_CHUNK, new FileChunkTransportRequestHandler());
@@ -516,6 +519,9 @@ public class RecoveryTarget extends AbstractComponent {
             }
             synchronized (indexOutput) {
                 try {
+                    if (recoverySettings.rateLimiter() != null) {
+                        recoverySettings.rateLimiter().pause(request.contentLength());
+                    }
                     indexOutput.writeBytes(request.content(), request.contentLength());
                     onGoingRecovery.currentFilesSize.addAndGet(request.contentLength());
                     if (indexOutput.getFilePointer() == request.length()) {

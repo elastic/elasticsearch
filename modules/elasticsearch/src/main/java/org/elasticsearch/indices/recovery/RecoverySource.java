@@ -151,6 +151,11 @@ public class RecoverySource extends AbstractComponent {
                                         }
                                         int toRead = readCount + BUFFER_SIZE > len ? (int) (len - readCount) : BUFFER_SIZE;
                                         long position = indexInput.getFilePointer();
+
+                                        if (recoverySettings.rateLimiter() != null) {
+                                            recoverySettings.rateLimiter().pause(toRead);
+                                        }
+
                                         indexInput.readBytes(buf, 0, toRead, false);
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, md.checksum(), buf, toRead),
                                                 TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
@@ -247,6 +252,11 @@ public class RecoverySource extends AbstractComponent {
                     size += operation.estimateSize();
                     totalOperations++;
                     if (ops >= recoverySettings.translogOps() || size >= recoverySettings.translogSize().bytes()) {
+
+                        if (recoverySettings.rateLimiter() != null) {
+                            recoverySettings.rateLimiter().pause(size);
+                        }
+
                         RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.shardId(), operations);
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType(), VoidTransportResponseHandler.INSTANCE_SAME).txGet();
                         ops = 0;

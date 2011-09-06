@@ -64,7 +64,7 @@ public class FieldLookup {
         value = null;
         valueLoaded = false;
         values.clear();
-        valuesLoaded = true;
+        valuesLoaded = false;
         doc = null;
     }
 

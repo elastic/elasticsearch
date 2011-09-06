@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;

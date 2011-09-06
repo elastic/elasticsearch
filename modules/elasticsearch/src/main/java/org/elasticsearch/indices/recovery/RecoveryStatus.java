@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard.recovery;
+package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;

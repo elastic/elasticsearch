@@ -65,12 +65,12 @@ import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
-import org.elasticsearch.index.shard.recovery.RecoveryStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;

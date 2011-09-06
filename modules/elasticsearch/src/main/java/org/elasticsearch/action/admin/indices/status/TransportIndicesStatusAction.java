@@ -39,10 +39,10 @@ import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.recovery.RecoveryStatus;
-import org.elasticsearch.index.shard.recovery.RecoveryTarget;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

@@ -45,7 +45,7 @@ public class ThrottlingAllocationTests {
     private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 
     @Test public void testPrimaryRecoveryThrottling() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build());
@@ -105,7 +105,7 @@ public class ThrottlingAllocationTests {
     }
 
     @Test public void testReplicaAndPrimaryRecoveryThrottling() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build());

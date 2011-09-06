@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -44,21 +45,27 @@ import static org.elasticsearch.common.collect.Sets.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class ShardsAllocation extends AbstractComponent {
+public class AllocationService extends AbstractComponent {
 
     private final NodeAllocations nodeAllocations;
 
-    public ShardsAllocation() {
+    private final ShardsAllocators shardsAllocators;
+
+    public AllocationService() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    public ShardsAllocation(Settings settings) {
-        this(settings, new NodeAllocations(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS)));
+    public AllocationService(Settings settings) {
+        this(settings,
+                new NodeAllocations(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS)),
+                new ShardsAllocators(settings)
+        );
     }
 
-    @Inject public ShardsAllocation(Settings settings, NodeAllocations nodeAllocations) {
+    @Inject public AllocationService(Settings settings, NodeAllocations nodeAllocations, ShardsAllocators shardsAllocators) {
         super(settings);
         this.nodeAllocations = nodeAllocations;
+        this.shardsAllocators = shardsAllocators;
     }
 
     /**
@@ -69,11 +76,11 @@ public class ShardsAllocation extends AbstractComponent {
     public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         StartedRerouteAllocation allocation = new StartedRerouteAllocation(routingNodes, clusterState.nodes(), startedShards);
-        nodeAllocations.applyStartedShards(nodeAllocations, allocation);
         boolean changed = applyStartedShards(routingNodes, startedShards);
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
         }
+        shardsAllocators.applyStartedShards(nodeAllocations, allocation);
         reroute(allocation);
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
@@ -90,7 +97,7 @@ public class ShardsAllocation extends AbstractComponent {
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
         }
-        nodeAllocations.applyFailedShards(nodeAllocations, allocation);
+        shardsAllocators.applyFailedShards(nodeAllocations, allocation);
         reroute(allocation);
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
@@ -151,70 +158,14 @@ public class ShardsAllocation extends AbstractComponent {
 
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().hasUnassigned()) {
-            changed |= nodeAllocations.allocateUnassigned(nodeAllocations, allocation);
-            changed |= allocateUnassigned(allocation);
+            changed |= shardsAllocators.allocateUnassigned(nodeAllocations, allocation);
             // elect primaries again, in case this is needed with unassigned allocation
             changed |= electPrimaries(allocation.routingNodes());
         }
 
         // rebalance
-        changed |= rebalance(allocation);
+        changed |= shardsAllocators.rebalance(nodeAllocations, allocation);
 
-        return changed;
-    }
-
-    private boolean rebalance(RoutingAllocation allocation) {
-        boolean changed = false;
-        List<RoutingNode> sortedNodesLeastToHigh = allocation.routingNodes().sortedNodesLeastToHigh();
-        if (sortedNodesLeastToHigh.isEmpty()) {
-            return false;
-        }
-        int lowIndex = 0;
-        int highIndex = sortedNodesLeastToHigh.size() - 1;
-        boolean relocationPerformed;
-        do {
-            relocationPerformed = false;
-            while (lowIndex != highIndex) {
-                RoutingNode lowRoutingNode = sortedNodesLeastToHigh.get(lowIndex);
-                RoutingNode highRoutingNode = sortedNodesLeastToHigh.get(highIndex);
-                int averageNumOfShards = allocation.routingNodes().requiredAverageNumberOfShardsPerNode();
-
-                // only active shards can be removed so must count only active ones.
-                if (highRoutingNode.numberOfOwningShards() <= averageNumOfShards) {
-                    highIndex--;
-                    continue;
-                }
-
-                if (lowRoutingNode.shards().size() >= averageNumOfShards) {
-                    lowIndex++;
-                    continue;
-                }
-
-                boolean relocated = false;
-                List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
-                for (MutableShardRouting startedShard : startedShards) {
-                    if (!nodeAllocations.canRebalance(startedShard, allocation)) {
-                        continue;
-                    }
-
-                    if (nodeAllocations.canAllocate(startedShard, lowRoutingNode, allocation).allocate()) {
-                        changed = true;
-                        lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
-                                lowRoutingNode.nodeId(), startedShard.currentNodeId(),
-                                startedShard.primary(), INITIALIZING, startedShard.version() + 1));
-
-                        startedShard.relocate(lowRoutingNode.nodeId());
-                        relocated = true;
-                        relocationPerformed = true;
-                        break;
-                    }
-                }
-
-                if (!relocated) {
-                    highIndex--;
-                }
-            }
-        } while (relocationPerformed);
         return changed;
     }
 
@@ -242,56 +193,6 @@ public class ShardsAllocation extends AbstractComponent {
                     if (elected) {
                         break;
                     }
-                }
-            }
-        }
-        return changed;
-    }
-
-    private boolean allocateUnassigned(RoutingAllocation allocation) {
-        boolean changed = false;
-        RoutingNodes routingNodes = allocation.routingNodes();
-
-
-        List<RoutingNode> nodes = routingNodes.sortedNodesLeastToHigh();
-
-        Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
-        int lastNode = 0;
-
-        while (unassignedIterator.hasNext()) {
-            MutableShardRouting shard = unassignedIterator.next();
-            // do the allocation, finding the least "busy" node
-            for (int i = 0; i < nodes.size(); i++) {
-                RoutingNode node = nodes.get(lastNode);
-                lastNode++;
-                if (lastNode == nodes.size()) {
-                    lastNode = 0;
-                }
-
-                if (nodeAllocations.canAllocate(shard, node, allocation).allocate()) {
-                    int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
-                    if (numberOfShardsToAllocate <= 0) {
-                        continue;
-                    }
-
-                    changed = true;
-                    node.add(shard);
-                    unassignedIterator.remove();
-                    break;
-                }
-            }
-        }
-
-        // allocate all the unassigned shards above the average per node.
-        for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
-            MutableShardRouting shard = it.next();
-            // go over the nodes and try and allocate the remaining ones
-            for (RoutingNode routingNode : routingNodes.sortedNodesLeastToHigh()) {
-                if (nodeAllocations.canAllocate(shard, routingNode, allocation).allocate()) {
-                    changed = true;
-                    routingNode.add(shard);
-                    it.remove();
-                    break;
                 }
             }
         }

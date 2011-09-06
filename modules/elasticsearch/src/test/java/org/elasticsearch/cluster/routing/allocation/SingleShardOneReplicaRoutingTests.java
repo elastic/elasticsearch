@@ -46,7 +46,7 @@ public class SingleShardOneReplicaRoutingTests {
     private final ESLogger logger = Loggers.getLogger(SingleShardOneReplicaRoutingTests.class);
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 

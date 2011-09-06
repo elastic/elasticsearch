@@ -26,9 +26,15 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.*;
+import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -51,7 +57,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * @author kimchy (shay.banon)
  */
-public class BlobReuseExistingNodeAllocation extends NodeAllocation {
+public class BlobReuseExistingGatewayAllocator extends AbstractComponent implements GatewayAllocator {
 
     private final Node node;
 
@@ -63,8 +69,8 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
     private final ConcurrentMap<ShardId, Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
-    @Inject public BlobReuseExistingNodeAllocation(Settings settings, Node node,
-                                                   TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
+    @Inject public BlobReuseExistingGatewayAllocator(Settings settings, Node node,
+                                                     TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
         this.node = node; // YACK!, we need the Gateway, but it creates crazy circular dependency
         this.listShardStoreMetaData = transportNodesListShardStoreMetaData;
@@ -144,7 +150,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                 // check if we can allocate on that node...
                 // we only check for NO, since if this node is THROTTLING and it has enough "same data"
                 // then we will try and assign it next time
-                if (nodeAllocations.canAllocate(shard, node, allocation) == Decision.NO) {
+                if (nodeAllocations.canAllocate(shard, node, allocation) == NodeAllocation.Decision.NO) {
                     continue;
                 }
 
@@ -259,7 +265,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         } else {
             nodesIds = Sets.newHashSet();
             // clean nodes that have failed
-            for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext();) {
+            for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
                 if (!nodes.nodeExists(node.id())) {
                     it.remove();

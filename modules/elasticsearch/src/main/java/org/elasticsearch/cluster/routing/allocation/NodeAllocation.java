@@ -35,32 +35,24 @@ public abstract class NodeAllocation extends AbstractComponent {
         YES {
             @Override public boolean allocate() {
                 return true;
-            }},
+            }
+        },
         NO {
             @Override public boolean allocate() {
                 return false;
-            }},
+            }
+        },
         THROTTLE {
             @Override public boolean allocate() {
                 return false;
-            }};
+            }
+        };
 
         public abstract boolean allocate();
     }
 
     protected NodeAllocation(Settings settings) {
         super(settings);
-    }
-
-    public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
-    }
-
-    public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
-
-    }
-
-    public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
-        return false;
     }
 
     public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {

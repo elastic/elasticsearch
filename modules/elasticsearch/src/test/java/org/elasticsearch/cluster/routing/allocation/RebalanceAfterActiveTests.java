@@ -47,7 +47,7 @@ public class RebalanceAfterActiveTests {
     private final ESLogger logger = Loggers.getLogger(RebalanceAfterActiveTests.class);
 
     @Test public void testRebalanceOnlyAfterAllShardsAreActive() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)

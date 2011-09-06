@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +49,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     private final ClusterService clusterService;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
     private final TimeValue schedule;
 
@@ -57,11 +57,11 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     private volatile Future scheduledRoutingTableFuture;
 
-    @Inject public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ShardsAllocation shardsAllocation) {
+    @Inject public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
         this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
     }
 
@@ -124,7 +124,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             }
             clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
-                    RoutingAllocation.Result routingResult = shardsAllocation.reroute(currentState);
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
                     if (!routingResult.changed()) {
                         // no state changed
                         return currentState;

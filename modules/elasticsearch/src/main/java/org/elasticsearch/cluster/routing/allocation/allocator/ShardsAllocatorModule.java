@@ -17,21 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.blobstore;
+package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 
 /**
- * @author kimchy (shay.banon)
  */
-public abstract class BlobStoreGatewayModule extends AbstractModule implements PreProcessModule {
+public class ShardsAllocatorModule extends AbstractModule {
 
-    @Override public void processModule(Module module) {
-        if (module instanceof ShardsAllocatorModule) {
-            ((ShardsAllocatorModule) module).setGatewayAllocator(BlobReuseExistingGatewayAllocator.class);
-        }
+    private Settings settings;
+
+    private Class<? extends GatewayAllocator> gatewayAllocator = NoneGatewayAllocator.class;
+
+    public ShardsAllocatorModule(Settings settings) {
+        this.settings = settings;
+    }
+
+    public void setGatewayAllocator(Class<? extends GatewayAllocator> gatewayAllocator) {
+        this.gatewayAllocator = gatewayAllocator;
+    }
+
+    @Override protected void configure() {
+        bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
+        bind(ShardsAllocator.class).to(EvenShardsCountAllocator.class).asEagerSingleton();
     }
 }

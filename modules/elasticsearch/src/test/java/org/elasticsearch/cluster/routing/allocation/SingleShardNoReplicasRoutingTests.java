@@ -55,7 +55,7 @@ public class SingleShardNoReplicasRoutingTests {
     private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     @Test public void testSingleIndexStartedShard() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -156,7 +156,7 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testSingleIndexShardFailed() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -205,7 +205,7 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testMultiIndexEvenDistribution() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -317,7 +317,7 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testMultiIndexUnevenNodes() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder()
+        AllocationService strategy = new AllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)

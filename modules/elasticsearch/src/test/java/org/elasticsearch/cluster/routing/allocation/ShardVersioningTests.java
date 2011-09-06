@@ -44,7 +44,7 @@ public class ShardVersioningTests {
     private final ESLogger logger = Loggers.getLogger(ShardVersioningTests.class);
 
     @Test public void simple() {
-        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceNodeAllocation.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))

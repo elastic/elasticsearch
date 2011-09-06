@@ -54,18 +54,6 @@ public class NodeAllocations extends NodeAllocation {
         this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
     }
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
-        for (NodeAllocation allocation1 : allocations) {
-            allocation1.applyStartedShards(nodeAllocations, allocation);
-        }
-    }
-
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
-        for (NodeAllocation allocation1 : allocations) {
-            allocation1.applyFailedShards(nodeAllocations, allocation);
-        }
-    }
-
     @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         for (NodeAllocation allocation1 : allocations) {
             if (!allocation1.canRebalance(shardRouting, allocation)) {
@@ -73,14 +61,6 @@ public class NodeAllocations extends NodeAllocation {
             }
         }
         return true;
-    }
-
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
-        boolean changed = false;
-        for (NodeAllocation allocation1 : allocations) {
-            changed |= allocation1.allocateUnassigned(nodeAllocations, allocation);
-        }
-        return changed;
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

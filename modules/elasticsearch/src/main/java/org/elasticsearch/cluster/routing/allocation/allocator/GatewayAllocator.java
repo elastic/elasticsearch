@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.blobstore;
+package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
+import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 
 /**
- * @author kimchy (shay.banon)
+ * The gateway allocator allows for a pluggable control of the gateway to allocate unassigned shards.
  */
-public abstract class BlobStoreGatewayModule extends AbstractModule implements PreProcessModule {
+public interface GatewayAllocator {
 
-    @Override public void processModule(Module module) {
-        if (module instanceof ShardsAllocatorModule) {
-            ((ShardsAllocatorModule) module).setGatewayAllocator(BlobReuseExistingGatewayAllocator.class);
-        }
-    }
+    void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation);
+
+    void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation);
+
+    boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation);
 }

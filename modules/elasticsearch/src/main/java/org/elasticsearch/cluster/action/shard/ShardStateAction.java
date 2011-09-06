@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -62,18 +62,18 @@ public class ShardStateAction extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
     private final ThreadPool threadPool;
 
     private final BlockingQueue<ShardRouting> startedShardsQueue = new LinkedTransferQueue<ShardRouting>();
 
     @Inject public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                    ShardsAllocation shardsAllocation, ThreadPool threadPool) {
+                                    AllocationService allocationService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
         this.threadPool = threadPool;
 
         transportService.registerHandler(ShardStartedTransportHandler.ACTION, new ShardStartedTransportHandler());
@@ -119,7 +119,7 @@ public class ShardStateAction extends AbstractComponent {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Received failed shard {}, reason [{}]", shardRouting, reason);
                 }
-                RoutingAllocation.Result routingResult = shardsAllocation.applyFailedShard(currentState, shardRouting);
+                RoutingAllocation.Result routingResult = allocationService.applyFailedShard(currentState, shardRouting);
                 if (!routingResult.changed()) {
                     return currentState;
                 }
@@ -185,7 +185,7 @@ public class ShardStateAction extends AbstractComponent {
                 if (logger.isDebugEnabled()) {
                     logger.debug("applying started shards {}, reason [{}]", shards, reason);
                 }
-                RoutingAllocation.Result routingResult = shardsAllocation.applyStartedShards(currentState, shards);
+                RoutingAllocation.Result routingResult = allocationService.applyStartedShards(currentState, shards);
                 if (!routingResult.changed()) {
                     return currentState;
                 }

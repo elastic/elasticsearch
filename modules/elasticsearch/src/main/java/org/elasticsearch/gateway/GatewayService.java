@@ -36,8 +36,8 @@ import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +64,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     private final ThreadPool threadPool;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
     private final ClusterService clusterService;
 
@@ -84,10 +84,10 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final AtomicBoolean recovered = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
-    @Inject public GatewayService(Settings settings, Gateway gateway, ShardsAllocation shardsAllocation, ClusterService clusterService, DiscoveryService discoveryService, MetaDataCreateIndexService createIndexService, ThreadPool threadPool) {
+    @Inject public GatewayService(Settings settings, Gateway gateway, AllocationService allocationService, ClusterService clusterService, DiscoveryService discoveryService, MetaDataCreateIndexService createIndexService, ThreadPool threadPool) {
         super(settings);
         this.gateway = gateway;
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.discoveryService = discoveryService;
         this.createIndexService = createIndexService;
@@ -283,7 +283,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     routingTableBuilder.version(recoveredState.version());
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
 
                     return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                 }

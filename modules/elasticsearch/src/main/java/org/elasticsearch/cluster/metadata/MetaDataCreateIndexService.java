@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
@@ -88,7 +88,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
-    private final ShardsAllocation shardsAllocation;
+    private final AllocationService allocationService;
 
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
 
@@ -97,13 +97,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final String riverIndexName;
 
     @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, @RiverIndexName String riverIndexName) {
+                                              AllocationService allocationService, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.shardsAllocation = shardsAllocation;
+        this.allocationService = allocationService;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.metaDataService = metaDataService;
         this.riverIndexName = riverIndexName;
@@ -280,7 +280,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
                                 .initializeEmpty(updatedState.metaData().index(request.index), true);
                         routingTableBuilder.add(indexRoutingBuilder);
-                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                        RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                     }
 

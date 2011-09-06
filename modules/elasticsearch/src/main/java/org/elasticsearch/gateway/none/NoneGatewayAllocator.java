@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway.none;
 
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
@@ -29,13 +28,13 @@ import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
  */
 public class NoneGatewayAllocator implements GatewayAllocator {
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
+    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
     }
 
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
+    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
+    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
         return false;
     }
 }

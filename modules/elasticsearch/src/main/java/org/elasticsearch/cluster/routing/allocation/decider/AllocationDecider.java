@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -29,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
  *
  * @author kimchy (shay.banon)
  */
-public abstract class NodeAllocation extends AbstractComponent {
+public abstract class AllocationDecider extends AbstractComponent {
 
     public static enum Decision {
         YES {
@@ -51,7 +52,7 @@ public abstract class NodeAllocation extends AbstractComponent {
         public abstract boolean allocate();
     }
 
-    protected NodeAllocation(Settings settings) {
+    protected AllocationDecider(Settings settings) {
         super(settings);
     }
 

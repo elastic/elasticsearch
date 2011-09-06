@@ -17,38 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersModule;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
 /**
- * @author kimchy (shay.banon)
  */
-public class AllocationModule extends AbstractModule implements SpawnModules {
+public class AllocationDecidersModule extends AbstractModule {
 
     private final Settings settings;
 
     private List<Class<? extends AllocationDecider>> allocations = Lists.newArrayList();
 
-    public AllocationModule(Settings settings) {
+    public AllocationDecidersModule(Settings settings) {
         this.settings = settings;
     }
 
-    @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new ShardsAllocatorModule(settings), new AllocationDecidersModule(settings));
-    }
-
     @Override protected void configure() {
-        bind(AllocationService.class).asEagerSingleton();
+        Multibinder<AllocationDecider> allocationMultibinder = Multibinder.newSetBinder(binder(), AllocationDecider.class);
+        allocationMultibinder.addBinding().to(SameShardAllocationDecider.class);
+        allocationMultibinder.addBinding().to(ReplicaAfterPrimaryActiveAllocationDecider.class);
+        allocationMultibinder.addBinding().to(ThrottlingAllocationDecider.class);
+        allocationMultibinder.addBinding().to(RebalanceOnlyWhenActiveAllocationDecider.class);
+        allocationMultibinder.addBinding().to(ClusterRebalanceAllocationDecider.class);
+        allocationMultibinder.addBinding().to(ConcurrentRebalanceAllocationDecider.class);
+        for (Class<? extends AllocationDecider> allocation : allocations) {
+            allocationMultibinder.addBinding().to(allocation);
+        }
+
+        bind(AllocationDeciders.class).asEagerSingleton();
     }
 }

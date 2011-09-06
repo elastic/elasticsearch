@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -43,13 +42,13 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
         super(settings);
     }
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
+    @Override public void applyStartedShards(StartedRerouteAllocation allocation) {
     }
 
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
+    @Override public void applyFailedShards(FailedRerouteAllocation allocation) {
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
+    @Override public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
 
@@ -69,7 +68,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                     lastNode = 0;
                 }
 
-                if (nodeAllocations.canAllocate(shard, node, allocation).allocate()) {
+                if (allocation.deciders().canAllocate(shard, node, allocation).allocate()) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
@@ -88,7 +87,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
             MutableShardRouting shard = it.next();
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : routingNodes.sortedNodesLeastToHigh()) {
-                if (nodeAllocations.canAllocate(shard, routingNode, allocation).allocate()) {
+                if (allocation.deciders().canAllocate(shard, routingNode, allocation).allocate()) {
                     changed = true;
                     routingNode.add(shard);
                     it.remove();
@@ -99,7 +98,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
         return changed;
     }
 
-    @Override public boolean rebalance(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
+    @Override public boolean rebalance(RoutingAllocation allocation) {
         boolean changed = false;
         List<RoutingNode> sortedNodesLeastToHigh = allocation.routingNodes().sortedNodesLeastToHigh();
         if (sortedNodesLeastToHigh.isEmpty()) {
@@ -129,11 +128,11 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                 boolean relocated = false;
                 List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
                 for (MutableShardRouting startedShard : startedShards) {
-                    if (!nodeAllocations.canRebalance(startedShard, allocation)) {
+                    if (!allocation.deciders().canRebalance(startedShard, allocation)) {
                         continue;
                     }
 
-                    if (nodeAllocations.canAllocate(startedShard, lowRoutingNode, allocation).allocate()) {
+                    if (allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation).allocate()) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),

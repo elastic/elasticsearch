@@ -17,22 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation strategy that does not allow for the same shard instance to be allocated on the same node.
- *
- * @author kimchy (shay.banon)
  */
-public class SameShardNodeAllocation extends NodeAllocation {
+public class SameShardAllocationDecider extends AllocationDecider {
 
-    @Inject public SameShardNodeAllocation(Settings settings) {
+    @Inject public SameShardAllocationDecider(Settings settings) {
         super(settings);
     }
 

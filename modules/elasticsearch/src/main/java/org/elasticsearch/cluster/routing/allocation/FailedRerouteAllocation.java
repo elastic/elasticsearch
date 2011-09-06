@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 
 /**
  * @author kimchy (shay.banon)
@@ -30,8 +31,8 @@ public class FailedRerouteAllocation extends RoutingAllocation {
 
     private final ShardRouting failedShard;
 
-    public FailedRerouteAllocation(RoutingNodes routingNodes, DiscoveryNodes nodes, ShardRouting failedShard) {
-        super(routingNodes, nodes);
+    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ShardRouting failedShard) {
+        super(deciders, routingNodes, nodes);
         this.failedShard = failedShard;
     }
 

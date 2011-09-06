@@ -17,22 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation strategy that only allows for a replica to be allocated when the primary is active.
- *
- * @author kimchy (shay.banon)
  */
-public class ReplicaAfterPrimaryActiveNodeAllocation extends NodeAllocation {
+public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecider {
 
-    @Inject public ReplicaAfterPrimaryActiveNodeAllocation(Settings settings) {
+    @Inject public ReplicaAfterPrimaryActiveAllocationDecider(Settings settings) {
         super(settings);
     }
 

@@ -137,7 +137,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         final Set<String> removedSettings = Sets.newHashSet();
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
-            if (!IndexMetaData.dynamicSettings().contains(key)) {
+            if (!IndexMetaData.hasDynamicSetting(key)) {
                 removedSettings.add(key);
             }
         }

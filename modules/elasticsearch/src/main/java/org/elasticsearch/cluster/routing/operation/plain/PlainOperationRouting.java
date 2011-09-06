@@ -51,11 +51,13 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     private final HashFunction hashFunction;
 
     private final boolean useType;
+    private final String preference;
 
     @Inject public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction) {
         super(indexSettings);
         this.hashFunction = hashFunction;
         this.useType = indexSettings.getAsBoolean("cluster.routing.operation.use_type", false);
+        this.preference = indexSettings.get("cluster.routing.operation.preference", null);
     }
 
     @Override public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
@@ -169,7 +171,9 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String nodeId, @Nullable String preference) {
         if (preference == null) {
-            return indexShard.activeShardsRandomIt();
+            if (this.preference == null)
+                return indexShard.activeShardsRandomIt();
+            preference = this.preference;
         }
         if ("_local".equals(preference)) {
             return indexShard.preferNodeShardsIt(nodeId);

@@ -30,6 +30,7 @@ import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.set.hash.THashSet;
@@ -66,6 +67,15 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static ImmutableSet<String> dynamicSettings() {
         return dynamicSettings;
+    }
+
+    public static boolean hasDynamicSetting(String key) {
+        for (String dynamicSetting : dynamicSettings) {
+            if (Regex.simpleMatch(dynamicSetting, key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static synchronized void addDynamicSettings(String... settings) {

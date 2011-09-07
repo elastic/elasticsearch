@@ -51,7 +51,7 @@ import static org.elasticsearch.search.facet.FacetBuilders.*;
  */
 public class TermsFacetSearchBenchmark {
 
-    static long COUNT = SizeValue.parseSizeValue("1m").singles();
+    static long COUNT = SizeValue.parseSizeValue("2m").singles();
     static int BATCH = 100;
     static int QUERY_WARMUP = 20;
     static int QUERY_COUNT = 200;
@@ -65,12 +65,14 @@ public class TermsFacetSearchBenchmark {
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "-1")
                 .put("gateway.type", "local")
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
-        Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node2")).node();
+        Node[] nodes = new Node[1];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
+        }
 
         Node clientNode = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
 
@@ -167,8 +169,9 @@ public class TermsFacetSearchBenchmark {
 
         clientNode.close();
 
-        node1.close();
-        node2.close();
+        for (Node node : nodes) {
+            node.close();
+        }
     }
 
     static class StatsResult {

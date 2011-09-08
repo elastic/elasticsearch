@@ -39,6 +39,7 @@ public class AllocationDeciders extends AllocationDecider {
     public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
         this(settings, ImmutableSet.<AllocationDecider>builder()
                 .add(new SameShardAllocationDecider(settings))
+                .add(new FilterAllocationDecider(settings, nodeSettingsService))
                 .add(new ReplicaAfterPrimaryActiveAllocationDecider(settings))
                 .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
                 .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
@@ -78,5 +79,17 @@ public class AllocationDeciders extends AllocationDecider {
             }
         }
         return ret;
+    }
+
+    @Override public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
+            return false;
+        }
+        for (AllocationDecider allocation1 : allocations) {
+            if (!allocation1.canRemain(shardRouting, node, allocation)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

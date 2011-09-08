@@ -63,4 +63,11 @@ public abstract class AllocationDecider extends AbstractComponent {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.YES;
     }
+
+    /**
+     * Can the provided shard routing remain on the node?
+     */
+    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return true;
+    }
 }

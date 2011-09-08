@@ -41,6 +41,7 @@ public class AllocationDecidersModule extends AbstractModule {
     @Override protected void configure() {
         Multibinder<AllocationDecider> allocationMultibinder = Multibinder.newSetBinder(binder(), AllocationDecider.class);
         allocationMultibinder.addBinding().to(SameShardAllocationDecider.class);
+        allocationMultibinder.addBinding().to(FilterAllocationDecider.class);
         allocationMultibinder.addBinding().to(ReplicaAfterPrimaryActiveAllocationDecider.class);
         allocationMultibinder.addBinding().to(ThrottlingAllocationDecider.class);
         allocationMultibinder.addBinding().to(RebalanceOnlyWhenActiveAllocationDecider.class);

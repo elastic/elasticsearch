@@ -209,7 +209,7 @@ public class AllocationService extends AbstractComponent {
     private void applyNewNodes(RoutingNodes routingNodes, Iterable<DiscoveryNode> liveNodes) {
         for (DiscoveryNode node : liveNodes) {
             if (!routingNodes.nodesToShards().containsKey(node.id())) {
-                RoutingNode routingNode = new RoutingNode(node.id());
+                RoutingNode routingNode = new RoutingNode(node);
                 routingNodes.nodesToShards().put(node.id(), routingNode);
             }
         }

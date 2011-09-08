@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -52,10 +53,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final List<MutableShardRouting> ignoredUnassigned = newArrayList();
 
-    public RoutingNodes(MetaData metaData, ClusterBlocks blocks, RoutingTable routingTable) {
-        this.metaData = metaData;
-        this.blocks = blocks;
-        this.routingTable = routingTable;
+    public RoutingNodes(ClusterState clusterState) {
+        this.metaData = clusterState.metaData();
+        this.blocks = clusterState.blocks();
+        this.routingTable = clusterState.routingTable();
         Map<String, List<MutableShardRouting>> nodesToShards = newHashMap();
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
@@ -86,7 +87,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         for (Map.Entry<String, List<MutableShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, entry.getValue()));
+            this.nodesToShards.put(nodeId, new RoutingNode(clusterState.nodes().get(nodeId), entry.getValue()));
         }
     }
 

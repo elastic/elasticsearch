@@ -28,7 +28,11 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
@@ -98,7 +102,7 @@ public class ClusterState {
     }
 
     public RoutingNodes routingNodes() {
-        return routingTable.routingNodes(metaData, blocks);
+        return routingTable.routingNodes(this);
     }
 
     public RoutingNodes getRoutingNodes() {
@@ -129,7 +133,7 @@ public class ClusterState {
         if (routingNodes != null) {
             return routingNodes;
         }
-        routingNodes = routingTable.routingNodes(metaData, blocks);
+        routingNodes = routingTable.routingNodes(this);
         return routingNodes;
     }
 

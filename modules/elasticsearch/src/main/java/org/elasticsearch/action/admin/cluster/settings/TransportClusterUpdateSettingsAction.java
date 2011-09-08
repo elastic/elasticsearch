@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,13 +38,19 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.ClusterState.*;
+
 /**
  * @author kimchy (shay.banon)
  */
 public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOperationAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
-    @Inject public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    private final AllocationService allocationService;
+
+    @Inject public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                                        AllocationService allocationService) {
         super(settings, transportService, clusterService, threadPool);
+        this.allocationService = allocationService;
     }
 
     @Override protected String executor() {
@@ -100,7 +108,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                             .transientSettings(transientSettings.build());
 
 
-                    return ClusterState.builder().state(currentState).metaData(metaData).build();
+                    ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaData).build();
+
+                    // now, reroute in case things change that require it (like number of replicas)
+                    RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
+                    updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+
+                    return updatedState;
                 } finally {
                     latch.countDown();
                 }

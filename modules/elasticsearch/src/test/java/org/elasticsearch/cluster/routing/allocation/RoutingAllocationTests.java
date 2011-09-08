@@ -22,9 +22,15 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 
+import java.util.Map;
+
 public class RoutingAllocationTests {
 
     public static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
+    }
+
+    public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode("", nodeId, DummyTransportAddress.INSTANCE, attributes);
     }
 }

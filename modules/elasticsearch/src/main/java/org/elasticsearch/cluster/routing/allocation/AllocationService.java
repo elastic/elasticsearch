@@ -164,9 +164,34 @@ public class AllocationService extends AbstractComponent {
             changed |= electPrimaries(allocation.routingNodes());
         }
 
+        // move shards that no longer can be allocated
+        changed |= moveShards(allocation);
+
         // rebalance
         changed |= shardsAllocators.rebalance(allocation);
 
+        return changed;
+    }
+
+    private boolean moveShards(RoutingAllocation allocation) {
+        boolean changed = false;
+        for (RoutingNode routingNode : allocation.routingNodes()) {
+            for (MutableShardRouting shardRouting : routingNode) {
+                // we can only move started shards...
+                if (!shardRouting.started()) {
+                    continue;
+                }
+                if (!allocation.deciders().canRemain(shardRouting, routingNode, allocation)) {
+                    logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
+                    boolean moved = shardsAllocators.move(shardRouting, routingNode, allocation);
+                    if (!moved) {
+                        logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                    } else {
+                        changed = true;
+                    }
+                }
+            }
+        }
         return changed;
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
@@ -34,4 +36,6 @@ public interface ShardsAllocator {
     boolean allocateUnassigned(RoutingAllocation allocation);
 
     boolean rebalance(RoutingAllocation allocation);
+
+    boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
 }

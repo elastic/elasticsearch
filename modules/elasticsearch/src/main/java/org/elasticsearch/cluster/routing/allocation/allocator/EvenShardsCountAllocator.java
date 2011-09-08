@@ -152,4 +152,31 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
         } while (relocationPerformed);
         return changed;
     }
+
+    @Override public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.started();
+        boolean changed = false;
+        List<RoutingNode> sortedNodesLeastToHigh = allocation.routingNodes().sortedNodesLeastToHigh();
+        if (sortedNodesLeastToHigh.isEmpty()) {
+            return false;
+        }
+
+        for (RoutingNode nodeToCheck : sortedNodesLeastToHigh) {
+            // check if its the node we are moving from, no sense to check on it
+            if (nodeToCheck.nodeId().equals(node.nodeId())) {
+                continue;
+            }
+            if (allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation).allocate()) {
+                nodeToCheck.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
+                        nodeToCheck.nodeId(), shardRouting.currentNodeId(),
+                        shardRouting.primary(), INITIALIZING, shardRouting.version() + 1));
+
+                shardRouting.relocate(nodeToCheck.nodeId());
+                changed = true;
+                break;
+            }
+        }
+
+        return changed;
+    }
 }

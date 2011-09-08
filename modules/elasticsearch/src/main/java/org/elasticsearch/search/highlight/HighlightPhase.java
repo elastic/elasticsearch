@@ -25,6 +25,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.BoostingQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.vectorhighlight.*;
@@ -32,6 +33,10 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
+import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -110,7 +115,32 @@ public class HighlightPhase implements SearchHitPhase {
                     }
                     // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
                     // let the highlighter handle MultiTerm ones
-                    QueryScorer queryScorer = new QueryScorer(context.parsedQuery().query(), null);
+                    QueryScorer queryScorer;
+                    if (context.parsedQuery().query() instanceof FunctionScoreQuery) {
+                        queryScorer = new QueryScorer(((FunctionScoreQuery)context.parsedQuery().query()).getSubQuery(), null);
+                    } else if (context.parsedQuery().query() instanceof FiltersFunctionScoreQuery) {
+                        queryScorer = new QueryScorer(((FiltersFunctionScoreQuery)context.parsedQuery().query()).getSubQuery(), null);
+                    } else if (context.parsedQuery().query() instanceof BoostingQuery) {
+                        try {
+                            queryScorer = new QueryScorer(((BoostingQuery)context.parsedQuery().query()).rewrite(hitContext.reader()), null);
+                        } catch (IOException e) {
+                            throw new ElasticSearchException("Failed rewriting BoostingQuery",e);
+                        }
+                    } else if (context.parsedQuery().query() instanceof MoreLikeThisQuery) {
+                        try {
+                            queryScorer = new QueryScorer(((MoreLikeThisQuery)context.parsedQuery().query()).rewrite(hitContext.reader()), null);
+                        } catch (IOException e) {
+                            throw new ElasticSearchException("Failed rewriting MoreLikeThisQuery",e);
+                        }
+                    } else if (context.parsedQuery().query() instanceof MultiPhrasePrefixQuery) {
+                        try {
+                            queryScorer = new QueryScorer(((MultiPhrasePrefixQuery)context.parsedQuery().query()).rewrite(hitContext.reader()), null);
+                        } catch (IOException e) {
+                            throw new ElasticSearchException("Failed rewriting MultiPhrasePrefixQuery",e);
+                        }
+                    } else {
+                        queryScorer = new QueryScorer(context.parsedQuery().query(), null);
+                    }
                     queryScorer.setExpandMultiTermQuery(true);
                     Fragmenter fragmenter;
                     if (field.numberOfFragments() == 0) {

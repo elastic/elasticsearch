@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -84,11 +83,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
     }
 
     public RoutingNodes routingNodes(ClusterState state) {
-        return routingNodes(state.metaData(), state.blocks());
-    }
-
-    public RoutingNodes routingNodes(MetaData metaData, ClusterBlocks blocks) {
-        return new RoutingNodes(metaData, blocks, this);
+        return new RoutingNodes(state);
     }
 
     public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {

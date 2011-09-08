@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -26,20 +28,19 @@ import java.util.List;
 import static org.elasticsearch.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
  */
 public class RoutingNode implements Iterable<MutableShardRouting> {
 
-    private final String nodeId;
+    private final DiscoveryNode node;
 
     private final List<MutableShardRouting> shards;
 
-    public RoutingNode(String nodeId) {
-        this(nodeId, new ArrayList<MutableShardRouting>());
+    public RoutingNode(DiscoveryNode node) {
+        this(node, new ArrayList<MutableShardRouting>());
     }
 
-    public RoutingNode(String nodeId, List<MutableShardRouting> shards) {
-        this.nodeId = nodeId;
+    public RoutingNode(DiscoveryNode node, List<MutableShardRouting> shards) {
+        this.node = node;
         this.shards = shards;
     }
 
@@ -47,8 +48,12 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return shards.iterator();
     }
 
+    public DiscoveryNode node() {
+        return this.node;
+    }
+
     public String nodeId() {
-        return this.nodeId;
+        return this.node.id();
     }
 
     public List<MutableShardRouting> shards() {
@@ -57,11 +62,11 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
 
     public void add(MutableShardRouting shard) {
         shards.add(shard);
-        shard.assignToNode(nodeId);
+        shard.assignToNode(node.id());
     }
 
     public void removeByShardId(int shardId) {
-        for (Iterator<MutableShardRouting> it = shards.iterator(); it.hasNext();) {
+        for (Iterator<MutableShardRouting> it = shards.iterator(); it.hasNext(); ) {
             MutableShardRouting shard = it.next();
             if (shard.id() == shardId) {
                 it.remove();
@@ -134,7 +139,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
-        sb.append("-----node_id[").append(nodeId).append("]\n");
+        sb.append("-----node_id[").append(node.id()).append("]\n");
         for (MutableShardRouting entry : shards) {
             sb.append("--------").append(entry.shortSummary()).append('\n');
         }

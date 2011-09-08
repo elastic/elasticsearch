@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -138,7 +139,11 @@ public class BulkRequest implements ActionRequest {
                     } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
                         timestamp = parser.text();
                     } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
-                        ttl = parser.longValue();
+                        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                            ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+                        } else {
+                            ttl = parser.longValue();
+                        }
                     } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                         opType = parser.text();
                     } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {

@@ -28,17 +28,17 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleTTLTests extends AbstractNodesTests {
 
-    static private final long purgeInterval = 500;
+    static private final long purgeInterval = 200;
     private Client client;
 
     @BeforeClass public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("indices.ttl.purge_interval", purgeInterval).build();
+        Settings settings = settingsBuilder().put("indices.ttl.interval", purgeInterval).build();
         startNode("node1", settings);
         startNode("node2", settings);
         client = getClient();

@@ -212,6 +212,7 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(IndexingMemoryBufferController.class).stop();
+        injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(IndicesService.class).stop();
         // sleep a bit to let operations finish with indices service
 //        try {
@@ -262,6 +263,7 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("indices");
         injector.getInstance(IndicesNodeFilterCache.class).close();
         injector.getInstance(IndexingMemoryBufferController.class).close();
+        injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();
         stopWatch.stop().start("routing");
         injector.getInstance(RoutingService.class).close();

@@ -20,20 +20,18 @@
 package org.elasticsearch.indices.ttl;
 
 import org.apache.lucene.document.Document;
-
 import org.apache.lucene.index.IndexReader;
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.UidField;
@@ -51,46 +49,48 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 
 /**
  * A node level service that delete expired docs on node primary shards.
- *
  */
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
-    private static final String SETTING_PURGE_INTERVAL = "purge_interval";
-    private static final TimeValue DEFAULT_PURGE_INTERVAL = new TimeValue(60, TimeUnit.SECONDS);
-    private static final String SETTINGS_BULK_SIZE = "bulk_size";
-    private static final int DEFAULT_BULK_SIZE = 10000;
+    static {
+        MetaData.addDynamicSettings(
+                "indices.ttl.interval"
+        );
+    }
 
     private final IndicesService indicesService;
     private final Client client;
 
-    private final TimeValue purgeInterval;
+    private volatile TimeValue interval;
     private final int bulkSize;
-    private BulkRequestBuilder bulkRequest;
     private PurgerThread purgerThread;
 
-    @Inject public IndicesTTLService(Settings settings, IndicesService indicesService, Client client) {
+    @Inject public IndicesTTLService(Settings settings, IndicesService indicesService, NodeSettingsService nodeSettingsService, Client client) {
         super(settings);
         this.indicesService = indicesService;
         this.client = client;
-        this.purgeInterval = componentSettings.getAsTime(SETTING_PURGE_INTERVAL, DEFAULT_PURGE_INTERVAL);
-        this.bulkSize = componentSettings.getAsInt(SETTINGS_BULK_SIZE, DEFAULT_BULK_SIZE);
+        this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
+        this.bulkSize = componentSettings.getAsInt("bulk_size", 10000);
+
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[purger]"));
+        this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"));
         this.purgerThread.start();
     }
 
     @Override protected void doStop() throws ElasticSearchException {
         this.purgerThread.doStop();
+        this.purgerThread.interrupt();
     }
 
     @Override protected void doClose() throws ElasticSearchException {
@@ -110,13 +110,18 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
         public void run() {
             while (running) {
-                List<IndexShard> shardsToPurge = getShardsToPurge();
-                purgeShards(shardsToPurge);
                 try {
-                    Thread.sleep(purgeInterval.millis());
+                    List<IndexShard> shardsToPurge = getShardsToPurge();
+                    purgeShards(shardsToPurge);
+                } catch (Throwable e) {
+                    if (running) {
+                        logger.warn("failed to execute ttl purge", e);
+                    }
+                }
+                try {
+                    Thread.sleep(interval.millis());
                 } catch (InterruptedException e) {
-                    running = false;
-                    return;
+                    // ignore, if we are interrupted because we are shutting down, running will be false
                 }
 
             }
@@ -133,17 +138,15 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 // check if ttl is enabled for at least one type of this index
                 boolean hasTTLEnabled = false;
                 for (FieldMapper ttlFieldMapper : ttlFieldMappers) {
-                    if (((TTLFieldMapper)ttlFieldMapper).enabled()) {
+                    if (((TTLFieldMapper) ttlFieldMapper).enabled()) {
                         hasTTLEnabled = true;
                         break;
                     }
                 }
-                if (hasTTLEnabled)
-                {
-                    for (Integer shardId : indexService.shardIds()) {
-                        IndexShard shard = indexService.shard(shardId);
-                        if (shard.routingEntry().primary() && shard.state() == IndexShardState.STARTED && shard.routingEntry().started()) {
-                            shardsToPurge.add(shard);
+                if (hasTTLEnabled) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary() && indexShard.state() == IndexShardState.STARTED && indexShard.routingEntry().started()) {
+                            shardsToPurge.add(indexShard);
                         }
                     }
                 }
@@ -161,12 +164,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 ExpiredDocsCollector expiredDocsCollector = new ExpiredDocsCollector();
                 searcher.searcher().search(query, expiredDocsCollector);
                 List<DocToPurge> docsToPurge = expiredDocsCollector.getDocsToPurge();
-                bulkRequest = client.prepareBulk();
+                BulkRequestBuilder bulkRequest = client.prepareBulk();
                 for (DocToPurge docToPurge : docsToPurge) {
                     bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version));
-                    processBulkIfNeeded(false);
+                    bulkRequest = processBulkIfNeeded(bulkRequest, false);
                 }
-                processBulkIfNeeded(true);
+                processBulkIfNeeded(bulkRequest, true);
             } catch (Exception e) {
                 logger.warn("failed to purge", e);
             } finally {
@@ -206,7 +209,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 Document document = indexReader.document(doc, UidFieldSelector.INSTANCE);
                 String uid = document.getFieldable(UidFieldMapper.NAME).stringValue();
                 long version = UidField.loadVersion(indexReader, UidFieldMapper.TERM_FACTORY.createTerm(uid));
-                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid),Uid.idFromUid(uid), version));
+                docsToPurge.add(new DocToPurge(Uid.typeFromUid(uid), Uid.idFromUid(uid), version));
             } catch (Exception e) {
             }
         }
@@ -220,12 +223,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         }
     }
 
-    private void processBulkIfNeeded(boolean force) {
+    private BulkRequestBuilder processBulkIfNeeded(BulkRequestBuilder bulkRequest, boolean force) {
         if ((force && bulkRequest.numberOfActions() > 0) || bulkRequest.numberOfActions() >= bulkSize) {
             try {
                 bulkRequest.execute(new ActionListener<BulkResponse>() {
                     @Override public void onResponse(BulkResponse bulkResponse) {
-                        logger.debug("bulk took " + bulkResponse.getTookInMillis() + "ms");
+                        logger.trace("bulk took " + bulkResponse.getTookInMillis() + "ms");
                     }
 
                     @Override public void onFailure(Throwable e) {
@@ -236,6 +239,17 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 logger.warn("failed to process bulk", e);
             }
             bulkRequest = client.prepareBulk();
+        }
+        return bulkRequest;
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            TimeValue interval = settings.getAsTime("indices.ttl.interval", IndicesTTLService.this.interval);
+            if (!interval.equals(IndicesTTLService.this.interval)) {
+                logger.info("updating indices.ttl.interval from [{}] to [{}]", IndicesTTLService.this.interval, interval);
+                IndicesTTLService.this.interval = interval;
+            }
         }
     }
 }

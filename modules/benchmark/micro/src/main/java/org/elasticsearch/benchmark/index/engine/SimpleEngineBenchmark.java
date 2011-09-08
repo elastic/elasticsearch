@@ -49,7 +49,11 @@ import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
@@ -165,7 +169,7 @@ public class SimpleEngineBenchmark {
             String sId = Integer.toString(id);
             Document doc = doc().add(field("_id", sId))
                     .add(field("content", contentItem)).build();
-            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, -1, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
+            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, -1, -1, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
             if (create) {
                 engine.create(new Engine.Create(null, new Term("_id", sId), pDoc));
             } else {
@@ -279,7 +283,7 @@ public class SimpleEngineBenchmark {
                     String sId = Integer.toString(id);
                     Document doc = doc().add(field("_id", sId))
                             .add(field("content", content(id))).build();
-                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, -1, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
+                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", null, -1, -1, doc, Lucene.STANDARD_ANALYZER, TRANSLOG_PAYLOAD, false);
                     if (create) {
                         engine.create(new Engine.Create(null, new Term("_id", sId), pDoc));
                     } else {

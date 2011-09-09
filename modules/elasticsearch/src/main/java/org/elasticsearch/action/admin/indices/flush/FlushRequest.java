@@ -42,6 +42,8 @@ public class FlushRequest extends BroadcastOperationRequest {
 
     private boolean refresh = false;
 
+    private boolean force = false;
+
     private boolean full = false;
 
     FlushRequest() {
@@ -89,6 +91,21 @@ public class FlushRequest extends BroadcastOperationRequest {
     }
 
     /**
+     * Force flushing, even if one is possibly not needed.
+     */
+    public boolean force() {
+        return force;
+    }
+
+    /**
+     * Force flushing, even if one is possibly not needed.
+     */
+    public FlushRequest force(boolean force) {
+        this.force = force;
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     @Override public FlushRequest listenerThreaded(boolean threadedListener) {
@@ -108,11 +125,13 @@ public class FlushRequest extends BroadcastOperationRequest {
         super.writeTo(out);
         out.writeBoolean(refresh);
         out.writeBoolean(full);
+        out.writeBoolean(force);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         refresh = in.readBoolean();
         full = in.readBoolean();
+        force = in.readBoolean();
     }
 }

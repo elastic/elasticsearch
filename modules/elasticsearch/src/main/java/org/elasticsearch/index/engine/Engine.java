@@ -186,6 +186,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         private boolean full = false;
         private boolean refresh = false;
+        private boolean force = false;
 
         /**
          * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
@@ -217,8 +218,17 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        public boolean force() {
+            return this.force;
+        }
+
+        public Flush force(boolean force) {
+            this.force = force;
+            return this;
+        }
+
         @Override public String toString() {
-            return "full[" + full + "], refresh[" + refresh + "]";
+            return "full[" + full + "], refresh[" + refresh + "], force[" + force + "]";
         }
     }
 

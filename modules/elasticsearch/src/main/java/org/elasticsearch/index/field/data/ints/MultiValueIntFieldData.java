@@ -160,7 +160,7 @@ public class MultiValueIntFieldData extends IntFieldData {
             int loc = ordinal[docId];
             if (loc != 0) {
                 found = true;
-                proc.onOrdinal(docId, ordinal[docId]);
+                proc.onOrdinal(docId, loc);
             }
         }
         if (!found) {

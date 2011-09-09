@@ -22,7 +22,9 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -136,7 +138,12 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     @Override public void parse(ParseContext context) throws IOException, MapperParsingException {
         if (context.sourceToParse().ttl() < 0) { // no ttl has been provided externally
-            long ttl = context.parser().longValue();
+            long ttl;
+            if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
+                ttl = TimeValue.parseTimeValue(context.parser().text(), null).millis();
+            } else {
+                ttl = context.parser().longValue();
+            }
             if (ttl <= 0) {
                 throw new MapperParsingException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
             }

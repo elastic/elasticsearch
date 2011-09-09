@@ -31,6 +31,7 @@ import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
+import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -142,8 +143,8 @@ public class Bootstrap {
         Bootstrap bootstrap = new Bootstrap();
         String pidFile = System.getProperty("es-pidfile");
 
-        // enable jline by default when running form "main"
-        if (System.getProperty("jline.enabled") == null) {
+        // enable jline by default when running form "main" (and not on windows)
+        if (System.getProperty("jline.enabled") == null && !OsUtils.WINDOWS) {
             System.setProperty("jline.enabled", "true");
         }
 

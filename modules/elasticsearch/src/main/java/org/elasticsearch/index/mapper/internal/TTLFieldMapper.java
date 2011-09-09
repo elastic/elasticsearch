@@ -54,11 +54,13 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         public static final Field.Store STORE = Field.Store.YES;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean ENABLED = false;
+        public static final long DEFAULT = -1;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TTLFieldMapper> {
 
         private boolean enabled = Defaults.ENABLED;
+        private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
             super(Defaults.NAME);
@@ -71,8 +73,13 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             return builder;
         }
 
+        public Builder defaultTTL(long defaultTTL) {
+            this.defaultTTL = defaultTTL;
+            return builder;
+        }
+
         @Override public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(store, index, enabled);
+            return new TTLFieldMapper(store, index, enabled, defaultTTL);
         }
     }
 
@@ -85,6 +92,11 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("default")) {
+                    TimeValue ttlTimeValue = nodeTimeValue(fieldNode, null);
+                    if (ttlTimeValue != null) {
+                        builder.defaultTTL(ttlTimeValue.millis());
+                    }
                 }
             }
             return builder;
@@ -92,20 +104,26 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     private boolean enabled;
+    private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.DEFAULT);
     }
 
-    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled) {
+    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS,
                 Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE);
         this.enabled = enabled;
+        this.defaultTTL = defaultTTL;
     }
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    public long defaultTTL() {
+        return this.defaultTTL;
     }
 
     // Overrides valueForSearch to display live value of remaining ttl
@@ -157,9 +175,12 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
         if (enabled) {
-            long timestamp = context.sourceToParse().timestamp();
             long ttl = context.sourceToParse().ttl();
+            if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
+                ttl = defaultTTL;
+            }
             if (ttl > 0) { // a ttl has been provided either externally or in the _source
+                long timestamp = context.sourceToParse().timestamp();
                 long expire = new Date(timestamp + ttl).getTime();
                 long now = System.currentTimeMillis();
                 // there is not point indexing already expired doc
@@ -175,12 +196,15 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (enabled == Defaults.ENABLED) {
+        if (enabled == Defaults.ENABLED && defaultTTL == Defaults.DEFAULT) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
+        }
+        if (defaultTTL != Defaults.DEFAULT) {
+            builder.field("default", defaultTTL);
         }
         builder.endObject();
         return builder;

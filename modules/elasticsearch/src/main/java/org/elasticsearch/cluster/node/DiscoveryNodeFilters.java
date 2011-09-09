@@ -68,10 +68,25 @@ public class DiscoveryNodeFilters {
                 }
                 InetSocketTransportAddress inetAddress = (InetSocketTransportAddress) node.address();
                 for (String value : values) {
-                    if (!Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
-                        return false;
+                    if (Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
+                        return true;
                     }
                 }
+                return false;
+            } else if ("_id".equals(attr)) {
+                for (String value : values) {
+                    if (node.id().equals(value)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if ("_name".equals(attr)) {
+                for (String value : values) {
+                    if (Regex.simpleMatch(value, node.name())) {
+                        return true;
+                    }
+                }
+                return false;
             } else {
                 String nodeAttributeValue = node.attributes().get(attr);
                 if (nodeAttributeValue == null) {

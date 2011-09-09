@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.List;
 import java.util.Map;
 
@@ -145,5 +147,19 @@ public class XContentMapValues {
         }
         String value = node.toString();
         return !(value.equals("false") || value.equals("0") || value.equals("off"));
+    }
+
+    public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeTimeValue(node);
+    }
+
+    public static TimeValue nodeTimeValue(Object node) {
+        if (node instanceof Number) {
+            return TimeValue.timeValueMillis(((Number) node).longValue());
+        }
+        return TimeValue.parseTimeValue(node.toString(), null);
     }
 }

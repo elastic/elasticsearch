@@ -31,8 +31,8 @@ import java.io.IOException;
 class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     private boolean refresh;
-
     private boolean full;
+    private boolean force;
 
     ShardFlushRequest() {
     }
@@ -41,6 +41,7 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
         super(index, shardId);
         this.refresh = request.refresh();
         this.full = request.full();
+        this.force = request.force();
     }
 
     public boolean refresh() {
@@ -51,15 +52,21 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
         return this.full;
     }
 
+    public boolean force() {
+        return this.force;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         refresh = in.readBoolean();
         full = in.readBoolean();
+        force = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(refresh);
         out.writeBoolean(full);
+        out.writeBoolean(force);
     }
 }

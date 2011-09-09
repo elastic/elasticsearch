@@ -135,6 +135,9 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             for (IndexService indexService : indicesService) {
                 // should be optimized with the hasTTL flag
                 FieldMappers ttlFieldMappers = indexService.mapperService().name(TTLFieldMapper.NAME);
+                if (ttlFieldMappers == null) {
+                    continue;
+                }
                 // check if ttl is enabled for at least one type of this index
                 boolean hasTTLEnabled = false;
                 for (FieldMapper ttlFieldMapper : ttlFieldMappers) {

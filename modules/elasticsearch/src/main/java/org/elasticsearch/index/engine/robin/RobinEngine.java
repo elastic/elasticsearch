@@ -798,7 +798,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         indexWriter.close(false);
                         indexWriter = createWriter();
 
-                        if (flushNeeded) {
+                        if (flushNeeded || flush.force()) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
                             indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
@@ -827,7 +827,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
                     }
 
-                    if (flushNeeded) {
+                    if (flushNeeded || flush.force()) {
                         flushNeeded = false;
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
@@ -913,7 +913,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Override public void optimize(Optimize optimize) throws EngineException {
         if (optimize.flush()) {
-            flush(new Flush());
+            flush(new Flush().force(true));
         }
         if (optimizeMutex.compareAndSet(false, true)) {
             rwl.readLock().lock();
@@ -950,7 +950,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             indexWriter.waitForMerges();
         }
         if (optimize.flush()) {
-            flush(new Flush());
+            flush(new Flush().force(true));
         }
         if (optimize.refresh()) {
             refresh(new Refresh(false).force(true));

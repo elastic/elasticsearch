@@ -6,6 +6,7 @@
 #path.data: /path/to/data
 #path.work: /path/to/work
 #path.logs: /path/to/logs
+#path.plugins: /path/to/plugins
 
 # Force all memory to be locked, forcing the JVM to never swap
 #bootstrap.mlockall: true

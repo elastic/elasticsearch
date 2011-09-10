@@ -77,6 +77,9 @@ public final class QueryParsers {
 
     public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
                                            QueryParseContext parseContext) {
+        if (query == null) {
+            return null;
+        }
         if (smartFieldMappers == null) {
             return query;
         }

@@ -38,17 +38,3 @@
 # Unicast Discovery (disable multicast)
 #discovery.zen.ping.multicast.enabled: false
 #discovery.zen.ping.unicast.hosts: ["host1", "host2"]
-
-threadpool:
-   search:
-       type: blocking
-       min: 5
-       max: 20
-       wait_time: 30s
-       keep_alive: 90s
-   index:
-       type: blocking
-       min: 3
-       max: 10
-       wait_time: 30s
-       keep_alive: 90s

@@ -427,6 +427,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
             token = parser.nextToken();
         }
+
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
                 serializeObject(context, currentFieldName);
@@ -437,7 +438,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, currentFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object_mapper [" + name + "] tried to parse as object, but got EOF, has a concrete value been provided to it?");
+                throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but got EOF, has a concrete value been provided to it?");
             } else if (token.isValue()) {
                 serializeValue(context, currentFieldName, token);
             }
@@ -480,6 +481,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     private void serializeObject(final ParseContext context, String currentFieldName) throws IOException {
+        if (currentFieldName == null) {
+            throw new MapperParsingException("object mapping [" + name + "] trying to serialize an object with no field associated with it, current value [" + context.parser().textOrNull() + "]");
+        }
         context.path().add(currentFieldName);
 
         Mapper objectMapper = mappers.get(currentFieldName);
@@ -565,6 +569,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     private void serializeValue(final ParseContext context, String currentFieldName, XContentParser.Token token) throws IOException {
+        if (currentFieldName == null) {
+            throw new MapperParsingException("object mapping [" + name + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
+        }
         Mapper mapper = mappers.get(currentFieldName);
         if (mapper != null) {
             mapper.parse(context);

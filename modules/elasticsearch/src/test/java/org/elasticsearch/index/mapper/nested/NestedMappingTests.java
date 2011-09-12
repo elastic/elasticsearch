@@ -33,6 +33,32 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class NestedMappingTests {
 
+    @Test public void emptyNested() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("nested1").field("type", "nested").endObject()
+                .endObject().endObject().endObject().string();
+
+        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .nullField("nested1")
+                .endObject()
+                .copiedBytes());
+
+        assertThat(doc.docs().size(), equalTo(1));
+
+        doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .startArray("nested").endArray()
+                .endObject()
+                .copiedBytes());
+
+        assertThat(doc.docs().size(), equalTo(1));
+    }
+
     @Test public void singleNested() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").endObject()

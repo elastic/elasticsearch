@@ -5,7 +5,7 @@ archivesBaseName = "$project.archivesBaseName"
 dependencies {
     runtime 'com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru:1.2'
     runtime 'com.google.guava:guava:r09'
-    runtime 'org.elasticsearch:es-trove:3.0.0rc2'
+    runtime 'org.elasticsearch:es-trove:3.0.0'
     runtime 'org.elasticsearch:es-jsr166y:20110820'
     runtime 'org.elasticsearch:es-jsr166e:20110820'
 

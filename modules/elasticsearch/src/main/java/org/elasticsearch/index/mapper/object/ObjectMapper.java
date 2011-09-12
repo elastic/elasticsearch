@@ -385,6 +385,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         XContentParser parser = context.parser();
 
+        String currentFieldName = parser.currentName();
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            // the object is null ("obj1" : null), simply bail
+            return;
+        }
+
         Document restoreDoc = null;
         if (nested.isNested()) {
             Document nestedDoc = new Document();
@@ -412,12 +419,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
 
-        String currentFieldName = parser.currentName();
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_NULL) {
-            // the object is null ("obj1" : null), simply bail
-            return;
-        }
         // if we are at the end of the previous object, advance
         if (token == XContentParser.Token.END_OBJECT) {
             token = parser.nextToken();

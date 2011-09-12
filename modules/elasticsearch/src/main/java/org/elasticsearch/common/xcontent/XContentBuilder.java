@@ -483,9 +483,28 @@ public final class XContentBuilder {
         return this;
     }
 
+
     public XContentBuilder field(XContentBuilderString name, String... value) throws IOException {
         startArray(name);
         for (String o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(String name, Object... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentBuilderString name, Object... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
             value(o);
         }
         endArray();

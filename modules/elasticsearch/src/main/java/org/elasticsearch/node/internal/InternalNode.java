@@ -208,6 +208,9 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
         }
+
+        injector.getInstance(RiversManager.class).stop();
+
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
@@ -226,7 +229,6 @@ public final class InternalNode implements Node {
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
-        injector.getInstance(RiversManager.class).stop();
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
         injector.getInstance(JmxService.class).close();
@@ -256,6 +258,10 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();
         }
+
+        stopWatch.stop().start("rivers");
+        injector.getInstance(RiversManager.class).close();
+
         stopWatch.stop().start("client");
         injector.getInstance(Client.class).close();
         stopWatch.stop().start("indices_cluster");
@@ -277,8 +283,6 @@ public final class InternalNode implements Node {
         injector.getInstance(GatewayService.class).close();
         stopWatch.stop().start("search");
         injector.getInstance(SearchService.class).close();
-        stopWatch.stop().start("indexers");
-        injector.getInstance(RiversManager.class).close();
         stopWatch.stop().start("rest");
         injector.getInstance(RestController.class).close();
         stopWatch.stop().start("transport");

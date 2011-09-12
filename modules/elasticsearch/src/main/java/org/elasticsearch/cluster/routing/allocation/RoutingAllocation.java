@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -86,6 +87,10 @@ public class RoutingAllocation {
 
     public RoutingNodes routingNodes() {
         return routingNodes;
+    }
+
+    public MetaData metaData() {
+        return routingNodes.metaData();
     }
 
     public DiscoveryNodes nodes() {

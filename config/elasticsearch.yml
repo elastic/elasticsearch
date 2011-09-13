@@ -9,6 +9,8 @@
 #path.plugins: /path/to/plugins
 
 # Force all memory to be locked, forcing the JVM to never swap
+#   When setting it, make sure ES_MIN_MEM and ES_MAX_MEM are set to the same value
+#   and that the machine has enough memory to allocate.
 #bootstrap.mlockall: true
 
 # Gateway Settings

@@ -289,7 +289,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
-    public IndexRequest ttl(long ttl) throws ElasticSearchGenerationException {
+    public IndexRequest ttl(Long ttl) throws ElasticSearchGenerationException {
+        if (ttl == null) {
+            return this;
+        }
         if (ttl <= 0) {
             throw new ElasticSearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
         }

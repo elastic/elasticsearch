@@ -115,7 +115,7 @@ public class BulkRequest implements ActionRequest {
             String routing = null;
             String parent = null;
             String timestamp = null;
-            long ttl = -1;
+            Long ttl = null;
             String opType = null;
             long version = 0;
             VersionType versionType = VersionType.INTERNAL;

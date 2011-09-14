@@ -68,6 +68,26 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
         return segments;
     }
 
+    public int numberOfCommitted() {
+        int count = 0;
+        for (Segment segment : segments) {
+            if (segment.committed()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int numberOfSearch() {
+        int count = 0;
+        for (Segment segment : segments) {
+            if (segment.search()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public static ShardSegments readShardSegments(StreamInput in) throws IOException {
         ShardSegments shard = new ShardSegments();
         shard.readFrom(in);

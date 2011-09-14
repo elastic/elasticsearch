@@ -42,7 +42,7 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
 
     private GeoDistance geoDistance;
 
-    private Boolean optimizeBbox;
+    private String optimizeBbox;
 
     private Boolean cache;
     private String cacheKey;
@@ -89,7 +89,7 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public GeoDistanceFilterBuilder optimizeBbox(boolean optimizeBbox) {
+    public GeoDistanceFilterBuilder optimizeBbox(String optimizeBbox) {
         this.optimizeBbox = optimizeBbox;
         return this;
     }
@@ -127,7 +127,7 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
             builder.field("distance_type", geoDistance.name().toLowerCase());
         }
         if (optimizeBbox != null) {
-            builder.field("optimize_bbox", optimizeBbox.booleanValue());
+            builder.field("optimize_bbox", optimizeBbox);
         }
         if (filterName != null) {
             builder.field("_name", filterName);

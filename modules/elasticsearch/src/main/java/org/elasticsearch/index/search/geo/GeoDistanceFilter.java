@@ -22,16 +22,21 @@ package org.elasticsearch.index.search.geo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.lucene.docset.AndDocSet;
+import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
  */
 public class GeoDistanceFilter extends Filter {
 
@@ -48,10 +53,11 @@ public class GeoDistanceFilter extends Filter {
     private final FieldDataCache fieldDataCache;
 
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
-    private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
+    private GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
+    private final Filter boundingBoxFilter;
 
-    public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String fieldName, FieldDataCache fieldDataCache,
-                             boolean optimizeBbox) {
+    public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String fieldName, GeoPointFieldMapper mapper, FieldDataCache fieldDataCache,
+                             String optimizeBbox) {
         this.lat = lat;
         this.lon = lon;
         this.distance = distance;
@@ -60,7 +66,20 @@ public class GeoDistanceFilter extends Filter {
         this.fieldDataCache = fieldDataCache;
 
         this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
-        this.distanceBoundingCheck = optimizeBbox ? GeoDistance.distanceBoundingCheck(lat, lon, distance, DistanceUnit.MILES) : GeoDistance.ALWAYS_INSTANCE;
+        if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
+            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, distance, DistanceUnit.MILES);
+            if ("memory".equals(optimizeBbox)) {
+                boundingBoxFilter = null;
+            } else if ("indexed".equals(optimizeBbox)) {
+                boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
+                distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
+            } else {
+                throw new ElasticSearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
+            }
+        } else {
+            distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE;
+            boundingBoxFilter = null;
+        }
     }
 
     public double lat() {
@@ -84,8 +103,21 @@ public class GeoDistanceFilter extends Filter {
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        DocSet boundingBoxDocSet = null;
+        if (boundingBoxFilter != null) {
+            DocIdSet docIdSet = boundingBoxFilter.getDocIdSet(reader);
+            if (docIdSet == null) {
+                return null;
+            }
+            boundingBoxDocSet = DocSets.convert(reader, docIdSet);
+        }
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        return new GeoDistanceDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, distance);
+        GeoDistanceDocSet distDocSet = new GeoDistanceDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, distance);
+        if (boundingBoxDocSet == null) {
+            return distDocSet;
+        } else {
+            return new AndDocSet(ImmutableList.of(boundingBoxDocSet, distDocSet));
+        }
     }
 
     @Override

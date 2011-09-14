@@ -118,7 +118,15 @@ public class GeoBoundingBoxTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
         assertThat(searchResponse.hits().hits().length, equalTo(2));
         for (SearchHit hit : searchResponse.hits()) {
-            System.err.println("-->" + hit.id());
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("5")));
+        }
+
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(40.73, -74.1).bottomRight(40.717, -73.99).type("indexed")))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().hits().length, equalTo(2));
+        for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("5")));
         }
     }
@@ -183,9 +191,21 @@ public class GeoBoundingBoxTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
+        searchResponse = client.prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(41, -11).bottomRight(40, 9).type("indexed")))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(41, -9).bottomRight(40, 11)))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("3"));
+        searchResponse = client.prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(41, -9).bottomRight(40, 11).type("indexed")))
                 .execute().actionGet();
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
@@ -197,9 +217,21 @@ public class GeoBoundingBoxTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("5"));
+        searchResponse = client.prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(11, 171).bottomRight(1, -169).type("indexed")))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("5"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(9, 169).bottomRight(-1, -171)))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("9"));
+        searchResponse = client.prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(9, 169).bottomRight(-1, -171).type("indexed")))
                 .execute().actionGet();
         assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits().length, equalTo(1));
@@ -240,11 +272,23 @@ public class GeoBoundingBoxTests extends AbstractNodesTests {
                                 geoBoundingBoxFilter("location").topLeft(74.579421999999994, 143.5).bottomRight(-66.668903999999998, 113.96875))
                 ).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch()
+                .setQuery(
+                        filteredQuery(termQuery("userid", 880),
+                                geoBoundingBoxFilter("location").topLeft(74.579421999999994, 143.5).bottomRight(-66.668903999999998, 113.96875).type("indexed"))
+                ).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
         searchResponse = client.prepareSearch()
                 .setQuery(
                         filteredQuery(termQuery("userid", 534),
                                 geoBoundingBoxFilter("location").topLeft(74.579421999999994, 143.5).bottomRight(-66.668903999999998, 113.96875))
+                ).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch()
+                .setQuery(
+                        filteredQuery(termQuery("userid", 534),
+                                geoBoundingBoxFilter("location").topLeft(74.579421999999994, 143.5).bottomRight(-66.668903999999998, 113.96875).type("indexed"))
                 ).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }

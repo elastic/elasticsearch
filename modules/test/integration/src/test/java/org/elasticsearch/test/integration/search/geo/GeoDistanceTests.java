@@ -38,7 +38,6 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (shay.banon)
  */
 public class GeoDistanceTests extends AbstractNodesTests {
 
@@ -122,6 +121,14 @@ public class GeoDistanceTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
         }
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(5l));
+        assertThat(searchResponse.hits().hits().length, equalTo(5));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
+        }
 
         // now with a PLANE type
         searchResponse = client.prepareSearch() // from NY
@@ -143,6 +150,14 @@ public class GeoDistanceTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
 
         searchResponse = client.prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731)))
@@ -152,9 +167,25 @@ public class GeoDistanceTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.hits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
 
         searchResponse = client.prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731)))
+                .execute().actionGet();
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().hits().length, equalTo(2));
+        for (SearchHit hit : searchResponse.hits()) {
+            assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
+        }
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
         assertThat(searchResponse.hits().hits().length, equalTo(2));

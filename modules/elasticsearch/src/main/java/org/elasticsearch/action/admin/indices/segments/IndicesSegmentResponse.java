@@ -118,6 +118,9 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
                     }
                     builder.endObject();
 
+                    builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.numberOfCommitted());
+                    builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.numberOfSearch());
+
                     builder.startObject(Fields.SEGMENTS);
                     for (Segment segment : shardSegments) {
                         builder.startObject(segment.name());
@@ -156,6 +159,8 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
 
         static final XContentBuilderString SEGMENTS = new XContentBuilderString("segments");
         static final XContentBuilderString GENERATION = new XContentBuilderString("generation");
+        static final XContentBuilderString NUM_COMMITTED_SEGMENTS = new XContentBuilderString("num_committed_segments");
+        static final XContentBuilderString NUM_SEARCH_SEGMENTS = new XContentBuilderString("num_search_segments");
         static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
         static final XContentBuilderString DELETED_DOCS = new XContentBuilderString("deleted_docs");
         static final XContentBuilderString SIZE = new XContentBuilderString("size");

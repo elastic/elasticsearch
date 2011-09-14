@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class GeoBoundingBoxFilter extends Filter {
+public class InMemoryGeoBoundingBoxFilter extends Filter {
 
     private final Point topLeft;
 
@@ -42,7 +42,7 @@ public class GeoBoundingBoxFilter extends Filter {
 
     private final FieldDataCache fieldDataCache;
 
-    public GeoBoundingBoxFilter(Point topLeft, Point bottomRight, String fieldName, FieldDataCache fieldDataCache) {
+    public InMemoryGeoBoundingBoxFilter(Point topLeft, Point bottomRight, String fieldName, FieldDataCache fieldDataCache) {
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
         this.fieldName = fieldName;
@@ -66,18 +66,18 @@ public class GeoBoundingBoxFilter extends Filter {
 
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
-            return new LeftGeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
+            return new Meridian180GeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
         } else {
-            return new RightGeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
+            return new GeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
         }
     }
 
-    public static class LeftGeoBoundingBoxDocSet extends GetDocSet {
+    public static class Meridian180GeoBoundingBoxDocSet extends GetDocSet {
         private final GeoPointFieldData fieldData;
         private final Point topLeft;
         private final Point bottomRight;
 
-        public LeftGeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
+        public Meridian180GeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
             super(maxDoc);
             this.fieldData = fieldData;
             this.topLeft = topLeft;
@@ -120,12 +120,12 @@ public class GeoBoundingBoxFilter extends Filter {
         }
     }
 
-    public static class RightGeoBoundingBoxDocSet extends GetDocSet {
+    public static class GeoBoundingBoxDocSet extends GetDocSet {
         private final GeoPointFieldData fieldData;
         private final Point topLeft;
         private final Point bottomRight;
 
-        public RightGeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
+        public GeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
             super(maxDoc);
             this.fieldData = fieldData;
             this.topLeft = topLeft;

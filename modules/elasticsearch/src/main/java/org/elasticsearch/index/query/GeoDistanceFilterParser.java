@@ -74,7 +74,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         Object vDistance = null;
         DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
         GeoDistance geoDistance = GeoDistance.ARC;
-        boolean optimizeBbox = true;
+        String optimizeBbox = "memory";
         boolean normalizeLon = true;
         boolean normalizeLat = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -137,7 +137,7 @@ public class GeoDistanceFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
-                    optimizeBbox = parser.booleanValue();
+                    optimizeBbox = parser.textOrNull();
                 } else if ("normalize".equals(currentFieldName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
@@ -180,9 +180,10 @@ public class GeoDistanceFilterParser implements FilterParser {
         if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
+        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
         fieldName = mapper.names().indexName();
 
-        Filter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, fieldName, parseContext.indexCache().fieldData(), optimizeBbox);
+        Filter filter = new GeoDistanceFilter(lat, lon, distance, geoDistance, fieldName, geoMapper, parseContext.indexCache().fieldData(), optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

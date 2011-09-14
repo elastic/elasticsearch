@@ -107,23 +107,40 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Warming up (ARC) - optimize_bbox");
         long start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.ARC, true);
+            run(client, GeoDistance.ARC, "memory");
         }
         long totalTime = System.currentTimeMillis() - start;
-        System.err.println("--> Warmup (ARC)  - optimize_bbox " + (totalTime / NUM_WARM) + "ms");
+        System.err.println("--> Warmup (ARC)  - optimize_bbox (memory) " + (totalTime / NUM_WARM) + "ms");
 
-        System.err.println("--> Perf (ARC) - optimize_bbox");
+        System.err.println("--> Perf (ARC) - optimize_bbox (memory)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.ARC, true);
+            run(client, GeoDistance.ARC, "memory");
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (ARC) - optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
 
+        System.err.println("--> Warming up (ARC)  - optimize_bbox (indexed)");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < NUM_WARM; i++) {
+            run(client, GeoDistance.ARC, "indexed");
+        }
+        totalTime = System.currentTimeMillis() - start;
+        System.err.println("--> Warmup (ARC) - optimize_bbox (indexed) " + (totalTime / NUM_WARM) + "ms");
+
+        System.err.println("--> Perf (ARC) - optimize_bbox (indexed)");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < NUM_RUNS; i++) {
+            run(client, GeoDistance.ARC, "indexed");
+        }
+        totalTime = System.currentTimeMillis() - start;
+        System.err.println("--> Perf (ARC) - optimize_bbox (indexed) " + (totalTime / NUM_RUNS) + "ms");
+
+
         System.err.println("--> Warming up (ARC)  - no optimize_bbox");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.ARC, false);
+            run(client, GeoDistance.ARC, "none");
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Warmup (ARC) - no optimize_bbox " + (totalTime / NUM_WARM) + "ms");
@@ -131,7 +148,7 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Perf (ARC) - no optimize_bbox");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.ARC, false);
+            run(client, GeoDistance.ARC, "none");
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (ARC) - no optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
@@ -139,7 +156,7 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Warming up (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.PLANE, true);
+            run(client, GeoDistance.PLANE, "memory");
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Warmup (PLANE) " + (totalTime / NUM_WARM) + "ms");
@@ -147,7 +164,7 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Perf (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.PLANE, true);
+            run(client, GeoDistance.PLANE, "memory");
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (PLANE) " + (totalTime / NUM_RUNS) + "ms");
@@ -155,7 +172,7 @@ public class GeoDistanceSearchBenchmark {
         node.close();
     }
 
-    public static void run(Client client, GeoDistance geoDistance, boolean optimizeBbox) {
+    public static void run(Client client, GeoDistance geoDistance, String optimizeBbox) {
         client.prepareSearch() // from NY
                 .setSearchType(SearchType.COUNT)
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location")

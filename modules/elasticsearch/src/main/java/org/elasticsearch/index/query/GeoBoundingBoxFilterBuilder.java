@@ -44,6 +44,8 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
     private String filterName;
 
+    private String type;
+
     public GeoBoundingBoxFilterBuilder(String name) {
         this.name = name;
     }
@@ -105,6 +107,15 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the type of executing of the geo bounding box. Can be either `memory` or `indexed`. Defaults
+     * to `memory`.
+     */
+    public GeoBoundingBoxFilterBuilder type(String type) {
+        this.type = type;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoBoundingBoxFilterParser.NAME);
 
@@ -134,6 +145,9 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         }
         if (cacheKey != null) {
             builder.field("_cache_key", cacheKey);
+        }
+        if (type != null) {
+            builder.field("type", type);
         }
 
         builder.endObject();

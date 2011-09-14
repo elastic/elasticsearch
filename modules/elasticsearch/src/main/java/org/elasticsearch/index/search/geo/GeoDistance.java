@@ -131,12 +131,12 @@ public enum GeoDistance {
             maxLon = MAX_LON;
         }
 
-        Point left = new Point(Math.toDegrees(minLat), Math.toDegrees(minLon));
-        Point right = new Point(Math.toDegrees(maxLat), Math.toDegrees(maxLon));
+        Point topLeft = new Point(Math.toDegrees(maxLat), Math.toDegrees(minLon));
+        Point bottomRight = new Point(Math.toDegrees(minLat), Math.toDegrees(maxLon));
         if (minLon > maxLon) {
-            return new Meridian180DistanceBoundingCheck(left, right);
+            return new Meridian180DistanceBoundingCheck(topLeft, bottomRight);
         }
-        return new SimpleDistanceBoundingCheck(left, right);
+        return new SimpleDistanceBoundingCheck(topLeft, bottomRight);
     }
 
     public static GeoDistance fromString(String s) {
@@ -158,6 +158,10 @@ public enum GeoDistance {
     public static interface DistanceBoundingCheck {
 
         boolean isWithin(double targetLatitude, double targetLongitude);
+
+        Point topLeft();
+
+        Point bottomRight();
     }
 
     public static AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
@@ -166,36 +170,60 @@ public enum GeoDistance {
         @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
             return true;
         }
+
+        @Override public Point topLeft() {
+            return null;
+        }
+
+        @Override public Point bottomRight() {
+            return null;
+        }
     }
 
     public static class Meridian180DistanceBoundingCheck implements DistanceBoundingCheck {
 
-        private final Point left;
-        private final Point right;
+        private final Point topLeft;
+        private final Point bottomRight;
 
-        public Meridian180DistanceBoundingCheck(Point left, Point right) {
-            this.left = left;
-            this.right = right;
+        public Meridian180DistanceBoundingCheck(Point topLeft, Point bottomRight) {
+            this.topLeft = topLeft;
+            this.bottomRight = bottomRight;
         }
 
         @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return (targetLatitude >= left.lat && targetLatitude <= right.lat) &&
-                    (targetLongitude >= left.lon || targetLongitude <= right.lon);
+            return (targetLatitude >= bottomRight.lat && targetLatitude <= topLeft.lat) &&
+                    (targetLongitude >= topLeft.lon || targetLongitude <= bottomRight.lon);
+        }
+
+        @Override public Point topLeft() {
+            return topLeft;
+        }
+
+        @Override public Point bottomRight() {
+            return bottomRight;
         }
     }
 
     public static class SimpleDistanceBoundingCheck implements DistanceBoundingCheck {
-        private final Point left;
-        private final Point right;
+        private final Point topLeft;
+        private final Point bottomRight;
 
-        public SimpleDistanceBoundingCheck(Point left, Point right) {
-            this.left = left;
-            this.right = right;
+        public SimpleDistanceBoundingCheck(Point topLeft, Point bottomRight) {
+            this.topLeft = topLeft;
+            this.bottomRight = bottomRight;
         }
 
         @Override public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return (targetLatitude >= left.lat && targetLatitude <= right.lat) &&
-                    (targetLongitude >= left.lon && targetLongitude <= right.lon);
+            return (targetLatitude >= bottomRight.lat && targetLatitude <= topLeft.lat) &&
+                    (targetLongitude >= topLeft.lon && targetLongitude <= bottomRight.lon);
+        }
+
+        @Override public Point topLeft() {
+            return topLeft;
+        }
+
+        @Override public Point bottomRight() {
+            return bottomRight;
         }
     }
 

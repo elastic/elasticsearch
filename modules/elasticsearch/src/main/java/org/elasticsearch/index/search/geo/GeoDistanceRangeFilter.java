@@ -23,11 +23,17 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.lucene.docset.AndDocSet;
+import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
 
@@ -44,14 +50,15 @@ public class GeoDistanceRangeFilter extends Filter {
 
     private final GeoDistance geoDistance;
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
-    private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
+    private GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
+    private final Filter boundingBoxFilter;
 
     private final String fieldName;
 
     private final FieldDataCache fieldDataCache;
 
-    public GeoDistanceRangeFilter(double lat, double lon, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, String fieldName, FieldDataCache fieldDataCache,
-                                  boolean optimizeBbox) {
+    public GeoDistanceRangeFilter(double lat, double lon, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, String fieldName, GeoPointFieldMapper mapper, FieldDataCache fieldDataCache,
+                                  String optimizeBbox) {
         this.lat = lat;
         this.lon = lon;
         this.geoDistance = geoDistance;
@@ -73,10 +80,23 @@ public class GeoDistanceRangeFilter extends Filter {
             inclusiveUpperPoint = NumericUtils.sortableLongToDouble(includeUpper ? i : (i - 1L));
         } else {
             inclusiveUpperPoint = Double.POSITIVE_INFINITY;
-            optimizeBbox = false;
+            optimizeBbox = null;
         }
 
-        this.distanceBoundingCheck = optimizeBbox ? GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.MILES) : GeoDistance.ALWAYS_INSTANCE;
+        if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
+            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.MILES);
+            if ("memory".equals(optimizeBbox)) {
+                boundingBoxFilter = null;
+            } else if ("indexed".equals(optimizeBbox)) {
+                boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
+                distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
+            } else {
+                throw new ElasticSearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
+            }
+        } else {
+            distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE;
+            boundingBoxFilter = null;
+        }
     }
 
     public double lat() {
@@ -96,8 +116,21 @@ public class GeoDistanceRangeFilter extends Filter {
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        DocSet boundingBoxDocSet = null;
+        if (boundingBoxFilter != null) {
+            DocIdSet docIdSet = boundingBoxFilter.getDocIdSet(reader);
+            if (docIdSet == null) {
+                return null;
+            }
+            boundingBoxDocSet = DocSets.convert(reader, docIdSet);
+        }
         final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        return new GeoDistanceRangeDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, inclusiveLowerPoint, inclusiveUpperPoint);
+        GeoDistanceRangeDocSet distDocSet = new GeoDistanceRangeDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, inclusiveLowerPoint, inclusiveUpperPoint);
+        if (boundingBoxDocSet == null) {
+            return distDocSet;
+        } else {
+            return new AndDocSet(ImmutableList.of(boundingBoxDocSet, distDocSet));
+        }
     }
 
     @Override

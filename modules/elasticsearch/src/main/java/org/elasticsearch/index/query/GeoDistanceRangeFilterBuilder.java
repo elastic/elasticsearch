@@ -49,6 +49,8 @@ public class GeoDistanceRangeFilterBuilder extends BaseFilterBuilder {
 
     private String filterName;
 
+    private String optimizeBbox;
+
     public GeoDistanceRangeFilterBuilder(String name) {
         this.name = name;
     }
@@ -123,6 +125,11 @@ public class GeoDistanceRangeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public GeoDistanceRangeFilterBuilder optimizeBbox(String optimizeBbox) {
+        this.optimizeBbox = optimizeBbox;
+        return this;
+    }
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -157,6 +164,9 @@ public class GeoDistanceRangeFilterBuilder extends BaseFilterBuilder {
         builder.field("include_upper", includeUpper);
         if (geoDistance != null) {
             builder.field("distance_type", geoDistance.name().toLowerCase());
+        }
+        if (optimizeBbox != null) {
+            builder.field("optimize_bbox", optimizeBbox);
         }
         if (filterName != null) {
             builder.field("_name", filterName);

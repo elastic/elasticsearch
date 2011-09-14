@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
@@ -147,8 +148,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                     .index(Field.Index.NOT_ANALYZED).omitNorms(true).omitTermFreqAndPositions(true).includeInAll(false).store(store).build(context);
 
 
-            NumberFieldMapper latMapper = null;
-            NumberFieldMapper lonMapper = null;
+            DoubleFieldMapper latMapper = null;
+            DoubleFieldMapper lonMapper = null;
 
             context.path().add(name);
             if (enableLatLon) {
@@ -158,8 +159,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                     latMapperBuilder.precisionStep(precisionStep);
                     lonMapperBuilder.precisionStep(precisionStep);
                 }
-                latMapper = (NumberFieldMapper) latMapperBuilder.includeInAll(false).store(store).build(context);
-                lonMapper = (NumberFieldMapper) lonMapperBuilder.includeInAll(false).store(store).build(context);
+                latMapper = (DoubleFieldMapper) latMapperBuilder.includeInAll(false).store(store).build(context);
+                lonMapper = (DoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(store).build(context);
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
@@ -226,13 +227,13 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     private final int precision;
 
-    private final NumberFieldMapper latMapper;
+    private final DoubleFieldMapper latMapper;
 
-    private final NumberFieldMapper lonMapper;
+    private final DoubleFieldMapper lonMapper;
 
     private final StringFieldMapper geohashMapper;
 
-    private final StringFieldMapper geoStringMapper;
+    private final GeoStringFieldMapper geoStringMapper;
 
     private final boolean validateLon;
     private final boolean validateLat;
@@ -241,7 +242,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     private final boolean normalizeLat;
 
     public GeoPointFieldMapper(String name, ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, Integer precisionStep, int precision,
-                               NumberFieldMapper latMapper, NumberFieldMapper lonMapper, StringFieldMapper geohashMapper, StringFieldMapper geoStringMapper,
+                               DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper, GeoStringFieldMapper geoStringMapper,
                                boolean validateLon, boolean validateLat,
                                boolean normalizeLon, boolean normalizeLat) {
         this.name = name;
@@ -256,6 +257,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         this.geoStringMapper = geoStringMapper;
         this.geohashMapper = geohashMapper;
 
+        this.geoStringMapper.geoMapper = this;
+
         this.validateLat = validateLat;
         this.validateLon = validateLon;
 
@@ -265,6 +268,18 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     @Override public String name() {
         return this.name;
+    }
+
+    public DoubleFieldMapper latMapper() {
+        return latMapper;
+    }
+
+    public DoubleFieldMapper lonMapper() {
+        return lonMapper;
+    }
+
+    public boolean isEnableLatLon() {
+        return enableLatLon;
     }
 
     @Override public void parse(ParseContext context) throws IOException {
@@ -536,12 +551,18 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             }
         }
 
+        GeoPointFieldMapper geoMapper;
+
         public GeoStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, boolean omitTermFreqAndPositions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
             super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue, indexAnalyzer, searchAnalyzer);
         }
 
         @Override public FieldDataType fieldDataType() {
             return GeoPointFieldDataType.TYPE;
+        }
+
+        public GeoPointFieldMapper geoMapper() {
+            return geoMapper;
         }
     }
 }

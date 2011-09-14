@@ -51,9 +51,9 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
-import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
+import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
@@ -1531,7 +1531,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.query(), instanceOf(DeletionAwareConstantScoreQuery.class));
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery.query();
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1546,7 +1546,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
         DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1560,7 +1560,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
         DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1574,7 +1574,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
         DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
@@ -1588,7 +1588,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DeletionAwareConstantScoreQuery.class));
         DeletionAwareConstantScoreQuery constantScoreQuery = (DeletionAwareConstantScoreQuery) parsedQuery;
-        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));

@@ -25,11 +25,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
+import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
@@ -64,6 +64,9 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         XContentParser.Token token;
         boolean normalizeLon = true;
         boolean normalizeLat = true;
+
+        String type = "memory";
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -151,6 +154,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 } else if ("normalize".equals(currentFieldName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
+                } else if ("type".equals(currentFieldName)) {
+                    type = parser.text();
                 }
             }
         }
@@ -170,13 +175,22 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if (mapper == null) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
-        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
+        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+
         fieldName = mapper.names().indexName();
 
+        Filter filter;
+        if ("indexed".equals(type)) {
+            filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
+        } else if ("memory".equals(type)) {
+            filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
+        } else {
+            throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
+        }
 
-        Filter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

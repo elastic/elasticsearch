@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
@@ -227,7 +228,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
             isIndexed = mapper.indexed();
             isTokenized = mapper.indexed();
-            omitTermFreqAndPositions = true;
+            indexOptions = FieldInfo.IndexOptions.DOCS_ONLY;
             omitNorms = mapper.omitNorms();
 
             if (value != null) {

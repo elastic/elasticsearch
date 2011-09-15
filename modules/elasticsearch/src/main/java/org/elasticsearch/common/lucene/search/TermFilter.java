@@ -24,7 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 
@@ -46,15 +46,15 @@ public class TermFilter extends Filter {
     }
 
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        OpenBitSet result = null;
+        FixedBitSet result = null;
         TermDocs td = reader.termDocs();
         try {
             td.seek(term);
             if (td.next()) {
-                result = new OpenBitSet(reader.maxDoc());
-                result.fastSet(td.doc());
+                result = new FixedBitSet(reader.maxDoc());
+                result.set(td.doc());
                 while (td.next()) {
-                    result.fastSet(td.doc());
+                    result.set(td.doc());
                 }
             }
         } finally {

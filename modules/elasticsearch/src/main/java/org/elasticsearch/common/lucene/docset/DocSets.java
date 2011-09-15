@@ -22,20 +22,112 @@ package org.elasticsearch.common.lucene.docset;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.OpenBitSet;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
  */
 public class DocSets {
+
+    public static FixedBitSet createFixedBitSet(DocIdSetIterator disi, int numBits) throws IOException {
+        FixedBitSet set = new FixedBitSet(numBits);
+        int doc;
+        while ((doc = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            set.set(doc);
+        }
+        return set;
+    }
+
+    public static void or(FixedBitSet into, DocIdSet other) throws IOException {
+        if (other == null) {
+            return;
+        }
+        if (other instanceof FixedBitSet) {
+            into.or((FixedBitSet) other);
+        } else if (other instanceof FixedBitDocSet) {
+            into.or(((FixedBitDocSet) other).set());
+        } else {
+            DocIdSetIterator disi = other.iterator();
+            if (disi != null) {
+                into.or(disi);
+            }
+        }
+    }
+
+    public static void and(FixedBitSet into, DocIdSet other) throws IOException {
+        if (other instanceof FixedBitDocSet) {
+            other = ((FixedBitDocSet) other).set();
+        }
+        if (other instanceof FixedBitSet) {
+            // copied from OpenBitSet#and
+            long[] intoBits = into.getBits();
+            long[] otherBits = ((FixedBitSet) other).getBits();
+            assert intoBits.length == otherBits.length;
+            // testing against zero can be more efficient
+            int pos = intoBits.length;
+            while (--pos >= 0) {
+                intoBits[pos] &= otherBits[pos];
+            }
+        } else {
+            if (other == null) {
+                into.clear(0, into.length() + 1);
+            } else {
+                // copied from OpenBitSetDISI#inPlaceAnd
+                DocIdSetIterator disi = other.iterator();
+                if (disi == null) {
+                    into.clear(0, into.length() + 1);
+                } else {
+                    int bitSetDoc = into.nextSetBit(0);
+                    int disiDoc;
+                    while (bitSetDoc != -1 && (disiDoc = disi.advance(bitSetDoc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                        into.clear(bitSetDoc, disiDoc);
+                        bitSetDoc = into.nextSetBit(disiDoc + 1);
+                    }
+                    if (bitSetDoc != -1) {
+                        into.clear(bitSetDoc, into.length() + 1);
+                    }
+                }
+            }
+        }
+    }
+
+    public static void andNot(FixedBitSet into, DocIdSet other) throws IOException {
+        if (other == null) {
+            return;
+        }
+        if (other instanceof FixedBitDocSet) {
+            other = ((FixedBitDocSet) other).set();
+        }
+        if (other instanceof FixedBitSet) {
+            // copied from OpenBitSet#andNot
+            long[] intoBits = into.getBits();
+            long[] otherBits = ((FixedBitSet) other).getBits();
+            assert intoBits.length == otherBits.length;
+            int idx = intoBits.length;
+            while (--idx >= 0) {
+                intoBits[idx] &= ~otherBits[idx];
+            }
+        } else {
+            // copied from OpenBitSetDISI#inPlaceNot
+            DocIdSetIterator disi = other.iterator();
+            if (disi != null) {
+                int doc;
+                while ((doc = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    into.clear(doc);
+                }
+            }
+        }
+    }
 
     public static DocSet convert(IndexReader reader, DocIdSet docIdSet) throws IOException {
         if (docIdSet == null) {
             return DocSet.EMPTY_DOC_SET;
         } else if (docIdSet instanceof DocSet) {
             return (DocSet) docIdSet;
+        } else if (docIdSet instanceof FixedBitSet) {
+            return new FixedBitDocSet((FixedBitSet) docIdSet);
         } else if (docIdSet instanceof OpenBitSet) {
             return new OpenBitDocSet((OpenBitSet) docIdSet);
         } else {
@@ -43,7 +135,7 @@ public class DocSets {
             // null is allowed to be returned by iterator(),
             // in this case we wrap with the empty set,
             // which is cacheable.
-            return (it == null) ? DocSet.EMPTY_DOC_SET : new OpenBitDocSet(it, reader.maxDoc());
+            return (it == null) ? DocSet.EMPTY_DOC_SET : new FixedBitDocSet(createFixedBitSet(it, reader.maxDoc()));
         }
     }
 
@@ -55,6 +147,8 @@ public class DocSets {
             return DocSet.EMPTY_DOC_SET;
         } else if (docIdSet.isCacheable() && (docIdSet instanceof DocSet)) {
             return (DocSet) docIdSet;
+        } else if (docIdSet instanceof FixedBitSet) {
+            return new FixedBitDocSet((FixedBitSet) docIdSet);
         } else if (docIdSet instanceof OpenBitSet) {
             return new OpenBitDocSet((OpenBitSet) docIdSet);
         } else {
@@ -62,7 +156,7 @@ public class DocSets {
             // null is allowed to be returned by iterator(),
             // in this case we wrap with the empty set,
             // which is cacheable.
-            return (it == null) ? DocSet.EMPTY_DOC_SET : new OpenBitDocSet(it, reader.maxDoc());
+            return (it == null) ? DocSet.EMPTY_DOC_SET : new FixedBitDocSet(createFixedBitSet(it, reader.maxDoc()));
         }
     }
 

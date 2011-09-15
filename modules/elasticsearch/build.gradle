@@ -38,11 +38,11 @@ dependencies {
 
     compile('net.java.dev.jna:jna:3.2.7') { transitive = false }
 
-    compile('org.apache.lucene:lucene-core:3.3.0') { transitive = false }
-    compile('org.apache.lucene:lucene-analyzers:3.3.0') { transitive = false }
-    compile('org.apache.lucene:lucene-queries:3.3.0') { transitive = false }
-    compile('org.apache.lucene:lucene-memory:3.3.0') { transitive = false }
-    compile('org.apache.lucene:lucene-highlighter:3.3.0') { transitive = false }
+    compile('org.apache.lucene:lucene-core:3.4.0') { transitive = false }
+    compile('org.apache.lucene:lucene-analyzers:3.4.0') { transitive = false }
+    compile('org.apache.lucene:lucene-queries:3.4.0') { transitive = false }
+    compile('org.apache.lucene:lucene-memory:3.4.0') { transitive = false }
+    compile('org.apache.lucene:lucene-highlighter:3.4.0') { transitive = false }
 }
 
 configurations {

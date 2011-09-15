@@ -142,7 +142,7 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                             // inactive?
                             if (!status.inactive) {
                                 // mark it as inactive only if enough time has passed and there are no ongoing merges going on...
-                                if ((time - status.time) > inactiveTime.millis() && ((InternalIndexShard) indexShard).mergeScheduler().stats().current() == 0) {
+                                if ((time - status.time) > inactiveTime.millis() && indexShard.mergeStats().current() == 0) {
                                     try {
                                         ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(Engine.INACTIVE_SHARD_INDEXING_BUFFER);
                                     } catch (EngineClosedException e) {

@@ -22,10 +22,10 @@ package org.elasticsearch.index.search.nested;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.common.lucene.docset.OpenBitDocSet;
+import org.elasticsearch.common.lucene.docset.FixedBitDocSet;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 
@@ -44,7 +44,7 @@ public class NestedChildrenCollector extends FacetCollector {
 
     private DocSet childDocs;
 
-    private OpenBitSet parentDocs;
+    private FixedBitSet parentDocs;
 
     private IndexReader currentReader;
 
@@ -71,7 +71,7 @@ public class NestedChildrenCollector extends FacetCollector {
         collector.setNextReader(reader, docBase);
         currentReader = reader;
         childDocs = DocSets.convert(reader, childFilter.getDocIdSet(reader));
-        parentDocs = ((OpenBitDocSet) parentFilter.getDocIdSet(reader)).set();
+        parentDocs = ((FixedBitDocSet) parentFilter.getDocIdSet(reader)).set();
     }
 
     @Override public boolean acceptsDocsOutOfOrder() {

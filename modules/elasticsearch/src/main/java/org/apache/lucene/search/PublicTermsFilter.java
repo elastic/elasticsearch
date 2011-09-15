@@ -22,7 +22,7 @@ package org.apache.lucene.search;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -73,18 +73,18 @@ public class PublicTermsFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        OpenBitSet result = null;
+        FixedBitSet result = null;
         TermDocs td = reader.termDocs();
         try {
             for (Term term : terms) {
                 td.seek(term);
                 if (td.next()) {
                     if (result == null) {
-                        result = new OpenBitSet(reader.maxDoc());
+                        result = new FixedBitSet(reader.maxDoc());
                     }
-                    result.fastSet(td.doc());
+                    result.set(td.doc());
                     while (td.next()) {
-                        result.fastSet(td.doc());
+                        result.set(td.doc());
                     }
                 }
             }

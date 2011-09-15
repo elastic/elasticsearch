@@ -49,7 +49,7 @@ import java.util.Map;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_31;
+    public static final Version VERSION = Version.LUCENE_34;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -61,6 +61,15 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("3.4".equals(version)) {
+            return Version.LUCENE_34;
+        }
+        if ("3.3".equals(version)) {
+            return Version.LUCENE_33;
+        }
+        if ("3.2".equals(version)) {
+            return Version.LUCENE_32;
         }
         if ("3.1".equals(version)) {
             return Version.LUCENE_31;

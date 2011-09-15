@@ -24,7 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
@@ -46,9 +46,9 @@ public class NonNestedDocsFilter extends Filter {
         if (docSet == null || docSet == DocIdSet.EMPTY_DOCIDSET) {
             // will almost never happen, and we need an OpenBitSet for the parent filter in
             // BlockJoinQuery, we cache it anyhow...
-            docSet = new OpenBitSet(reader.maxDoc());
+            docSet = new FixedBitSet(reader.maxDoc());
         }
-        ((OpenBitSet) docSet).flip(0, reader.maxDoc());
+        ((FixedBitSet) docSet).flip(0, reader.maxDoc());
         return docSet;
     }
 

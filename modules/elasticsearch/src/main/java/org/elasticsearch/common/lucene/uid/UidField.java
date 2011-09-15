@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.AbstractField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Payload;
 import org.apache.lucene.index.Term;
@@ -135,8 +136,12 @@ public class UidField extends AbstractField {
         super(name, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO);
         this.uid = uid;
         this.version = version;
-        this.omitTermFreqAndPositions = false;
+        this.indexOptions = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
         this.tokenStream = new UidPayloadTokenStream(this);
+    }
+
+    @Override public void setIndexOptions(FieldInfo.IndexOptions indexOptions) {
+        // never allow to set this, since we want payload!
     }
 
     @Override public void setOmitTermFreqAndPositions(boolean omitTermFreqAndPositions) {

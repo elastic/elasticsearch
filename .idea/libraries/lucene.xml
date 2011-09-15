@@ -1,19 +1,19 @@
 <component name="libraryTable">
   <library name="lucene">
     <CLASSES>
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-highlighter/jars/lucene-highlighter-3.3.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-memory/jars/lucene-memory-3.3.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-core/jars/lucene-core-3.3.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-analyzers/jars/lucene-analyzers-3.3.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-queries/jars/lucene-queries-3.3.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-highlighter/jars/lucene-highlighter-3.4.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-memory/jars/lucene-memory-3.4.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-core/jars/lucene-core-3.4.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-analyzers/jars/lucene-analyzers-3.4.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-queries/jars/lucene-queries-3.4.0.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES>
-      <root url="file://$USER_HOME$/opt/lucene/3.3.0.src/contrib/memory/src/java" />
-      <root url="file://$USER_HOME$/opt/lucene/3.3.0.src/src/java" />
-      <root url="file://$USER_HOME$/opt/lucene/3.3.0.src/contrib/highlighter/src/java" />
-      <root url="file://$USER_HOME$/opt/lucene/3.3.0.src/contrib/queries/src/java" />
-      <root url="file://$USER_HOME$/opt/lucene/3.3.0.src/contrib/analyzers/common/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.4.0.src/contrib/memory/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.4.0.src/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.4.0.src/contrib/highlighter/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.4.0.src/contrib/queries/src/java" />
+      <root url="file://$USER_HOME$/opt/lucene/3.4.0.src/contrib/analyzers/common/src/java" />
     </SOURCES>
   </library>
 </component>

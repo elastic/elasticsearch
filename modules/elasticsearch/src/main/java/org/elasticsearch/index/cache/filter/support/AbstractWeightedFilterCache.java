@@ -23,15 +23,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.concurrentlinkedhashmap.EvictionListener;
 import org.elasticsearch.common.concurrentlinkedhashmap.Weigher;
-import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -48,13 +44,6 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
     final ConcurrentMap<Object, Boolean> seenReaders = ConcurrentCollections.newConcurrentMap();
     final AtomicInteger seenReadersCount = new AtomicInteger();
 
-    final boolean labEnabled;
-    final ByteSizeValue labMaxAlloc;
-    final ByteSizeValue labChunkSize;
-
-    final int labMaxAllocBytes;
-    final int labChunkSizeBytes;
-
     protected final AtomicLong evictions = new AtomicLong();
 
     final AtomicLong totalSizeInBytes = new AtomicLong();
@@ -62,20 +51,6 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
 
     protected AbstractWeightedFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-
-        // The LAB is stored per reader, so whole chunks will be cleared once reader is discarded.
-        // This means that with filter entry specific based eviction, like access time
-        // we might get into cases where the LAB is held by a puny filter and other filters have been released.
-        // This usually will not be that bad, compared to the GC benefit of using a LAB, but, that is why
-        // the soft filter cache is recommended.
-        this.labEnabled = componentSettings.getAsBoolean("lab", false);
-        // These values should not be too high, basically we want to cached the small readers and use the LAB for
-        // them, 1M docs on OpenBitSet is around 110kb.
-        this.labMaxAlloc = componentSettings.getAsBytesSize("lab.max_alloc", new ByteSizeValue(128, ByteSizeUnit.KB));
-        this.labChunkSize = componentSettings.getAsBytesSize("lab.chunk_size", new ByteSizeValue(1, ByteSizeUnit.MB));
-
-        this.labMaxAllocBytes = (int) (labMaxAlloc.bytes() / RamUsage.NUM_BYTES_LONG);
-        this.labChunkSizeBytes = (int) (labChunkSize.bytes() / RamUsage.NUM_BYTES_LONG);
     }
 
     protected abstract ConcurrentMap<FilterCacheKey, FilterCacheValue<DocSet>> cache();
@@ -180,13 +155,9 @@ public abstract class AbstractWeightedFilterCache extends AbstractIndexComponent
                     }
                 }
 
-                LongsLAB longsLAB = null;
-                if (cache.labEnabled) {
-                    longsLAB = new LongsLAB(cache.labChunkSizeBytes, cache.labMaxAllocBytes);
-                }
                 DocIdSet docIdSet = filter.getDocIdSet(reader);
-                DocSet docSet = FilterCacheValue.cacheable(reader, longsLAB, docIdSet);
-                cacheValue = new FilterCacheValue<DocSet>(docSet, longsLAB);
+                DocSet docSet = FilterCacheValue.cacheable(reader, docIdSet);
+                cacheValue = new FilterCacheValue<DocSet>(docSet);
                 FilterCacheValue<DocSet> previous = innerCache.putIfAbsent(cacheKey, cacheValue);
                 if (previous == null) {
                     cache.totalSizeInBytes.addAndGet(cacheValue.value().sizeInBytes());

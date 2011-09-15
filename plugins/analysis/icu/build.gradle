@@ -35,8 +35,8 @@ dependencies {
 
     compile('org.apache.lucene:lucene-icu4j:3.2.0') { transitive = false }
     distLib('org.apache.lucene:lucene-icu4j:3.2.0') { transitive = false }
-    compile('org.apache.lucene:lucene-icu:3.3.0') { transitive = false }
-    distLib('org.apache.lucene:lucene-icu:3.3.0') { transitive = false }
+    compile('org.apache.lucene:lucene-icu:3.4.0') { transitive = false }
+    distLib('org.apache.lucene:lucene-icu:3.4.0') { transitive = false }
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

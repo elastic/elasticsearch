@@ -22,7 +22,7 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.BytesWrap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -43,14 +43,14 @@ public class ChildCollector extends Collector {
 
     private final Tuple<IndexReader, IdReaderTypeCache>[] readers;
 
-    private final Map<Object, OpenBitSet> parentDocs;
+    private final Map<Object, FixedBitSet> parentDocs;
 
     private IdReaderTypeCache typeCache;
 
     public ChildCollector(String parentType, SearchContext context) {
         this.parentType = parentType;
         this.context = context;
-        this.parentDocs = new HashMap<Object, OpenBitSet>();
+        this.parentDocs = new HashMap<Object, FixedBitSet>();
 
         // create a specific type map lookup for faster lookup operations per doc
         this.readers = new Tuple[context.searcher().subReaders().length];
@@ -60,7 +60,7 @@ public class ChildCollector extends Collector {
         }
     }
 
-    public Map<Object, OpenBitSet> parentDocs() {
+    public Map<Object, FixedBitSet> parentDocs() {
         return this.parentDocs;
     }
 
@@ -81,12 +81,12 @@ public class ChildCollector extends Collector {
             }
             int parentDocId = idReaderTypeCache.docById(parentId);
             if (parentDocId != -1 && !indexReader.isDeleted(parentDocId)) {
-                OpenBitSet docIdSet = parentDocs().get(indexReader.getCoreCacheKey());
+                FixedBitSet docIdSet = parentDocs().get(indexReader.getCoreCacheKey());
                 if (docIdSet == null) {
-                    docIdSet = new OpenBitSet(indexReader.maxDoc());
+                    docIdSet = new FixedBitSet(indexReader.maxDoc());
                     parentDocs.put(indexReader.getCoreCacheKey(), docIdSet);
                 }
-                docIdSet.fastSet(parentDocId);
+                docIdSet.set(parentDocId);
                 return;
             }
         }

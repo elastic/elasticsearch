@@ -91,7 +91,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
-            context.sourceToParse().parent(parentId);
             return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), store, index);
         }
         // otherwise, we are running it post processing of the xcontent

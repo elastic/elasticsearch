@@ -834,7 +834,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
                             indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
-                            translog.makeTransientCurrent();
+                            if (flush.force()) {
+                                // if we force, we might not have committed, we need to check that its the same id
+                                Map<String, String> commitUserData = IndexReader.getCommitUserData(store.directory());
+                                long committedTranslogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
+                                if (committedTranslogId != translogId) {
+                                    // we did not commit anything, revert to the old translog
+                                    translog.revertTransient();
+                                } else {
+                                    translog.makeTransientCurrent();
+                                }
+                            } else {
+                                translog.makeTransientCurrent();
+                            }
                         } catch (Exception e) {
                             translog.revertTransient();
                             throw new FlushFailedEngineException(shardId, e);

@@ -22,36 +22,25 @@ package org.elasticsearch.index.cache.filter.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.OpenBitSet;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lab.LongsLAB;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.common.lucene.docset.OpenBitDocSet;
-import org.elasticsearch.common.lucene.docset.SlicedOpenBitSet;
 
 import java.io.IOException;
 
 public class FilterCacheValue<T> {
 
     private final T value;
-    private final LongsLAB longsLAB;
 
-    public FilterCacheValue(T value, LongsLAB longsLAB) {
+    public FilterCacheValue(T value) {
         this.value = value;
-        this.longsLAB = longsLAB;
     }
 
     public T value() {
         return value;
     }
 
-    public LongsLAB longsLAB() {
-        return longsLAB;
-    }
 
-
-    public static DocSet cacheable(IndexReader reader, @Nullable LongsLAB longsLAB, DocIdSet set) throws IOException {
+    public static DocSet cacheable(IndexReader reader, DocIdSet set) throws IOException {
         if (set == null) {
             return DocSet.EMPTY_DOC_SET;
         }
@@ -67,29 +56,6 @@ public class FilterCacheValue<T> {
         if (doc == DocIdSetIterator.NO_MORE_DOCS) {
             return DocSet.EMPTY_DOC_SET;
         }
-
-        // we have a LAB, check if can be used...
-        if (longsLAB == null) {
-            return DocSets.cacheable(reader, set);
-        }
-
-        int numOfWords = OpenBitSet.bits2words(reader.maxDoc());
-        LongsLAB.Allocation allocation = longsLAB.allocateLongs(numOfWords);
-        if (allocation == null) {
-            return DocSets.cacheable(reader, set);
-        }
-        // we have an allocation, use it to create SlicedOpenBitSet
-        if (set instanceof OpenBitSet) {
-            return new SlicedOpenBitSet(allocation.getData(), allocation.getOffset(), (OpenBitSet) set);
-        } else if (set instanceof OpenBitDocSet) {
-            return new SlicedOpenBitSet(allocation.getData(), allocation.getOffset(), ((OpenBitDocSet) set).set());
-        } else {
-            SlicedOpenBitSet slicedSet = new SlicedOpenBitSet(allocation.getData(), numOfWords, allocation.getOffset());
-            slicedSet.fastSet(doc); // we already have an open iterator, so use it, and don't forget to set the initial one
-            while ((doc = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                slicedSet.fastSet(doc);
-            }
-            return slicedSet;
-        }
+        return DocSets.cacheable(reader, set);
     }
 }

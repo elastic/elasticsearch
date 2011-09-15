@@ -24,7 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bloom.BloomFilter;
@@ -58,7 +58,7 @@ public class UidFilter extends Filter {
     // - We can use sorted int array DocIdSet to reserve memory compared to OpenBitSet in some cases
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         BloomFilter filter = bloomCache.filter(reader, UidFieldMapper.NAME, true);
-        OpenBitSet set = null;
+        FixedBitSet set = null;
         TermDocs td = null;
         try {
             for (Term uid : uids) {
@@ -72,9 +72,9 @@ public class UidFilter extends Filter {
                 td.seek(uid);
                 while (td.next()) {
                     if (set == null) {
-                        set = new OpenBitSet(reader.maxDoc());
+                        set = new FixedBitSet(reader.maxDoc());
                     }
-                    set.fastSet(td.doc());
+                    set.set(td.doc());
                 }
             }
         } finally {

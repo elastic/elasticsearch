@@ -24,7 +24,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -46,7 +46,7 @@ public class HasChildFilter extends Filter implements ScopePhase.CollectorPhase 
 
     private final SearchContext searchContext;
 
-    private Map<Object, OpenBitSet> parentDocs;
+    private Map<Object, FixedBitSet> parentDocs;
 
     public HasChildFilter(Query query, String scope, String childType, String parentType, SearchContext searchContext) {
         this.query = query;

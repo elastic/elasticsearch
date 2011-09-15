@@ -20,11 +20,14 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterClause;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.OpenBitSetDISI;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.OpenBitDocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,22 +73,15 @@ public class XBooleanFilter extends Filter {
      */
     @Override
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        OpenBitSetDISI res = null;
+        FixedBitSet res = null;
 
         if (shouldFilters != null) {
             for (int i = 0; i < shouldFilters.size(); i++) {
                 if (res == null) {
-                    res = new OpenBitSetDISI(getDISI(shouldFilters, i, reader), reader.maxDoc());
+                    res = DocSets.createFixedBitSet(getDISI(shouldFilters, i, reader), reader.maxDoc());
                 } else {
                     DocIdSet dis = shouldFilters.get(i).getDocIdSet(reader);
-                    if (dis instanceof OpenBitSet) {
-                        // optimized case for OpenBitSets
-                        res.or((OpenBitSet) dis);
-                    } else if (dis instanceof OpenBitDocSet) {
-                        res.or(((OpenBitDocSet) dis).set());
-                    } else {
-                        res.inPlaceOr(getDISI(shouldFilters, i, reader));
-                    }
+                    DocSets.or(res, dis);
                 }
             }
         }
@@ -93,18 +89,11 @@ public class XBooleanFilter extends Filter {
         if (notFilters != null) {
             for (int i = 0; i < notFilters.size(); i++) {
                 if (res == null) {
-                    res = new OpenBitSetDISI(getDISI(notFilters, i, reader), reader.maxDoc());
+                    res = DocSets.createFixedBitSet(getDISI(notFilters, i, reader), reader.maxDoc());
                     res.flip(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
                 } else {
                     DocIdSet dis = notFilters.get(i).getDocIdSet(reader);
-                    if (dis instanceof OpenBitSet) {
-                        // optimized case for OpenBitSets
-                        res.andNot((OpenBitSet) dis);
-                    } else if (dis instanceof OpenBitDocSet) {
-                        res.andNot(((OpenBitDocSet) dis).set());
-                    } else {
-                        res.inPlaceNot(getDISI(notFilters, i, reader));
-                    }
+                    DocSets.andNot(res, dis);
                 }
             }
         }
@@ -112,25 +101,15 @@ public class XBooleanFilter extends Filter {
         if (mustFilters != null) {
             for (int i = 0; i < mustFilters.size(); i++) {
                 if (res == null) {
-                    res = new OpenBitSetDISI(getDISI(mustFilters, i, reader), reader.maxDoc());
+                    res = DocSets.createFixedBitSet(getDISI(mustFilters, i, reader), reader.maxDoc());
                 } else {
                     DocIdSet dis = mustFilters.get(i).getDocIdSet(reader);
-                    if (dis instanceof OpenBitSet) {
-                        // optimized case for OpenBitSets
-                        res.and((OpenBitSet) dis);
-                    } else if (dis instanceof OpenBitDocSet) {
-                        res.and(((OpenBitDocSet) dis).set());
-                    } else {
-                        res.inPlaceAnd(getDISI(mustFilters, i, reader));
-                    }
+                    DocSets.and(res, dis);
                 }
             }
         }
 
-        if (res != null)
-            return new OpenBitDocSet(res);
-
-        return DocSet.EMPTY_DOC_SET;
+        return res;
     }
 
     /**

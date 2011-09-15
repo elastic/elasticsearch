@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FuzzyQuery;
@@ -206,9 +207,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     protected float boost;
 
-    protected boolean omitNorms;
+    protected final boolean omitNorms;
 
-    protected boolean omitTermFreqAndPositions;
+    protected final boolean omitTermFreqAndPositions;
+    protected final FieldInfo.IndexOptions indexOptions;
 
     protected final NamedAnalyzer indexAnalyzer;
 
@@ -225,6 +227,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         this.boost = boost;
         this.omitNorms = omitNorms;
         this.omitTermFreqAndPositions = omitTermFreqAndPositions;
+        this.indexOptions = omitTermFreqAndPositions ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
         if (indexAnalyzer == null && !index.isAnalyzed()) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
@@ -298,7 +301,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 return;
             }
             field.setOmitNorms(omitNorms);
-            field.setOmitTermFreqAndPositions(omitTermFreqAndPositions);
+            field.setIndexOptions(indexOptions);
             if (!customBoost()) {
                 field.setBoost(boost);
             }
@@ -414,8 +417,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             this.boost = fieldMergeWith.boost;
-            this.omitNorms = fieldMergeWith.omitNorms;
-            this.omitTermFreqAndPositions = fieldMergeWith.omitTermFreqAndPositions;
         }
     }
 

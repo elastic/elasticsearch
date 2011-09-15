@@ -22,8 +22,9 @@ package org.elasticsearch.index.search.geo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -56,13 +57,13 @@ public class IndexedGeoBoundingBoxFilter {
             latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat, topLeft.lat, true, true);
         }
 
-        @Override public OpenBitSet getDocIdSet(IndexReader reader) throws IOException {
-            OpenBitSet main;
+        @Override public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+            FixedBitSet main;
             DocIdSet set = lonFilter1.getDocIdSet(reader);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 main = null;
             } else {
-                main = (OpenBitSet) set;
+                main = (FixedBitSet) set;
             }
 
             set = lonFilter2.getDocIdSet(reader);
@@ -74,9 +75,9 @@ public class IndexedGeoBoundingBoxFilter {
                 }
             } else {
                 if (main == null) {
-                    main = (OpenBitSet) set;
+                    main = (FixedBitSet) set;
                 } else {
-                    main.or((OpenBitSet) set);
+                    main.or((FixedBitSet) set);
                 }
             }
 
@@ -84,7 +85,7 @@ public class IndexedGeoBoundingBoxFilter {
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
-            main.and((OpenBitSet) set);
+            DocSets.and(main, set);
             return main;
         }
 
@@ -121,18 +122,18 @@ public class IndexedGeoBoundingBoxFilter {
             latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat, topLeft.lat, true, true);
         }
 
-        @Override public OpenBitSet getDocIdSet(IndexReader reader) throws IOException {
-            OpenBitSet main;
+        @Override public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+            FixedBitSet main;
             DocIdSet set = lonFilter.getDocIdSet(reader);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
-            main = (OpenBitSet) set;
+            main = (FixedBitSet) set;
             set = latFilter.getDocIdSet(reader);
             if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
-            main.and((OpenBitSet) set);
+            DocSets.and(main, set);
             return main;
         }
 

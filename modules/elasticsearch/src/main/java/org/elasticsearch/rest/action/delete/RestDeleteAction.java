@@ -29,7 +29,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -59,6 +66,7 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.listenerThreaded(false);
         // we don't spawn, then fork if local
         deleteRequest.operationThreaded(true);
+        deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
 
         String replicationType = request.param("replication");
         if (replicationType != null) {

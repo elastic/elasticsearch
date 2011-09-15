@@ -141,7 +141,8 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                             }
                             // inactive?
                             if (!status.inactive) {
-                                if ((time - status.time) > inactiveTime.millis()) {
+                                // mark it as inactive only if enough time has passed and there are no ongoing merges going on...
+                                if ((time - status.time) > inactiveTime.millis() && ((InternalIndexShard) indexShard).mergeScheduler().stats().current() == 0) {
                                     try {
                                         ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(Engine.INACTIVE_SHARD_INDEXING_BUFFER);
                                     } catch (EngineClosedException e) {
@@ -154,14 +155,14 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                                     // inactive for this amount of time, mark it
                                     status.inactive = true;
                                     activeInactiveStatusChanges = true;
-                                    logger.debug("marking shard [{}][{}] as inactive (inactive_time[{}]), setting size to [{}]", indexShard.shardId().index().name(), indexShard.shardId().id(), inactiveTime, Engine.INACTIVE_SHARD_INDEXING_BUFFER);
+                                    logger.debug("marking shard [{}][{}] as inactive (inactive_time[{}]) indexing wise, setting size to [{}]", indexShard.shardId().index().name(), indexShard.shardId().id(), inactiveTime, Engine.INACTIVE_SHARD_INDEXING_BUFFER);
                                 }
                             }
                         } else {
                             if (status.inactive) {
                                 status.inactive = false;
                                 activeInactiveStatusChanges = true;
-                                logger.debug("marking shard [{}][{}] as active", indexShard.shardId().index().name(), indexShard.shardId().id());
+                                logger.debug("marking shard [{}][{}] as active indexing wise", indexShard.shardId().index().name(), indexShard.shardId().id());
                             }
                             status.time = -1;
                         }
@@ -170,7 +171,7 @@ public class IndexingMemoryBufferController extends AbstractLifecycleComponent<I
                     }
                 }
                 if (activeInactiveStatusChanges) {
-                    calcAndSetShardIndexingBuffer("shards became active/inactive");
+                    calcAndSetShardIndexingBuffer("shards became active/inactive (indexing wise)");
                 }
             }
         }

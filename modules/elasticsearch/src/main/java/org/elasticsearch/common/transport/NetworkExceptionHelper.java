@@ -52,6 +52,9 @@ public class NetworkExceptionHelper {
             if (e.getMessage().contains("Broken pipe")) {
                 return true;
             }
+            if (e.getMessage().contains("Connection timed out")) {
+                return true;
+            }
         }
         return false;
     }

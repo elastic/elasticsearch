@@ -655,11 +655,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
 
                 if (currentVersion == -1) {
-                    // if the doc does not exists, just update with doc 0
-                    delete.version(0).notFound(true);
+                    // doc does not exists and no prior deletes
+                    delete.version(updatedVersion).notFound(true);
+                    Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
                 } else if (versionValue != null && versionValue.delete()) {
-                    // if its a delete on delete and we have the current delete version, return it
-                    delete.version(versionValue.version()).notFound(true);
+                    // a "delete on delete", in this case, we still increment the version, log it, and return that version
+                    delete.version(updatedVersion).notFound(true);
+                    Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                    versionMap.put(delete.uid().text(), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
                 } else {
                     delete.version(updatedVersion);
                     writer.deleteDocuments(delete.uid());

@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.versioning;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -85,6 +86,20 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(14l));
         }
+
+        DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(deleteResponse.notFound(), equalTo(false));
+        assertThat(deleteResponse.version(), equalTo(17l));
+
+        try {
+            client2.prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(deleteResponse.notFound(), equalTo(true));
+        assertThat(deleteResponse.version(), equalTo(18l));
     }
 
     @Test public void testSimpleVersioning() throws Exception {
@@ -154,6 +169,20 @@ public class SimpleVersioningTests extends AbstractNodesTests {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(searchResponse.hits().getAt(0).version(), equalTo(-1l));
         }
+
+        DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
+        assertThat(deleteResponse.notFound(), equalTo(false));
+        assertThat(deleteResponse.version(), equalTo(3l));
+
+        try {
+            client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
+        assertThat(deleteResponse.notFound(), equalTo(true));
+        assertThat(deleteResponse.version(), equalTo(4l));
     }
 
     @Test public void testSimpleVersioningWithFlush() throws Exception {

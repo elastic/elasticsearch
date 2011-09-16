@@ -160,6 +160,42 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         return indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
     }
 
+    protected boolean retryPrimaryException(Throwable e) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        return cause instanceof IndexShardMissingException ||
+                cause instanceof IllegalIndexShardStateException ||
+                cause instanceof IndexMissingException;
+    }
+
+    /**
+     * Should an exception be ignored when the operation is performed on the replica.
+     */
+    boolean ignoreReplicaException(Throwable e) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IllegalIndexShardStateException) {
+            return true;
+        }
+        if (cause instanceof IndexMissingException) {
+            return true;
+        }
+        if (cause instanceof IndexShardMissingException) {
+            return true;
+        }
+        if (cause instanceof ConnectTransportException) {
+            return true;
+        }
+        // on version conflict or document missing, it means
+        // that a news change has crept into the replica, and its fine
+        if (cause instanceof VersionConflictEngineException) {
+            return true;
+        }
+        // same here
+        if (cause instanceof DocumentAlreadyExistsEngineException) {
+            return true;
+        }
+        return false;
+    }
+
     class OperationTransportHandler extends BaseTransportRequestHandler<Request> {
 
         @Override public Request newInstance() {
@@ -429,7 +465,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 performReplicas(response);
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here
-                if (e instanceof IndexShardMissingException || e instanceof IllegalIndexShardStateException || e instanceof IndexMissingException) {
+                if (retryPrimaryException(e)) {
                     retry(fromDiscoveryListener, shard.shardId());
                     return;
                 }
@@ -571,35 +607,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 }
             }
-        }
-
-        /**
-         * Should an exception be ignored when the operation is performed on the replica.
-         */
-        boolean ignoreReplicaException(Throwable e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof IllegalIndexShardStateException) {
-                return true;
-            }
-            if (cause instanceof IndexMissingException) {
-                return true;
-            }
-            if (cause instanceof IndexShardMissingException) {
-                return true;
-            }
-            if (cause instanceof ConnectTransportException) {
-                return true;
-            }
-            // on version conflict or document missing, it means
-            // that a news change has crept into the replica, and its fine
-            if (cause instanceof VersionConflictEngineException) {
-                return true;
-            }
-            // same here
-            if (cause instanceof DocumentAlreadyExistsEngineException) {
-                return true;
-            }
-            return false;
         }
     }
 

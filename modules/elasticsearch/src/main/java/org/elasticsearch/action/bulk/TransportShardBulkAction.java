@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
@@ -157,6 +158,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
                             new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version));
                 } catch (Exception e) {
+                    // rethrow the failure if we are going to retry on primary and let parent failure to handle it
+                    if (retryPrimaryException(e)) {
+                        throw (ElasticSearchException) e;
+                    }
                     logger.debug("[{}][{}] failed to bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
                             new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
@@ -173,6 +178,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     responses[i] = new BulkItemResponse(item.id(), "delete",
                             new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound()));
                 } catch (Exception e) {
+                    // rethrow the failure if we are going to retry on primary and let parent failure to handle it
+                    if (retryPrimaryException(e)) {
+                        throw (ElasticSearchException) e;
+                    }
                     logger.debug("[{}][{}] failed to bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                     responses[i] = new BulkItemResponse(item.id(), "delete",
                             new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(e)));

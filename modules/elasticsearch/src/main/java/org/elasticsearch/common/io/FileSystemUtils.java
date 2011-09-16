@@ -124,6 +124,10 @@ public class FileSystemUtils {
         return deleteRecursively(root, true);
     }
 
+    private static boolean innerDeleteRecursively(File root) {
+        return deleteRecursively(root, true);
+    }
+
     /**
      * Delete the supplied {@link java.io.File} - for directories,
      * recursively delete any nested directories or files as well.
@@ -139,7 +143,7 @@ public class FileSystemUtils {
                 File[] children = root.listFiles();
                 if (children != null) {
                     for (File aChildren : children) {
-                        deleteRecursively(aChildren);
+                        innerDeleteRecursively(aChildren);
                     }
                 }
             }

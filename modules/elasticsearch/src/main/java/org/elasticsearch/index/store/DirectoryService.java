@@ -19,26 +19,17 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.store.Directory;
+
+import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
  */
-public class StoreModule extends AbstractModule {
+public interface DirectoryService {
 
-    private final Settings settings;
+    Directory build() throws IOException;
 
-    private final IndexStore indexStore;
+    void renameFile(Directory dir, String from, String to) throws IOException;
 
-    public StoreModule(Settings settings, IndexStore indexStore) {
-        this.indexStore = indexStore;
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        bind(DirectoryService.class).to(indexStore.shardDirectory()).asEagerSingleton();
-        bind(StoreManagement.class).asEagerSingleton();
-        bind(Store.class).asEagerSingleton();
-    }
+    void fullDelete(Directory dir) throws IOException;
 }

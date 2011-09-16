@@ -19,24 +19,29 @@
 
 package org.elasticsearch.index.store.fs;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
  */
-public class SimpleFsIndexStore extends FsIndexStore {
+public class MmapFsDirectoryService extends FsDirectoryService {
 
-    @Inject public SimpleFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
-        super(index, indexSettings, indexService, nodeEnv);
+    @Inject public MmapFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
+        super(shardId, indexSettings, indexStore);
     }
 
-    @Override public Class<? extends DirectoryService> shardDirectory() {
-        return SimpleFsDirectoryService.class;
+    @Override public Directory build() throws IOException {
+        File location = indexStore.shardIndexLocation(shardId);
+        FileSystemUtils.mkdirs(location);
+        return new MMapDirectory(location, buildLockFactory());
     }
 }

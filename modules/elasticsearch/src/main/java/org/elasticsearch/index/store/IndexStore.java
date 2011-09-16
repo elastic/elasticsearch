@@ -40,7 +40,7 @@ public interface IndexStore extends IndexComponent {
     /**
      * The shard store class that should be used for each shard.
      */
-    Class<? extends Store> shardStoreClass();
+    Class<? extends DirectoryService> shardDirectory();
 
     /**
      * Returns the backing store total space. Return <tt>-1</tt> if not available.

@@ -39,7 +39,7 @@ import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.ram.RamStore;
+import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.testng.annotations.AfterMethod;
@@ -96,11 +96,11 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Store createStore() throws IOException {
-        return new RamStore(shardId, EMPTY_SETTINGS, null);
+        return new Store(shardId, EMPTY_SETTINGS, null, new RamDirectoryService(shardId, EMPTY_SETTINGS));
     }
 
     protected Store createStoreReplica() throws IOException {
-        return new RamStore(shardId, EMPTY_SETTINGS, null);
+        return new Store(shardId, EMPTY_SETTINGS, null, new RamDirectoryService(shardId, EMPTY_SETTINGS));
     }
 
     protected Translog createTranslog() {

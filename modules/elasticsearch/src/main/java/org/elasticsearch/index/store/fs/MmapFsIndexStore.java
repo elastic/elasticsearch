@@ -25,7 +25,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.DirectoryService;
 
 /**
  * @author kimchy (shay.banon)
@@ -36,7 +36,7 @@ public class MmapFsIndexStore extends FsIndexStore {
         super(index, indexSettings, indexService, nodeEnv);
     }
 
-    @Override public Class<? extends Store> shardStoreClass() {
-        return MmapFsStore.class;
+    @Override public Class<? extends DirectoryService> shardDirectory() {
+        return MmapFsDirectoryService.class;
     }
 }

@@ -25,42 +25,30 @@ import org.apache.lucene.store.RAMFile;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.support.AbstractStore;
+import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
  */
-public class RamStore extends AbstractStore {
+public class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
-    private final CustomRAMDirectory ramDirectory;
-
-    private final Directory directory;
-
-    @Inject public RamStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) throws IOException {
-        super(shardId, indexSettings, indexStore);
-        this.ramDirectory = new CustomRAMDirectory();
-        this.directory = wrapDirectory(ramDirectory);
-        logger.debug("Using [ram] Store");
+    @Inject public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
+        super(shardId, indexSettings);
     }
 
-    @Override public Directory directory() {
-        return directory;
+    @Override public Directory build() {
+        return new CustomRAMDirectory();
     }
 
-    /**
-     * Its better to not use the compound format when using the Ram store.
-     */
-    @Override public boolean suggestUseCompoundFile() {
-        return false;
+    @Override public void renameFile(Directory dir, String from, String to) throws IOException {
+        ((CustomRAMDirectory) dir).renameTo(from, to);
     }
 
-    @Override protected void doRenameFile(String from, String to) throws IOException {
-        ramDirectory.renameTo(from, to);
+    @Override public void fullDelete(Directory dir) {
     }
 
     static class CustomRAMDirectory extends RAMDirectory {

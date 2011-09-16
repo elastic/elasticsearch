@@ -27,43 +27,34 @@ import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
  */
-public class ByteBufferStore extends AbstractStore {
+public class ByteBufferDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
-    private final CustomByteBufferDirectory bbDirectory;
+    private final ByteBufferCache byteBufferCache;
 
-    private final Directory directory;
-
-    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) throws IOException {
-        super(shardId, indexSettings, indexStore);
-
-        this.bbDirectory = new CustomByteBufferDirectory(byteBufferCache);
-        this.directory = wrapDirectory(bbDirectory);
-        logger.debug("Using [byte_buffer] store");
+    @Inject public ByteBufferDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) {
+        super(shardId, indexSettings);
+        this.byteBufferCache = byteBufferCache;
     }
 
-    @Override public Directory directory() {
-        return directory;
+    @Override public Directory build() {
+        return new CustomByteBufferDirectory(byteBufferCache);
     }
 
-    /**
-     * Its better to not use the compound format when using the Ram store.
-     */
-    @Override public boolean suggestUseCompoundFile() {
-        return false;
+    @Override public void renameFile(Directory dir, String from, String to) throws IOException {
+        ((CustomByteBufferDirectory) dir).renameTo(from, to);
     }
 
-    @Override protected void doRenameFile(String from, String to) throws IOException {
-        bbDirectory.renameTo(from, to);
+    @Override public void fullDelete(Directory dir) {
     }
 
     static class CustomByteBufferDirectory extends ByteBufferDirectory {

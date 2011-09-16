@@ -48,8 +48,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -172,13 +172,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         FSDirectory directory = FSDirectory.open(indexFile);
         Map<String, String> checksums = null;
         try {
-            checksums = AbstractStore.readChecksums(directory);
+            checksums = Store.readChecksums(directory);
             for (File file : indexFile.listFiles()) {
                 // BACKWARD CKS SUPPORT
                 if (file.getName().endsWith(".cks")) {
                     continue;
                 }
-                if (AbstractStore.isChecksum(file.getName())) {
+                if (Store.isChecksum(file.getName())) {
                     continue;
                 }
                 files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksums.get(file.getName())));

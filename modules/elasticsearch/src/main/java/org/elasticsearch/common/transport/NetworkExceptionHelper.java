@@ -21,6 +21,7 @@ package org.elasticsearch.common.transport;
 
 import java.net.ConnectException;
 import java.nio.channels.ClosedChannelException;
+import java.net.NoRouteToHostException;
 
 /**
  * @author kimchy (Shay Banon)
@@ -28,14 +29,13 @@ import java.nio.channels.ClosedChannelException;
 public class NetworkExceptionHelper {
 
     public static boolean isConnectException(Throwable e) {
-        if (e instanceof ConnectException) {
-            return true;
-        }
-        return false;
+        return (e instanceof ConnectException);
     }
 
     public static boolean isCloseConnectionException(Throwable e) {
         if (e instanceof ClosedChannelException) {
+            return true;
+        } else if (e instanceof NoRouteToHostException) {
             return true;
         }
         if (e.getMessage() != null) {

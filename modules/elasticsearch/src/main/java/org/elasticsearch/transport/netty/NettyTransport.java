@@ -419,9 +419,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         if (!lifecycle.started()) {
             // ignore
+            return;
         }
+
         if (isCloseConnectionException(e.getCause())) {
             // disconnect the node
+            logger.warn("Disconnecting node due to netty exception [" + ctx.getChannel() + "]", e.getCause());
+
             Channel channel = ctx.getChannel();
             for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                 if (entry.getValue().hasChannel(channel)) {
@@ -433,7 +437,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 logger.trace("(Ignoring) Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
             }
         } else {
-            logger.warn("Exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
+            logger.warn("Unexpected exception caught on netty layer [" + ctx.getChannel() + "]", e.getCause());
         }
     }
 

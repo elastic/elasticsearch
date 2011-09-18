@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author kimchy (shay.banon)
  */
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
@@ -83,6 +82,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         try {
             Class scriptClass = (Class) compiledScript;
@@ -127,6 +127,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.script = script;
         }
 
+        @SuppressWarnings({"unchecked"})
         @Override public void setNextVar(String name, Object value) {
             script.getBinding().getVariables().put(name, value);
         }
@@ -163,10 +164,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             lookup.setNextDocId(doc);
         }
 
+        @SuppressWarnings({"unchecked"})
         @Override public void setNextScore(float score) {
             script.getBinding().getVariables().put("_score", score);
         }
 
+        @SuppressWarnings({"unchecked"})
         @Override public void setNextVar(String name, Object value) {
             script.getBinding().getVariables().put(name, value);
         }

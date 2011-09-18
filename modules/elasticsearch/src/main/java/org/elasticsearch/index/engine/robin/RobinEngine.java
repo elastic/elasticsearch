@@ -784,7 +784,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
 
         try {
-
+            boolean makeTransientCurrent = false;
             if (flush.full()) {
                 rwl.writeLock().lock();
                 try {
@@ -846,10 +846,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                                     // we did not commit anything, revert to the old translog
                                     translog.revertTransient();
                                 } else {
-                                    translog.makeTransientCurrent();
+                                    makeTransientCurrent = true;
                                 }
                             } else {
-                                translog.makeTransientCurrent();
+                                makeTransientCurrent = true;
                             }
                         } catch (Exception e) {
                             translog.revertTransient();
@@ -865,12 +865,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
             }
             refreshVersioningTable(threadPool.estimatedTimeInMillis());
+            // we need to move transient to current only after we refresh
+            // so items added to current will still be around for realtime get
+            // when tans overrides it
+            if (makeTransientCurrent) {
+                translog.makeTransientCurrent();
+            }
             try {
                 SegmentInfos infos = new SegmentInfos();
                 infos.read(store.directory());
                 lastCommittedSegmentInfos = infos;
             } catch (Exception e) {
-                logger.warn("failed to read latest segment infos on flush", e);
+                if (!closed) {
+                    logger.warn("failed to read latest segment infos on flush", e);
+                }
             }
         } finally {
             flushing.set(false);

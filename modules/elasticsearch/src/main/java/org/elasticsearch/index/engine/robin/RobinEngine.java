@@ -249,6 +249,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
 
             try {
+                // commit on a just opened writer will commit even if there are no changes done to it
+                // we rely on that for the commit data translog id key
                 if (IndexReader.indexExists(store.directory())) {
                     Map<String, String> commitUserData = IndexReader.getCommitUserData(store.directory());
                     if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
@@ -803,6 +805,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         indexWriter.close(false);
                         indexWriter = createWriter();
 
+                        // commit on a just opened writer will commit even if there are no changes done to it
+                        // we rely on that for the commit data translog id key
                         if (flushNeeded || flush.force()) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
@@ -813,6 +817,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                         nrtResource = buildNrtResource(indexWriter);
                         current.markForClose();
+
+                        refreshVersioningTable(threadPool.estimatedTimeInMillis());
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     } catch (OutOfMemoryError e) {
@@ -851,6 +857,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             } else {
                                 makeTransientCurrent = true;
                             }
+                            if (makeTransientCurrent) {
+                                refreshVersioningTable(threadPool.estimatedTimeInMillis());
+                                // we need to move transient to current only after we refresh
+                                // so items added to current will still be around for realtime get
+                                // when tans overrides it
+                                translog.makeTransientCurrent();
+                            }
                         } catch (Exception e) {
                             translog.revertTransient();
                             throw new FlushFailedEngineException(shardId, e);
@@ -863,13 +876,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 } finally {
                     rwl.readLock().unlock();
                 }
-            }
-            refreshVersioningTable(threadPool.estimatedTimeInMillis());
-            // we need to move transient to current only after we refresh
-            // so items added to current will still be around for realtime get
-            // when tans overrides it
-            if (makeTransientCurrent) {
-                translog.makeTransientCurrent();
             }
             try {
                 SegmentInfos infos = new SegmentInfos();

@@ -131,8 +131,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     }
                     if (shardCanBeDeleted) {
                         ShardId shardId = indexShardRoutingTable.shardId();
-                        logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
-                        FileSystemUtils.deleteRecursively(nodeEnv.shardLocation(shardId));
+                        File shardLocation = nodeEnv.shardLocation(shardId);
+                        if (shardLocation.exists()) {
+                            logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
+                            FileSystemUtils.deleteRecursively(shardLocation);
+                        }
                     }
                 }
             }

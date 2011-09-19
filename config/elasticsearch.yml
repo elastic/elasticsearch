@@ -1,6 +1,10 @@
 # The cluster name
 #cluster.name: elasticsearch
 
+# The node name. Used for display purposes. Will be a random Marvel
+# character name by default.
+#node.name: An Elastic Node
+
 # Path Settings
 #path.conf: /path/to/conf
 #path.data: /path/to/data

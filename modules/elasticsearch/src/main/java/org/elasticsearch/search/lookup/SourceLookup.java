@@ -23,7 +23,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
 
@@ -126,46 +126,12 @@ public class SourceLookup implements Map {
      * Returns the values associated with the path. Those are "low" level values, and it can
      * handle path expression where an array/list is navigated within.
      */
-    public List<Object> getValues(String path) {
-        List<Object> values = Lists.newArrayList();
-        String[] pathElements = dotPattern.split(path);
-        getValues(values, loadSourceIfNeeded(), pathElements, 0);
-        return values;
+    public List<Object> extractRawValues(String path) {
+        return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
-    @SuppressWarnings({"unchecked"})
-    private void getValues(List<Object> values, Map<String, Object> part, String[] pathElements, int index) {
-        if (index == pathElements.length) {
-            return;
-        }
-        String currentPath = pathElements[index];
-        Object currentValue = part.get(currentPath);
-        if (currentValue == null) {
-            return;
-        }
-        if (currentValue instanceof Map) {
-            getValues(values, (Map<String, Object>) currentValue, pathElements, index + 1);
-        } else if (currentValue instanceof List) {
-            getValues(values, (List<Object>) currentValue, pathElements, index + 1);
-        } else {
-            values.add(currentValue);
-        }
-    }
-
-    @SuppressWarnings({"unchecked"})
-    private void getValues(List<Object> values, List<Object> part, String[] pathElements, int index) {
-        for (Object value : part) {
-            if (value == null) {
-                continue;
-            }
-            if (value instanceof Map) {
-                getValues(values, (Map<String, Object>) value, pathElements, index);
-            } else if (value instanceof List) {
-                getValues(values, (List<Object>) value, pathElements, index);
-            } else {
-                values.add(value);
-            }
-        }
+    public Object extractValue(String path) {
+        return XContentMapValues.extractValue(path, loadSourceIfNeeded());
     }
 
     @Override public Object get(Object key) {

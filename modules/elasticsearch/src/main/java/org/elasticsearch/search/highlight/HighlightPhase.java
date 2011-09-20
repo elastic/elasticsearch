@@ -141,7 +141,7 @@ public class HighlightPhase implements SearchHitPhase {
                         SearchLookup lookup = context.lookup();
                         lookup.setNextReader(hitContext.reader());
                         lookup.setNextDocId(hitContext.docId());
-                        textsToHighlight = lookup.source().getValues(mapper.names().fullName());
+                        textsToHighlight = lookup.source().extractRawValues(mapper.names().fullName());
                     }
 
                     // a HACK to make highlighter do highlighting, even though its using the single frag list builder

@@ -51,7 +51,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         lookup.setNextReader(reader);
         lookup.setNextDocId(docId);
 
-        List<Object> values = lookup.source().getValues(mapper.names().fullName());
+        List<Object> values = lookup.source().extractRawValues(mapper.names().fullName());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), Field.Store.NO, Field.Index.ANALYZED);

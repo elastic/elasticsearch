@@ -189,40 +189,45 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 if (gFields != null && gFields.length > 0) {
                     SearchLookup searchLookup = null;
                     for (String field : gFields) {
-                        String script = null;
+                        Object value = null;
                         if (field.contains("_source.") || field.contains("doc[")) {
-                            script = field;
-                        } else {
-                            FieldMappers x = docMapper.mappers().smartName(field);
-                            if (x != null && !x.mapper().stored()) {
-                                script = "_source." + x.mapper().names().fullName();
-                            }
-                        }
-                        if (script != null) {
                             if (searchLookup == null) {
                                 searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
                             }
-                            SearchScript searchScript = scriptService.search(searchLookup, "mvel", script, null);
+                            SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                             searchScript.setNextReader(docIdAndVersion.reader);
                             searchScript.setNextDocId(docIdAndVersion.docId);
 
                             try {
-                                Object value = searchScript.run();
-                                if (fields == null) {
-                                    fields = newHashMapWithExpectedSize(2);
-                                }
-                                GetField getField = fields.get(field);
-                                if (getField == null) {
-                                    getField = new GetField(field, new ArrayList<Object>(2));
-                                    fields.put(field, getField);
-                                }
-                                getField.values().add(value);
+                                value = searchScript.run();
                             } catch (RuntimeException e) {
                                 if (logger.isTraceEnabled()) {
-                                    logger.trace("failed to execute get request script field [{}]", e, script);
+                                    logger.trace("failed to execute get request script field [{}]", e, field);
                                 }
                                 // ignore
                             }
+                        } else {
+                            FieldMappers x = docMapper.mappers().smartName(field);
+                            if (x == null || !x.mapper().stored()) {
+                                if (searchLookup == null) {
+                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                    searchLookup.setNextReader(docIdAndVersion.reader);
+                                    searchLookup.setNextDocId(docIdAndVersion.docId);
+                                }
+                                value = searchLookup.source().extractValue(field);
+                            }
+                        }
+
+                        if (value != null) {
+                            if (fields == null) {
+                                fields = newHashMapWithExpectedSize(2);
+                            }
+                            GetField getField = fields.get(field);
+                            if (getField == null) {
+                                getField = new GetField(field, new ArrayList<Object>(2));
+                                fields.put(field, getField);
+                            }
+                            getField.values().add(value);
                         }
                     }
                 }
@@ -261,23 +266,14 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 value = docMapper.TTLFieldMapper().valueForSearch(source.timestamp + source.ttl);
                             }
                         } else {
-                            String script = null;
                             if (field.contains("_source.")) {
-                                script = field;
-                            } else {
-                                FieldMappers x = docMapper.mappers().smartName(field);
-                                if (x != null) {
-                                    script = "_source." + x.mapper().names().fullName();
-                                }
-                            }
-                            if (script != null) {
                                 if (searchLookup == null) {
                                     searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
                                 }
                                 if (sourceAsMap == null) {
                                     sourceAsMap = SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length());
                                 }
-                                SearchScript searchScript = scriptService.search(searchLookup, "mvel", script, null);
+                                SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                                 // we can't do this, only allow to run scripts against the source
                                 //searchScript.setNextReader(docIdAndVersion.reader);
                                 //searchScript.setNextDocId(docIdAndVersion.docId);
@@ -289,10 +285,16 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     value = searchScript.run();
                                 } catch (RuntimeException e) {
                                     if (logger.isTraceEnabled()) {
-                                        logger.trace("failed to execute get request script field [{}]", e, script);
+                                        logger.trace("failed to execute get request script field [{}]", e, field);
                                     }
                                     // ignore
                                 }
+                            } else {
+                                if (searchLookup == null) {
+                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
+                                    searchLookup.source().setNextSource(SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length()));
+                                }
+                                value = searchLookup.source().extractValue(field);
                             }
                         }
                         if (value != null) {

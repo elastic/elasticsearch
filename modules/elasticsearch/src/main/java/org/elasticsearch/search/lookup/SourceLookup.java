@@ -38,7 +38,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
@@ -119,8 +118,6 @@ public class SourceLookup implements Map {
     public void setNextSource(Map<String, Object> source) {
         this.source = source;
     }
-
-    private final static Pattern dotPattern = Pattern.compile("\\.");
 
     /**
      * Returns the values associated with the path. Those are "low" level values, and it can

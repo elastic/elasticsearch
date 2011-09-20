@@ -46,6 +46,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.*;
@@ -61,9 +62,13 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
         public static final String NULL_VALUE = null;
+
+        public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, DateFieldMapper> {
+
+        protected TimeUnit timeUnit = Defaults.TIME_UNIT;
 
         protected String nullValue = Defaults.NULL_VALUE;
 
@@ -72,6 +77,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public Builder(String name) {
             super(name);
             builder = this;
+        }
+
+        public Builder timeUnit(TimeUnit timeUnit) {
+            this.timeUnit = timeUnit;
+            return this;
         }
 
         public Builder nullValue(String nullValue) {
@@ -86,7 +96,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
         @Override public DateFieldMapper build(BuilderContext context) {
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue, timeUnit);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -103,6 +113,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                     builder.nullValue(propNode.toString());
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
+                } else if (propName.equals("numeric_precision")) {
+                    builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase()));
                 }
             }
             return builder;
@@ -113,15 +125,18 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValue;
 
+    private TimeUnit timeUnit;
+
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                              String nullValue) {
+                              String nullValue, TimeUnit timeUnit) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())));
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
+        this.timeUnit = timeUnit;
     }
 
     @Override protected double parseFuzzyFactor(String fuzzyFactor) {
@@ -265,7 +280,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         if (value != null) {
-            LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value);
+            LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, timeUnit.toMillis(value));
             field.setBoost(boost);
             return field;
         }
@@ -298,6 +313,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((DateFieldMapper) mergeWith).nullValue;
+            this.timeUnit = ((DateFieldMapper) mergeWith).timeUnit;
         }
     }
 
@@ -330,6 +346,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+        if (timeUnit != Defaults.TIME_UNIT) {
+            builder.field("numeric_precision", timeUnit);
         }
     }
 

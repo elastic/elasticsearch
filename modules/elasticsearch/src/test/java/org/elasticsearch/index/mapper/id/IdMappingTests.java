@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.id;
 
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -90,5 +92,24 @@ public class IdMappingTests {
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), notNullValue());
+    }
+
+    @Test public void testIdPath() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_id").field("path", "my_path").endObject()
+                .endObject().endObject().string();
+        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+
+        // serialize the id mapping
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        builder = docMapper.idFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String serialized_id_mapping = builder.string();
+
+        String expected_id_mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("_id").field("path", "my_path").endObject()
+                .endObject().string();
+
+        assertThat(serialized_id_mapping, equalTo(expected_id_mapping));
     }
 }

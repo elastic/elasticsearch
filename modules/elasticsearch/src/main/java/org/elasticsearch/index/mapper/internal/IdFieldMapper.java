@@ -198,7 +198,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (store == Defaults.STORE && index == Defaults.INDEX) {
+        if (store == Defaults.STORE && index == Defaults.INDEX && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -207,6 +207,9 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         if (index != Defaults.INDEX) {
             builder.field("index", index.name().toLowerCase());
+        }
+        if (path != Defaults.PATH) {
+            builder.field("path", path);
         }
         builder.endObject();
         return builder;

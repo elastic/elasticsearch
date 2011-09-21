@@ -45,6 +45,7 @@ public class AllocationDeciders extends AllocationDecider {
                 .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
                 .add(new ClusterRebalanceAllocationDecider(settings))
                 .add(new ConcurrentRebalanceAllocationDecider(settings))
+                .add(new AwarenessAllocationDecider(settings))
                 .build()
         );
     }

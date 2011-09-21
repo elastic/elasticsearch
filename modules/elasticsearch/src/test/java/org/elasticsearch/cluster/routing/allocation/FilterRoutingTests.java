@@ -68,7 +68,7 @@ public class FilterRoutingTests {
 
         ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
 
-        logger.info("--> adding two nodes and performing rerouting");
+        logger.info("--> adding four nodes and performing rerouting");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1", ImmutableMap.of("tag1", "value1")))
                 .put(newNode("node2", ImmutableMap.of("tag1", "value2")))

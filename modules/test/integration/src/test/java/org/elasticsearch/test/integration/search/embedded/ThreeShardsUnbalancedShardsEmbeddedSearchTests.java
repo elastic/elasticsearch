@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -400,7 +401,7 @@ public class ThreeShardsUnbalancedShardsEmbeddedSearchTests extends AbstractNode
     public static class UnevenOperationRoutingStrategy extends PlainOperationRouting {
 
         @Inject public UnevenOperationRoutingStrategy(Settings settings) {
-            super(settings, null, new AwarenessAllocationDecider(Builder.EMPTY_SETTINGS));
+            super(settings, null, new AwarenessAllocationDecider(Builder.EMPTY_SETTINGS, new NodeSettingsService(Builder.EMPTY_SETTINGS)));
         }
 
         @Override protected int hash(String routing) {

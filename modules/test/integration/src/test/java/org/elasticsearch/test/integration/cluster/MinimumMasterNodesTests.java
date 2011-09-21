@@ -246,7 +246,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             closeNode(nodeToShutdown);
         }
 
-        Thread.sleep(500);
+        Thread.sleep(1000);
 
         String lastNonMasterNodeUp = nonMasterNodes.removeLast();
         logger.info("--> verify that there is no master anymore on remaining nodes");

@@ -121,11 +121,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    private final FormatDateTimeFormatter dateTimeFormatter;
+    protected final FormatDateTimeFormatter dateTimeFormatter;
 
     private String nullValue;
 
-    private TimeUnit timeUnit;
+    protected final TimeUnit timeUnit;
 
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
@@ -313,7 +313,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((DateFieldMapper) mergeWith).nullValue;
-            this.timeUnit = ((DateFieldMapper) mergeWith).timeUnit;
         }
     }
 
@@ -348,11 +347,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             builder.field("include_in_all", includeInAll);
         }
         if (timeUnit != Defaults.TIME_UNIT) {
-            builder.field("numeric_resolution", timeUnit);
+            builder.field("numeric_resolution", timeUnit.name().toLowerCase());
         }
     }
 
-    private long parseStringValue(String value) {
+    protected long parseStringValue(String value) {
         try {
             return dateTimeFormatter.parser().parseMillis(value);
         } catch (RuntimeException e) {

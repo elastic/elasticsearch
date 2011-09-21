@@ -357,7 +357,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             return dateTimeFormatter.parser().parseMillis(value);
         } catch (RuntimeException e) {
             try {
-                return Long.parseLong(value);
+                long time = Long.parseLong(value);
+                return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
                 throw new MapperParsingException("failed to parse date field, tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }

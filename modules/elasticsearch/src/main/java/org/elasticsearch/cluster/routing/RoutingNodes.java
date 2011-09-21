@@ -26,9 +26,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -231,22 +228,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             shards.addAll(routingNode.shardsWithState(index, state));
         }
         return shards;
-    }
-
-    public List<RoutingNode> sortedNodesLeastToHigh() {
-        return nodesToShardsSorted(new Comparator<RoutingNode>() {
-            @Override public int compare(RoutingNode o1, RoutingNode o2) {
-                return o1.shards().size() - o2.shards().size();
-            }
-        });
-    }
-
-    public List<RoutingNode> nodesToShardsSorted(Comparator<RoutingNode> comparator) {
-        List<RoutingNode> nodes = new ArrayList<RoutingNode>(nodesToShards.values());
-        if (comparator != null) {
-            Collections.sort(nodes, comparator);
-        }
-        return nodes;
     }
 
     public String prettyPrint() {

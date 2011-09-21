@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -28,26 +29,61 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  */
 public class AwarenessAllocationDecider extends AllocationDecider {
 
+    static {
+        MetaData.addDynamicSettings(
+                "cluster.routing.allocation.awareness.attributes",
+                "cluster.routing.allocation.awareness.force.*"
+        );
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            String[] awarenessAttributes = settings.getAsArray("cluster.routing.allocation.awareness.attributes", null);
+            if (awarenessAttributes != null) {
+                logger.info("updating [cluster.routing.allocation.awareness.attributes] from [{}] to [{}]", AwarenessAllocationDecider.this.awarenessAttributes, awarenessAttributes);
+                AwarenessAllocationDecider.this.awarenessAttributes = awarenessAttributes;
+            }
+            Map<String, String[]> forcedAwarenessAttributes = new HashMap<String, String[]>(AwarenessAllocationDecider.this.forcedAwarenessAttributes);
+            Map<String, Settings> forceGroups = settings.getGroups("cluster.routing.allocation.awareness.force.");
+            if (!forceGroups.isEmpty()) {
+                for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
+                    String[] aValues = entry.getValue().getAsArray("values");
+                    if (aValues.length > 0) {
+                        forcedAwarenessAttributes.put(entry.getKey(), aValues);
+                    }
+                }
+            }
+            AwarenessAllocationDecider.this.forcedAwarenessAttributes = forcedAwarenessAttributes;
+        }
+    }
+
     private String[] awarenessAttributes;
 
     private Map<String, String[]> forcedAwarenessAttributes;
 
-    @Inject public AwarenessAllocationDecider(Settings settings) {
+    @Inject public AwarenessAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.awarenessAttributes = settings.getAsArray("cluster.routing.allocation.awareness.attributes");
 
         forcedAwarenessAttributes = Maps.newHashMap();
         Map<String, Settings> forceGroups = settings.getGroups("cluster.routing.allocation.awareness.force.");
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
-            forcedAwarenessAttributes.put(entry.getKey(), entry.getValue().getAsArray("values"));
+            String[] aValues = entry.getValue().getAsArray("values");
+            if (aValues.length > 0) {
+                forcedAwarenessAttributes.put(entry.getKey(), aValues);
+            }
         }
+
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     public String[] awarenessAttributes() {

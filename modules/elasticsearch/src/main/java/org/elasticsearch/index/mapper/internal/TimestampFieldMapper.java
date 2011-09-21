@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
@@ -117,8 +118,6 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     private final String path;
 
-    private final FormatDateTimeFormatter dateTimeFormatter;
-
     public TimestampFieldMapper() {
         this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER);
     }
@@ -126,10 +125,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path, FormatDateTimeFormatter dateTimeFormatter) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS,
-                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE);
+                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/);
         this.enabled = enabled;
         this.path = path;
-        this.dateTimeFormatter = dateTimeFormatter;
     }
 
     public boolean enabled() {

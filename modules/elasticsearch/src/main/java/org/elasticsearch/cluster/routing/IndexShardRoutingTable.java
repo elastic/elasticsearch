@@ -19,7 +19,10 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +31,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.collect.Lists.*;
@@ -261,6 +267,86 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 ordered.set(0, shardRouting);
             }
         }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    static class AttributesKey {
+
+        final String[] attributes;
+
+        AttributesKey(String[] attributes) {
+            this.attributes = attributes;
+        }
+
+        @Override public int hashCode() {
+            return Arrays.hashCode(attributes);
+        }
+
+        @Override public boolean equals(Object obj) {
+            return Arrays.equals(attributes, ((AttributesKey) obj).attributes);
+        }
+    }
+
+    static class AttributesRoutings {
+
+        public final ImmutableList<ShardRouting> withSameAttribute;
+        public final ImmutableList<ShardRouting> withoutSameAttribute;
+        public final int totalSize;
+
+        AttributesRoutings(ImmutableList<ShardRouting> withSameAttribute, ImmutableList<ShardRouting> withoutSameAttribute) {
+            this.withSameAttribute = withSameAttribute;
+            this.withoutSameAttribute = withoutSameAttribute;
+            this.totalSize = withoutSameAttribute.size() + withSameAttribute.size();
+        }
+    }
+
+    private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = ImmutableMap.of();
+    private final Object shardsByAttributeMutex = new Object();
+
+    public ShardIterator preferAttributesActiveShardsIt(String[] attributes, DiscoveryNodes nodes) {
+        return preferAttributesActiveShardsIt(attributes, nodes, counter.incrementAndGet());
+    }
+
+    public ShardIterator preferAttributesActiveShardsIt(String[] attributes, DiscoveryNodes nodes, int index) {
+        AttributesKey key = new AttributesKey(attributes);
+        AttributesRoutings shardRoutings = activeShardsByAttributes.get(key);
+        if (shardRoutings == null) {
+            synchronized (shardsByAttributeMutex) {
+                ArrayList<ShardRouting> from = new ArrayList<ShardRouting>(activeShards);
+                ArrayList<ShardRouting> to = new ArrayList<ShardRouting>();
+                for (String attribute : attributes) {
+                    String localAttributeValue = nodes.localNode().attributes().get(attribute);
+                    if (localAttributeValue == null) {
+                        continue;
+                    }
+                    for (Iterator<ShardRouting> iterator = from.iterator(); iterator.hasNext(); ) {
+                        ShardRouting fromShard = iterator.next();
+                        if (localAttributeValue.equals(nodes.get(fromShard.currentNodeId()).attributes().get(attribute))) {
+                            iterator.remove();
+                            to.add(fromShard);
+                        }
+                    }
+                }
+
+                shardRoutings = new AttributesRoutings(ImmutableList.copyOf(to), ImmutableList.copyOf(from));
+                activeShardsByAttributes = MapBuilder.newMapBuilder(activeShardsByAttributes).put(key, shardRoutings).immutableMap();
+            }
+        }
+        // we now randomize, once between the ones that have the same attributes, and once for the ones that don't
+        // we don't want to mix between the two!
+        ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(shardRoutings.totalSize);
+        index = Math.abs(index);
+        for (int i = 0; i < shardRoutings.withSameAttribute.size(); i++) {
+            int loc = (index + i) % shardRoutings.withSameAttribute.size();
+            ShardRouting shardRouting = shardRoutings.withSameAttribute.get(loc);
+            ordered.add(shardRouting);
+        }
+        for (int i = 0; i < shardRoutings.withoutSameAttribute.size(); i++) {
+            int loc = (index + i) % shardRoutings.withoutSameAttribute.size();
+            ShardRouting shardRouting = shardRoutings.withoutSameAttribute.get(loc);
+            ordered.add(shardRouting);
+        }
+
         return new PlainShardIterator(shardId, ordered);
     }
 

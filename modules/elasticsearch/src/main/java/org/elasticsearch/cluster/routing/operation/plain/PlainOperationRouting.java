@@ -22,10 +22,12 @@ package org.elasticsearch.cluster.routing.operation.plain;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
@@ -52,10 +54,13 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     private final boolean useType;
 
-    @Inject public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction) {
+    private final AwarenessAllocationDecider awarenessAllocationDecider;
+
+    @Inject public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction, AwarenessAllocationDecider awarenessAllocationDecider) {
         super(indexSettings);
         this.hashFunction = hashFunction;
         this.useType = indexSettings.getAsBoolean("cluster.routing.operation.use_type", false);
+        this.awarenessAllocationDecider = awarenessAllocationDecider;
     }
 
     @Override public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) throws IndexMissingException, IndexShardMissingException {
@@ -67,11 +72,11 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     }
 
     @Override public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
-        return preferenceActiveShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, type, id, routing), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
     @Override public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) throws IndexMissingException, IndexShardMissingException {
-        return preferenceActiveShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, shardId), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
     }
 
     @Override public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
@@ -149,7 +154,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                             throw new IndexShardMissingException(new ShardId(index, shardId));
                         }
                         // we might get duplicates, but that's ok, they will override one another
-                        set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), preference));
+                        set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference));
                     }
                 }
             }
@@ -160,25 +165,35 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             for (String index : concreteIndices) {
                 IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
                 for (IndexShardRoutingTable indexShard : indexRouting) {
-                    set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), preference));
+                    set.add(preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference));
                 }
             }
             return new GroupShardsIterator(set);
         }
     }
 
-    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String nodeId, @Nullable String preference) {
+    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String nodeId, DiscoveryNodes nodes, @Nullable String preference) {
         if (preference == null) {
-            return indexShard.activeShardsRandomIt();
+            String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
+            if (awarenessAttributes.length == 0) {
+                return indexShard.activeShardsRandomIt();
+            } else {
+                return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes);
+            }
         }
         if ("_local".equals(preference)) {
-            return indexShard.preferNodeShardsIt(nodeId);
+            return indexShard.preferNodeActiveShardsIt(nodeId);
         }
         if ("_primary".equals(preference)) {
             return indexShard.primaryShardIt();
         }
         // if not, then use it as the index
-        return indexShard.shardsIt(DjbHashFunction.DJB_HASH(preference));
+        String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
+        if (awarenessAttributes.length == 0) {
+            return indexShard.activeShardsIt(DjbHashFunction.DJB_HASH(preference));
+        } else {
+            return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes, DjbHashFunction.DJB_HASH(preference));
+        }
     }
 
     public IndexMetaData indexMetaData(ClusterState clusterState, String index) {

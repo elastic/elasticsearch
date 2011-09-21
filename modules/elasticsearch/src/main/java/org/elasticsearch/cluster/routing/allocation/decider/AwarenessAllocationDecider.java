@@ -50,6 +50,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
     }
 
+    public String[] awarenessAttributes() {
+        return this.awarenessAttributes;
+    }
+
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return underCapacity(shardRouting, node, allocation, true) ? Decision.YES : Decision.NO;
     }

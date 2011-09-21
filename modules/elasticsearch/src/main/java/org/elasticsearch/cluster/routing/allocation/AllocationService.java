@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -175,20 +176,36 @@ public class AllocationService extends AbstractComponent {
 
     private boolean moveShards(RoutingAllocation allocation) {
         boolean changed = false;
-        for (RoutingNode routingNode : allocation.routingNodes()) {
-            for (MutableShardRouting shardRouting : routingNode) {
-                // we can only move started shards...
-                if (!shardRouting.started()) {
+
+        // create a copy of the shards interleaving between nodes, and check if they can remain
+        List<MutableShardRouting> shards = new ArrayList<MutableShardRouting>();
+        int index = 0;
+        boolean found = true;
+        while (found) {
+            found = false;
+            for (RoutingNode routingNode : allocation.routingNodes()) {
+                if (index >= routingNode.shards().size()) {
                     continue;
                 }
-                if (!allocation.deciders().canRemain(shardRouting, routingNode, allocation)) {
-                    logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
-                    boolean moved = shardsAllocators.move(shardRouting, routingNode, allocation);
-                    if (!moved) {
-                        logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
-                    } else {
-                        changed = true;
-                    }
+                found = true;
+                shards.add(routingNode.shards().get(index));
+            }
+            index++;
+        }
+        for (int i = 0; i < shards.size(); i++) {
+            MutableShardRouting shardRouting = shards.get(i);
+            // we can only move started shards...
+            if (!shardRouting.started()) {
+                continue;
+            }
+            RoutingNode routingNode = allocation.routingNodes().node(shardRouting.currentNodeId());
+            if (!allocation.deciders().canRemain(shardRouting, routingNode, allocation)) {
+                logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
+                boolean moved = shardsAllocators.move(shardRouting, routingNode, allocation);
+                if (!moved) {
+                    logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                } else {
+                    changed = true;
                 }
             }
         }

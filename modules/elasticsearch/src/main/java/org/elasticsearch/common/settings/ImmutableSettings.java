@@ -237,7 +237,9 @@ public class ImmutableSettings implements Settings {
         if (get(settingPrefix) != null) {
             String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
             if (strings.length > 0) {
-                Collections.addAll(result, strings);
+                for (String string : strings) {
+                    result.add(string.trim());
+                }
             }
         }
 
@@ -247,7 +249,7 @@ public class ImmutableSettings implements Settings {
             if (value == null) {
                 break;
             }
-            result.add(value);
+            result.add(value.trim());
         }
         if (result.isEmpty()) {
             return defaultArray;

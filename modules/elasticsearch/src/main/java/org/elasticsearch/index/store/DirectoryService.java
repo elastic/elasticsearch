@@ -27,7 +27,7 @@ import java.io.IOException;
  */
 public interface DirectoryService {
 
-    Directory build() throws IOException;
+    Directory[] build() throws IOException;
 
     void renameFile(Directory dir, String from, String to) throws IOException;
 

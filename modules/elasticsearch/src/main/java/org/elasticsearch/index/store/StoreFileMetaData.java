@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,14 +40,25 @@ public class StoreFileMetaData implements Streamable {
 
     private String checksum;
 
+    private transient Directory directory;
+
     StoreFileMetaData() {
     }
 
     public StoreFileMetaData(String name, long length, long lastModified, String checksum) {
+        this(name, length, lastModified, checksum, null);
+    }
+
+    public StoreFileMetaData(String name, long length, long lastModified, String checksum, @Nullable Directory directory) {
         this.name = name;
         this.lastModified = lastModified;
         this.length = length;
         this.checksum = checksum;
+        this.directory = directory;
+    }
+
+    public Directory directory() {
+        return this.directory;
     }
 
     public String name() {

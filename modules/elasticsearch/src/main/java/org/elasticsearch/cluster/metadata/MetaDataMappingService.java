@@ -313,6 +313,10 @@ public class MetaDataMappingService extends AbstractComponent {
                         } else {
                             CompressedString newSource = newMapper.mappingSource();
                             mappings.put(index, new MappingMetaData(newMapper));
+                            // we also add it to the registered parsed mapping, since that's what we do when we merge
+                            // and, we won't wait for it to be created on this master node
+                            IndexService indexService = indicesService.indexService(index);
+                            indexService.mapperService().add(newMapper.type(), newMapper.mappingSource().string());
                             if (logger.isDebugEnabled()) {
                                 logger.debug("[{}] create_mapping [{}] with source [{}]", index, newMapper.type(), newSource);
                             } else if (logger.isInfoEnabled()) {

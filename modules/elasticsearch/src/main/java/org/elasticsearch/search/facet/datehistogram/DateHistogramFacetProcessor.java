@@ -153,6 +153,9 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
         }
 
         FieldMapper mapper = context.mapperService().smartNameFieldMapper(keyField);
+        if (mapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "(key) field [" + keyField + "] not found");
+        }
         if (mapper.fieldDataType() != FieldDataType.DefaultTypes.LONG) {
             throw new FacetPhaseExecutionException(facetName, "(key) field [" + keyField + "] is not of type date");
         }

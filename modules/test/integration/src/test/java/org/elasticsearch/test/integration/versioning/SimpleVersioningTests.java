@@ -61,6 +61,24 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
+    @Test public void testExternalVersioningInitialDelete() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(deleteResponse.notFound(), equalTo(true));
+
+        try {
+            client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(VersionConflictEngineException.class));
+        }
+
+        client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+    }
+
     @Test public void testExternalVersioning() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

@@ -17,6 +17,9 @@ JAVA_OPTS="$JAVA_OPTS -Xmx${ES_MAX_MEM}"
 # reduce the per-thread stack size
 JAVA_OPTS="$JAVA_OPTS -Xss128k"
 
+# Force the JVM to use IPv4 stack
+# JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
+
 # Enable aggressive optimizations in the JVM
 #    - Disabled by default as it might cause the JVM to crash
 # JAVA_OPTS="$JAVA_OPTS -XX:+AggressiveOpts"

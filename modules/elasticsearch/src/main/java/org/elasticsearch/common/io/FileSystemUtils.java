@@ -120,6 +120,14 @@ public class FileSystemUtils {
         return false;
     }
 
+    public static boolean deleteRecursively(File[] roots) {
+        boolean deleted = true;
+        for (File root : roots) {
+            deleted &= deleteRecursively(root);
+        }
+        return deleted;
+    }
+
     public static boolean deleteRecursively(File root) {
         return deleteRecursively(root, true);
     }

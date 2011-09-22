@@ -167,7 +167,7 @@ public class RollingRestartStressTest {
         // start doing the rolling restart
         int nodeIndex = 0;
         while (true) {
-            File nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocation();
+            File[] nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
             nodes[nodeIndex].close();
             if (clearNodeData) {
                 FileSystemUtils.deleteRecursively(nodeData);
@@ -310,7 +310,7 @@ public class RollingRestartStressTest {
     }
 
     private void indexDoc() throws Exception {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                 .field("field", "value" + ThreadLocalRandom.current().nextInt());
 
@@ -341,6 +341,7 @@ public class RollingRestartStressTest {
         Settings settings = settingsBuilder()
                 .put("index.shard.check_index", true)
                 .put("gateway.type", "none")
+                .put("path.data", "data/data1,data/data2")
                 .build();
 
         RollingRestartStressTest test = new RollingRestartStressTest()

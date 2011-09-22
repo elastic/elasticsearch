@@ -436,7 +436,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         // delete the shard location if needed
         if (delete || indexGateway.type().equals(NoneGateway.TYPE)) {
-            FileSystemUtils.deleteRecursively(nodeEnv.shardLocation(sId));
+            FileSystemUtils.deleteRecursively(nodeEnv.shardLocations(sId));
         }
     }
 }

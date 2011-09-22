@@ -40,8 +40,12 @@ public class SimpleFsDirectoryService extends FsDirectoryService {
     }
 
     @Override public Directory[] build() throws IOException {
-        File location = indexStore.shardIndexLocation(shardId);
-        FileSystemUtils.mkdirs(location);
-        return new Directory[]{new SimpleFSDirectory(location, buildLockFactory())};
+        File[] locations = indexStore.shardIndexLocations(shardId);
+        Directory[] dirs = new Directory[locations.length];
+        for (int i = 0; i < dirs.length; i++) {
+            FileSystemUtils.mkdirs(locations[i]);
+            dirs[i] = new SimpleFSDirectory(locations[i], buildLockFactory());
+        }
+        return dirs;
     }
 }

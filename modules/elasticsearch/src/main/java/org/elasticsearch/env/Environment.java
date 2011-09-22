@@ -46,9 +46,9 @@ public class Environment {
 
     private final File workWithClusterFile;
 
-    private final File dataFile;
+    private final File[] dataFiles;
 
-    private final File dataWithClusterFile;
+    private final File[] dataWithClusterFiles;
 
     private final File configFile;
 
@@ -86,12 +86,18 @@ public class Environment {
         }
         workWithClusterFile = new File(workFile, ClusterName.clusterNameFromSettings(settings).value());
 
-        if (settings.get("path.data") != null) {
-            dataFile = new File(cleanPath(settings.get("path.data")));
+        String[] dataPaths = settings.getAsArray("path.data");
+        if (dataPaths.length > 0) {
+            dataFiles = new File[dataPaths.length];
+            dataWithClusterFiles = new File[dataPaths.length];
+            for (int i = 0; i < dataPaths.length; i++) {
+                dataFiles[i] = new File(dataPaths[i]);
+                dataWithClusterFiles[i] = new File(dataFiles[i], ClusterName.clusterNameFromSettings(settings).value());
+            }
         } else {
-            dataFile = new File(homeFile, "data");
+            dataFiles = new File[]{new File(homeFile, "data")};
+            dataWithClusterFiles = new File[]{new File(new File(homeFile, "data"), ClusterName.clusterNameFromSettings(settings).value())};
         }
-        dataWithClusterFile = new File(dataFile, ClusterName.clusterNameFromSettings(settings).value());
 
         if (settings.get("path.logs") != null) {
             logsFile = new File(cleanPath(settings.get("path.logs")));
@@ -124,15 +130,15 @@ public class Environment {
     /**
      * The data location.
      */
-    public File dataFile() {
-        return dataFile;
+    public File[] dataFiles() {
+        return dataFiles;
     }
 
     /**
      * The data location with the cluster name as a sub directory.
      */
-    public File dataWithClusterFile() {
-        return dataWithClusterFile;
+    public File[] dataWithClusterFiles() {
+        return dataWithClusterFiles;
     }
 
     /**

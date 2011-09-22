@@ -197,10 +197,10 @@ public class FullRestartStressTest {
 
             client.close();
             for (Node node : nodes) {
-                File nodeWork = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocation();
+                File[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
                 node.close();
                 if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
-                    FileSystemUtils.deleteRecursively(nodeWork);
+                    FileSystemUtils.deleteRecursively(nodeDatas);
                 }
             }
 
@@ -221,6 +221,7 @@ public class FullRestartStressTest {
                 .put("gateway.type", "local")
                 .put("gateway.recover_after_nodes", numberOfNodes)
                 .put("index.number_of_shards", 1)
+                .put("path.data", "data/data1,data/data2")
                 .build();
 
         FullRestartStressTest test = new FullRestartStressTest()

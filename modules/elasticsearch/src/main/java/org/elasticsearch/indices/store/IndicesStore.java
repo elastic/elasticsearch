@@ -131,25 +131,28 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     }
                     if (shardCanBeDeleted) {
                         ShardId shardId = indexShardRoutingTable.shardId();
-                        File shardLocation = nodeEnv.shardLocation(shardId);
-                        if (shardLocation.exists()) {
-                            logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
-                            FileSystemUtils.deleteRecursively(shardLocation);
+                        for (File shardLocation : nodeEnv.shardLocations(shardId)) {
+                            if (shardLocation.exists()) {
+                                logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
+                                FileSystemUtils.deleteRecursively(shardLocation);
+                            }
                         }
                     }
                 }
             }
 
             // delete indices that are no longer part of the metadata
-            File[] files = nodeEnv.indicesLocation().listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    // if we have the index on the metadata, don't delete it
-                    if (event.state().metaData().hasIndex(file.getName())) {
-                        continue;
+            for (File indicesLocation : nodeEnv.indicesLocations()) {
+                File[] files = indicesLocation.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        // if we have the index on the metadata, don't delete it
+                        if (event.state().metaData().hasIndex(file.getName())) {
+                            continue;
+                        }
+                        logger.debug("[{}] deleting index that is no longer in the cluster meta_date from [{}]", file.getName(), file);
+                        FileSystemUtils.deleteRecursively(file);
                     }
-                    logger.debug("[{}] deleting index that is no longer in the cluster meta_date", file.getName());
-                    FileSystemUtils.deleteRecursively(file);
                 }
             }
         }

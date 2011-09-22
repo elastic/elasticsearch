@@ -492,6 +492,7 @@ public class ImmutableSettings implements Settings {
          * @return The builder
          */
         public Builder putArray(String setting, String... values) {
+            remove(setting);
             int counter = 0;
             while (true) {
                 String value = map.remove(setting + '.' + (counter++));

@@ -352,7 +352,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indicesLifecycle.afterIndexClosed(indexService.index(), delete);
 
         if (delete) {
-            FileSystemUtils.deleteRecursively(nodeEnv.indexLocation(new Index(index)));
+            FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(index)));
         }
     }
 

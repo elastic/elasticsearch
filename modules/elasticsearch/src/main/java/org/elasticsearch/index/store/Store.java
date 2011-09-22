@@ -35,11 +35,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -161,7 +163,22 @@ public class Store extends AbstractIndexShardComponent {
         }
     }
 
-    public static Map<String, String> readChecksums(Directory dir) throws IOException {
+    public static Map<String, String> readChecksums(File[] locations) throws IOException {
+        for (File location : locations) {
+            FSDirectory directory = FSDirectory.open(location);
+            try {
+                Map<String, String> checksums = readChecksums(directory, null);
+                if (checksums != null) {
+                    return checksums;
+                }
+            } finally {
+                directory.close();
+            }
+        }
+        return null;
+    }
+
+    static Map<String, String> readChecksums(Directory dir, Map<String, String> defaultValue) throws IOException {
         long lastFound = -1;
         for (String name : dir.listAll()) {
             if (!isChecksum(name)) {
@@ -173,7 +190,7 @@ public class Store extends AbstractIndexShardComponent {
             }
         }
         if (lastFound == -1) {
-            return ImmutableMap.of();
+            return defaultValue;
         }
         IndexInput indexInput = dir.openInput(CHECKSUMS_PREFIX + lastFound);
         try {
@@ -181,7 +198,7 @@ public class Store extends AbstractIndexShardComponent {
             return indexInput.readStringStringMap();
         } catch (Exception e) {
             // failed to load checksums, ignore and return an empty map
-            return new HashMap<String, String>();
+            return defaultValue;
         } finally {
             indexInput.close();
         }
@@ -265,7 +282,7 @@ public class Store extends AbstractIndexShardComponent {
             this.delegates = delegates;
             synchronized (mutex) {
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
-                Map<String, String> checksums = readChecksums(delegates[0]);
+                Map<String, String> checksums = readChecksums(delegates[0], new HashMap<String, String>());
                 for (Directory delegate : delegates) {
                     for (String file : delegate.listAll()) {
                         // BACKWARD CKS SUPPORT
@@ -397,6 +414,8 @@ public class Store extends AbstractIndexShardComponent {
                             long currentSize = ((FSDirectory) delegate).getDirectory().getFreeSpace();
                             if (currentSize < size) {
                                 size = currentSize;
+                                directory = delegate;
+                            } else if (currentSize == size && ThreadLocalRandom.current().nextBoolean()) {
                                 directory = delegate;
                             }
                         } else {

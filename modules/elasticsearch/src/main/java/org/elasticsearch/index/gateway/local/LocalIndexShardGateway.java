@@ -128,19 +128,30 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
         // move an existing translog, if exists, to "recovering" state, and start reading from it
         FsTranslog translog = (FsTranslog) indexShard.translog();
-        File recoveringTranslogFile = new File(translog.location(), "translog-" + translogId + ".recovering");
-        if (!recoveringTranslogFile.exists()) {
-            File translogFile = new File(translog.location(), "translog-" + translogId);
-            if (translogFile.exists()) {
-                for (int i = 0; i < 3; i++) {
-                    if (translogFile.renameTo(recoveringTranslogFile)) {
-                        break;
+        String translogName = "translog-" + translogId;
+        String recoverTranslogName = translogName + ".recovering";
+
+
+        File recoveringTranslogFile = null;
+        for (File translogLocation : translog.locations()) {
+            File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
+            if (!tmpRecoveringFile.exists()) {
+                File tmpTranslogFile = new File(translogLocation, translogName);
+                if (tmpTranslogFile.exists()) {
+                    for (int i = 0; i < 3; i++) {
+                        if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
+                            recoveringTranslogFile = tmpRecoveringFile;
+                            break;
+                        }
                     }
                 }
+            } else {
+                recoveringTranslogFile = tmpRecoveringFile;
+                break;
             }
         }
 
-        if (!recoveringTranslogFile.exists()) {
+        if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
             // no translog to recovery from, start and bail
             // no translog files, bail
             indexShard.start("post recovery from gateway, no translog");

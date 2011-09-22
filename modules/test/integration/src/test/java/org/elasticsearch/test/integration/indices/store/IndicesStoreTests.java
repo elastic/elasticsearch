@@ -32,8 +32,7 @@ import org.testng.annotations.Test;
 import java.io.File;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -118,7 +117,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
     private File shardDirectory(String server, String index, int shard) {
         InternalNode node = ((InternalNode) node(server));
         NodeEnvironment env = node.injector().getInstance(NodeEnvironment.class);
-        return env.shardLocation(new ShardId(index, shard));
+        return env.shardLocations(new ShardId(index, shard))[0];
     }
 
 

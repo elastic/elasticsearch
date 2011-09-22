@@ -40,15 +40,15 @@ public abstract class FsIndexStore extends AbstractIndexStore {
 
     private final NodeEnvironment nodeEnv;
 
-    private final File location;
+    private final File[] locations;
 
     public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService);
         this.nodeEnv = nodeEnv;
         if (nodeEnv.hasNodeFile()) {
-            this.location = nodeEnv.indexLocation(index);
+            this.locations = nodeEnv.indexLocations(index);
         } else {
-            this.location = null;
+            this.locations = null;
         }
     }
 
@@ -57,58 +57,73 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     }
 
     @Override public ByteSizeValue backingStoreTotalSpace() {
-        if (location == null) {
+        if (locations == null) {
             return new ByteSizeValue(0);
         }
-        long totalSpace = location.getTotalSpace();
-        if (totalSpace == 0) {
-            totalSpace = 0;
+        long totalSpace = 0;
+        for (File location : locations) {
+            totalSpace += location.getTotalSpace();
         }
         return new ByteSizeValue(totalSpace);
     }
 
     @Override public ByteSizeValue backingStoreFreeSpace() {
-        if (location == null) {
+        if (locations == null) {
             return new ByteSizeValue(0);
         }
-        long usableSpace = location.getUsableSpace();
-        if (usableSpace == 0) {
-            usableSpace = 0;
+        long usableSpace = 0;
+        for (File location : locations) {
+            usableSpace += location.getUsableSpace();
         }
         return new ByteSizeValue(usableSpace);
     }
 
     @Override public boolean canDeleteUnallocated(ShardId shardId) {
-        if (location == null) {
+        if (locations == null) {
             return false;
         }
         if (indexService.hasShard(shardId.id())) {
             return false;
         }
-        return shardLocation(shardId).exists();
+        for (File location : shardLocations(shardId)) {
+            if (location.exists()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override public void deleteUnallocated(ShardId shardId) throws IOException {
-        if (location == null) {
+        if (locations == null) {
             return;
         }
         if (indexService.hasShard(shardId.id())) {
             throw new ElasticSearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
-        FileSystemUtils.deleteRecursively(shardLocation(shardId));
+        FileSystemUtils.deleteRecursively(shardLocations(shardId));
     }
 
-    public File shardLocation(ShardId shardId) {
-        return nodeEnv.shardLocation(shardId);
+    public File[] shardLocations(ShardId shardId) {
+        return nodeEnv.shardLocations(shardId);
     }
 
-    public File shardIndexLocation(ShardId shardId) {
-        return new File(shardLocation(shardId), "index");
+    public File[] shardIndexLocations(ShardId shardId) {
+        File[] shardLocations = shardLocations(shardId);
+        File[] shardIndexLocations = new File[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            shardIndexLocations[i] = new File(shardLocations[i], "index");
+        }
+        return shardIndexLocations;
     }
 
     // not used currently, but here to state that this store also defined a file based translog location
 
-    public File shardTranslogLocation(ShardId shardId) {
-        return new File(shardLocation(shardId), "translog");
+    public File[] shardTranslogLocations(ShardId shardId) {
+        File[] shardLocations = shardLocations(shardId);
+        File[] shardTranslogLocations = new File[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            shardTranslogLocations[i] = new File(shardLocations[i], "translog");
+        }
+        return shardTranslogLocations;
     }
 }

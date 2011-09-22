@@ -108,9 +108,11 @@ public class InternalSettingsPerparer {
         settingsBuilder = settingsBuilder().put(v1);
         settingsBuilder.put("path.home", cleanPath(environment.homeFile().getAbsolutePath()));
         settingsBuilder.put("path.work", cleanPath(environment.workFile().getAbsolutePath()));
-        settingsBuilder.put("path.work_with_cluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
-        settingsBuilder.put("path.data", cleanPath(environment.dataFile().getAbsolutePath()));
-        settingsBuilder.put("path.data_with_cluster", cleanPath(environment.dataWithClusterFile().getAbsolutePath()));
+        String[] paths = new String[environment.dataFiles().length];
+        for (int i = 0; i < environment.dataFiles().length; i++) {
+            paths[i] = cleanPath(environment.dataFiles()[i].getAbsolutePath());
+        }
+        settingsBuilder.putArray("path.data", paths);
         settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
 
         v1 = settingsBuilder.build();

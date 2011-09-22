@@ -40,8 +40,12 @@ public class NioFsDirectoryService extends FsDirectoryService {
     }
 
     @Override public Directory[] build() throws IOException {
-        File location = indexStore.shardIndexLocation(shardId);
-        FileSystemUtils.mkdirs(location);
-        return new Directory[]{new NIOFSDirectory(location, buildLockFactory())};
+        File[] locations = indexStore.shardIndexLocations(shardId);
+        Directory[] dirs = new Directory[locations.length];
+        for (int i = 0; i < dirs.length; i++) {
+            FileSystemUtils.mkdirs(locations[i]);
+            dirs[i] = new NIOFSDirectory(locations[i], buildLockFactory());
+        }
+        return dirs;
     }
 }

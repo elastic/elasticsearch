@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -33,12 +32,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -163,17 +160,34 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (!storeType.contains("fs")) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-        File indexFile = new File(nodeEnv.shardLocation(shardId), "index");
-        if (!indexFile.exists()) {
+        File[] shardLocations = nodeEnv.shardLocations(shardId);
+        File[] shardIndexLocations = new File[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            shardIndexLocations[i] = new File(shardLocations[i], "index");
+        }
+        boolean exists = false;
+        for (File shardIndexLocation : shardIndexLocations) {
+            if (shardIndexLocation.exists()) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
+
+        Map<String, String> checksums = Store.readChecksums(shardIndexLocations);
+        if (checksums == null) {
+            checksums = ImmutableMap.of();
+        }
+
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
-        // read the checksums file
-        FSDirectory directory = FSDirectory.open(indexFile);
-        Map<String, String> checksums = null;
-        try {
-            checksums = Store.readChecksums(directory);
-            for (File file : indexFile.listFiles()) {
+        for (File shardIndexLocation : shardIndexLocations) {
+            File[] listedFiles = shardIndexLocation.listFiles();
+            if (listedFiles == null) {
+                continue;
+            }
+            for (File file : listedFiles) {
                 // BACKWARD CKS SUPPORT
                 if (file.getName().endsWith(".cks")) {
                     continue;
@@ -182,28 +196,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
                     continue;
                 }
                 files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksums.get(file.getName())));
-            }
-        } finally {
-            directory.close();
-        }
-
-        // BACKWARD CKS SUPPORT
-        for (File file : indexFile.listFiles()) {
-            if (file.getName().endsWith(".cks")) {
-                continue;
-            }
-            if (file.getName().startsWith("_checksums")) {
-                continue;
-            }
-            // try and load the checksum
-            String checksum = null;
-            File checksumFile = new File(file.getParentFile(), file.getName() + ".cks");
-            if (checksumFile.exists() && (checksums == null || !checksums.containsKey(file.getName()))) {
-                byte[] checksumBytes = Streams.copyToByteArray(checksumFile);
-                if (checksumBytes.length > 0) {
-                    checksum = Unicode.fromBytes(checksumBytes);
-                }
-                files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), checksum));
             }
         }
 

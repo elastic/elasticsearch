@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -44,7 +45,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class FsTranslog extends AbstractIndexShardComponent implements Translog {
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final File location;
+    private final File[] locations;
 
     private volatile FsTranslogFile current;
     private volatile FsTranslogFile trans;
@@ -53,18 +54,22 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Inject public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings);
-        this.location = new File(nodeEnv.shardLocation(shardId), "translog");
-        FileSystemUtils.mkdirs(this.location);
+        File[] shardLocations = nodeEnv.shardLocations(shardId);
+        this.locations = new File[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            locations[i] = new File(shardLocations[i], "translog");
+            FileSystemUtils.mkdirs(locations[i]);
+        }
     }
 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location) {
         super(shardId, indexSettings);
-        this.location = location;
-        FileSystemUtils.mkdirs(this.location);
+        this.locations = new File[]{location};
+        FileSystemUtils.mkdirs(location);
     }
 
-    public File location() {
-        return location;
+    public File[] locations() {
+        return locations;
     }
 
     @Override public long currentId() {
@@ -98,19 +103,21 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override public void clearUnreferenced() {
         rwl.writeLock().lock();
         try {
-            File[] files = location.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.getName().equals("translog-" + current.id())) {
-                        continue;
-                    }
-                    if (trans != null && file.getName().equals("translog-" + trans.id())) {
-                        continue;
-                    }
-                    try {
-                        file.delete();
-                    } catch (Exception e) {
-                        // ignore
+            for (File location : locations) {
+                File[] files = location.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.getName().equals("translog-" + current.id())) {
+                            continue;
+                        }
+                        if (trans != null && file.getName().equals("translog-" + trans.id())) {
+                            continue;
+                        }
+                        try {
+                            file.delete();
+                        } catch (Exception e) {
+                            // ignore
+                        }
                     }
                 }
             }
@@ -123,6 +130,17 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         rwl.writeLock().lock();
         try {
             FsTranslogFile newFile;
+            long size = Long.MAX_VALUE;
+            File location = null;
+            for (File file : locations) {
+                long currentFree = file.getFreeSpace();
+                if (currentFree < size) {
+                    size = currentFree;
+                    location = file;
+                } else if (currentFree == size && ThreadLocalRandom.current().nextBoolean()) {
+                    location = file;
+                }
+            }
             try {
                 newFile = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
             } catch (IOException e) {
@@ -147,6 +165,17 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         rwl.writeLock().lock();
         try {
             assert this.trans == null;
+            long size = Long.MAX_VALUE;
+            File location = null;
+            for (File file : locations) {
+                long currentFree = file.getFreeSpace();
+                if (currentFree < size) {
+                    size = currentFree;
+                    location = file;
+                } else if (currentFree == size && ThreadLocalRandom.current().nextBoolean()) {
+                    location = file;
+                }
+            }
             this.trans = new FsTranslogFile(shardId, id, new RafReference(new File(location, "translog-" + id)));
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);

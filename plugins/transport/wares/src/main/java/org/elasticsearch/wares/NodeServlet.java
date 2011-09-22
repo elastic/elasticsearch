@@ -45,6 +45,8 @@ import java.util.concurrent.CountDownLatch;
  *
  * <p>The node is registered as a servlet context attribute under <tt>elasticsearchNode</tt> so its easily
  * accessible from other web resources if needed.
+ *
+ * <p>The servlet can be registered under a prefix URI, and it will automatically adjust to handle it.
  */
 public class NodeServlet extends HttpServlet {
 

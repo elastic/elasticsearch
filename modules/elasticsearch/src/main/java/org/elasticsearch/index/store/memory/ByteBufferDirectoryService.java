@@ -46,8 +46,8 @@ public class ByteBufferDirectoryService extends AbstractIndexShardComponent impl
         this.byteBufferCache = byteBufferCache;
     }
 
-    @Override public Directory build() {
-        return new CustomByteBufferDirectory(byteBufferCache);
+    @Override public Directory[] build() {
+        return new Directory[]{new CustomByteBufferDirectory(byteBufferCache)};
     }
 
     @Override public void renameFile(Directory dir, String from, String to) throws IOException {

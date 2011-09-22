@@ -39,9 +39,9 @@ public class NioFsDirectoryService extends FsDirectoryService {
         super(shardId, indexSettings, indexStore);
     }
 
-    @Override public Directory build() throws IOException {
+    @Override public Directory[] build() throws IOException {
         File location = indexStore.shardIndexLocation(shardId);
         FileSystemUtils.mkdirs(location);
-        return new NIOFSDirectory(location, buildLockFactory());
+        return new Directory[]{new NIOFSDirectory(location, buildLockFactory())};
     }
 }

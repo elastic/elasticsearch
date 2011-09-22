@@ -40,8 +40,8 @@ public class RamDirectoryService extends AbstractIndexShardComponent implements 
         super(shardId, indexSettings);
     }
 
-    @Override public Directory build() {
-        return new CustomRAMDirectory();
+    @Override public Directory[] build() {
+        return new Directory[]{new CustomRAMDirectory()};
     }
 
     @Override public void renameFile(Directory dir, String from, String to) throws IOException {

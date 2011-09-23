@@ -47,6 +47,7 @@ public class AllocationDecidersModule extends AbstractModule {
         allocationMultibinder.addBinding().to(RebalanceOnlyWhenActiveAllocationDecider.class);
         allocationMultibinder.addBinding().to(ClusterRebalanceAllocationDecider.class);
         allocationMultibinder.addBinding().to(ConcurrentRebalanceAllocationDecider.class);
+        allocationMultibinder.addBinding().to(DisableAllocationDecider.class);
         allocationMultibinder.addBinding().to(AwarenessAllocationDecider.class);
         for (Class<? extends AllocationDecider> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);

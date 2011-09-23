@@ -307,5 +307,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             }
             return null;
         }
+
+        @Override public String numericAsString() {
+            return Byte.toString(number);
+        }
     }
 }

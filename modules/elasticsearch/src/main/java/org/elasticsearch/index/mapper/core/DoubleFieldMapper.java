@@ -308,5 +308,9 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             }
             return null;
         }
+
+        @Override public String numericAsString() {
+            return Double.toString(number);
+        }
     }
 }

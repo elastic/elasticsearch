@@ -308,5 +308,9 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             }
             return null;
         }
+
+        @Override public String numericAsString() {
+            return Integer.toString(number);
+        }
     }
 }

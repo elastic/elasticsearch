@@ -307,5 +307,9 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             }
             return null;
         }
+
+        @Override public String numericAsString() {
+            return Long.toString(number);
+        }
     }
 }

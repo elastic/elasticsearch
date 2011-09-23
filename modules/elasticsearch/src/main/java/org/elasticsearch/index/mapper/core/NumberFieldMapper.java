@@ -248,5 +248,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         @Override public Reader readerValue() {
             return null;
         }
+
+        public abstract String numericAsString();
     }
 }

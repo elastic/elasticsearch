@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -156,9 +157,22 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         String routing = context.sourceToParse().routing();
         if (path != null && routing != null) {
             // we have a path, check if we can validate we have the same routing value as the one in the doc...
-            String value = context.doc().get(path);
+            String value = null;
+            Fieldable field = context.doc().getFieldable(path);
+            if (field != null) {
+                value = field.stringValue();
+                if (value == null) {
+                    // maybe its a numeric field...
+                    if (field instanceof NumberFieldMapper.CustomNumericField) {
+                        value = ((NumberFieldMapper.CustomNumericField) field).numericAsString();
+                    }
+                }
+            }
             if (value == null) {
                 value = context.ignoredValue(path);
+            }
+            if (value == null) {
+                // maybe its a numeric field
             }
             if (!routing.equals(value)) {
                 throw new MapperParsingException("External routing [" + routing + "] and document path routing [" + value + "] mismatch");

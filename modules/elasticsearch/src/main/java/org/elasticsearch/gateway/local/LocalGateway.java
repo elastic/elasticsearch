@@ -73,7 +73,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
  */
 public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements Gateway, ClusterStateListener {
 
-    private File location;
+    private boolean requiresStatePersistence;
 
     private final ClusterService clusterService;
 
@@ -184,8 +184,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {
-        // the location is set to null, so we should not store it (for example, its not a data/master node)
-        if (location == null) {
+        if (!requiresStatePersistence) {
             return;
         }
 
@@ -260,20 +259,18 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
         // if this is not a possible master node or data node, bail, we won't save anything here...
         if (!clusterService.localNode().masterNode() && !clusterService.localNode().dataNode()) {
-            location = null;
+            requiresStatePersistence = false;
         } else {
             // create the location where the state will be stored
             // TODO: we might want to persist states on all data locations
-            this.location = new File(nodeEnv.nodeDataLocations()[0], "_state");
-            FileSystemUtils.mkdirs(this.location);
+            requiresStatePersistence = true;
 
             if (clusterService.localNode().masterNode()) {
                 try {
-                    long version = findLatestMetaStateVersion();
-                    if (version != -1) {
-                        File file = new File(location, "metadata-" + version);
-                        logger.debug("[find_latest_state]: loading metadata from [{}]", file.getAbsolutePath());
-                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(file)));
+                    File latest = findLatestMetaStateVersion();
+                    if (latest != null) {
+                        logger.debug("[find_latest_state]: loading metadata from [{}]", latest.getAbsolutePath());
+                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(latest)));
                     } else {
                         logger.debug("[find_latest_state]: no metadata state loaded");
                     }
@@ -284,11 +281,10 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
             if (clusterService.localNode().dataNode()) {
                 try {
-                    long version = findLatestStartedShardsVersion();
-                    if (version != -1) {
-                        File file = new File(location, "shards-" + version);
-                        logger.debug("[find_latest_state]: loading started shards from [{}]", file.getAbsolutePath());
-                        this.currentStartedShards = readStartedShards(Streams.copyToByteArray(new FileInputStream(file)));
+                    File latest = findLatestStartedShardsVersion();
+                    if (latest != null) {
+                        logger.debug("[find_latest_state]: loading started shards from [{}]", latest.getAbsolutePath());
+                        this.currentStartedShards = readStartedShards(Streams.copyToByteArray(new FileInputStream(latest)));
                     } else {
                         logger.debug("[find_latest_state]: no started shards loaded");
                     }
@@ -299,63 +295,85 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
     }
 
-    private long findLatestStartedShardsVersion() throws IOException {
+    private File findLatestStartedShardsVersion() throws IOException {
         long index = -1;
-        for (File stateFile : location.listFiles()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
-            }
-            String name = stateFile.getName();
-            if (!name.startsWith("shards-")) {
+        File latest = null;
+        for (File dataLocation : nodeEnv.nodeDataLocations()) {
+            File stateLocation = new File(dataLocation, "_state");
+            if (!stateLocation.exists()) {
                 continue;
             }
-            long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-            if (fileIndex >= index) {
-                // try and read the meta data
-                try {
-                    byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                    if (data.length == 0) {
-                        logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
+            File[] stateFiles = stateLocation.listFiles();
+            if (stateFiles == null) {
+                continue;
+            }
+            for (File stateFile : stateFiles) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
+                }
+                String name = stateFile.getName();
+                if (!name.startsWith("shards-")) {
+                    continue;
+                }
+                long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
+                if (fileIndex >= index) {
+                    // try and read the meta data
+                    try {
+                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
+                        if (data.length == 0) {
+                            logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
+                        }
+                        readStartedShards(data);
+                        index = fileIndex;
+                        latest = stateFile;
+                    } catch (IOException e) {
+                        logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
                     }
-                    readStartedShards(data);
-                    index = fileIndex;
-                } catch (IOException e) {
-                    logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
                 }
             }
         }
-
-        return index;
+        return latest;
     }
 
-    private long findLatestMetaStateVersion() throws IOException {
+    private File findLatestMetaStateVersion() throws IOException {
         long index = -1;
-        for (File stateFile : location.listFiles()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
-            }
-            String name = stateFile.getName();
-            if (!name.startsWith("metadata-")) {
+        File latest = null;
+        for (File dataLocation : nodeEnv.nodeDataLocations()) {
+            File stateLocation = new File(dataLocation, "_state");
+            if (!stateLocation.exists()) {
                 continue;
             }
-            long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
-            if (fileIndex >= index) {
-                // try and read the meta data
-                try {
-                    byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
-                    if (data.length == 0) {
-                        logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
-                        continue;
+            File[] stateFiles = stateLocation.listFiles();
+            if (stateFiles == null) {
+                continue;
+            }
+            for (File stateFile : stateFiles) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[find_latest_state]: processing [" + stateFile.getName() + "]");
+                }
+                String name = stateFile.getName();
+                if (!name.startsWith("metadata-")) {
+                    continue;
+                }
+                long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
+                if (fileIndex >= index) {
+                    // try and read the meta data
+                    try {
+                        byte[] data = Streams.copyToByteArray(new FileInputStream(stateFile));
+                        if (data.length == 0) {
+                            logger.debug("[find_latest_state]: not data for [" + name + "], ignoring...");
+                            continue;
+                        }
+                        readMetaState(data);
+                        index = fileIndex;
+                        latest = stateFile;
+                    } catch (IOException e) {
+                        logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
                     }
-                    readMetaState(data);
-                    index = fileIndex;
-                } catch (IOException e) {
-                    logger.warn("[find_latest_state]: failed to read state from [" + name + "], ignoring...", e);
                 }
             }
         }
-
-        return index;
+        return latest;
     }
 
     private LocalGatewayMetaState readMetaState(byte[] data) throws IOException {
@@ -411,7 +429,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             builder.metaData(event.state().metaData());
 
             try {
-                File stateFile = new File(location, "metadata-" + version);
+                File stateLocation = new File(nodeEnv.nodeDataLocations()[0], "_state");
+                if (!stateLocation.exists()) {
+                    FileSystemUtils.mkdirs(stateLocation);
+                }
+                File stateFile = new File(stateLocation, "metadata-" + version);
                 OutputStream fos = new FileOutputStream(stateFile);
                 if (compress) {
                     fos = new LZFOutputStream(fos);
@@ -432,14 +454,20 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 currentMetaState = stateToWrite;
 
                 // delete all the other files
-                File[] files = location.listFiles(new FilenameFilter() {
-                    @Override public boolean accept(File dir, String name) {
-                        return name.startsWith("metadata-") && !name.equals("metadata-" + version);
+                for (File dataLocation : nodeEnv.nodeDataLocations()) {
+                    stateLocation = new File(dataLocation, "_state");
+                    if (!stateLocation.exists()) {
+                        continue;
                     }
-                });
-                if (files != null) {
-                    for (File file : files) {
-                        file.delete();
+                    File[] files = stateLocation.listFiles(new FilenameFilter() {
+                        @Override public boolean accept(File dir, String name) {
+                            return name.startsWith("metadata-") && !name.equals("metadata-" + version);
+                        }
+                    });
+                    if (files != null) {
+                        for (File file : files) {
+                            file.delete();
+                        }
                     }
                 }
 
@@ -461,7 +489,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
         @Override public void run() {
             try {
-                File stateFile = new File(location, "shards-" + event.state().version());
+                File stateLocation = new File(nodeEnv.nodeDataLocations()[0], "_state");
+                if (!stateLocation.exists()) {
+                    FileSystemUtils.mkdirs(stateLocation);
+                }
+                File stateFile = new File(stateLocation, "shards-" + event.state().version());
                 OutputStream fos = new FileOutputStream(stateFile);
                 if (compress) {
                     fos = new LZFOutputStream(fos);
@@ -487,14 +519,20 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             }
 
             // delete all the other files
-            File[] files = location.listFiles(new FilenameFilter() {
-                @Override public boolean accept(File dir, String name) {
-                    return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
+            for (File dataLocation : nodeEnv.nodeDataLocations()) {
+                File stateLocation = new File(dataLocation, "_state");
+                if (!stateLocation.exists()) {
+                    continue;
                 }
-            });
-            if (files != null) {
-                for (File file : files) {
-                    file.delete();
+                File[] files = stateLocation.listFiles(new FilenameFilter() {
+                    @Override public boolean accept(File dir, String name) {
+                        return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
+                    }
+                });
+                if (files != null) {
+                    for (File file : files) {
+                        file.delete();
+                    }
                 }
             }
         }

@@ -307,5 +307,9 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             }
             return null;
         }
+
+        @Override public String numericAsString() {
+            return Short.toString(number);
+        }
     }
 }

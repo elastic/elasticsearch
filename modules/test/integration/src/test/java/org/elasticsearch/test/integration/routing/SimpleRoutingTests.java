@@ -300,4 +300,28 @@ public class SimpleRoutingTests extends AbstractNodesTests {
             assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
         }
     }
+
+    @Test public void testRequiredRoutingWithPathNumericType() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                        .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        logger.info("--> indexing with id [1], and routing [0]");
+        client.prepareIndex("test", "type1", "1").setSource("field", "value1", "routing_field", 0).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> verifying get with no routing, should not find anything");
+        for (int i = 0; i < 5; i++) {
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+        }
+        logger.info("--> verifying get with routing, should find");
+        for (int i = 0; i < 5; i++) {
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
+        }
+    }
 }

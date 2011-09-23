@@ -304,5 +304,9 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             }
             return null;
         }
+
+        @Override public String numericAsString() {
+            return Float.toString(number);
+        }
     }
 }

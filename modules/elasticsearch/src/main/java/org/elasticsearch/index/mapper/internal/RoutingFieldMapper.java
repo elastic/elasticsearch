@@ -171,9 +171,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
             if (value == null) {
                 value = context.ignoredValue(path);
             }
-            if (value == null) {
-                // maybe its a numeric field
-            }
             if (!routing.equals(value)) {
                 throw new MapperParsingException("External routing [" + routing + "] and document path routing [" + value + "] mismatch");
             }

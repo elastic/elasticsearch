@@ -49,10 +49,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     private volatile int clusterConcurrentRebalance;
 
-    @Inject public ConcurrentRebalanceAllocationDecider(Settings settings) {
+    @Inject public ConcurrentRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.clusterConcurrentRebalance = settings.getAsInt("cluster.routing.allocation.cluster_concurrent_rebalance", 2);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {

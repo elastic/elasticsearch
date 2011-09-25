@@ -44,7 +44,7 @@ public class AllocationDeciders extends AllocationDecider {
                 .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
                 .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
                 .add(new ClusterRebalanceAllocationDecider(settings))
-                .add(new ConcurrentRebalanceAllocationDecider(settings))
+                .add(new ConcurrentRebalanceAllocationDecider(settings, nodeSettingsService))
                 .add(new DisableAllocationDecider(settings, nodeSettingsService))
                 .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
                 .build()

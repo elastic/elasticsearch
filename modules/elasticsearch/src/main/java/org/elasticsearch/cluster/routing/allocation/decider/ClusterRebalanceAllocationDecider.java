@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static enum ClusterRebalanceType {
@@ -49,7 +51,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             logger.warn("[cluster.routing.allocation.allow_rebalance] has a wrong value {}, defaulting to 'indices_all_active'", allowRebalance);
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
-        logger.debug("using [allow_rebalance] with [{}]", type.toString().toLowerCase());
+        logger.debug("using [cluster.routing.allocation.allow_rebalance] with [{}]", type.toString().toLowerCase());
     }
 
     @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -60,7 +62,9 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                 }
             }
             for (RoutingNode node : allocation.routingNodes()) {
-                for (MutableShardRouting shard : node) {
+                List<MutableShardRouting> shards = node.shards();
+                for (int i = 0; i < shards.size(); i++) {
+                    MutableShardRouting shard = shards.get(i);
                     if (shard.primary() && !shard.active()) {
                         return false;
                     }
@@ -73,7 +77,9 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                 return false;
             }
             for (RoutingNode node : allocation.routingNodes()) {
-                for (MutableShardRouting shard : node) {
+                List<MutableShardRouting> shards = node.shards();
+                for (int i = 0; i < shards.size(); i++) {
+                    MutableShardRouting shard = shards.get(i);
                     if (!shard.active()) {
                         return false;
                     }

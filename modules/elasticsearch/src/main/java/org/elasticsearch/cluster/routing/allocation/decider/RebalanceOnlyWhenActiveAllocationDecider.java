@@ -40,8 +40,8 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
         List<MutableShardRouting> shards = allocation.routingNodes().shardsRoutingFor(shardRouting);
         // its ok to check for active here, since in relocation, a shard is split into two in routing
         // nodes, once relocating, and one initializing
-        for (ShardRouting allShard : shards) {
-            if (!allShard.active()) {
+        for (int i = 0; i < shards.size(); i++) {
+            if (!shards.get(i).active()) {
                 return false;
             }
         }

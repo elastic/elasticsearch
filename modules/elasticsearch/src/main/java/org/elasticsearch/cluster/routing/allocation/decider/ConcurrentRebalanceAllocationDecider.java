@@ -29,6 +29,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.util.List;
+
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     static {
@@ -62,8 +64,9 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         }
         int rebalance = 0;
         for (RoutingNode node : allocation.routingNodes()) {
-            for (MutableShardRouting shard : node) {
-                if (shard.state() == ShardRoutingState.RELOCATING) {
+            List<MutableShardRouting> shards = node.shards();
+            for (int i = 0; i < shards.size(); i++) {
+                if (shards.get(i).state() == ShardRoutingState.RELOCATING) {
                     rebalance++;
                 }
             }

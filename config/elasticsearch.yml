@@ -127,9 +127,15 @@
 #
 # path.conf: /path/to/conf
 
-# Path to directory where to store index data allocated for this node:
+# Path to directory where to store index data allocated for this node.
 #
 # path.data: /path/to/data
+#
+# Can optionally include more than one location, causing data to be stripped across
+# the locations (ala RAID 0) on a file level, favouring locations with most
+# free space on creation. For example:
+#
+# path.data: /path/to/data1,/path/to/data2
 
 # Path to temporary files:
 #

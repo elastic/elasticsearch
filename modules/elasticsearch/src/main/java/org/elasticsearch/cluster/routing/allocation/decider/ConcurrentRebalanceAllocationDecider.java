@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,10 +27,27 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
-    private final int clusterConcurrentRebalance;
+    static {
+        MetaData.addDynamicSettings(
+                "cluster.routing.allocation.cluster_concurrent_rebalance"
+        );
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override public void onRefreshSettings(Settings settings) {
+            int clusterConcurrentRebalance = settings.getAsInt("cluster.routing.allocation.cluster_concurrent_rebalance", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance);
+            if (clusterConcurrentRebalance != ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance) {
+                logger.info("updating [cluster.routing.allocation.cluster_concurrent_rebalance] from [{}], to [{}]", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance, clusterConcurrentRebalance);
+                ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance = clusterConcurrentRebalance;
+            }
+        }
+    }
+
+    private volatile int clusterConcurrentRebalance;
 
     @Inject public ConcurrentRebalanceAllocationDecider(Settings settings) {
         super(settings);

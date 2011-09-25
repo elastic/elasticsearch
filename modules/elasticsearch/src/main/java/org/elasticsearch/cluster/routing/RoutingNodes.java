@@ -176,7 +176,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public MutableShardRouting findPrimaryForReplica(ShardRouting shard) {
         assert !shard.primary();
         for (RoutingNode routingNode : nodesToShards.values()) {
-            for (MutableShardRouting shardRouting : routingNode) {
+            List<MutableShardRouting> shards = routingNode.shards();
+            for (int i = 0; i < shards.size(); i++) {
+                MutableShardRouting shardRouting = shards.get(i);
                 if (shardRouting.shardId().equals(shard.shardId()) && shardRouting.primary()) {
                     return shardRouting;
                 }

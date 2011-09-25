@@ -131,9 +131,9 @@
 #
 # path.data: /path/to/data
 #
-# Can optionally include more than one location, causing data to be stripped across
-# the locations (ala RAID 0) on a file level, favouring locations with most
-# free space on creation. For example:
+# Can optionally include more than one location, causing data to be striped across
+# the locations (à la RAID 0) on a file level, favouring locations with most free
+# space on creation. For example:
 #
 # path.data: /path/to/data1,/path/to/data2
 

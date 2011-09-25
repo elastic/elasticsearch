@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * An allocation strategy that does not allow for the same shard instance to be allocated on the same node.
  */
@@ -36,9 +38,10 @@ public class SameShardAllocationDecider extends AllocationDecider {
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        for (MutableShardRouting current : node.shards()) {
+        List<MutableShardRouting> shards = node.shards();
+        for (int i = 0; i < shards.size(); i++) {
             // we do not allow for two shards of the same shard id to exists on the same node
-            if (current.shardId().equals(shardRouting.shardId())) {
+            if (shards.get(i).shardId().equals(shardRouting.shardId())) {
                 return Decision.NO;
             }
         }

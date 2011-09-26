@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUID;
@@ -59,7 +60,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -76,6 +76,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final ClusterService clusterService;
 
     private final ClusterName clusterName;
+
+    private final DiscoveryNodeService discoveryNodeService;
 
     private final ZenPingService pingService;
 
@@ -110,12 +112,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Inject public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                 TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                                ZenPingService pingService) {
+                                DiscoveryNodeService discoveryNodeService, ZenPingService pingService) {
         super(settings);
         this.clusterName = clusterName;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.discoveryNodeService = discoveryNodeService;
         this.pingService = pingService;
 
         // also support direct discovery.zen settings, for cases when it gets extended
@@ -138,7 +141,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        Map<String, String> nodeAttributes = buildCommonNodesAttributes(settings);
+        Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
         String nodeId = UUID.randomBase64UUID();
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes);

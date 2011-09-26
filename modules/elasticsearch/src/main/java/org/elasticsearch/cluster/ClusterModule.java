@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationModule;
 import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
@@ -61,6 +62,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
+        bind(DiscoveryNodeService.class).asEagerSingleton();
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
 
         bind(MetaDataService.class).asEagerSingleton();

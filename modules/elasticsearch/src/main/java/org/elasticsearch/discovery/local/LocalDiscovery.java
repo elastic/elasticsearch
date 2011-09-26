@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.common.collect.Sets.*;
 
 /**
@@ -57,6 +57,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final TransportService transportService;
 
     private final ClusterService clusterService;
+
+    private final DiscoveryNodeService discoveryNodeService;
 
     private final ClusterName clusterName;
 
@@ -73,11 +75,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private static final AtomicLong nodeIdGenerator = new AtomicLong();
 
-    @Inject public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService) {
+    @Inject public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
+                                  DiscoveryNodeService discoveryNodeService) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.discoveryNodeService = discoveryNodeService;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -88,7 +92,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
-            this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(), buildCommonNodesAttributes(settings));
+            this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(),
+                    discoveryNodeService.buildAttributes());
 
             clusterGroup.members().add(this);
 

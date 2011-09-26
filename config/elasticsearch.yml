@@ -181,7 +181,9 @@
 ############################## Network And HTTP ###############################
 
 # ElasticSearch, by default, binds itself to the 0.0.0.0 address, and listens
-# on port 9200 for HTTP traffic and on port 9300 for node-to-node communication.
+# on port [9200-9300] for HTTP traffic and on port [9300-9400] for node-to-node
+# communication. (the range means that if the port is busy, it will automatically
+# try the next port).
 
 # Set the bind address specifically (IPv4 or IPv6):
 #
@@ -200,7 +202,7 @@
 #
 # transport.port: 9300
 
-# Enable compression for all communication between (disabled by default):
+# Enable compression for all communication between nodes (disabled by default):
 #
 # transport.tcp.compress: true
 

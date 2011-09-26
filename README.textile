@@ -2,7 +2,7 @@ h1. ElasticSearch
 
 h2. A Distributed RESTful Search Engine
 
-h3. "http://www.elasticsearch.com":http://www.elasticsearch.com
+h3. "http://www.elasticsearch.org":http://www.elasticsearch.org
 
 ElasticSearch is a distributed RESTful search engine built for the cloud. Features include:
 

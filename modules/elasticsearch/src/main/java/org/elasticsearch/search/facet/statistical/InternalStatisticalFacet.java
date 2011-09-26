@@ -114,6 +114,9 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
     }
 
     @Override public double mean() {
+        if (count == 0) {
+            return 0;
+        }
         return total / count;
     }
 

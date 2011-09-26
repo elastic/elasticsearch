@@ -28,7 +28,13 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
@@ -105,6 +111,9 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
         }
 
         @Override public double mean() {
+            if (totalCount == 0) {
+                return totalCount;
+            }
             return total / totalCount;
         }
 

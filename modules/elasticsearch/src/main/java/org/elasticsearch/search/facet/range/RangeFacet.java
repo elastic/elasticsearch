@@ -134,6 +134,9 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
          * The mean of this facet interval.
          */
         public double mean() {
+            if (totalCount == 0) {
+                return 0;
+            }
             return total / totalCount;
         }
 

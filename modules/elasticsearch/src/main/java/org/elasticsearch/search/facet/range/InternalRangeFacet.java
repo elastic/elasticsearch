@@ -180,8 +180,11 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
                 builder.field(Fields.TO_STR, entry.toAsString);
             }
             builder.field(Fields.COUNT, entry.count());
-            builder.field(Fields.MIN, entry.min());
-            builder.field(Fields.MAX, entry.max());
+            // only output min and max if there are actually documents matching this range...
+            if (entry.totalCount() > 0) {
+                builder.field(Fields.MIN, entry.min());
+                builder.field(Fields.MAX, entry.max());
+            }
             builder.field(Fields.TOTAL_COUNT, entry.totalCount());
             builder.field(Fields.TOTAL, entry.total());
             builder.field(Fields.MEAN, entry.mean());

@@ -195,7 +195,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(termFactory.createTerm(value), (float) minSim, prefixLength, maxExpansions);
+        return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

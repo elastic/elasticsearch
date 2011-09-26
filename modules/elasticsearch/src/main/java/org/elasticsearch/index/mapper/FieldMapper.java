@@ -47,6 +47,8 @@ public interface FieldMapper<T> {
 
         private final String fullName;
 
+        private final Term indexNameTermFactory;
+
         public Names(String name) {
             this(name, name, name, name);
         }
@@ -56,6 +58,7 @@ public interface FieldMapper<T> {
             this.indexName = indexName.intern();
             this.indexNameClean = indexNameClean.intern();
             this.fullName = fullName.intern();
+            this.indexNameTermFactory = new Term(indexName, "");
         }
 
         /**
@@ -85,6 +88,10 @@ public interface FieldMapper<T> {
          */
         public String fullName() {
             return fullName;
+        }
+
+        public Term createIndexNameTerm(String value) {
+            return indexNameTermFactory.createTerm(value);
         }
     }
 

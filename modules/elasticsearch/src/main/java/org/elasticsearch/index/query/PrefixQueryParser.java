@@ -83,15 +83,17 @@ public class PrefixQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for prefix query");
         }
 
+        PrefixQuery query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
                 value = smartNameFieldMappers.mapper().indexedValue(value);
+                query = new PrefixQuery(smartNameFieldMappers.mapper().names().createIndexNameTerm(value));
             }
         }
-
-        PrefixQuery query = new PrefixQuery(new Term(fieldName, value));
+        if (query == null) {
+            query = new PrefixQuery(new Term(fieldName, value));
+        }
         query.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);

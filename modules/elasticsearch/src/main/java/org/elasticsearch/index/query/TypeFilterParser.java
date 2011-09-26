@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -62,7 +61,7 @@ public class TypeFilterParser implements FilterParser {
         Filter filter;
         DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type);
         if (documentMapper == null) {
-            filter = new TermFilter(new Term(TypeFieldMapper.NAME, type));
+            filter = new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(type));
         } else {
             filter = documentMapper.typeFilter();
         }

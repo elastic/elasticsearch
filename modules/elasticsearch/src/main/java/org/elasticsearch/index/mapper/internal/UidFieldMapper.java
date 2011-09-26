@@ -169,7 +169,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     public Term term(String uid) {
-        return termFactory.createTerm(uid);
+        return names().createIndexNameTerm(uid);
     }
 
     @Override public void close() {

@@ -15,6 +15,11 @@
 # effect of certain configuration option, please _do ask_ on the
 # mailing list or IRC channel [http://elasticsearch.org/community].
 
+# Any element in the configuration can be replaced with environment variables
+# by placing them in ${...} notation. For example:
+#
+# node.rack: ${RACK_ENV_VAR}
+
 # See <http://elasticsearch.org/guide/reference/setup/configuration.html>
 # for information on supported formats and syntax for the configuration file.
 
@@ -70,6 +75,12 @@
 # Node Info API [http://localhost:9200/_cluster/nodes] or GUI tools
 # such as <http://github.com/lukas-vlcek/bigdesk> and
 # <http://mobz.github.com/elasticsearch-head> to inspect the cluster state.
+
+# A node can have generic attributes associated with it, which can later be used
+# for customized shard allocation filtering, or allocation awareness. An attribute
+# is a simple key value pair, similar to node.key: value, here is an example:
+#
+# node.rack: rack314
 
 
 #################################### Index ####################################

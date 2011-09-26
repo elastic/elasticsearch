@@ -32,7 +32,7 @@ dependencies {
 
     groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.8.2'
     distLib('org.codehaus.groovy:groovy-all:1.8.2') { transitive = false }
-    //testCompile('junit:junit:4.8.1') {transitive = false}
+    testCompile('junit:junit:4.8.1') {transitive = false}
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

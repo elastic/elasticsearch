@@ -27,6 +27,8 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -38,13 +40,16 @@ import org.elasticsearch.common.settings.SettingsFilter;
  */
 public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
 
+    public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
+
     private AmazonEC2Client client;
 
-    @Inject public AwsEc2Service(Settings settings, SettingsFilter settingsFilter, NetworkService networkService) {
+    @Inject public AwsEc2Service(Settings settings, SettingsFilter settingsFilter, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
         super(settings);
         settingsFilter.addFilter(new AwsSettingsFilter());
         // add specific ec2 name resolver
         networkService.addCustomNameResolver(new Ec2NameResolver(settings));
+        discoveryNodeService.addCustomAttributeProvider(new Ec2CustomNodeAttributes(settings));
     }
 
     public synchronized AmazonEC2 client() {

@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws.network;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
@@ -78,8 +79,6 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
         }
     }
 
-    private static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
-
     /**
      * Construct a {@link CustomNameResolver}.
      */
@@ -97,7 +96,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
         URLConnection urlConnection = null;
         InputStream in = null;
         try {
-            URL url = new URL(EC2_METADATA_URL + type.ec2Name);
+            URL url = new URL(AwsEc2Service.EC2_METADATA_URL + type.ec2Name);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
             urlConnection = url.openConnection();
             urlConnection.setConnectTimeout(2000);

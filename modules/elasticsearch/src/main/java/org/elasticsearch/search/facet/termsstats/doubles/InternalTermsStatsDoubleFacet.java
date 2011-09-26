@@ -30,7 +30,13 @@ import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.termsstats.InternalTermsStatsFacet;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
 public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
 
@@ -128,6 +134,9 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         }
 
         @Override public double mean() {
+            if (totalCount == 0) {
+                return 0;
+            }
             return total / totalCount;
         }
 

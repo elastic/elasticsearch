@@ -109,6 +109,9 @@ public class InternalBoundedFullHistogramFacet extends InternalHistogramFacet {
         }
 
         @Override public double mean() {
+            if (totalCount == 0) {
+                return 0;
+            }
             return total / totalCount;
         }
 

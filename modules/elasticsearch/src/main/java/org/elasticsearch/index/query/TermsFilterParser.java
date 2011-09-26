@@ -77,8 +77,10 @@ public class TermsFilterParser implements FilterParser {
                     }
                     if (fieldMapper != null) {
                         value = fieldMapper.indexedValue(value);
+                        termsFilter.addTerm(fieldMapper.names().createIndexNameTerm(value));
+                    } else {
+                        termsFilter.addTerm(new Term(fieldName, value));
                     }
-                    termsFilter.addTerm(new Term(fieldName, value));
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {

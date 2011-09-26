@@ -144,7 +144,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     public Term term(String value) {
-        return termFactory.createTerm(value);
+        return names().createIndexNameTerm(value);
     }
 
     @Override public void preParse(ParseContext context) throws IOException {

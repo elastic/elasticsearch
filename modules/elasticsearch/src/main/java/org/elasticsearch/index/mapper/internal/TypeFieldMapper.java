@@ -129,14 +129,14 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     public Term term(String value) {
-        return termFactory.createTerm(value);
+        return names().createIndexNameTerm(value);
     }
 
     @Override public Filter fieldFilter(String value) {
         if (index == Field.Index.NO) {
             return new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.typePrefix(value)));
         }
-        return new TermFilter(termFactory.createTerm(value));
+        return new TermFilter(names().createIndexNameTerm(value));
     }
 
     @Override public Query fieldQuery(String value, QueryParseContext context) {

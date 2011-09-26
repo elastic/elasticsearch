@@ -48,7 +48,7 @@ public class UidFilter extends Filter {
         this.uids = new ArrayList<Term>(types.size() * ids.size());
         for (String type : types) {
             for (String id : ids) {
-                uids.add(new Term(UidFieldMapper.NAME, Uid.createUid(type, id)));
+                uids.add(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id)));
             }
         }
     }

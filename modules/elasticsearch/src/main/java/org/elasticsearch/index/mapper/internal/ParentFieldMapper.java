@@ -179,7 +179,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     public Term term(String uid) {
-        return termFactory.createTerm(uid);
+        return names().createIndexNameTerm(uid);
     }
 
     @Override protected String contentType() {

@@ -77,15 +77,18 @@ public class PrefixFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for prefix filter");
         }
 
+        Filter filter = null;
+
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
                 value = smartNameFieldMappers.mapper().indexedValue(value);
+                filter = new PrefixFilter(smartNameFieldMappers.mapper().names().createIndexNameTerm(value));
             }
         }
-
-        Filter filter = new PrefixFilter(new Term(fieldName, value));
+        if (filter == null) {
+            filter = new PrefixFilter(new Term(fieldName, value));
+        }
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

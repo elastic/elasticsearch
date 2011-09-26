@@ -21,7 +21,6 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
@@ -138,7 +137,7 @@ public class PercolatorService extends AbstractIndexComponent {
     }
 
     private Filter indexQueriesFilter(String indexName) {
-        return percolatorIndexService().cache().filter().cache(new TermFilter(new Term(TypeFieldMapper.NAME, indexName)));
+        return percolatorIndexService().cache().filter().cache(new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(indexName)));
     }
 
     private boolean percolatorAllocated() {

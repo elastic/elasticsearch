@@ -167,6 +167,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
+    // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
+    // instances of field mappers to properly remove existing doc mapper
     private void add(DocumentMapper mapper) {
         synchronized (mutex) {
             if (mapper.type().charAt(0) == '_') {
@@ -181,10 +183,17 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().contains(".")) {
                 logger.warn("Type [{}] contains a '.', it is recommended not to include it within a type name", mapper.type());
             }
-            remove(mapper.type()); // first remove it (in case its an update, we need to remove the aggregated mappers)
+            // we can add new field/object mappers while the old ones are there
+            // since we get new instances of those, and when we remove, we remove
+            // by instance equality
+            DocumentMapper oldMapper = mappers.get(mapper.type());
             mapper.addFieldMapperListener(fieldMapperListener, true);
             mapper.addObjectMapperListener(objectMapperListener, true);
             mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
+            if (oldMapper != null) {
+                removeObjectFieldMappers(oldMapper);
+                oldMapper.close();
+            }
         }
     }
 
@@ -196,49 +205,52 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             docMapper.close();
             mappers = newMapBuilder(mappers).remove(type).immutableMap();
+            removeObjectFieldMappers(docMapper);
+        }
+    }
 
-            // we need to remove those mappers
-            for (FieldMapper mapper : docMapper.mappers()) {
-                FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        nameFieldMappers = newMapBuilder(nameFieldMappers).remove(mapper.names().name()).immutableMap();
-                    } else {
-                        nameFieldMappers = newMapBuilder(nameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
-                    }
-                }
-
-                mappers = indexNameFieldMappers.get(mapper.names().indexName());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().indexName()).immutableMap();
-                    } else {
-                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().indexName(), mappers).immutableMap();
-                    }
-                }
-
-                mappers = fullNameFieldMappers.get(mapper.names().fullName());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().fullName()).immutableMap();
-                    } else {
-                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().fullName(), mappers).immutableMap();
-                    }
+    private void removeObjectFieldMappers(DocumentMapper docMapper) {
+        // we need to remove those mappers
+        for (FieldMapper mapper : docMapper.mappers()) {
+            FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
+            if (mappers != null) {
+                mappers = mappers.remove(mapper);
+                if (mappers.isEmpty()) {
+                    nameFieldMappers = newMapBuilder(nameFieldMappers).remove(mapper.names().name()).immutableMap();
+                } else {
+                    nameFieldMappers = newMapBuilder(nameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
                 }
             }
 
-            for (ObjectMapper mapper : docMapper.objectMappers().values()) {
-                ObjectMappers mappers = objectMappers.get(mapper.fullPath());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        objectMappers = newMapBuilder(objectMappers).remove(mapper.fullPath()).immutableMap();
-                    } else {
-                        objectMappers = newMapBuilder(objectMappers).put(mapper.fullPath(), mappers).immutableMap();
-                    }
+            mappers = indexNameFieldMappers.get(mapper.names().indexName());
+            if (mappers != null) {
+                mappers = mappers.remove(mapper);
+                if (mappers.isEmpty()) {
+                    indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().indexName()).immutableMap();
+                } else {
+                    indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().indexName(), mappers).immutableMap();
+                }
+            }
+
+            mappers = fullNameFieldMappers.get(mapper.names().fullName());
+            if (mappers != null) {
+                mappers = mappers.remove(mapper);
+                if (mappers.isEmpty()) {
+                    fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().fullName()).immutableMap();
+                } else {
+                    fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().fullName(), mappers).immutableMap();
+                }
+            }
+        }
+
+        for (ObjectMapper mapper : docMapper.objectMappers().values()) {
+            ObjectMappers mappers = objectMappers.get(mapper.fullPath());
+            if (mappers != null) {
+                mappers = mappers.remove(mapper);
+                if (mappers.isEmpty()) {
+                    objectMappers = newMapBuilder(objectMappers).remove(mapper.fullPath()).immutableMap();
+                } else {
+                    objectMappers = newMapBuilder(objectMappers).put(mapper.fullPath(), mappers).immutableMap();
                 }
             }
         }

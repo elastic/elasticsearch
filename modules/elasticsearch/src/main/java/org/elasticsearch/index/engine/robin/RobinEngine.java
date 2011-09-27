@@ -125,8 +125,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private final boolean asyncLoadBloomFilter;
 
-    // no need for volatile, its always used under a lock
-    private IndexWriter indexWriter;
+    private volatile IndexWriter indexWriter;
 
     private volatile AcquirableResource<ReaderSearcherHolder> nrtResource;
 
@@ -237,6 +236,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             if (indexWriter != null) {
                 throw new EngineAlreadyStartedException(shardId);
+            }
+            if (closed) {
+                throw new EngineClosedException(shardId);
             }
             if (logger.isDebugEnabled()) {
                 logger.debug("Starting engine");
@@ -1033,6 +1035,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } catch (Exception e) {
             --disableFlushCounter;
             phase1Snapshot.release();
+            if (closed) {
+                e = new EngineClosedException(shardId, e);
+            }
             throw new RecoveryEngineException(shardId, 1, "Execution failed", e);
         }
 
@@ -1042,6 +1047,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } catch (Exception e) {
             --disableFlushCounter;
             phase1Snapshot.release();
+            if (closed) {
+                e = new EngineClosedException(shardId, e);
+            }
             throw new RecoveryEngineException(shardId, 2, "Snapshot failed", e);
         }
 
@@ -1051,6 +1059,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             --disableFlushCounter;
             phase1Snapshot.release();
             phase2Snapshot.release();
+            if (closed) {
+                e = new EngineClosedException(shardId, e);
+            }
             throw new RecoveryEngineException(shardId, 2, "Execution failed", e);
         }
 

@@ -60,6 +60,11 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     void addPriority(ClusterStateListener listener);
 
     /**
+     * Adds last listener.
+     */
+    void addLast(ClusterStateListener listener);
+
+    /**
      * Adds a listener for updated cluster states.
      */
     void add(ClusterStateListener listener);

@@ -79,6 +79,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final List<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
     private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
+    private final List<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
 
     private final Queue<NotifyTimeout> onGoingTimeouts = new LinkedTransferQueue<NotifyTimeout>();
 
@@ -150,6 +151,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     public void addPriority(ClusterStateListener listener) {
         priorityClusterStateListeners.add(listener);
+    }
+
+    public void addLast(ClusterStateListener listener) {
+        lastClusterStateListeners.add(listener);
     }
 
     public void add(ClusterStateListener listener) {
@@ -262,6 +267,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         listener.clusterChanged(clusterChangedEvent);
                     }
                     for (ClusterStateListener listener : clusterStateListeners) {
+                        listener.clusterChanged(clusterChangedEvent);
+                    }
+                    for (ClusterStateListener listener : lastClusterStateListeners) {
                         listener.clusterChanged(clusterChangedEvent);
                     }
 

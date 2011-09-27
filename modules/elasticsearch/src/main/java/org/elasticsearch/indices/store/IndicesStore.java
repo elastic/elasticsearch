@@ -54,7 +54,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.nodeEnv = nodeEnv;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        clusterService.add(this);
+        clusterService.addLast(this);
     }
 
     public void close() {

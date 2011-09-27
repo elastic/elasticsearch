@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -103,7 +104,12 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 //                reroute();
             } else {
                 if (event.nodesAdded()) {
-                    routingTableDirty = true;
+                    for (DiscoveryNode node : event.nodesDelta().addedNodes()) {
+                        if (node.dataNode()) {
+                            routingTableDirty = true;
+                            break;
+                        }
+                    }
                 }
             }
         } else {

@@ -120,6 +120,6 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
      * The refresh request works against *all* shards.
      */
     @Override protected GroupShardsIterator shards(RefreshRequest request, String[] concreteIndices, ClusterState clusterState) {
-        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
+        return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
     }
 }

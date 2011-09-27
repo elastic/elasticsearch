@@ -33,16 +33,19 @@ import java.util.UUID;
 public class RefreshStressTest1 {
 
     public static void main(String[] args) throws InterruptedException {
+        int numberOfShards = 5;
         Node node = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
                 ImmutableSettings.settingsBuilder()
                         .put("node.name", "node1")
                         .put("gateway.type", "none")
+                        .put("index.number_of_shards", numberOfShards)
                                 //.put("path.data", new File("target/data").getAbsolutePath())
                         .build()).node();
         Node node2 = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
                 ImmutableSettings.settingsBuilder()
                         .put("node.name", "node2")
                         .put("gateway.type", "none")
+                        .put("index.number_of_shards", numberOfShards)
                                 //.put("path.data", new File("target/data").getAbsolutePath())
                         .build()).node();
         Client client = node.client();
@@ -69,12 +72,14 @@ public class RefreshStressTest1 {
             SearchResponse result = client.prepareSearch(indexName).setFilter(FilterBuilders.termFilter("name", name)).execute().actionGet();
             if (result.getHits().hits().length != 1) {
                 for (int i = 1; i <= 100; i++) {
-                    System.out.println("retry " + loop + ", " + i);
+                    System.out.println("retry " + loop + ", " + i + ", previous total hits: " + result.getHits().getTotalHits());
                     client.admin().indices().prepareRefresh(indexName).execute().actionGet();
                     Thread.sleep(100);
                     result = client.prepareSearch(indexName).setFilter(FilterBuilders.termFilter("name", name)).execute().actionGet();
                     if (result.getHits().hits().length == 1) {
-                        throw new RuntimeException("Record found after " + (i * 100) + " ms");
+                        client.admin().indices().prepareRefresh(indexName).execute().actionGet();
+                        result = client.prepareSearch(indexName).setFilter(FilterBuilders.termFilter("name", name)).execute().actionGet();
+                        throw new RuntimeException("Record found after " + (i * 100) + " ms, second go: " + result.getHits().hits().length);
                     } else if (i == 100) {
                         if (client.prepareGet(indexName, typeName, id).execute().actionGet().isExists())
                             throw new RuntimeException("Record wasn't found after 10s but can be get by id");
@@ -83,7 +88,7 @@ public class RefreshStressTest1 {
                 }
             }
 
-            client.admin().indices().prepareDelete(indexName).execute().actionGet();
+            //client.admin().indices().prepareDelete(indexName).execute().actionGet();
         }
         client.close();
         node2.close();

@@ -60,7 +60,8 @@ public class NodeEnvironment extends AbstractComponent {
         Lock[] locks = new Lock[environment.dataWithClusterFiles().length];
         int localNodeId = -1;
         IOException lastException = null;
-        for (int possibleLockId = 0; possibleLockId < 50; possibleLockId++) {
+        int maxLocalStorageNodes = settings.getAsInt("node.max_local_storage_nodes", 50);
+        for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
                 File dir = new File(new File(environment.dataWithClusterFiles()[dirIndex], "nodes"), Integer.toString(possibleLockId));
                 if (!dir.exists()) {

@@ -50,6 +50,11 @@ public class ClearIndicesCacheRequestBuilder extends BaseIndicesRequestBuilder<C
         return this;
     }
 
+    public ClearIndicesCacheRequestBuilder setFields(String... fields) {
+        request.fields(fields);
+        return this;
+    }
+
     public ClearIndicesCacheRequestBuilder setIdCache(boolean idCache) {
         request.idCache(idCache);
         return this;

@@ -122,7 +122,13 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             }
             if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
-                service.cache().fieldData().clear();
+                if (request.fields() == null || request.fields().length == 0) {
+                    service.cache().fieldData().clear();
+                } else {
+                    for (String field : request.fields()) {
+                        service.cache().fieldData().clear(field);
+                    }
+                }
             }
             if (request.idCache()) {
                 clearedAtLeastOne = true;
@@ -133,7 +139,14 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                 service.cache().bloomCache().clear();
             }
             if (!clearedAtLeastOne) {
-                service.cache().clear();
+                if (request.fields() != null && request.fields().length > 0) {
+                    // only clear caches relating to the specified fields
+                    for (String field : request.fields()) {
+                        service.cache().fieldData().clear(field);
+                    }
+                } else {
+                    service.cache().clear();
+                }
             }
             service.cache().invalidateCache();
         }

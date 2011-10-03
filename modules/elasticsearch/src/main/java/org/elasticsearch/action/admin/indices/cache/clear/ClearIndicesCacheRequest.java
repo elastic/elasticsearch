@@ -35,6 +35,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
     private boolean fieldDataCache = false;
     private boolean idCache = false;
     private boolean bloomCache = false;
+    private String[] fields = null;
 
     ClearIndicesCacheRequest() {
     }
@@ -79,6 +80,15 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
         return this;
     }
 
+    public ClearIndicesCacheRequest fields(String... fields) {
+        this.fields = fields;
+        return this;
+    }
+
+    public String[] fields() {
+        return this.fields;
+    }
+
     public boolean idCache() {
         return this.idCache;
     }
@@ -103,6 +113,13 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
         bloomCache = in.readBoolean();
+        int size = in.readVInt();
+        if (size > 0) {
+            fields = new String[size];
+            for (int i = 0; i < size; i++) {
+                fields[i] = in.readUTF();
+            }
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -111,5 +128,13 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest {
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
         out.writeBoolean(bloomCache);
+        if (fields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(fields.length);
+            for (String field : fields) {
+                out.writeUTF(field);
+            }
+        }
     }
 }

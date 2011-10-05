@@ -99,6 +99,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         return true;
     }
 
+    protected boolean ignoreException(Throwable t) {
+        return false;
+    }
+
     protected boolean ignoreNonActiveExceptions() {
         return false;
     }
@@ -267,13 +271,15 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         @SuppressWarnings({"unchecked"}) void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
             ShardRouting nextShard = shardIt.nextOrNull();
             if (nextShard != null) {
-                // trace log this exception
-                if (logger.isTraceEnabled()) {
-                    if (t != null) {
-                        if (shard != null) {
-                            logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                        } else {
-                            logger.trace(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                if (t != null) {
+                    // trace log this exception
+                    if (logger.isTraceEnabled()) {
+                        if (!ignoreException(t)) {
+                            if (shard != null) {
+                                logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
+                            } else {
+                                logger.trace(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                            }
                         }
                     }
                 }
@@ -286,10 +292,12 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {
                     if (t != null) {
-                        if (shard != null) {
-                            logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                        } else {
-                            logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                        if (!ignoreException(t)) {
+                            if (shard != null) {
+                                logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
+                            } else {
+                                logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                            }
                         }
                     }
                 }
@@ -300,8 +308,14 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         if (!ignoreNonActiveExceptions()) {
                             t = new BroadcastShardOperationFailedException(shardIt.shardId(), "No active shard(s)");
                         }
-                    } else if (!(t instanceof BroadcastShardOperationFailedException)) {
-                        t = new BroadcastShardOperationFailedException(shardIt.shardId(), t);
+                    } else {
+                        if (ignoreException(t)) {
+                            t = null;
+                        } else {
+                            if (!(t instanceof BroadcastShardOperationFailedException)) {
+                                t = new BroadcastShardOperationFailedException(shardIt.shardId(), t);
+                            }
+                        }
                     }
                     shardsResponses.set(index, t);
                 }

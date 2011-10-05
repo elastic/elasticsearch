@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -150,7 +151,9 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
             builder.endObject();
 
 
-            client.prepareIndex(riverIndexName, riverName.name(), "_status").setSource(builder).execute().actionGet();
+            client.prepareIndex(riverIndexName, riverName.name(), "_status")
+                    .setConsistencyLevel(WriteConsistencyLevel.ONE)
+                    .setSource(builder).execute().actionGet();
         } catch (Exception e) {
             logger.warn("failed to create river [{}][{}]", e, riverName.type(), riverName.name());
 
@@ -164,7 +167,9 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                 builder.field("transport_address", clusterService.localNode().address().toString());
                 builder.endObject();
 
-                client.prepareIndex(riverIndexName, riverName.name(), "_status").setSource(builder).execute().actionGet();
+                client.prepareIndex(riverIndexName, riverName.name(), "_status")
+                        .setConsistencyLevel(WriteConsistencyLevel.ONE)
+                        .setSource(builder).execute().actionGet();
             } catch (Exception e1) {
                 logger.warn("failed to write failed status for river creation", e);
             }

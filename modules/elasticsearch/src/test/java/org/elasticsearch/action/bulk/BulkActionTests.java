@@ -26,10 +26,18 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 public class BulkActionTests {
-    @Test public void testSimpleBulk() throws Exception {
+
+    @Test public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true);
+        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
+        assertThat(bulkRequest.numberOfActions(), equalTo(3));
+    }
+
+    @Test public void testSimpleBulk2() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk2.json");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 }

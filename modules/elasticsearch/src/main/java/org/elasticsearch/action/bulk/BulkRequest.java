@@ -25,6 +25,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,6 +83,13 @@ public class BulkRequest implements ActionRequest {
      * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
+        return add(data, from, length, contentUnsafe, null, null);
+    }
+
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequest add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
         XContent xContent = XContentFactory.xContent(data, from, length);
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -105,12 +113,9 @@ public class BulkRequest implements ActionRequest {
             token = parser.nextToken();
             assert token == XContentParser.Token.FIELD_NAME;
             String action = parser.currentName();
-            // Move to START_OBJECT
-            token = parser.nextToken();
-            assert token == XContentParser.Token.START_OBJECT;
 
-            String index = null;
-            String type = null;
+            String index = defaultIndex;
+            String type = defaultType;
             String id = null;
             String routing = null;
             String parent = null;
@@ -120,6 +125,9 @@ public class BulkRequest implements ActionRequest {
             long version = 0;
             VersionType versionType = VersionType.INTERNAL;
             String percolate = null;
+
+            // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
+            // or START_OBJECT which will have another set of parameters
 
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

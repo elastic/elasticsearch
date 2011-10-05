@@ -30,6 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
+import org.elasticsearch.common.Nullable;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -81,7 +82,15 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
      * Adds a framed data in binary format
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
-        request.add(data, from, length, contentUnsafe);
+        request.add(data, from, length, contentUnsafe, null, null);
+        return this;
+    }
+
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        request.add(data, from, length, contentUnsafe, defaultIndex, defaultType);
         return this;
     }
 

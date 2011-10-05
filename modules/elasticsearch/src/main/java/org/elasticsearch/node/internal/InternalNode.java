@@ -112,7 +112,7 @@ public final class InternalNode implements Node {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
-        logger.info("{{}}[{}]: initializing ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: initializing ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();
@@ -149,7 +149,7 @@ public final class InternalNode implements Node {
 
         client = injector.getInstance(Client.class);
 
-        logger.info("{{}}[{}]: initialized", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: initialized", Version.CURRENT, JvmInfo.jvmInfo().pid());
     }
 
     @Override public Settings settings() {
@@ -166,7 +166,7 @@ public final class InternalNode implements Node {
         }
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: starting ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: starting ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).start();
@@ -193,7 +193,7 @@ public final class InternalNode implements Node {
         }
         injector.getInstance(JmxService.class).connectAndRegister(discoService.nodeDescription(), injector.getInstance(NetworkService.class));
 
-        logger.info("{{}}[{}]: started", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: started", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         return this;
     }
@@ -203,7 +203,7 @@ public final class InternalNode implements Node {
             return this;
         }
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: stopping ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: stopping ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
@@ -237,7 +237,7 @@ public final class InternalNode implements Node {
             injector.getInstance(plugin).stop();
         }
 
-        logger.info("{{}}[{}]: stopped", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: stopped", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         return this;
     }
@@ -251,7 +251,7 @@ public final class InternalNode implements Node {
         }
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: closing ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: closing ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
         StopWatch stopWatch = new StopWatch("node_close");
         stopWatch.start("http");
@@ -325,7 +325,7 @@ public final class InternalNode implements Node {
         injector.getInstance(NodeEnvironment.class).close();
         Injectors.close(injector);
 
-        logger.info("{{}}[{}]: closed", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: closed", Version.CURRENT, JvmInfo.jvmInfo().pid());
     }
 
     @Override public boolean isClosed() {

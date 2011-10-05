@@ -1,4 +1,5 @@
 apply plugin: 'java'
+apply plugin: 'maven'
 apply plugin: 'eclipse'
 
 archivesBaseName = "$rootProject.archivesBaseName-$project.archivesBaseName"
@@ -17,4 +18,18 @@ dependencies {
 
 eclipseClasspath {
     defaultOutputDir = file('build/eclipse-build')
+}
+
+task writeNewPom << {
+    pom {
+        project {
+            licenses {
+                license {
+                    name 'The Apache Software License, Version 2.0'
+                    url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    distribution 'repo'
+                }
+            }
+        }
+    }.writeTo("$buildDir/mypom.xml")
 }

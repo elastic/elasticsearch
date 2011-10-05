@@ -3,6 +3,7 @@ import java.text.SimpleDateFormat
 defaultTasks "clean", "release"
 
 apply plugin: 'base'
+apply plugin: 'maven'
 
 archivesBaseName = 'elasticsearch'
 
@@ -151,6 +152,20 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
     //    }
 
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
+}
+
+task writeNewPom << {
+    pom {
+        project {
+            licenses {
+                license {
+                    name 'The Apache Software License, Version 2.0'
+                    url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    distribution 'repo'
+                }
+            }
+        }
+    }.writeTo("$buildDir/mypom.xml")
 }
 
 task zip(type: Zip, dependsOn: ['explodedDist']) {

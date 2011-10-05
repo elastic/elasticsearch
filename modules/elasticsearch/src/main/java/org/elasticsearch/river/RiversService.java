@@ -218,7 +218,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                 if (rivers.containsKey(routing.riverName())) {
                     continue;
                 }
-                client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").execute(new ActionListener<GetResponse>() {
+                client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
                     @Override public void onResponse(GetResponse getResponse) {
                         if (!rivers.containsKey(routing.riverName())) {
                             if (getResponse.exists()) {
@@ -238,7 +238,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                             final ActionListener<GetResponse> listener = this;
                             threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {
                                 @Override public void run() {
-                                    client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").execute(listener);
+                                    client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(listener);
                                 }
                             });
                         } else {

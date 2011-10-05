@@ -48,6 +48,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.auth.SearchContextAuth;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -144,6 +145,8 @@ public class SearchContext implements Releasable {
     private int docsIdsToLoadSize;
 
     private SearchContextFacets facets;
+    
+    private SearchContextAuth auth;
 
     private SearchContextHighlight highlight;
 
@@ -256,6 +259,15 @@ public class SearchContext implements Releasable {
     public SearchContext facets(SearchContextFacets facets) {
         this.facets = facets;
         return this;
+    }
+    
+    public SearchContext auth(SearchContextAuth auth) {
+        this.auth = auth;
+        return this;
+    }
+    
+    public SearchContextAuth auth() {
+        return auth;
     }
 
     public SearchContextHighlight highlight() {

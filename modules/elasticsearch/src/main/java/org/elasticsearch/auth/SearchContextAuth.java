@@ -16,23 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.search.facet;
-
-import java.util.List;
+package org.elasticsearch.auth;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SearchContextFacets {
+public class SearchContextAuth {
 
-    private final List<FacetCollector> facetCollectors;
+    private String login;
+    private String password;
 
-    public SearchContextFacets(List<FacetCollector> facetCollectors) {
-        this.facetCollectors = facetCollectors;
+    public SearchContextAuth(String login, String password) {
+        this.login = login;
+        this.password = password;
     }
 
-    public List<FacetCollector> facetCollectors() {
-        return facetCollectors;
+    public String login() {
+        return login;
+    }
+
+    public String password() {
+        return password;
     }
 }

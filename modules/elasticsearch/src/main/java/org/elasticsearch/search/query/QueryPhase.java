@@ -46,6 +46,7 @@ import org.elasticsearch.search.sort.TrackScoresParseElement;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
+import org.elasticsearch.auth.AuthParseElement;
 
 /**
  * @author kimchy (Shay Banon)
@@ -61,6 +62,7 @@ public class QueryPhase implements SearchPhase {
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("from", new FromParseElement()).put("size", new SizeParseElement())
+                .put("auth", new AuthParseElement())
                 .put("indices_boost", new IndicesBoostParseElement())
                 .put("indicesBoost", new IndicesBoostParseElement())
                 .put("query", new QueryParseElement())
@@ -69,7 +71,7 @@ public class QueryPhase implements SearchPhase {
                 .put("filter", new FilterParseElement())
                 .put("filterBinary", new FilterBinaryParseElement())
                 .put("filter_binary", new FilterBinaryParseElement())
-                .put("sort", new SortParseElement())
+                .put("sort", new SortParseElement())                
                 .put("trackScores", new TrackScoresParseElement())
                 .put("track_scores", new TrackScoresParseElement())
                 .put("min_score", new MinScoreParseElement())

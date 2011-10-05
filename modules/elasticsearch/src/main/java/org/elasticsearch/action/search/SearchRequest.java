@@ -434,7 +434,7 @@ public class SearchRequest implements ActionRequest {
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;

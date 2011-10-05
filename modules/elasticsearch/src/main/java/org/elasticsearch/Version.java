@@ -19,63 +19,95 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.io.InputStream;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Properties;
-import java.util.TimeZone;
+import java.io.IOException;
 
 /**
- * @author kimchy (shay.banon)
  */
 public class Version {
 
-    private static final String number;
-    private static final String date;
-    private static final boolean snapshotBuild;
+    // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
+    // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
+    // the (internal) format of the id is there so we can easily do after/before checks on the id
 
+    public static final int V_0_18_0_ID = /*00*/180099;
+    public static final Version V_0_18_0 = new Version(V_0_18_0_ID, true);
 
-    static {
-        Properties props = new Properties();
-        try {
-            InputStream stream = Version.class.getClassLoader().getResourceAsStream("org/elasticsearch/version.properties");
-            props.load(stream);
-            stream.close();
-        } catch (Exception e) {
-            // ignore
+    public static final Version CURRENT = V_0_18_0;
+
+    public static Version readVersion(StreamInput in) throws IOException {
+        return fromId(in.readVInt());
+    }
+
+    private static Version fromId(int id) {
+        switch (id) {
+            case V_0_18_0_ID:
+                return V_0_18_0;
+            default:
+                return new Version(id, null);
         }
-
-        number = props.getProperty("number", "0.0.0");
-        snapshotBuild = number.contains("-SNAPSHOT");
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-        date = props.getProperty("date", sdf.format(new Date()));
     }
 
-    public static String number() {
-        return number;
+    public static void writeVersion(Version version, StreamOutput out) throws IOException {
+        out.writeVInt(version.id);
     }
 
-    public static String date() {
-        return date;
+    public final int id;
+    public final byte major;
+    public final byte minor;
+    public final byte revision;
+    public final byte build;
+    public final Boolean snapshot;
+
+    Version(int id, @Nullable Boolean snapshot) {
+        this.id = id;
+        this.major = (byte) ((id / 1000000) % 100);
+        this.minor = (byte) ((id / 10000) % 100);
+        this.revision = (byte) ((id / 100) % 100);
+        this.build = (byte) (id % 100);
+        this.snapshot = snapshot;
     }
 
-    public static boolean snapshotBuild() {
-        return snapshotBuild;
+    public boolean snapshot() {
+        return snapshot != null && snapshot;
     }
 
-    public static String full() {
-        StringBuilder sb = new StringBuilder("elasticsearch/");
-        sb.append(number);
-        if (snapshotBuild) {
-            sb.append("/").append(date);
+    public boolean after(Version version) {
+        return version.id > id;
+    }
+
+    public boolean onOrAfter(Version version) {
+        return version.id >= id;
+    }
+
+    /**
+     * Just the version number (without -SNAPSHOT if snapshot).
+     */
+    public String number() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(major).append('.').append(minor).append('.').append(revision);
+        if (build < 50) {
+            sb.append(".Beta").append(build);
+        } else if (build < 99) {
+            sb.append(".RC").append(build - 50);
         }
         return sb.toString();
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch Version: " + number + " (" + date() + "), JVM: " + JvmInfo.jvmInfo().vmVersion());
+        System.out.println("ElasticSearch Version: " + Version.CURRENT + "JVM: " + JvmInfo.jvmInfo().vmVersion());
+    }
+
+    @Override public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(number());
+        if (snapshot()) {
+            sb.append("-SNAPSHOT");
+        }
+        return sb.toString();
     }
 }

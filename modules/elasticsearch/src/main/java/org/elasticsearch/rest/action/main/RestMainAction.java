@@ -29,7 +29,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.StringRestResponse;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -79,7 +86,7 @@ public class RestMainAction extends BaseRestHandler {
             if (settings.get("name") != null) {
                 builder.field("name", settings.get("name"));
             }
-            builder.startObject("version").field("number", Version.number()).field("date", Version.date()).field("snapshot_build", Version.snapshotBuild()).endObject();
+            builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
             builder.field("tagline", "You Know, for Search");
             builder.field("cover", "DON'T PANIC");
             if (rootNode != null) {

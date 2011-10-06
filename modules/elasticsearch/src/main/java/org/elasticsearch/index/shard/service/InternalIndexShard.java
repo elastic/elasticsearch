@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -367,7 +368,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength,
                                 @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
         readAllowed();
-        Query query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+        Query query;
+        if (querySourceLength == 0) {
+            query = Queries.MATCH_ALL_QUERY;
+        } else {
+            query = queryParserService.parse(querySource, querySourceOffset, querySourceLength).query();
+        }
         // wrap it in filter, cache it, and constant score it
         // Don't cache it, since it might be very different queries each time...
 //        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));

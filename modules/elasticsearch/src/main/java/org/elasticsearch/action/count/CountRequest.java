@@ -22,7 +22,6 @@ package org.elasticsearch.action.count;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
@@ -86,9 +85,6 @@ public class CountRequest extends BroadcastOperationRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (querySource == null) {
-            validationException = Actions.addValidationError("query is missing", validationException);
-        }
         return validationException;
     }
 

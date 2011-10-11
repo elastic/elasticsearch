@@ -235,7 +235,7 @@ public class Bootstrap {
     }
 
     private static String buildErrorMessage(String stage, Throwable e) {
-        StringBuilder errorMessage = new StringBuilder("{").append(Version.full()).append("}: ");
+        StringBuilder errorMessage = new StringBuilder("{").append(Version.CURRENT).append("}: ");
         try {
             if (ANSI.isEnabled()) {
                 errorMessage.append(attrib(ANSI.Code.FG_RED)).append(stage).append(" Failed ...").append(attrib(ANSI.Code.OFF)).append("\n");

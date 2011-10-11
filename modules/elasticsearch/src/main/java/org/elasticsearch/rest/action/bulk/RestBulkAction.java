@@ -32,7 +32,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentRestResponse;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 
 import java.io.IOException;
 
@@ -58,10 +63,16 @@ public class RestBulkAction extends BaseRestHandler {
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
+        controller.registerHandler(POST, "/{index}/_bulk", this);
+        controller.registerHandler(PUT, "/{index}/_bulk", this);
+        controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
+        controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
+        String defaultIndex = request.param("index");
+        String defaultType = request.param("type");
 
         String replicationType = request.param("replication");
         if (replicationType != null) {
@@ -73,7 +84,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         try {
-            bulkRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
+            bulkRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe(), defaultIndex, defaultType);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

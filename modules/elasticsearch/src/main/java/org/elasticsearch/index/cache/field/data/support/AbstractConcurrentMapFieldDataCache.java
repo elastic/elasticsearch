@@ -31,6 +31,7 @@ import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -52,6 +53,12 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
 
     @Override public void close() throws ElasticSearchException {
         clear();
+    }
+
+    @Override public void clear(String fieldName) {
+        for (Map.Entry<Object, ConcurrentMap<String, FieldData>> entry : cache.entrySet()) {
+            entry.getValue().remove(fieldName);
+        }
     }
 
     @Override public void clear() {

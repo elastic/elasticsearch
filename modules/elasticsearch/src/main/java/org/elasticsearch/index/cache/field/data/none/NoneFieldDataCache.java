@@ -50,6 +50,10 @@ public class NoneFieldDataCache extends AbstractIndexComponent implements FieldD
         return "none";
     }
 
+    @Override public void clear(String fieldName) {
+
+    }
+
     @Override public void clear() {
     }
 

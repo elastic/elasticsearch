@@ -34,6 +34,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     private boolean fieldDataCache = false;
     private boolean idCache = false;
     private boolean bloomCache = false;
+    private String[] fields = null;
 
     ShardClearIndicesCacheRequest() {
     }
@@ -44,6 +45,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         fieldDataCache = request.fieldDataCache();
         idCache = request.idCache();
         bloomCache = request.bloomCache();
+        fields = request.fields();
     }
 
     public boolean filterCache() {
@@ -62,6 +64,10 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         return this.bloomCache;
     }
 
+    public String[] fields() {
+        return this.fields;
+    }
+
     public ShardClearIndicesCacheRequest waitForOperations(boolean waitForOperations) {
         this.filterCache = waitForOperations;
         return this;
@@ -73,6 +79,13 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
         bloomCache = in.readBoolean();
+        int size = in.readVInt();
+        if (size > 0) {
+            fields = new String[size];
+            for (int i = 0; i < size; i++) {
+                fields[i] = in.readUTF();
+            }
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -81,5 +94,13 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
         out.writeBoolean(bloomCache);
+        if (fields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(fields.length);
+            for (String field : fields) {
+                out.writeUTF(field);
+            }
+        }
     }
 }

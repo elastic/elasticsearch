@@ -185,7 +185,7 @@ public class MemcachedDecoder extends FrameDecoder {
                     this.request = new MemcachedRestRequest(RestRequest.Method.POST, args[1], null, Integer.parseInt(args[4]), false);
                     buffer.markReaderIndex();
                 } else if ("version".equals(cmd)) { // sent as a noop
-                    byte[] bytes = Version.full().getBytes();
+                    byte[] bytes = Version.CURRENT.toString().getBytes();
                     ChannelBuffer writeBuffer = ChannelBuffers.dynamicBuffer(bytes.length);
                     writeBuffer.writeBytes(bytes);
                     channel.write(writeBuffer);

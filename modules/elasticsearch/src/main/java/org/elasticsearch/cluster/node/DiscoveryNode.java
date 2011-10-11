@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,6 +55,8 @@ public class DiscoveryNode implements Streamable, Serializable {
     private TransportAddress address;
 
     private ImmutableMap<String, String> attributes;
+
+    private Version version = Version.CURRENT;
 
     private DiscoveryNode() {
     }
@@ -191,6 +194,14 @@ public class DiscoveryNode implements Streamable, Serializable {
         return masterNode();
     }
 
+    public Version version() {
+        return this.version;
+    }
+
+    public Version getVersion() {
+        return this.version;
+    }
+
     public static DiscoveryNode readNode(StreamInput in) throws IOException {
         DiscoveryNode node = new DiscoveryNode();
         node.readFrom(in);
@@ -207,6 +218,7 @@ public class DiscoveryNode implements Streamable, Serializable {
             builder.put(in.readUTF().intern(), in.readUTF().intern());
         }
         attributes = builder.build();
+        version = Version.readVersion(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -218,6 +230,7 @@ public class DiscoveryNode implements Streamable, Serializable {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());
         }
+        Version.writeVersion(version, out);
     }
 
     @Override public boolean equals(Object obj) {

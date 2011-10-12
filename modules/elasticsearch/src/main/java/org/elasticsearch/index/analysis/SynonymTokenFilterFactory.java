@@ -29,6 +29,7 @@ import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.codec.binary.StringUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -39,11 +40,21 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.io.Reader;
+import java.io.UnsupportedEncodingException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -57,10 +68,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                                              @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
-        List<String> rules = Analysis.getWordList(env, settings, "synonyms");
-        if (rules == null) {
-            throw new ElasticSearchIllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
-        }
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         boolean expand = settings.getAsBoolean("expand", true);
 
@@ -84,10 +91,41 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         };
 
+        CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder()
+              .onMalformedInput(CodingErrorAction.REPORT)
+              .onUnmappableCharacter(CodingErrorAction.REPORT);
+        decoder.reset();
+
+        String synonymPath = settings.get("synonyms_path", null);
+        InputStreamReader isr;
+        if (synonymPath == null) {
+            String[] explicitWordList = settings.getAsArray("synonyms", null);
+            if (explicitWordList == null) {
+                throw new ElasticSearchIllegalArgumentException("synonym requires either `synonyms_path` or `synonyms` to be configured");
+            }
+            StringBuilder allItems = new StringBuilder();
+            for (String word : explicitWordList) {
+                allItems.append(word);
+                allItems.append("\n");
+            }
+            ByteArrayInputStream bais = new ByteArrayInputStream(allItems.toString().getBytes(Charset.forName("UTF-8")));
+            isr = new InputStreamReader(bais, decoder);
+        } else {
+            URL wordListFile = env.resolveConfig(synonymPath);
+            try {
+                isr = new InputStreamReader(wordListFile.openStream(), decoder);
+            } catch (IOException e) {
+                throw new ElasticSearchIllegalArgumentException("failed to build synonyms", e);
+            }
+        }
+
         CustomSynonymParser parser = new CustomSynonymParser(true, expand, analyzer);
         try {
+            parser.add(isr);
             synonymMap = parser.build();
         } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("failed to build synonyms", e);
+        } catch (ParseException e) {
             throw new ElasticSearchIllegalArgumentException("failed to build synonyms", e);
         }
     }

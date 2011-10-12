@@ -162,7 +162,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override public boolean includeInObject() {
-        return false;
+        return true;
     }
 
     @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {

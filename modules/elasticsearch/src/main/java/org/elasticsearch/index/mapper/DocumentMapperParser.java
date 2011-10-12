@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.internal.*;
@@ -165,12 +166,24 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             Object fieldNode = entry.getValue();
 
             if ("index_analyzer".equals(fieldName)) {
-                docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
+                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for index_analyzer setting on root type [" + type + "]");
+                }
+                docBuilder.indexAnalyzer(analyzer);
             } else if ("search_analyzer".equals(fieldName)) {
-                docBuilder.searchAnalyzer(analysisService.analyzer(fieldNode.toString()));
+                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
+                }
+                docBuilder.searchAnalyzer(analyzer);
             } else if ("analyzer".equals(fieldName)) {
-                docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.toString()));
-                docBuilder.searchAnalyzer(analysisService.analyzer(fieldNode.toString()));
+                NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for analyzer setting on root type [" + type + "]");
+                }
+                docBuilder.indexAnalyzer(analyzer);
+                docBuilder.searchAnalyzer(analyzer);
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
                 if (typeParser != null) {

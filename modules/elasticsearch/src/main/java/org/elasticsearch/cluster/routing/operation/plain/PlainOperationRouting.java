@@ -172,7 +172,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         }
     }
 
-    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String nodeId, DiscoveryNodes nodes, @Nullable String preference) {
+    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId, DiscoveryNodes nodes, @Nullable String preference) {
         if (preference == null) {
             String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
             if (awarenessAttributes.length == 0) {
@@ -181,11 +181,19 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes);
             }
         }
-        if ("_local".equals(preference)) {
-            return indexShard.preferNodeActiveShardsIt(nodeId);
-        }
-        if ("_primary".equals(preference)) {
-            return indexShard.primaryShardIt();
+        if (preference.charAt(0) == '_') {
+            if ("_local".equals(preference)) {
+                return indexShard.preferNodeActiveShardsIt(localNodeId);
+            }
+            if ("_primary".equals(preference)) {
+                return indexShard.primaryShardIt();
+            }
+            if ("_only_local".equals(preference) || "_onlyLocal".equals(preference)) {
+                return indexShard.onlyNodeActiveShardsIt(localNodeId);
+            }
+            if (preference.startsWith("_only_node:")) {
+                return indexShard.onlyNodeActiveShardsIt(preference.substring("_only_node:".length()));
+            }
         }
         // if not, then use it as the index
         String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();

@@ -239,6 +239,18 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return preferNodeShardsIt(nodeId, shards);
     }
 
+    public ShardIterator onlyNodeActiveShardsIt(String nodeId) {
+        ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(shards.size());
+        // fill it in a randomized fashion
+        for (int i = 0; i < shards.size(); i++) {
+            ShardRouting shardRouting = shards.get(i);
+            if (nodeId.equals(shardRouting.currentNodeId())) {
+                ordered.add(shardRouting);
+            }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
     /**
      * Prefers execution on the provided node if applicable.
      */

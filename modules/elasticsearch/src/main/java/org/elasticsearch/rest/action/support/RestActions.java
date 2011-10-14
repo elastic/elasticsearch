@@ -72,7 +72,7 @@ public class RestActions {
     public static byte[] parseQuerySource(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
-            throw new ElasticSearchIllegalArgumentException("No query to execute, not in body, and not bounded to 'q' parameter");
+            return null;
         }
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
         queryBuilder.defaultField(request.param("df"));

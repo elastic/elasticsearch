@@ -241,4 +241,30 @@ public class Analysis {
         }
         return result;
     }
+
+    /**
+     * @return null If no settings set for "settingsPrefix + _path" then return null.
+     *
+     * @throws ElasticSearchIllegalArgumentException
+     *          If the Reader can not be instantiated.
+     */
+    public static Reader getFileReader(Environment env, Settings settings, String settingPrefix) {
+        String filePath = settings.get(settingPrefix + "_path", null);
+
+        if (filePath == null) {
+            return null;
+        }
+
+        URL fileUrl = env.resolveConfig(filePath);
+
+        Reader reader = null;
+        try {
+            reader = new InputStreamReader(fileUrl.openStream(), Charsets.UTF_8);
+        } catch (IOException ioe) {
+            String message = String.format("IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
+            throw new ElasticSearchIllegalArgumentException(message);
+        }
+
+        return reader;
+    }
 }

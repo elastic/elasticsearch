@@ -15,12 +15,11 @@
     <orderEntry type="module-library">
       <library name="twitter4j">
         <CLASSES>
-          <root url="jar://$GRADLE_REPOSITORY$/org.twitter4j/twitter4j-core/jars/twitter4j-core-2.1.10.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.twitter4j/twitter4j-stream/jars/twitter4j-stream-2.2.5-SNAPSHOT.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.twitter4j/twitter4j-core/jars/twitter4j-core-2.2.5-SNAPSHOT.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES>
-          <root url="jar://$USER_HOME$/opt/twitter4j/2.1.10/twitter4j-core/twitter4j-core-2.1.10-sources.jar!/" />
-        </SOURCES>
+        <SOURCES />
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

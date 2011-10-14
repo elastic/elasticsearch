@@ -265,8 +265,8 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
         }
         currentRequest = client.prepareBulk();
         if (streamType.equals("filter") || filterQuery != null) {
-   
-                stream.filter(filterQuery);
+
+            stream.filter(filterQuery);
 
         } else if (streamType.equals("firehose")) {
             stream.firehose(0);
@@ -416,7 +416,9 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                     for (URLEntity url : status.getURLEntities()) {
                         if (url != null) {
                             builder.startObject();
-                            builder.field("url", url.getURL().toExternalForm());
+                            if (url.getURL() != null) {
+                                builder.field("url", url.getURL().toExternalForm());
+                            }
                             if (url.getDisplayURL() != null) {
                                 builder.field("display_url", url.getDisplayURL());
                             }

@@ -282,7 +282,7 @@ public class MultiGetRequest implements ActionRequest {
                             if (!token.isValue()) {
                                 throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
                             }
-                            add(new Item(defaultIndex, defaultType, parser.text()));
+                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields));
                         }
                     }
                 }

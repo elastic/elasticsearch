@@ -45,6 +45,9 @@ import org.elasticsearch.action.admin.cluster.ping.replication.TransportReplicat
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.TransportSinglePingAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
@@ -68,6 +71,8 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
 
     private final TransportClusterStateAction clusterStateAction;
 
+    private final TransportClusterRerouteAction clusterRerouteAction;
+
     private final TransportClusterUpdateSettingsAction clusterUpdateSettingsAction;
 
     private final TransportSinglePingAction singlePingAction;
@@ -85,10 +90,11 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
     private final TransportNodesRestartAction nodesRestart;
 
     @Inject public NodeClusterAdminClient(Settings settings, ThreadPool threadPool,
-                                          TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction, TransportClusterUpdateSettingsAction clusterUpdateSettingsAction,
+                                          TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction, TransportClusterRerouteAction clusterRerouteAction, TransportClusterUpdateSettingsAction clusterUpdateSettingsAction,
                                           TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
                                           TransportNodesInfoAction nodesInfoAction, TransportNodesShutdownAction nodesShutdown, TransportNodesRestartAction nodesRestart, TransportNodesStatsAction nodesStatsAction) {
         this.threadPool = threadPool;
+        this.clusterRerouteAction = clusterRerouteAction;
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.clusterUpdateSettingsAction = clusterUpdateSettingsAction;
@@ -119,6 +125,14 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
 
     @Override public void state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
         clusterStateAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<ClusterRerouteResponse> reroute(ClusterRerouteRequest request) {
+        return clusterRerouteAction.execute(request);
+    }
+
+    @Override public void reroute(ClusterRerouteRequest request, ActionListener<ClusterRerouteResponse> listener) {
+        clusterRerouteAction.execute(request, listener);
     }
 
     @Override public ActionFuture<ClusterUpdateSettingsResponse> updateSettings(ClusterUpdateSettingsRequest request) {

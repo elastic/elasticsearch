@@ -17,25 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport.action.admin.cluster.state;
+package org.elasticsearch.client.transport.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 /**
+ * @author kimchy (Shay Banon)
  */
-public class ClientTransportClusterStateAction extends BaseClientTransportAction<ClusterStateRequest, ClusterStateResponse> {
+public class ClientTransportClusterRerouteAction extends BaseClientTransportAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
-    @Inject public ClientTransportClusterStateAction(Settings settings, TransportService transportService) {
-        super(settings, transportService, ClusterStateResponse.class);
+    @Inject public ClientTransportClusterRerouteAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, ClusterRerouteResponse.class);
     }
 
     @Override protected String action() {
-        return TransportActions.Admin.Cluster.STATE;
+        return TransportActions.Admin.Cluster.REROUTE;
     }
 }

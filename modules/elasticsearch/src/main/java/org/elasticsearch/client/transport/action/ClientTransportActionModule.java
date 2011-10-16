@@ -27,6 +27,7 @@ import org.elasticsearch.client.transport.action.admin.cluster.node.stats.Client
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
+import org.elasticsearch.client.transport.action.admin.cluster.reroute.ClientTransportClusterRerouteAction;
 import org.elasticsearch.client.transport.action.admin.cluster.settings.ClientTransportClusterUpdateSettingsAction;
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
 import org.elasticsearch.client.transport.action.admin.indices.alias.ClientTransportIndicesAliasesAction;
@@ -109,5 +110,6 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportClusterStateAction.class).asEagerSingleton();
         bind(ClientTransportClusterHealthAction.class).asEagerSingleton();
         bind(ClientTransportClusterUpdateSettingsAction.class).asEagerSingleton();
+        bind(ClientTransportClusterRerouteAction.class).asEagerSingleton();
     }
 }

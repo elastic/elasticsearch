@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
+public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
     @Inject public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                      ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction) {

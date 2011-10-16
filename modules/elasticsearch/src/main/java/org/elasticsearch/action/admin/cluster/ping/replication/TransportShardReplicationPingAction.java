@@ -33,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportShardReplicationPingAction extends TransportShardReplicationOperationAction<ShardReplicationPingRequest, ShardReplicationPingResponse> {
+public class TransportShardReplicationPingAction extends TransportShardReplicationOperationAction<ShardReplicationPingRequest, ShardReplicationPingRequest, ShardReplicationPingResponse> {
 
     @Inject public TransportShardReplicationPingAction(Settings settings, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
@@ -53,6 +53,10 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
         return new ShardReplicationPingRequest();
     }
 
+    @Override protected ShardReplicationPingRequest newReplicaRequestInstance() {
+        return new ShardReplicationPingRequest();
+    }
+
     @Override protected ShardReplicationPingResponse newResponseInstance() {
         return new ShardReplicationPingResponse();
     }
@@ -61,11 +65,11 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
         return "ping/replication/shard";
     }
 
-    @Override protected PrimaryResponse<ShardReplicationPingResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
-        return new PrimaryResponse<ShardReplicationPingResponse>(new ShardReplicationPingResponse(), null);
+    @Override protected PrimaryResponse<ShardReplicationPingResponse, ShardReplicationPingRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+        return new PrimaryResponse<ShardReplicationPingResponse, ShardReplicationPingRequest>(shardRequest.request, new ShardReplicationPingResponse(), null);
     }
 
-    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
     }
 
     @Override protected ShardIterator shards(ClusterState clusterState, ShardReplicationPingRequest request) {

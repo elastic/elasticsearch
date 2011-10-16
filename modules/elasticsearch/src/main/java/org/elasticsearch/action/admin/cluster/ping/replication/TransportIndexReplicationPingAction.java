@@ -33,9 +33,8 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (shay.banon)
  */
-public class TransportIndexReplicationPingAction extends TransportIndexReplicationOperationAction<IndexReplicationPingRequest, IndexReplicationPingResponse, ShardReplicationPingRequest, ShardReplicationPingResponse> {
+public class TransportIndexReplicationPingAction extends TransportIndexReplicationOperationAction<IndexReplicationPingRequest, IndexReplicationPingResponse, ShardReplicationPingRequest, ShardReplicationPingRequest, ShardReplicationPingResponse> {
 
     @Inject public TransportIndexReplicationPingAction(Settings settings, ClusterService clusterService,
                                                        TransportService transportService, ThreadPool threadPool,

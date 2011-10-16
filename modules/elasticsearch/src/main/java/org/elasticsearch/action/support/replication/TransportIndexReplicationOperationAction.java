@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -40,15 +41,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
+public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ActionRequest, ShardResponse extends ActionResponse>
         extends BaseAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
-    protected final TransportShardReplicationOperationAction<ShardRequest, ShardResponse> shardAction;
+    protected final TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction;
 
     @Inject public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                            TransportShardReplicationOperationAction<ShardRequest, ShardResponse> shardAction) {
+                                                            TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;

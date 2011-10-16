@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author kimchy (shay.banon)
  */
-public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexResponse> {
+public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse> {
 
     private final boolean autoCreateIndex;
 
@@ -136,6 +136,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         return new IndexRequest();
     }
 
+    @Override protected IndexRequest newReplicaRequestInstance() {
+        return new IndexRequest();
+    }
+
     @Override protected IndexResponse newResponseInstance() {
         return new IndexResponse();
     }
@@ -157,7 +161,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
     }
 
-    @Override protected PrimaryResponse<IndexResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
+    @Override protected PrimaryResponse<IndexResponse, IndexRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
@@ -168,7 +172,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             }
         }
 
-        IndexShard indexShard = indexShard(shardRequest);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         long version;
@@ -204,10 +208,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         request.version(version);
 
         IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version);
-        return new PrimaryResponse<IndexResponse>(response, op);
+        return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
     }
 
-    @Override protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse> response) {
+    @Override protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse, IndexRequest> response) {
         Engine.IndexingOperation op = (Engine.IndexingOperation) response.payload();
         if (!Strings.hasLength(request.percolate())) {
             return;
@@ -221,8 +225,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
     }
 
-    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
-        IndexShard indexShard = indexShard(shardRequest);
+    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(request.underlyingSource(), request.underlyingSourceOffset(), request.underlyingSourceLength()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());

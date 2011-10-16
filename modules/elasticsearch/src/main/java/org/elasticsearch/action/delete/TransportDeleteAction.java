@@ -50,7 +50,7 @@ import org.elasticsearch.transport.TransportService;
  *
  * @author kimchy (shay.banon)
  */
-public class TransportDeleteAction extends TransportShardReplicationOperationAction<DeleteRequest, DeleteResponse> {
+public class TransportDeleteAction extends TransportShardReplicationOperationAction<DeleteRequest, DeleteRequest, DeleteResponse> {
 
     private final boolean autoCreateIndex;
 
@@ -136,6 +136,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         return new DeleteRequest();
     }
 
+    @Override protected DeleteRequest newReplicaRequestInstance() {
+        return new DeleteRequest();
+    }
+
     @Override protected DeleteResponse newResponseInstance() {
         return new DeleteResponse();
     }
@@ -148,9 +152,9 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected PrimaryResponse<DeleteResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
+    @Override protected PrimaryResponse<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indexShard(shardRequest);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .versionType(request.versionType())
                 .origin(Engine.Operation.Origin.PRIMARY);
@@ -167,12 +171,12 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         }
 
         DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.notFound());
-        return new PrimaryResponse<DeleteResponse>(response, null);
+        return new PrimaryResponse<DeleteResponse, DeleteRequest>(shardRequest.request, response, null);
     }
 
-    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indexShard(shardRequest);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
 

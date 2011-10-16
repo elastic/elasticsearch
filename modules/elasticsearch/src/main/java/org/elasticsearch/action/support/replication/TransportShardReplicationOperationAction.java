@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
@@ -67,9 +67,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.ExceptionsHelper.*;
 
 /**
- * @author kimchy (shay.banon)
  */
-public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
+public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ActionRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
     protected final TransportService transportService;
 
@@ -115,20 +114,22 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract Request newRequestInstance();
 
+    protected abstract ReplicaRequest newReplicaRequestInstance();
+
     protected abstract Response newResponseInstance();
 
     protected abstract String transportAction();
 
     protected abstract String executor();
 
-    protected abstract PrimaryResponse<Response> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest);
+    protected abstract PrimaryResponse<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest);
 
-    protected abstract void shardOperationOnReplica(ShardOperationRequest shardRequest);
+    protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest);
 
     /**
      * Called once replica operations have been dispatched on the
      */
-    protected void postPrimaryOperation(Request request, PrimaryResponse<Response> response) {
+    protected void postPrimaryOperation(Request request, PrimaryResponse<Response, ReplicaRequest> response) {
 
     }
 
@@ -154,10 +155,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     private String transportReplicaAction() {
         return transportAction() + "/replica";
-    }
-
-    protected IndexShard indexShard(ShardOperationRequest shardRequest) {
-        return indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
     }
 
     protected boolean retryPrimaryException(Throwable e) {
@@ -231,32 +228,32 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ShardOperationRequest> {
+    class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
 
-        @Override public ShardOperationRequest newInstance() {
-            return new ShardOperationRequest();
+        @Override public ReplicaOperationRequest newInstance() {
+            return new ReplicaOperationRequest();
         }
 
         @Override public String executor() {
             return executor;
         }
 
-        @Override public void messageReceived(final ShardOperationRequest request, final TransportChannel channel) throws Exception {
+        @Override public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
             shardOperationOnReplica(request);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
 
-    protected class ShardOperationRequest implements Streamable {
+    protected class PrimaryOperationRequest implements Streamable {
 
         public int shardId;
 
         public Request request;
 
-        public ShardOperationRequest() {
+        public PrimaryOperationRequest() {
         }
 
-        public ShardOperationRequest(int shardId, Request request) {
+        public PrimaryOperationRequest(int shardId, Request request) {
             this.shardId = shardId;
             this.request = request;
         }
@@ -264,6 +261,32 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override public void readFrom(StreamInput in) throws IOException {
             shardId = in.readVInt();
             request = newRequestInstance();
+            request.readFrom(in);
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(shardId);
+            request.writeTo(out);
+        }
+    }
+
+    protected class ReplicaOperationRequest implements Streamable {
+
+        public int shardId;
+
+        public ReplicaRequest request;
+
+        public ReplicaOperationRequest() {
+        }
+
+        public ReplicaOperationRequest(int shardId, ReplicaRequest request) {
+            this.shardId = shardId;
+            this.request = request;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            shardId = in.readVInt();
+            request = newReplicaRequestInstance();
             request.readFrom(in);
         }
 
@@ -461,7 +484,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, final ShardRouting shard, ClusterState clusterState) {
             try {
-                PrimaryResponse<Response> response = shardOperationOnPrimary(clusterState, new ShardOperationRequest(primaryShardId, request));
+                PrimaryResponse<Response, ReplicaRequest> response = shardOperationOnPrimary(clusterState, new PrimaryOperationRequest(primaryShardId, request));
                 performReplicas(response);
             } catch (Exception e) {
                 // shard has not been allocated yet, retry it here
@@ -478,7 +501,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        void performReplicas(final PrimaryResponse<Response> response) {
+        void performReplicas(final PrimaryResponse<Response, ReplicaRequest> response) {
             if (ignoreReplicas() || shardIt.size() == 1 /* no replicas */) {
                 postPrimaryOperation(request, response);
                 listener.onResponse(response.response());
@@ -543,7 +566,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        void performOnReplica(final PrimaryResponse<Response> response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
+        void performOnReplica(final PrimaryResponse<Response, ReplicaRequest> response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
             if (!nodes.nodeExists(nodeId)) {
@@ -553,7 +576,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
 
-            final ShardOperationRequest shardRequest = new ShardOperationRequest(shardIt.shardId().id(), request);
+            final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId().id(), response.replicaRequest());
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
                 transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions(), new VoidTransportResponseHandler(ThreadPool.Names.SAME) {
@@ -610,16 +633,22 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    public static class PrimaryResponse<T> {
-        private final T response;
+    public static class PrimaryResponse<Response, ReplicaRequest> {
+        private final ReplicaRequest replicaRequest;
+        private final Response response;
         private final Object payload;
 
-        public PrimaryResponse(T response, Object payload) {
+        public PrimaryResponse(ReplicaRequest replicaRequest, Response response, Object payload) {
+            this.replicaRequest = replicaRequest;
             this.response = response;
             this.payload = payload;
         }
 
-        public T response() {
+        public ReplicaRequest replicaRequest() {
+            return this.replicaRequest;
+        }
+
+        public Response response() {
             return response;
         }
 

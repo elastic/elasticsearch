@@ -30,6 +30,7 @@ import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsActi
 import org.elasticsearch.rest.action.admin.cluster.ping.broadcast.RestBroadcastPingAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.replication.RestReplicationPingAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.single.RestSinglePingAction;
+import org.elasticsearch.rest.action.admin.cluster.reroute.RestClusterRerouteAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
@@ -97,6 +98,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestClusterHealthAction.class).asEagerSingleton();
         bind(RestClusterUpdateSettingsAction.class).asEagerSingleton();
         bind(RestClusterGetSettingsAction.class).asEagerSingleton();
+        bind(RestClusterRerouteAction.class).asEagerSingleton();
 
         bind(RestSinglePingAction.class).asEagerSingleton();
         bind(RestBroadcastPingAction.class).asEagerSingleton();

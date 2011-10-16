@@ -38,6 +38,8 @@ import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRe
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -53,6 +55,7 @@ import org.elasticsearch.client.transport.action.admin.cluster.node.stats.Client
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
+import org.elasticsearch.client.transport.action.admin.cluster.reroute.ClientTransportClusterRerouteAction;
 import org.elasticsearch.client.transport.action.admin.cluster.settings.ClientTransportClusterUpdateSettingsAction;
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -73,6 +76,8 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
 
     private final ClientTransportClusterStateAction clusterStateAction;
 
+    private final ClientTransportClusterRerouteAction clusterRerouteAction;
+
     private final ClientTransportClusterUpdateSettingsAction clusterUpdateSettingsAction;
 
     private final ClientTransportSinglePingAction singlePingAction;
@@ -90,12 +95,13 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     private final ClientTransportNodesRestartAction nodesRestartAction;
 
     @Inject public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
-                                                       ClientTransportClusterHealthAction clusterHealthAction, ClientTransportClusterStateAction clusterStateAction, ClientTransportClusterUpdateSettingsAction clusterUpdateSettingsAction,
+                                                       ClientTransportClusterHealthAction clusterHealthAction, ClientTransportClusterStateAction clusterStateAction, ClientTransportClusterRerouteAction clusterRerouteAction, ClientTransportClusterUpdateSettingsAction clusterUpdateSettingsAction,
                                                        ClientTransportSinglePingAction singlePingAction, ClientTransportReplicationPingAction replicationPingAction, ClientTransportBroadcastPingAction broadcastPingAction,
                                                        ClientTransportNodesInfoAction nodesInfoAction, ClientTransportNodesShutdownAction nodesShutdownAction, ClientTransportNodesRestartAction nodesRestartAction, ClientTransportNodesStatsAction nodesStatsAction) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
         this.clusterHealthAction = clusterHealthAction;
+        this.clusterRerouteAction = clusterRerouteAction;
         this.clusterStateAction = clusterStateAction;
         this.clusterUpdateSettingsAction = clusterUpdateSettingsAction;
         this.nodesInfoAction = nodesInfoAction;
@@ -139,6 +145,22 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ClusterStateResponse>() {
             @Override public void doWithNode(DiscoveryNode node, ActionListener<ClusterStateResponse> listener) throws ElasticSearchException {
                 clusterStateAction.execute(node, request, listener);
+            }
+        }, listener);
+    }
+
+    @Override public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ClusterRerouteResponse>>() {
+            @Override public ActionFuture<ClusterRerouteResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return clusterRerouteAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<ClusterRerouteResponse>() {
+            @Override public void doWithNode(DiscoveryNode node, ActionListener<ClusterRerouteResponse> listener) throws ElasticSearchException {
+                clusterRerouteAction.execute(node, request, listener);
             }
         }, listener);
     }

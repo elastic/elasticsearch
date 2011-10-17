@@ -29,7 +29,6 @@ import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
@@ -75,13 +74,13 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(keyFieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             this.keyFieldName = keyFieldName;
             this.keyFieldDataType = FieldDataType.DefaultTypes.STRING;
         } else {
             // add type filter if there is exact doc mapper associated with it
-            if (smartMappers.hasDocMapper()) {
+            if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
                 setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
             }
 
@@ -90,12 +89,12 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
         }
 
         if (script == null) {
-            FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(valueFieldName);
-            if (fieldMapper == null) {
+            smartMappers = context.smartFieldMappers(valueFieldName);
+            if (smartMappers == null || !smartMappers.hasMapper()) {
                 throw new ElasticSearchIllegalArgumentException("failed to find mappings for [" + valueFieldName + "]");
             }
-            this.valueFieldName = fieldMapper.names().indexName();
-            this.valueFieldDataType = fieldMapper.fieldDataType();
+            this.valueFieldName = smartMappers.mapper().names().indexName();
+            this.valueFieldDataType = smartMappers.mapper().fieldDataType();
             this.script = null;
             this.aggregator = new Aggregator();
         } else {

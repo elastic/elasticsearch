@@ -7,7 +7,7 @@
             "geo_distance" : {
                 "distance" : "12",
                 "unit": "mi",
-                "person.location" : {
+                "location" : {
                     "lat" : 40,
                     "lon" : -70
                 }

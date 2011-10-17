@@ -5,7 +5,7 @@
         },
         "filter" : {
             "geo_polygon" : {
-                "person.location" : {
+                "location" : {
                     "points" : [
                         "40, -70",
                         "30, -80",

@@ -152,7 +152,7 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             throw new FacetPhaseExecutionException(facetName, "key field is required to be set for histogram facet, either using [field] or using [key_field]");
         }
 
-        FieldMapper mapper = context.mapperService().smartNameFieldMapper(keyField);
+        FieldMapper mapper = context.smartNameFieldMapper(keyField);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "(key) field [" + keyField + "] not found");
         }

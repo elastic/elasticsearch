@@ -150,7 +150,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
             return new ScriptTermsStringFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
         }
 
-        FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(field);
+        FieldMapper fieldMapper = context.smartNameFieldMapper(field);
         if (fieldMapper != null) {
             if (fieldMapper instanceof IpFieldMapper) {
                 if (script != null || "map".equals(executionHint)) {

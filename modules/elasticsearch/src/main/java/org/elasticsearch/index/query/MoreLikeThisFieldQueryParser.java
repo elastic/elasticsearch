@@ -113,9 +113,9 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
-                if (analyzer == null) {
-                    analyzer = smartNameFieldMappers.mapper().searchAnalyzer();
-                }
+            }
+            if (analyzer == null) {
+                analyzer = smartNameFieldMappers.searchAnalyzer();
             }
         }
         if (analyzer == null) {

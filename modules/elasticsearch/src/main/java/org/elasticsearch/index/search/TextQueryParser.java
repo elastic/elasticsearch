@@ -130,8 +130,8 @@ public class TextQueryParser {
             if (mapper != null) {
                 analyzer = mapper.searchAnalyzer();
             }
-            if (analyzer == null && smartNameFieldMappers != null && smartNameFieldMappers.docMapper() != null) {
-                analyzer = smartNameFieldMappers.docMapper().searchAnalyzer();
+            if (analyzer == null && smartNameFieldMappers != null) {
+                analyzer = smartNameFieldMappers.searchAnalyzer();
             }
             if (analyzer == null) {
                 analyzer = parseContext.mapperService().searchAnalyzer();

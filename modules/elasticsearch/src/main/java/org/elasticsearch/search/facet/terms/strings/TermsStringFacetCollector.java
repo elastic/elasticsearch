@@ -86,7 +86,7 @@ public class TermsStringFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             this.indexFieldName = fieldName;
             this.fieldDataType = FieldDataType.DefaultTypes.STRING;

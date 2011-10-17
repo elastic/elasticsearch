@@ -69,7 +69,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
         this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, unit);
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
@@ -78,7 +78,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper()) {
+        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 

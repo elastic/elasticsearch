@@ -223,4 +223,9 @@ public class QueryParseContext {
         SearchContext searchContext = SearchContext.current();
         return indexQueryParser.mapperService.smartName(name, searchContext == null ? null : searchContext.types());
     }
+
+    public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
+        SearchContext searchContext = SearchContext.current();
+        return indexQueryParser.mapperService.smartNameObjectMapper(name, searchContext == null ? null : searchContext.types());
+    }
 }

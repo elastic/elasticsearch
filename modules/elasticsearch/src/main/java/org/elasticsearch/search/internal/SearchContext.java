@@ -546,4 +546,8 @@ public class SearchContext implements Releasable {
     public FieldMapper smartNameFieldMapper(String name) {
         return mapperService().smartNameFieldMapper(name, types);
     }
+
+    public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+        return mapperService().smartNameObjectMapper(name, types);
+    }
 }

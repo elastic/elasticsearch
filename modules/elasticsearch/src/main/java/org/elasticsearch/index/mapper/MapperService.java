@@ -446,6 +446,36 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return fields;
     }
 
+    public SmartNameObjectMapper smartNameObjectMapper(String smartName, @Nullable String[] types) {
+        if (types == null || types.length == 0) {
+            return smartNameObjectMapper(smartName);
+        }
+        for (String type : types) {
+            DocumentMapper possibleDocMapper = mappers.get(type);
+            if (possibleDocMapper != null) {
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(smartName);
+                if (mapper != null) {
+                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                }
+            }
+        }
+        // did not find one, see if its prefixed by type
+        int dotIndex = smartName.indexOf('.');
+        if (dotIndex != -1) {
+            String possibleType = smartName.substring(0, dotIndex);
+            DocumentMapper possibleDocMapper = mappers.get(possibleType);
+            if (possibleDocMapper != null) {
+                String possiblePath = smartName.substring(dotIndex + 1);
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
+                if (mapper != null) {
+                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                }
+            }
+        }
+        // did not explicitly find one under the types provided, or prefixed by type...
+        return null;
+    }
+
     public SmartNameObjectMapper smartNameObjectMapper(String smartName) {
         int dotIndex = smartName.indexOf('.');
         if (dotIndex != -1) {

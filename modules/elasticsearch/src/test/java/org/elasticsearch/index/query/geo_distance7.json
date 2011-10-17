@@ -6,7 +6,7 @@
         "filter" : {
             "geo_distance" : {
                 "distance" : "19.312128",
-                "person.location" : {
+                "location" : {
                     "lat" : 40,
                     "lon" : -70
                 }

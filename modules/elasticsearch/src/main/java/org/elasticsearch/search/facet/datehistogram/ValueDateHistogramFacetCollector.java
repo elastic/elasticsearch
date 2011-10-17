@@ -67,20 +67,20 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(keyFieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + keyFieldName + "]");
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper()) {
+        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
         keyIndexFieldName = smartMappers.mapper().names().indexName();
         keyFieldDataType = smartMappers.mapper().fieldDataType();
 
-        FieldMapper mapper = context.mapperService().smartNameFieldMapper(valueFieldName);
+        FieldMapper mapper = context.smartNameFieldMapper(valueFieldName);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueFieldName + "]");
         }

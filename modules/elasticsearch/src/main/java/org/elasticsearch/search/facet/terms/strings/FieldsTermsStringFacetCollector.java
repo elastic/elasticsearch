@@ -80,7 +80,7 @@ public class FieldsTermsStringFacetCollector extends AbstractFacetCollector {
         indexFieldsNames = new String[fieldsNames.length];
 
         for (int i = 0; i < fieldsNames.length; i++) {
-            MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldsNames[i]);
+            MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldsNames[i]);
             if (smartMappers == null || !smartMappers.hasMapper()) {
                 this.indexFieldsNames[i] = fieldsNames[i];
                 this.fieldsDataType[i] = FieldDataType.DefaultTypes.STRING;

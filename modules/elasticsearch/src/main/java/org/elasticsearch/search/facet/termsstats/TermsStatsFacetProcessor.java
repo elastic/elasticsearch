@@ -99,7 +99,7 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
             throw new FacetPhaseExecutionException(facetName, "either [value_field] or [script] are required to be set for terms stats facet");
         }
 
-        FieldMapper keyFieldMapper = context.mapperService().smartNameFieldMapper(keyField);
+        FieldMapper keyFieldMapper = context.smartNameFieldMapper(keyField);
         if (keyFieldMapper != null) {
             if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
                 return new TermsStatsLongFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);

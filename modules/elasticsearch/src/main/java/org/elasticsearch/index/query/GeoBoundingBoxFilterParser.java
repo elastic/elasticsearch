@@ -169,12 +169,11 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             bottomRight.lon = GeoUtils.normalizeLon(bottomRight.lon);
         }
 
-        MapperService mapperService = parseContext.mapperService();
-
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
-        if (mapper == null) {
+        MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
+        FieldMapper mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
@@ -194,7 +193,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }
-        filter = wrapSmartNameFilter(filter, parseContext.smartFieldMappers(fieldName), parseContext);
+        filter = wrapSmartNameFilter(filter, smartMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

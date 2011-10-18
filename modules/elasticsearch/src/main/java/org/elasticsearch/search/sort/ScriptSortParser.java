@@ -51,6 +51,10 @@ public class ScriptSortParser implements SortParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("params".equals(currentName)) {
+                    params = parser.map();
+                }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {
                     reverse = parser.booleanValue();
@@ -60,8 +64,6 @@ public class ScriptSortParser implements SortParser {
                     script = parser.text();
                 } else if ("type".equals(currentName)) {
                     type = parser.text();
-                } else if ("params".equals(currentName)) {
-                    params = parser.map();
                 } else if ("lang".equals(currentName)) {
                     scriptLang = parser.text();
                 }

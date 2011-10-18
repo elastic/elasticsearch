@@ -113,7 +113,7 @@ public class FacetParseElement implements SearchParseElement {
 
                 if (nestedPath != null) {
                     // its a nested facet, wrap the collector with a facet one...
-                    MapperService.SmartNameObjectMapper mapper = context.mapperService().smartNameObjectMapper(nestedPath);
+                    MapperService.SmartNameObjectMapper mapper = context.smartNameObjectMapper(nestedPath);
                     if (mapper == null) {
                         throw new SearchParseException(context, "facet nested path [" + nestedPath + "] not found");
                     }

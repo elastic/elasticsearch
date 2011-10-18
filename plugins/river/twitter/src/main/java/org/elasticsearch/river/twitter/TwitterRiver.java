@@ -138,7 +138,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                 if (follow != null) {
                     if (follow instanceof List) {
                         List lFollow = (List) follow;
-                        int[] followIds = new int[lFollow.size()];
+                        long[] followIds = new long[lFollow.size()];
                         for (int i = 0; i < lFollow.size(); i++) {
                             Object o = lFollow.get(i);
                             if (o instanceof Number) {
@@ -150,7 +150,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                         filterQuery.follow(followIds);
                     } else {
                         String[] ids = Strings.commaDelimitedListToStringArray(follow.toString());
-                        int[] followIds = new int[ids.length];
+                        long[] followIds = new long[ids.length];
                         for (int i = 0; i < ids.length; i++) {
                             followIds[i] = Integer.parseInt(ids[i]);
                         }
@@ -265,11 +265,9 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
         }
         currentRequest = client.prepareBulk();
         if (streamType.equals("filter") || filterQuery != null) {
-            try {
-                stream.filter(filterQuery);
-            } catch (TwitterException e) {
-                logger.warn("failed to create filter stream based on query, disabling river....");
-            }
+
+            stream.filter(filterQuery);
+
         } else if (streamType.equals("firehose")) {
             stream.firehose(0);
         } else {
@@ -309,11 +307,8 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
             stream.addListener(new StatusHandler());
 
             if (streamType.equals("filter") || filterQuery != null) {
-                try {
-                    stream.filter(filterQuery);
-                } catch (TwitterException e) {
-                    logger.warn("failed to create filter stream based on query, disabling river....");
-                }
+                stream.filter(filterQuery);
+
             } else if (streamType.equals("firehose")) {
                 stream.firehose(0);
             } else {
@@ -421,7 +416,9 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                     for (URLEntity url : status.getURLEntities()) {
                         if (url != null) {
                             builder.startObject();
-                            builder.field("url", url.getURL().toExternalForm());
+                            if (url.getURL() != null) {
+                                builder.field("url", url.getURL().toExternalForm());
+                            }
                             if (url.getDisplayURL() != null) {
                                 builder.field("display_url", url.getDisplayURL());
                             }

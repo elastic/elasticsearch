@@ -325,7 +325,7 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
-        BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
+        BytesStream bos = sourceBuilder.buildAsBytesStream(Requests.CONTENT_TYPE);
         this.searchSource = bos.underlyingBytes();
         this.searchSourceOffset = 0;
         this.searchSourceLength = bos.size();

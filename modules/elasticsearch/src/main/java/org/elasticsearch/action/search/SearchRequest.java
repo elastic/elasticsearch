@@ -119,10 +119,9 @@ public class SearchRequest implements ActionRequest {
         return validationException;
     }
 
-    /**
-     * Internal.
-     */
-    public void beforeLocalFork() {
+    public void beforeStart() {
+        // we always copy over if needed, the reason is that a request might fail while being search remotely
+        // and then we need to keep the buffer around
         if (source != null && sourceUnsafe) {
             source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
             sourceOffset = 0;
@@ -133,6 +132,12 @@ public class SearchRequest implements ActionRequest {
             extraSourceOffset = 0;
             extraSourceUnsafe = false;
         }
+    }
+
+    /**
+     * Internal.
+     */
+    public void beforeLocalFork() {
     }
 
     /**
@@ -256,11 +261,11 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
+        BytesStream bos = sourceBuilder.buildAsBytesStream(Requests.CONTENT_TYPE);
         this.source = bos.underlyingBytes();
         this.sourceOffset = 0;
         this.sourceLength = bos.size();
-        this.sourceUnsafe = true;
+        this.sourceUnsafe = false;
         return this;
     }
 
@@ -351,11 +356,11 @@ public class SearchRequest implements ActionRequest {
             extraSource = null;
             return this;
         }
-        BytesStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
+        BytesStream bos = sourceBuilder.buildAsBytesStream(Requests.CONTENT_TYPE);
         this.extraSource = bos.underlyingBytes();
         this.extraSourceOffset = 0;
         this.extraSourceLength = bos.size();
-        this.extraSourceUnsafe = true;
+        this.extraSourceUnsafe = false;
         return this;
     }
 

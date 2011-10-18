@@ -5,7 +5,7 @@
         },
         "filter" : {
             "geo_bounding_box" : {
-                "person.location" : {
+                "location" : {
                     "top_left" : {
                         "lat" : 40,
                         "lon" : -70

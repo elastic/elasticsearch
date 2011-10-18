@@ -118,7 +118,7 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
 
         // fix the range entries if needed
         if (keyField != null) {
-            FieldMapper mapper = context.mapperService().smartNameFieldMapper(keyField);
+            FieldMapper mapper = context.smartNameFieldMapper(keyField);
             if (mapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
             }

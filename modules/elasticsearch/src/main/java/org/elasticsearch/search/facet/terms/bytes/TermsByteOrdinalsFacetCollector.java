@@ -80,22 +80,22 @@ public class TermsByteOrdinalsFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] doesn't have a type, can't run terms byte facet collector on it");
-        } else {
-            // add type filter if there is exact doc mapper associated with it
-            if (smartMappers.hasDocMapper()) {
-                setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-            }
-
-            if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.BYTE) {
-                throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] is not of byte type, can't run terms byte facet collector on it");
-            }
-
-            this.indexFieldName = smartMappers.mapper().names().indexName();
-            this.fieldDataType = smartMappers.mapper().fieldDataType();
         }
+
+        // add type filter if there is exact doc mapper associated with it
+        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
+            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
+        }
+
+        if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.BYTE) {
+            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] is not of byte type, can't run terms byte facet collector on it");
+        }
+
+        this.indexFieldName = smartMappers.mapper().names().indexName();
+        this.fieldDataType = smartMappers.mapper().fieldDataType();
 
         if (excluded == null || excluded.isEmpty()) {
             this.excluded = null;

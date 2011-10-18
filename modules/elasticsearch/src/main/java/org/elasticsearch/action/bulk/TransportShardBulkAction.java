@@ -58,7 +58,7 @@ import java.io.IOException;
  *
  * @author kimchy (shay.banon)
  */
-public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     private final MappingUpdatedAction mappingUpdatedAction;
 
@@ -86,6 +86,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         return new BulkShardRequest();
     }
 
+    @Override protected BulkShardRequest newReplicaRequestInstance() {
+        return new BulkShardRequest();
+    }
+
     @Override protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
     }
@@ -102,9 +106,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         return clusterState.routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 
-    @Override protected PrimaryResponse<BulkShardResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
+    @Override protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
-        IndexShard indexShard = indexShard(shardRequest);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
 
         Engine.IndexingOperation[] ops = null;
 
@@ -198,10 +202,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
         BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.shardId()), responses);
-        return new PrimaryResponse<BulkShardResponse>(response, ops);
+        return new PrimaryResponse<BulkShardResponse, BulkShardRequest>(shardRequest.request, response, ops);
     }
 
-    @Override protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse> response) {
+    @Override protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse, BulkShardRequest> response) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Engine.IndexingOperation[] ops = (Engine.IndexingOperation[]) response.payload();
         if (ops == null) {
@@ -233,8 +237,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
     }
 
-    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
-        IndexShard indexShard = indexShard(shardRequest);
+    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         final BulkShardRequest request = shardRequest.request;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];

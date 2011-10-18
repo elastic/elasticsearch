@@ -7,7 +7,7 @@
             "geo_distance" : {
                 "distance" : 19.312128,
                 "unit": "km",
-                "person.location" : {
+                "location" : {
                     "lat" : 40,
                     "lon" : -70
                 }

@@ -19,6 +19,7 @@
 
 package org.apache.lucene.queryParser;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -115,9 +115,11 @@ public class MapperQueryParser extends QueryParser {
             return fieldQueryExtension.query(parseContext, queryText);
         }
         currentMapper = null;
-        if (parseContext.mapperService() != null) {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
+        Analyzer oldAnalyzer = analyzer;
+        try {
+            MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
+                analyzer = fieldMappers.searchAnalyzer();
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query query = null;
@@ -130,8 +132,10 @@ public class MapperQueryParser extends QueryParser {
                     return wrapSmartNameQuery(query, fieldMappers, parseContext);
                 }
             }
+            return super.getFieldQuery(field, queryText, quoted);
+        } finally {
+            analyzer = oldAnalyzer;
         }
-        return super.getFieldQuery(field, queryText, quoted);
     }
 
     @Override protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
@@ -142,14 +146,12 @@ public class MapperQueryParser extends QueryParser {
             part2 = null;
         }
         currentMapper = null;
-        if (parseContext.mapperService() != null) {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
-            if (fieldMappers != null) {
-                currentMapper = fieldMappers.fieldMappers().mapper();
-                if (currentMapper != null) {
-                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive);
-                    return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
-                }
+        MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
+        if (fieldMappers != null) {
+            currentMapper = fieldMappers.fieldMappers().mapper();
+            if (currentMapper != null) {
+                Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive);
+                return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
             }
         }
         return newRangeQuery(field, part1, part2, inclusive);
@@ -157,14 +159,12 @@ public class MapperQueryParser extends QueryParser {
 
     @Override protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
         currentMapper = null;
-        if (parseContext.mapperService() != null) {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
-            if (fieldMappers != null) {
-                currentMapper = fieldMappers.fieldMappers().mapper();
-                if (currentMapper != null) {
-                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, FuzzyQuery.defaultMaxExpansions);
-                    return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
-                }
+        MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
+        if (fieldMappers != null) {
+            currentMapper = fieldMappers.fieldMappers().mapper();
+            if (currentMapper != null) {
+                Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, FuzzyQuery.defaultMaxExpansions);
+                return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
             }
         }
         return super.getFuzzyQuery(field, termStr, minSimilarity);
@@ -173,17 +173,21 @@ public class MapperQueryParser extends QueryParser {
     @Override protected Query getPrefixQuery(String field, String termStr) throws ParseException {
         String indexedNameField = field;
         currentMapper = null;
-        if (parseContext.mapperService() != null) {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
+        Analyzer oldAnalyzer = analyzer;
+        try {
+            MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
+                analyzer = fieldMappers.searchAnalyzer();
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
                 return wrapSmartNameQuery(getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr), fieldMappers, parseContext);
             }
+            return getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr);
+        } finally {
+            analyzer = oldAnalyzer;
         }
-        return getPossiblyAnalyzedPrefixQuery(indexedNameField, termStr);
     }
 
     private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr) throws ParseException {
@@ -234,17 +238,21 @@ public class MapperQueryParser extends QueryParser {
         }
         String indexedNameField = field;
         currentMapper = null;
-        if (parseContext.mapperService() != null) {
-            MapperService.SmartNameFieldMappers fieldMappers = parseContext.mapperService().smartName(field);
+        Analyzer oldAnalyzer = analyzer;
+        try {
+            MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
+                analyzer = fieldMappers.searchAnalyzer();
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
                 return wrapSmartNameQuery(getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr), fieldMappers, parseContext);
             }
+            return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
+        } finally {
+            analyzer = oldAnalyzer;
         }
-        return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
     }
 
     private Query getPossiblyAnalyzedWildcardQuery(String field, String termStr) throws ParseException {
@@ -317,16 +325,5 @@ public class MapperQueryParser extends QueryParser {
             return null;
         }
         return optimizeQuery(fixNegativeQueryIfNeeded(q));
-    }
-
-    protected FieldMapper fieldMapper(String smartName) {
-        if (parseContext.mapperService() == null) {
-            return null;
-        }
-        FieldMappers fieldMappers = parseContext.mapperService().smartNameFieldMappers(smartName);
-        if (fieldMappers == null) {
-            return null;
-        }
-        return fieldMappers.mapper();
     }
 }

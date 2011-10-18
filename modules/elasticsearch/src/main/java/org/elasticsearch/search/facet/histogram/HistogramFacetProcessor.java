@@ -32,7 +32,11 @@ import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.facet.histogram.bounded.BoundedCountHistogramFacetCollector;
 import org.elasticsearch.search.facet.histogram.bounded.BoundedValueHistogramFacetCollector;
 import org.elasticsearch.search.facet.histogram.bounded.BoundedValueScriptHistogramFacetCollector;
-import org.elasticsearch.search.facet.histogram.unbounded.*;
+import org.elasticsearch.search.facet.histogram.unbounded.CountHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.unbounded.FullHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.unbounded.ScriptHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.unbounded.ValueHistogramFacetCollector;
+import org.elasticsearch.search.facet.histogram.unbounded.ValueScriptHistogramFacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -113,7 +117,7 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
         }
 
         if (sFrom != null && sTo != null && keyField != null) {
-            FieldMapper mapper = context.mapperService().smartNameFieldMapper(keyField);
+            FieldMapper mapper = context.smartNameFieldMapper(keyField);
             if (mapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
             }

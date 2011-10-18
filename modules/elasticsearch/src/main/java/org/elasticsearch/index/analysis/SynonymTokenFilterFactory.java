@@ -86,6 +86,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         CustomSynonymParser parser = new CustomSynonymParser(true, expand, analyzer);
         try {
+            for (String rule : rules) {
+                parser.addLine(rule);
+            }
             synonymMap = parser.build();
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("failed to build synonyms", e);

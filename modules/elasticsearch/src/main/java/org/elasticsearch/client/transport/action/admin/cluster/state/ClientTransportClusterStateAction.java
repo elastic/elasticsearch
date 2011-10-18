@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * @author kimchy (Shay Banon)
  */
 public class ClientTransportClusterStateAction extends BaseClientTransportAction<ClusterStateRequest, ClusterStateResponse> {
 

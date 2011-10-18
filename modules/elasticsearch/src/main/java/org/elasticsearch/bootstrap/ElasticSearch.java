@@ -24,6 +24,10 @@ package org.elasticsearch.bootstrap;
  */
 public class ElasticSearch extends Bootstrap {
 
+    public static void close(String[] args) {
+        Bootstrap.close(args);
+    }
+
     public static void main(String[] args) {
         Bootstrap.main(args);
     }

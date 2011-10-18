@@ -156,6 +156,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 // no shards
                 listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState));
             }
+            request.beforeStart();
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardIterator shardIt : shardsIts) {

@@ -495,7 +495,7 @@ public class SearchSourceBuilder implements ToXContent {
         }
     }
 
-    public BytesStream buildAsUnsafeBytes(XContentType contentType) throws SearchSourceBuilderException {
+    public BytesStream buildAsBytesStream(XContentType contentType) throws SearchSourceBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, ToXContent.EMPTY_PARAMS);

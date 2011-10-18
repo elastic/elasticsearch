@@ -130,6 +130,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         }
 
         public void start() {
+            request.beforeStart();
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardIterator shardIt : shardsIts) {

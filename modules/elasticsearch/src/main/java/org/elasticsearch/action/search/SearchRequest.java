@@ -119,10 +119,9 @@ public class SearchRequest implements ActionRequest {
         return validationException;
     }
 
-    /**
-     * Internal.
-     */
-    public void beforeLocalFork() {
+    public void beforeStart() {
+        // we always copy over if needed, the reason is that a request might fail while being search remotely
+        // and then we need to keep the buffer around
         if (source != null && sourceUnsafe) {
             source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
             sourceOffset = 0;
@@ -133,6 +132,12 @@ public class SearchRequest implements ActionRequest {
             extraSourceOffset = 0;
             extraSourceUnsafe = false;
         }
+    }
+
+    /**
+     * Internal.
+     */
+    public void beforeLocalFork() {
     }
 
     /**

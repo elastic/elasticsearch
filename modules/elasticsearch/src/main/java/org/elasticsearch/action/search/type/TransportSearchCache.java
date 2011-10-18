@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author kimchy (shay.banon)
@@ -53,7 +53,6 @@ public class TransportSearchCache {
         while ((shardFailures = cacheShardFailures.poll()) == null) {
             cacheShardFailures.offer(new LinkedTransferQueue<ShardSearchFailure>());
         }
-        shardFailures.clear();
         return shardFailures;
     }
 
@@ -67,7 +66,6 @@ public class TransportSearchCache {
         while ((dfsSearchResults = cacheDfsResults.poll()) == null) {
             cacheDfsResults.offer(new LinkedTransferQueue<DfsSearchResult>());
         }
-        dfsSearchResults.clear();
         return dfsSearchResults;
     }
 
@@ -79,9 +77,8 @@ public class TransportSearchCache {
     public Map<SearchShardTarget, QuerySearchResultProvider> obtainQueryResults() {
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults;
         while ((queryResults = cacheQueryResults.poll()) == null) {
-            cacheQueryResults.offer(new ConcurrentHashMap<SearchShardTarget, QuerySearchResultProvider>());
+            cacheQueryResults.offer(ConcurrentCollections.<SearchShardTarget, QuerySearchResultProvider>newConcurrentMap());
         }
-        queryResults.clear();
         return queryResults;
     }
 
@@ -93,9 +90,8 @@ public class TransportSearchCache {
     public Map<SearchShardTarget, FetchSearchResult> obtainFetchResults() {
         Map<SearchShardTarget, FetchSearchResult> fetchResults;
         while ((fetchResults = cacheFetchResults.poll()) == null) {
-            cacheFetchResults.offer(new ConcurrentHashMap<SearchShardTarget, FetchSearchResult>());
+            cacheFetchResults.offer(ConcurrentCollections.<SearchShardTarget, FetchSearchResult>newConcurrentMap());
         }
-        fetchResults.clear();
         return fetchResults;
     }
 
@@ -107,9 +103,8 @@ public class TransportSearchCache {
     public Map<SearchShardTarget, QueryFetchSearchResult> obtainQueryFetchResults() {
         Map<SearchShardTarget, QueryFetchSearchResult> fetchResults;
         while ((fetchResults = cacheQueryFetchResults.poll()) == null) {
-            cacheQueryFetchResults.offer(new ConcurrentHashMap<SearchShardTarget, QueryFetchSearchResult>());
+            cacheQueryFetchResults.offer(ConcurrentCollections.<SearchShardTarget, QueryFetchSearchResult>newConcurrentMap());
         }
-        fetchResults.clear();
         return fetchResults;
     }
 

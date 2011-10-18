@@ -100,7 +100,7 @@ public class CountRequest extends BroadcastOperationRequest {
         return this;
     }
 
-    @Override protected void beforeLocalFork() {
+    @Override protected void beforeStart() {
         if (querySourceUnsafe) {
             querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceOffset + querySourceLength);
             querySourceOffset = 0;

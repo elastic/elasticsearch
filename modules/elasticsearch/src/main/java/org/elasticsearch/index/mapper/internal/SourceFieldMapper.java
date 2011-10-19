@@ -19,6 +19,14 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.source;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
@@ -32,6 +40,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -40,12 +49,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-
-import java.io.IOException;
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -74,6 +77,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
         private Boolean compress = null;
 
+        private List<String> excludeFields;
+
         public Builder() {
             super(Defaults.NAME);
         }
@@ -93,8 +98,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             return this;
         }
 
+        public Builder excludeFields(List<String> excludeFields) {
+            this.excludeFields = excludeFields;
+            return this;
+        }
+
         @Override public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(name, enabled, compress, compressThreshold);
+            return new SourceFieldMapper(name, enabled, compress, compressThreshold, excludeFields);
         }
     }
 
@@ -117,6 +127,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
                         builder.compress(true);
                     }
+                } else if (fieldName.equals("excludes") && fieldNode != null) {
+                    List<Object> excludes = (List<Object>)fieldNode;
+                    for (Object exclude : excludes) {
+                        if (exclude instanceof String == false) {
+                            throw new MapperParsingException("Property exclude only handle field names as Strings.");
+                        }
+                    }
+                    builder.excludeFields((List<String>)fieldNode);
                 }
             }
             return builder;
@@ -130,16 +148,19 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     private long compressThreshold;
 
+    private List<String> excludeFields;
+
     public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, null, -1);
+        this(Defaults.NAME, Defaults.ENABLED, null, -1, null);
     }
 
-    protected SourceFieldMapper(String name, boolean enabled, Boolean compress, long compressThreshold) {
+    protected SourceFieldMapper(String name, boolean enabled, Boolean compress, long compressThreshold, List<String> excludeFields) {
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
+        this.excludeFields = excludeFields;
     }
 
     public boolean enabled() {
@@ -181,6 +202,18 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         byte[] data = context.source();
         int dataOffset = context.sourceOffset();
         int dataLength = context.sourceLength();
+
+        if (excludeFields != null) {
+            Map<String, Object> dataMap = XContentFactory.xContent(context.source()).createParser(context.source()).mapAndClose();
+            for (String field : excludeFields) {
+                dataMap.remove(field);
+            }
+            data = XContentFactory.jsonBuilder().map(dataMap).copiedBytes();
+            dataOffset = 0;
+            dataLength = data.length;
+            context.source(data, dataOffset, dataLength);
+        }
+
         if (compress != null && compress && !LZF.isCompressed(data, dataOffset, dataLength)) {
             if (compressThreshold == -1 || dataLength > compressThreshold) {
                 CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
@@ -254,6 +287,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         }
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
+        }
+        if (excludeFields != null) {
+            builder.field("excludes", excludeFields);
         }
         builder.endObject();
         return builder;

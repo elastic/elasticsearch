@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -57,25 +56,25 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
         this.entries = entries;
         this.fieldDataCache = context.fieldDataCache();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(keyFieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + keyFieldName + "]");
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper()) {
+        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
         keyIndexFieldName = smartMappers.mapper().names().indexName();
         keyFieldDataType = smartMappers.mapper().fieldDataType();
 
-        FieldMapper mapper = context.mapperService().smartNameFieldMapper(valueFieldName);
-        if (mapper == null) {
+        smartMappers = context.smartFieldMappers(valueFieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueFieldName + "]");
         }
-        valueIndexFieldName = mapper.names().indexName();
-        valueFieldDataType = mapper.fieldDataType();
+        valueIndexFieldName = smartMappers.mapper().names().indexName();
+        valueFieldDataType = smartMappers.mapper().fieldDataType();
 
         this.rangeProc = new RangeProc(entries);
     }

@@ -76,7 +76,10 @@ public class RestCountAction extends BaseRestHandler {
                 if (source != null) {
                     countRequest.query(source);
                 } else {
-                    countRequest.query(RestActions.parseQuerySource(request));
+                    byte[] querySource = RestActions.parseQuerySource(request);
+                    if (querySource != null) {
+                        countRequest.query(querySource);
+                    }
                 }
             }
             countRequest.queryHint(request.param("query_hint"));

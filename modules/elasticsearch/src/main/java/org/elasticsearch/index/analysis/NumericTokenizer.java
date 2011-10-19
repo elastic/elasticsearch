@@ -61,7 +61,7 @@ public abstract class NumericTokenizer extends Tokenizer {
         numericTokenStream.reset();
     }
 
-    @Override public boolean incrementToken() throws IOException {
+    @Override public final boolean incrementToken() throws IOException {
         return numericTokenStream.incrementToken();
     }
 

@@ -110,7 +110,7 @@ public class NestedQueryParser implements QueryParser {
 
         query.setBoost(boost);
 
-        MapperService.SmartNameObjectMapper mapper = parseContext.mapperService().smartNameObjectMapper(path);
+        MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
         if (mapper == null) {
             throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
         }

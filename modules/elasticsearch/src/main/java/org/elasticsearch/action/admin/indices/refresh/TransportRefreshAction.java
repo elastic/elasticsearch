@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -82,6 +83,9 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     @Override protected boolean ignoreException(Throwable t) {
         Throwable actual = ExceptionsHelper.unwrapCause(t);
         if (actual instanceof IllegalIndexShardStateException) {
+            return true;
+        }
+        if (actual instanceof IndexMissingException) {
             return true;
         }
         return false;

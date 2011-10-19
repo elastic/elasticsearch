@@ -56,7 +56,7 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
 
         for (int i = 0; i < fieldsNames.length; i++) {
-            FieldMapper mapper = context.mapperService().smartNameFieldMapper(fieldsNames[i]);
+            FieldMapper mapper = context.smartNameFieldMapper(fieldsNames[i]);
             if (mapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldsNames[i] + "]");
             }

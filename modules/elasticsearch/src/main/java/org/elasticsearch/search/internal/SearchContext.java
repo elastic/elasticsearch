@@ -34,6 +34,8 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -531,5 +533,21 @@ public class SearchContext implements Releasable {
             nestedQueries = new HashMap<String, BlockJoinQuery>();
         }
         nestedQueries.put(scope, query);
+    }
+
+    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
+        return mapperService().smartName(name, types);
+    }
+
+    public FieldMappers smartNameFieldMappers(String name) {
+        return mapperService().smartNameFieldMappers(name, types);
+    }
+
+    public FieldMapper smartNameFieldMapper(String name) {
+        return mapperService().smartNameFieldMapper(name, types);
+    }
+
+    public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+        return mapperService().smartNameObjectMapper(name, types);
     }
 }

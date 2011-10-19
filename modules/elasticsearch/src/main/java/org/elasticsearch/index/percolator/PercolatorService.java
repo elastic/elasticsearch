@@ -43,7 +43,6 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 
@@ -197,7 +196,7 @@ public class PercolatorService extends AbstractIndexComponent {
             // add a listener that will update based on changes done to the _percolate index
             // the relevant indices with loaded queries
             if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
-                ((InternalIndexShard) indexShard).indexingService().addListener(realTimePercolatorOperationListener);
+                indexShard.indexingService().addListener(realTimePercolatorOperationListener);
             }
         }
 

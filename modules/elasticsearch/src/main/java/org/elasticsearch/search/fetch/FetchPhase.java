@@ -98,7 +98,7 @@ public class FetchPhase implements SearchPhase {
         } else {
             FieldMappersFieldSelector fieldSelectorMapper = new FieldMappersFieldSelector();
             for (String fieldName : context.fieldNames()) {
-                FieldMappers x = context.mapperService().smartNameFieldMappers(fieldName);
+                FieldMappers x = context.smartNameFieldMappers(fieldName);
                 if (x != null && x.mapper().stored()) {
                     fieldSelectorMapper.add(x);
                 } else {

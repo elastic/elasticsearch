@@ -38,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * @author kimchy (Shay Banon)
  */
-public class TransportShardDeleteAction extends TransportShardReplicationOperationAction<ShardDeleteRequest, ShardDeleteResponse> {
+public class TransportShardDeleteAction extends TransportShardReplicationOperationAction<ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
     @Inject public TransportShardDeleteAction(Settings settings, TransportService transportService,
                                               ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
@@ -51,6 +51,10 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     }
 
     @Override protected ShardDeleteRequest newRequestInstance() {
+        return new ShardDeleteRequest();
+    }
+
+    @Override protected ShardDeleteRequest newReplicaRequestInstance() {
         return new ShardDeleteRequest();
     }
 
@@ -70,9 +74,9 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
-    @Override protected PrimaryResponse<ShardDeleteResponse> shardOperationOnPrimary(ClusterState clusterState, ShardOperationRequest shardRequest) {
+    @Override protected PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indexShard(shardRequest);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
@@ -89,12 +93,12 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
 
         ShardDeleteResponse response = new ShardDeleteResponse(delete.version(), delete.notFound());
-        return new PrimaryResponse<ShardDeleteResponse>(response, null);
+        return new PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest>(shardRequest.request, response, null);
     }
 
-    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indexShard(shardRequest);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
         indexShard.delete(delete);

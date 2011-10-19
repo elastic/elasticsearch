@@ -79,7 +79,7 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "field_masking_span must have [field] set for it");
         }
 
-        FieldMapper mapper = parseContext.mapperService().smartNameFieldMapper(field);
+        FieldMapper mapper = parseContext.fieldMapper(field);
         if (mapper != null) {
             field = mapper.names().indexName();
         }

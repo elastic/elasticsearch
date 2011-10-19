@@ -72,12 +72,12 @@ public class DocSets {
             }
         } else {
             if (other == null) {
-                into.clear(0, into.length() + 1);
+                into.clear(0, into.length());
             } else {
                 // copied from OpenBitSetDISI#inPlaceAnd
                 DocIdSetIterator disi = other.iterator();
                 if (disi == null) {
-                    into.clear(0, into.length() + 1);
+                    into.clear(0, into.length());
                 } else {
                     int bitSetDoc = into.nextSetBit(0);
                     int disiDoc;
@@ -86,7 +86,7 @@ public class DocSets {
                         bitSetDoc = into.nextSetBit(disiDoc + 1);
                     }
                     if (bitSetDoc != -1) {
-                        into.clear(bitSetDoc, into.length() + 1);
+                        into.clear(bitSetDoc, into.length());
                     }
                 }
             }

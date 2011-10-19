@@ -96,6 +96,10 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
+    protected void beforeStart() {
+
+    }
+
     protected void beforeLocalFork() {
 
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.client.action.admin.cluster.node.stats.NodesStatsReques
 import org.elasticsearch.client.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.ping.single.SinglePingRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
@@ -42,6 +43,10 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
 
     @Override public ClusterStateRequestBuilder prepareState() {
         return new ClusterStateRequestBuilder(this);
+    }
+
+    @Override public ClusterRerouteRequestBuilder prepareReroute() {
+        return new ClusterRerouteRequestBuilder(this);
     }
 
     @Override public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {

@@ -57,8 +57,9 @@ public class Bootstrap {
     private Node node;
 
     private static volatile Thread keepAliveThread;
-
     private static volatile CountDownLatch keepAliveLatch;
+
+    private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
 //        Loggers.getLogger(Bootstrap.class, tuple.v1().get("name")).info("heap_size {}/{}", JvmStats.jvmStats().mem().heapCommitted(), JvmInfo.jvmInfo().mem().heapMax());
@@ -137,10 +138,14 @@ public class Bootstrap {
         node.close();
     }
 
+    public static void close(String[] args) {
+        bootstrap.destroy();
+        keepAliveLatch.countDown();
+    }
 
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
-        Bootstrap bootstrap = new Bootstrap();
+        bootstrap = new Bootstrap();
         String pidFile = System.getProperty("es-pidfile");
 
         // enable jline by default when running form "main" (and not on windows)

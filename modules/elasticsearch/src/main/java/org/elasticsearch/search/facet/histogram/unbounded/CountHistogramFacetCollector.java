@@ -60,13 +60,13 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
 
         // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.hasDocMapper()) {
+        if (smartMappers.hasDocMapper() && smartMappers.explicitTypeInName()) {
             setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 

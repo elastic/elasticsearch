@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -202,7 +203,8 @@ public class QueryParseContext {
     }
 
     public FieldMapper fieldMapper(String name) {
-        FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name);
+        SearchContext searchContext = SearchContext.current();
+        FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name, searchContext == null ? null : searchContext.types());
         if (fieldMappers == null) {
             return null;
         }
@@ -218,6 +220,12 @@ public class QueryParseContext {
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return indexQueryParser.mapperService.smartName(name);
+        SearchContext searchContext = SearchContext.current();
+        return indexQueryParser.mapperService.smartName(name, searchContext == null ? null : searchContext.types());
+    }
+
+    public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
+        SearchContext searchContext = SearchContext.current();
+        return indexQueryParser.mapperService.smartNameObjectMapper(name, searchContext == null ? null : searchContext.types());
     }
 }

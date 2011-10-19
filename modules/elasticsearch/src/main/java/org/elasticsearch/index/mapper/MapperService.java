@@ -408,38 +408,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return objectMappers.get(path);
     }
 
-    public SmartNameObjectMapper smartNameObjectMapper(String smartName) {
-        int dotIndex = smartName.indexOf('.');
-        if (dotIndex != -1) {
-            String possibleType = smartName.substring(0, dotIndex);
-            DocumentMapper possibleDocMapper = mappers.get(possibleType);
-            if (possibleDocMapper != null) {
-                String possiblePath = smartName.substring(dotIndex + 1);
-                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
-                if (mapper != null) {
-                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
-                }
-            }
-        }
-        ObjectMappers mappers = objectMapper(smartName);
-        if (mappers != null) {
-            return new SmartNameObjectMapper(mappers.mapper(), null);
-        }
-        return null;
-    }
-
-    /**
-     * Same as {@link #smartNameFieldMappers(String)} but returns the first field mapper for it. Returns
-     * <tt>null</tt> if there is none.
-     */
-    public FieldMapper smartNameFieldMapper(String smartName) {
-        FieldMappers fieldMappers = smartNameFieldMappers(smartName);
-        if (fieldMappers != null) {
-            return fieldMappers.mapper();
-        }
-        return null;
-    }
-
     public Set<String> simpleMatchToIndexNames(String pattern) {
         int dotIndex = pattern.indexOf('.');
         if (dotIndex != -1) {
@@ -478,6 +446,109 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return fields;
     }
 
+    public SmartNameObjectMapper smartNameObjectMapper(String smartName, @Nullable String[] types) {
+        if (types == null || types.length == 0) {
+            return smartNameObjectMapper(smartName);
+        }
+        for (String type : types) {
+            DocumentMapper possibleDocMapper = mappers.get(type);
+            if (possibleDocMapper != null) {
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(smartName);
+                if (mapper != null) {
+                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                }
+            }
+        }
+        // did not find one, see if its prefixed by type
+        int dotIndex = smartName.indexOf('.');
+        if (dotIndex != -1) {
+            String possibleType = smartName.substring(0, dotIndex);
+            DocumentMapper possibleDocMapper = mappers.get(possibleType);
+            if (possibleDocMapper != null) {
+                String possiblePath = smartName.substring(dotIndex + 1);
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
+                if (mapper != null) {
+                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                }
+            }
+        }
+        // did not explicitly find one under the types provided, or prefixed by type...
+        return null;
+    }
+
+    public SmartNameObjectMapper smartNameObjectMapper(String smartName) {
+        int dotIndex = smartName.indexOf('.');
+        if (dotIndex != -1) {
+            String possibleType = smartName.substring(0, dotIndex);
+            DocumentMapper possibleDocMapper = mappers.get(possibleType);
+            if (possibleDocMapper != null) {
+                String possiblePath = smartName.substring(dotIndex + 1);
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(possiblePath);
+                if (mapper != null) {
+                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                }
+            }
+        }
+        ObjectMappers mappers = objectMapper(smartName);
+        if (mappers != null) {
+            return new SmartNameObjectMapper(mappers.mapper(), null);
+        }
+        return null;
+    }
+
+    /**
+     * Same as {@link #smartNameFieldMappers(String)} but returns the first field mapper for it. Returns
+     * <tt>null</tt> if there is none.
+     */
+    public FieldMapper smartNameFieldMapper(String smartName) {
+        FieldMappers fieldMappers = smartNameFieldMappers(smartName);
+        if (fieldMappers != null) {
+            return fieldMappers.mapper();
+        }
+        return null;
+    }
+
+    public FieldMapper smartNameFieldMapper(String smartName, @Nullable String[] types) {
+        FieldMappers fieldMappers = smartNameFieldMappers(smartName, types);
+        if (fieldMappers != null) {
+            return fieldMappers.mapper();
+        }
+        return null;
+    }
+
+    public FieldMappers smartNameFieldMappers(String smartName, @Nullable String[] types) {
+        if (types == null || types.length == 0) {
+            return smartNameFieldMappers(smartName);
+        }
+        for (String type : types) {
+            DocumentMapper documentMapper = mappers.get(type);
+            // we found a mapper
+            if (documentMapper != null) {
+                // see if we find a field for it
+                FieldMappers mappers = documentMapper.mappers().smartName(smartName);
+                if (mappers != null) {
+                    return mappers;
+                }
+            }
+        }
+        // did not find explicit field in the type provided, see if its prefixed with type
+        int dotIndex = smartName.indexOf('.');
+        if (dotIndex != -1) {
+            String possibleType = smartName.substring(0, dotIndex);
+            DocumentMapper possibleDocMapper = mappers.get(possibleType);
+            if (possibleDocMapper != null) {
+                String possibleName = smartName.substring(dotIndex + 1);
+                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
+                if (mappers != null) {
+                    return mappers;
+                }
+            }
+        }
+        // we did not find the field mapping in any of the types, so don't go and try to find
+        // it in other types...
+        return null;
+    }
+
     /**
      * Same as {@link #smartName(String)}, except it returns just the field mappers.
      */
@@ -505,6 +576,39 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return name(smartName);
     }
 
+    public SmartNameFieldMappers smartName(String smartName, @Nullable String[] types) {
+        if (types == null || types.length == 0) {
+            return smartName(smartName);
+        }
+        for (String type : types) {
+            DocumentMapper documentMapper = mappers.get(type);
+            // we found a mapper
+            if (documentMapper != null) {
+                // see if we find a field for it
+                FieldMappers mappers = documentMapper.mappers().smartName(smartName);
+                if (mappers != null) {
+                    return new SmartNameFieldMappers(this, mappers, documentMapper, false);
+                }
+            }
+        }
+        // did not find explicit field in the type provided, see if its prefixed with type
+        int dotIndex = smartName.indexOf('.');
+        if (dotIndex != -1) {
+            String possibleType = smartName.substring(0, dotIndex);
+            DocumentMapper possibleDocMapper = mappers.get(possibleType);
+            if (possibleDocMapper != null) {
+                String possibleName = smartName.substring(dotIndex + 1);
+                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
+                if (mappers != null) {
+                    return new SmartNameFieldMappers(this, mappers, possibleDocMapper, true);
+                }
+            }
+        }
+        // we did not find the field mapping in any of the types, so don't go and try to find
+        // it in other types...
+        return null;
+    }
+
     /**
      * Returns smart field mappers based on a smart name. A smart name is one that can optioannly be prefixed
      * with a type (and then a '.'). If it is, then the {@link MapperService.SmartNameFieldMappers}
@@ -526,21 +630,21 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 String possibleName = smartName.substring(dotIndex + 1);
                 FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
                 if (mappers != null) {
-                    return new SmartNameFieldMappers(mappers, possibleDocMapper);
+                    return new SmartNameFieldMappers(this, mappers, possibleDocMapper, true);
                 }
             }
         }
         FieldMappers fieldMappers = fullName(smartName);
         if (fieldMappers != null) {
-            return new SmartNameFieldMappers(fieldMappers, null);
+            return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
         fieldMappers = indexName(smartName);
         if (fieldMappers != null) {
-            return new SmartNameFieldMappers(fieldMappers, null);
+            return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
         fieldMappers = name(smartName);
         if (fieldMappers != null) {
-            return new SmartNameFieldMappers(fieldMappers, null);
+            return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
         return null;
     }
@@ -576,12 +680,16 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     public static class SmartNameFieldMappers {
+        private final MapperService mapperService;
         private final FieldMappers fieldMappers;
         private final DocumentMapper docMapper;
+        private final boolean explicitTypeInName;
 
-        public SmartNameFieldMappers(FieldMappers fieldMappers, @Nullable DocumentMapper docMapper) {
+        public SmartNameFieldMappers(MapperService mapperService, FieldMappers fieldMappers, @Nullable DocumentMapper docMapper, boolean explicitTypeInName) {
+            this.mapperService = mapperService;
             this.fieldMappers = fieldMappers;
             this.docMapper = docMapper;
+            this.explicitTypeInName = explicitTypeInName;
         }
 
         /**
@@ -619,6 +727,29 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
          */
         public DocumentMapper docMapper() {
             return docMapper;
+        }
+
+        /**
+         * Returns <tt>true</tt> if the type is explicitly specified in the name.
+         */
+        public boolean explicitTypeInName() {
+            return this.explicitTypeInName;
+        }
+
+        /**
+         * The best effort search analyzer associated with this field.
+         */
+        public Analyzer searchAnalyzer() {
+            if (hasMapper()) {
+                Analyzer analyzer = mapper().searchAnalyzer();
+                if (analyzer != null) {
+                    return analyzer;
+                }
+            }
+            if (docMapper != null && docMapper.searchAnalyzer() != null) {
+                return docMapper.searchAnalyzer();
+            }
+            return mapperService.searchAnalyzer();
         }
     }
 

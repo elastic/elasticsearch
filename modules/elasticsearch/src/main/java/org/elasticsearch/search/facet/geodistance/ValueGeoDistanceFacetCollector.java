@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -44,12 +44,12 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                                           GeoDistanceFacet.Entry[] entries, SearchContext context, String valueFieldName) {
         super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
 
-        FieldMapper mapper = context.mapperService().smartNameFieldMapper(valueFieldName);
-        if (mapper == null) {
+        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(valueFieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + valueFieldName + "]");
         }
-        this.indexValueFieldName = valueFieldName;
-        this.valueFieldDataType = mapper.fieldDataType();
+        this.indexValueFieldName = smartMappers.mapper().names().indexName();
+        this.valueFieldDataType = smartMappers.mapper().fieldDataType();
         this.aggregator = new Aggregator(fixedSourceDistance, entries);
     }
 

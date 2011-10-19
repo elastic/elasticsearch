@@ -93,7 +93,7 @@ public class NodeEnvironment extends AbstractComponent {
                     }
                 } catch (IOException e) {
                     logger.trace("failed to obtain node lock on {}", e, dir.getAbsolutePath());
-                    lastException = e;
+                    lastException = new IOException("failed to obtain lock on " + dir.getAbsolutePath(), e);
                     // release all the ones that were obtained up until now
                     for (int i = 0; i < locks.length; i++) {
                         if (locks[i] != null) {

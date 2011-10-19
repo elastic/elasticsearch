@@ -229,6 +229,30 @@ public class IndexMetaData {
         return excludeFilters;
     }
 
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexMetaData that = (IndexMetaData) o;
+
+        if (!aliases.equals(that.aliases)) return false;
+        if (!index.equals(that.index)) return false;
+        if (!mappings.equals(that.mappings)) return false;
+        if (!settings.equals(that.settings)) return false;
+        if (state != that.state) return false;
+
+        return true;
+    }
+
+    @Override public int hashCode() {
+        int result = index.hashCode();
+        result = 31 * result + state.hashCode();
+        result = 31 * result + aliases.hashCode();
+        result = 31 * result + settings.hashCode();
+        result = 31 * result + mappings.hashCode();
+        return result;
+    }
+
     public static Builder newIndexMetaDataBuilder(String index) {
         return new Builder(index);
     }

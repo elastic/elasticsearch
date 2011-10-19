@@ -243,13 +243,13 @@ public class Analysis {
     }
 
     /**
-     * @return null If no settings set for "settingsPrefix + _path" then return null.
+     * @return null If no settings set for "settingsPrefix" then return <code>null</code>.
      *
      * @throws ElasticSearchIllegalArgumentException
      *          If the Reader can not be instantiated.
      */
-    public static Reader getFileReader(Environment env, Settings settings, String settingPrefix) {
-        String filePath = settings.get(settingPrefix + "_path", null);
+    public static Reader getReaderFromFile(Environment env, Settings settings, String settingPrefix) {
+        String filePath = settings.get(settingPrefix, null);
 
         if (filePath == null) {
             return null;

@@ -29,7 +29,6 @@ import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -40,12 +39,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.LineNumberReader;
 import java.io.Reader;
-import java.text.ParseException;
-import java.util.ArrayList;
+import java.io.StringReader;
 import java.util.List;
 import java.util.Map;
 
@@ -59,10 +54,20 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                                              @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 
-        Reader rulesReader = Analysis.getFileReader(env, settings, "synonyms");
-        if (rulesReader == null) {
+        Reader rulesReader = null;
+        if (settings.getAsArray("synonyms", null) != null) {
+            List<String> rules = Analysis.getWordList(env, settings, "synonyms");
+            StringBuilder sb = new StringBuilder();
+            for (String line : rules) {
+                sb.append(line).append(System.getProperty("line.separator"));
+            }
+            rulesReader = new StringReader(sb.toString());
+        } else if (settings.get("synonyms_path") != null) {
+            rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
+        } else {
             throw new ElasticSearchIllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
+
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         boolean expand = settings.getAsBoolean("expand", true);
 
@@ -89,13 +94,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         try {
             SynonymMap.Builder parser = null;
 
-            if (settings.get("format","wordnet").equalsIgnoreCase("wordnet")) {
+            if ("wordnet".equalsIgnoreCase(settings.get("format"))) {
                 parser = new WordnetSynonymParser(true, expand, analyzer);
                 ((WordnetSynonymParser)parser).add(rulesReader);
             } else {
                 parser = new SolrSynonymParser(true, expand, analyzer);
                 ((SolrSynonymParser)parser).add(rulesReader);
             }
+
             synonymMap = parser.build();
         } catch (Exception e) {
             throw new ElasticSearchIllegalArgumentException("failed to build synonyms", e);

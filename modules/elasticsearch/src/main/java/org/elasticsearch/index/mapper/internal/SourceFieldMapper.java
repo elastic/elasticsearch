@@ -25,7 +25,6 @@ import static org.elasticsearch.index.mapper.MapperBuilders.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -206,7 +205,25 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (excludeFields != null) {
             Map<String, Object> dataMap = XContentFactory.xContent(context.source()).createParser(context.source()).mapAndClose();
             for (String field : excludeFields) {
-                dataMap.remove(field);
+                if (field.indexOf('.') != -1) {
+                    /* Diving into the objects to find the property to delete */
+                    String[] path = field.split("\\.");
+                    Map<String, Object> node = null;
+                    for (int i = 0; i < path.length; i++) {
+                        if (i == path.length - 1) {
+                            node.remove(path[i]);
+                        } else {
+                            Object tmpnode = dataMap.get(path[i]);
+                            if (tmpnode != null && tmpnode instanceof Map) {
+                                node = (Map<String, Object>) tmpnode;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    dataMap.remove(field);
+                }
             }
             data = XContentFactory.jsonBuilder().map(dataMap).copiedBytes();
             dataOffset = 0;

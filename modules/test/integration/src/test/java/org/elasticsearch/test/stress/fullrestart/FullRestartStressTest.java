@@ -217,7 +217,7 @@ public class FullRestartStressTest {
 
         int numberOfNodes = 2;
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("index.shard.check_index", true)
+                .put("index.shard.check_on_startup", true)
                 .put("gateway.type", "local")
                 .put("gateway.recover_after_nodes", numberOfNodes)
                 .put("index.number_of_shards", 1)

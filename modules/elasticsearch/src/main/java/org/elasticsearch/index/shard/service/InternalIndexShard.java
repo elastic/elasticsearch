@@ -120,7 +120,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final Object mutex = new Object();
 
 
-    private final boolean checkIndex;
+    private final boolean checkIndexOnStartup;
 
     private volatile IndexShardState state;
 
@@ -166,7 +166,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
         logger.debug("state: [CREATED]");
 
-        this.checkIndex = indexSettings.getAsBoolean("index.shard.check_index", false);
+        this.checkIndexOnStartup = indexSettings.getAsBoolean("index.shard.check_on_startup", false);
     }
 
     public MergeSchedulerProvider mergeScheduler() {
@@ -261,7 +261,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            if (checkIndex) {
+            if (checkIndexOnStartup) {
                 checkIndex(true);
             }
             engine.start();
@@ -512,7 +512,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         // also check here, before we apply the translog
-        if (checkIndex) {
+        if (checkIndexOnStartup) {
             checkIndex(true);
         }
         engine.start();

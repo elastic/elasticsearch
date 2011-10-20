@@ -46,7 +46,7 @@ public class ManyIndicesStressTest {
         int numberOfDocs = 100;
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("index.shard.check_index", false)
+                .put("index.shard.check_on_startup", false)
                 .put("gateway.type", "fs")
                 .put("index.number_of_shards", 1)
                 .build();

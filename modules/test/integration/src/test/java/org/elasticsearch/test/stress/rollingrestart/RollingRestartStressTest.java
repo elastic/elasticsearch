@@ -339,7 +339,7 @@ public class RollingRestartStressTest {
         System.setProperty("es.logger.prefix", "");
 
         Settings settings = settingsBuilder()
-                .put("index.shard.check_index", true)
+                .put("index.shard.check_on_startup", true)
                 .put("gateway.type", "none")
                 .put("path.data", "data/data1,data/data2")
                 .build();

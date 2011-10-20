@@ -253,6 +253,7 @@ Balder
 Balthakk
 Balor
 Bandit
+Banon, Shay (@kimchy)
 Bantam
 Banner, Betty Ross
 Banner, Robert Bruce
@@ -2314,7 +2315,6 @@ Shatterfist
 Shatterstar
 Shaw, Sebastian
 Shaw, Shinobi
-Shay Banon aka Kimchy
 She-Hulk
 She-Thing
 She-Venom

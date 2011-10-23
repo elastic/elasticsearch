@@ -36,24 +36,6 @@ import java.util.Map;
  */
 public class LocalGatewayStartedShards {
 
-    public static class StartedShard {
-        private final long version;
-        private final ShardId shardId;
-
-        public StartedShard(long version, ShardId shardId) {
-            this.version = version;
-            this.shardId = shardId;
-        }
-
-        public long version() {
-            return version;
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-    }
-
     private final long version;
 
     private final ImmutableMap<ShardId, Long> shards;

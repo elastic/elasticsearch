@@ -128,6 +128,7 @@ public class CachedStreamOutput {
         Queue<Entry> ref = cache.get();
         if (ref == null) {
             ref = new LinkedTransferQueue<Entry>();
+            counter.set(0);
             cache.set(ref);
         }
         if (counter.incrementAndGet() > COUNT_LIMIT) {

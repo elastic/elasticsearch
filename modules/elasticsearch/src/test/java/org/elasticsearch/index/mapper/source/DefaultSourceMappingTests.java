@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.mapper.source;
 
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTests;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.testng.annotations.Test;
+
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -33,6 +38,24 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 public class DefaultSourceMappingTests {
+
+    @Test public void testIncludeExclude() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_source").field("includes", new String[]{"path1*"}).endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .startObject("path1").field("field1", "value1").endObject()
+                .startObject("path2").field("field2", "value2").endObject()
+                .endObject().copiedBytes());
+
+        Fieldable sourceField = doc.rootDoc().getFieldable("_source");
+        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength()).mapAndClose();
+        assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
+        assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
+    }
 
     @Test public void testDefaultMappingAndNoMapping() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)

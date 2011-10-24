@@ -207,7 +207,12 @@ public class RootObjectMapper extends ObjectMapper {
             return null;
         }
         Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-        return parserContext.typeParser(dynamicTemplate.mappingType(dynamicType)).parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
+        String mappingType = dynamicTemplate.mappingType(dynamicType);
+        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+        if (typeParser == null) {
+            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
+        }
+        return typeParser.parse(name, dynamicTemplate.mappingForName(name, mappingType), parserContext);
     }
 
     public DynamicTemplate findTemplate(ContentPath path, String name, String dynamicType) {

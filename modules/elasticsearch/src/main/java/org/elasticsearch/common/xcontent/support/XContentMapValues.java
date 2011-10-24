@@ -21,6 +21,8 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -112,6 +114,82 @@ public class XContentMapValues {
             return newList;
         }
         return null;
+    }
+
+    public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
+        Map<String, Object> result = Maps.newHashMap();
+        filter(map, result, includes, excludes, new StringBuilder());
+        return result;
+    }
+
+    private static void filter(Map<String, Object> map, Map<String, Object> into, String[] includes, String[] excludes, StringBuilder sb) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            String key = entry.getKey();
+            int mark = sb.length();
+            if (sb.length() > 0) {
+                sb.append('.');
+            }
+            sb.append(key);
+            String path = sb.toString();
+            boolean excluded = false;
+            for (String exclude : excludes) {
+                if (Regex.simpleMatch(exclude, path)) {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (excluded) {
+                sb.setLength(mark);
+                continue;
+            }
+            if (includes.length > 0) {
+                boolean atLeastOnOneIncludeMatched = false;
+                for (String include : includes) {
+                    if (Regex.simpleMatch(include, path)) {
+                        atLeastOnOneIncludeMatched = true;
+                        break;
+                    }
+                }
+                if (!atLeastOnOneIncludeMatched) {
+                    sb.setLength(mark);
+                    continue;
+                }
+            }
+
+
+            if (entry.getValue() instanceof Map) {
+                Map<String, Object> innerInto = Maps.newHashMap();
+                filter((Map<String, Object>) entry.getValue(), innerInto, includes, excludes, sb);
+                if (!innerInto.isEmpty()) {
+                    into.put(entry.getKey(), innerInto);
+                }
+            } else if (entry.getValue() instanceof List) {
+                List<Object> list = (List<Object>) entry.getValue();
+                List<Object> innerInto = new ArrayList<Object>(list.size());
+                filter(list, innerInto, includes, excludes, sb);
+                into.put(entry.getKey(), innerInto);
+            } else {
+                into.put(entry.getKey(), entry.getValue());
+            }
+            sb.setLength(mark);
+        }
+    }
+
+    private static void filter(List<Object> from, List<Object> to, String[] includes, String[] excludes, StringBuilder sb) {
+        for (Object o : from) {
+            if (o instanceof Map) {
+                Map<String, Object> innerInto = Maps.newHashMap();
+                filter((Map<String, Object>) o, innerInto, includes, excludes, sb);
+                if (!innerInto.isEmpty()) {
+                    to.add(innerInto);
+                }
+            } else if (o instanceof List) {
+                List<Object> innerInto = new ArrayList<Object>();
+                filter((List<Object>) o, innerInto, includes, excludes, sb);
+            } else {
+                to.add(o);
+            }
+        }
     }
 
     public static boolean isObject(Object node) {

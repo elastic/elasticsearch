@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -34,6 +35,50 @@ import static org.hamcrest.Matchers.*;
  */
 @Test
 public class XContentMapValuesTests {
+
+    @Test public void testFilter() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .endObject();
+
+        Map<String, Object> source = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        Map<String, Object> filter = XContentMapValues.filter(source, new String[]{"test1"}, Strings.EMPTY_ARRAY);
+        assertThat(filter.size(), equalTo(1));
+        assertThat(filter.get("test1").toString(), equalTo("value1"));
+
+        filter = XContentMapValues.filter(source, new String[]{"test*"}, Strings.EMPTY_ARRAY);
+        assertThat(filter.size(), equalTo(2));
+        assertThat(filter.get("test1").toString(), equalTo("value1"));
+        assertThat(filter.get("test2").toString(), equalTo("value2"));
+
+        filter = XContentMapValues.filter(source, Strings.EMPTY_ARRAY, new String[]{"test1"});
+        assertThat(filter.size(), equalTo(1));
+        assertThat(filter.get("test2").toString(), equalTo("value2"));
+
+        // more complex object...
+        builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("path1")
+                .startArray("path2")
+                .startObject().field("test", "value1").endObject()
+                .startObject().field("test", "value2").endObject()
+                .endArray()
+                .endObject()
+                .field("test1", "value1")
+                .endObject();
+
+        source = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        filter = XContentMapValues.filter(source, new String[]{"path1"}, Strings.EMPTY_ARRAY);
+        assertThat(filter.size(), equalTo(0));
+
+        filter = XContentMapValues.filter(source, new String[]{"path1*"}, Strings.EMPTY_ARRAY);
+        assertThat(filter.get("path1"), equalTo(source.get("path1")));
+        assertThat(filter.containsKey("test1"), equalTo(false));
+
+        filter = XContentMapValues.filter(source, new String[]{"test1*"}, Strings.EMPTY_ARRAY);
+        assertThat(filter.get("test1"), equalTo(source.get("test1")));
+        assertThat(filter.containsKey("path1"), equalTo(false));
+    }
 
     @SuppressWarnings({"unchecked"}) @Test public void testExtractValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()

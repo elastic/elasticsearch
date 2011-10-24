@@ -30,17 +30,13 @@ configurations {
     }
 }
 
-repositories {
-    mavenRepo urls: 'http://twitter4j.org/maven2'
-}
-
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.twitter4j:twitter4j-core:2.2.5-SNAPSHOT') { transitive = false }
-    compile('org.twitter4j:twitter4j-stream:2.2.5-SNAPSHOT') { transitive = false }
-    distLib('org.twitter4j:twitter4j-core:2.2.5-SNAPSHOT') { transitive = false }
-    distLib('org.twitter4j:twitter4j-stream:2.2.5-SNAPSHOT') { transitive = false }
+    compile('org.twitter4j:twitter4j-core:2.2.5') { transitive = false }
+    compile('org.twitter4j:twitter4j-stream:2.2.5') { transitive = false }
+    distLib('org.twitter4j:twitter4j-core:2.2.5') { transitive = false }
+    distLib('org.twitter4j:twitter4j-stream:2.2.5') { transitive = false }
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {

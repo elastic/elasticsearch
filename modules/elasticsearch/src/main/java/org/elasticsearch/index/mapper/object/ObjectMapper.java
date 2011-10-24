@@ -597,11 +597,22 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 newMapper = true;
                 BuilderContext builderContext = new BuilderContext(context.path());
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    String text = context.parser().text();
-                    // check if it fits one of the date formats
                     boolean resolved = false;
-                    // a safe check since "1" gets parsed as well
-                    if (context.root().dateDetection()) {
+
+                    // do a quick test to see if its fits a dynamic template, if so, use it.
+                    // we need to do it here so we can handle things like attachment templates, where calling
+                    // text (to see if its a date) causes the binary value to be cleared
+                    if (!resolved) {
+                        Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+                        if (builder != null) {
+                            mapper = builder.build(builderContext);
+                            resolved = true;
+                        }
+                    }
+
+                    if (!resolved && context.root().dateDetection()) {
+                        String text = context.parser().text();
+                        // a safe check since "1" gets parsed as well
                         if (text.contains(":") || text.contains("-") || text.contains("/")) {
                             for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                                 try {
@@ -620,6 +631,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                     }
                     if (!resolved && context.root().numericDetection()) {
+                        String text = context.parser().text();
                         try {
                             Long.parseLong(text);
                             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");

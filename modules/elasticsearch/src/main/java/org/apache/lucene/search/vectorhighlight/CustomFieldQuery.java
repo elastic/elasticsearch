@@ -26,6 +26,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
@@ -110,6 +111,10 @@ public class CustomFieldQuery extends FieldQuery {
             } catch (IOException e) {
                 // ignore
             }
+        } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
+            flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), flatQueries);
+        } else if (sourceQuery instanceof FunctionScoreQuery) {
+            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), flatQueries);
         } else {
             super.flatten(sourceQuery, flatQueries);
         }

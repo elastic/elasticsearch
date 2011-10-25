@@ -67,6 +67,8 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
 
     private String rewrite;
 
+    private String minimumShouldMatch;
+
     /**
      * A query that executes the query string against a field. It is a simplified
      * version of {@link QueryStringQueryBuilder} that simply runs against
@@ -276,6 +278,11 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public FieldQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FieldQueryParser.NAME);
         if (!extraSet) {
@@ -318,6 +325,9 @@ public class FieldQueryBuilder extends BaseQueryBuilder {
             }
             if (rewrite != null) {
                 builder.field("rewrite", rewrite);
+            }
+            if (minimumShouldMatch != null) {
+                builder.field("minimum_should_match", minimumShouldMatch);
             }
             builder.endObject();
         }

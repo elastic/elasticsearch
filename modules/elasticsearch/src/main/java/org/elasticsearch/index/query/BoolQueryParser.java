@@ -88,6 +88,8 @@ public class BoolQueryParser implements QueryParser {
                     disableCoord = parser.booleanValue();
                 } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
                     minimumNumberShouldMatch = parser.intValue();
+                } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                    minimumNumberShouldMatch = parser.intValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 }

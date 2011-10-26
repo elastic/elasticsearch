@@ -38,8 +38,10 @@ public class Version {
     public static final Version V_0_18_0 = new Version(V_0_18_0_ID, false);
     public static final int V_0_18_1_ID = /*00*/180199;
     public static final Version V_0_18_1 = new Version(V_0_18_1_ID, false);
+    public static final int V_0_18_2_ID = /*00*/180299;
+    public static final Version V_0_18_2 = new Version(V_0_18_2_ID, true);
 
-    public static final Version CURRENT = V_0_18_1;
+    public static final Version CURRENT = V_0_18_2;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -51,6 +53,8 @@ public class Version {
                 return V_0_18_0;
             case V_0_18_1_ID:
                 return V_0_18_1;
+            case V_0_18_2_ID:
+                return V_0_18_2;
             default:
                 return new Version(id, null);
         }

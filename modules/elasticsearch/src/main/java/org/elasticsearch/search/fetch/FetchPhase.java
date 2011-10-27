@@ -180,7 +180,7 @@ public class FetchPhase implements SearchPhase {
 
             // go over and extract fields that are not mapped / stored
             context.lookup().setNextReader(subReader);
-            context.lookup().setNextDocId(docId);
+            context.lookup().setNextDocId(subDoc);
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
                     Object value = context.lookup().source().extractValue(extractFieldName);

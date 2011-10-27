@@ -39,7 +39,7 @@ public class Version {
     public static final int V_0_18_1_ID = /*00*/180199;
     public static final Version V_0_18_1 = new Version(V_0_18_1_ID, false);
     public static final int V_0_18_2_ID = /*00*/180299;
-    public static final Version V_0_18_2 = new Version(V_0_18_2_ID, true);
+    public static final Version V_0_18_2 = new Version(V_0_18_2_ID, false);
 
     public static final Version CURRENT = V_0_18_2;
 

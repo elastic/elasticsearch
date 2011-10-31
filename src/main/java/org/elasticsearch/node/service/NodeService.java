@@ -19,6 +19,8 @@
 
 package org.elasticsearch.node.service;
 
+import java.net.InetAddress;
+
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
@@ -51,6 +54,9 @@ public class NodeService extends AbstractComponent {
 
     private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
 
+    @Nullable
+    private String hostname;
+
     @Inject
     public NodeService(Settings settings, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings);
@@ -59,6 +65,10 @@ public class NodeService extends AbstractComponent {
         this.transportService = transportService;
         this.indicesService = indicesService;
         discovery.setNodeService(this);
+        InetAddress address = NetworkUtils.getLocalAddress();
+        if (address != null) {
+            this.hostname = address.getHostName();
+        }
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -91,7 +101,7 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(clusterService.state().nodes().localNode(), serviceAttributes, settings,
+        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes, settings,
                 monitorService.osService().info(), monitorService.processService().info(),
                 monitorService.jvmService().info(), monitorService.networkService().info(),
                 transportService.info(), httpServer == null ? null : httpServer.info());

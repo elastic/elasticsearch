@@ -44,6 +44,9 @@ public class NodeInfo extends NodeOperationResponse {
 
     private ImmutableMap<String, String> serviceAttributes;
 
+    @Nullable
+    private String hostname;
+
     private Settings settings;
 
     private OsInfo os;
@@ -61,10 +64,11 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> serviceAttributes, Settings settings,
+    public NodeInfo(String hostname, DiscoveryNode node, ImmutableMap<String, String> serviceAttributes, Settings settings,
                     OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network,
                     TransportInfo transport, @Nullable HttpInfo http) {
         super(node);
+        this.hostname = hostname;
         this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
@@ -73,6 +77,22 @@ public class NodeInfo extends NodeOperationResponse {
         this.network = network;
         this.transport = transport;
         this.http = http;
+    }
+
+    /**
+     * System's hostname. <code>null</code> in case of UnknownHostException
+     */
+    @Nullable
+    public String hostname() {
+        return this.hostname;
+    }
+
+    /**
+     * System's hostname. <code>null</code> in case of UnknownHostException
+     */
+    @Nullable
+    public String getHostname() {
+        return hostname();
     }
 
     /**
@@ -184,6 +204,9 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.readBoolean()) {
+            hostname = in.readUTF();
+        }
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -214,6 +237,12 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (hostname == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(hostname);
+        }
         out.writeVInt(serviceAttributes.size());
         for (Map.Entry<String, String> entry : serviceAttributes.entrySet()) {
             out.writeUTF(entry.getKey());

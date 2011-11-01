@@ -406,7 +406,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private boolean aliasesChanged(ClusterChangedEvent event) {
-        return !event.state().metaData().aliases().equals(event.previousState().metaData().aliases());
+        return !event.state().metaData().aliases().equals(event.previousState().metaData().aliases()) ||
+                !event.state().routingTable().equals(event.previousState().routingTable());
     }
 
     private void applyAliases(ClusterChangedEvent event) {

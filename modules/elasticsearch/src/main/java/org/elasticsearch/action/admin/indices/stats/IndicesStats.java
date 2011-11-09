@@ -159,7 +159,7 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
         builder.endObject();
 
         builder.startObject("total");
-        primaries().toXContent(builder, params);
+        total().toXContent(builder, params);
         builder.endObject();
 
         builder.startObject(Fields.INDICES);

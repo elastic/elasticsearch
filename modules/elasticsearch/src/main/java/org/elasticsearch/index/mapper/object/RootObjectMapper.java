@@ -202,7 +202,11 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
-        DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, dynamicType);
+        return findTemplateBuilder(context, name, dynamicType, dynamicType);
+    }
+
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, String matchType) {
+        DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
@@ -215,9 +219,9 @@ public class RootObjectMapper extends ObjectMapper {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    public DynamicTemplate findTemplate(ContentPath path, String name, String dynamicType) {
+    public DynamicTemplate findTemplate(ContentPath path, String name, String matchType) {
         for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (dynamicTemplate.match(path, name, dynamicType)) {
+            if (dynamicTemplate.match(path, name, matchType)) {
                 return dynamicTemplate;
             }
         }

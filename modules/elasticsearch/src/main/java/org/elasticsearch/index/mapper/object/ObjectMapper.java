@@ -603,7 +603,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     // we need to do it here so we can handle things like attachment templates, where calling
                     // text (to see if its a date) causes the binary value to be cleared
                     if (!resolved) {
-                        Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+                        Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
                         if (builder != null) {
                             mapper = builder.build(builderContext);
                             resolved = true;

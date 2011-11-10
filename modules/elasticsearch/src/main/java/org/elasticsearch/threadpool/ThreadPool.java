@@ -59,7 +59,7 @@ public class ThreadPool extends AbstractComponent {
 
     private final ImmutableMap<String, Executor> executors;
 
-    private final ScheduledExecutorService scheduler;
+    private final ScheduledThreadPoolExecutor scheduler;
 
     private final EstimatedTimeThread estimatedTimeThread;
 
@@ -82,7 +82,9 @@ public class ThreadPool extends AbstractComponent {
         executors.put(Names.SNAPSHOT, build(Names.SNAPSHOT, "scaling", groupSettings.get(Names.SNAPSHOT), ImmutableSettings.Builder.EMPTY_SETTINGS));
         executors.put(Names.SAME, MoreExecutors.sameThreadExecutor());
         this.executors = ImmutableMap.copyOf(executors);
-        this.scheduler = Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "[scheduler]"));
+        this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "[scheduler]"));
+        this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
 
         TimeValue estimatedTimeInterval = componentSettings.getAsTime("estimated_time_interval", TimeValue.timeValueMillis(200));
         this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());

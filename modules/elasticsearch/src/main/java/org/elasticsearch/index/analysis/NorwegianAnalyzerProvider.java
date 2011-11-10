@@ -38,7 +38,7 @@ public class NorwegianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Nor
     @Inject public NorwegianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new NorwegianAnalyzer(version,
-                Analysis.parseStopWords(env, settings, NorwegianAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, NorwegianAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

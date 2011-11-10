@@ -38,7 +38,7 @@ public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Bra
     @Inject public BrazilianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new BrazilianAnalyzer(version,
-                Analysis.parseStopWords(env, settings, BrazilianAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, BrazilianAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

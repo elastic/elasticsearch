@@ -58,14 +58,14 @@ public class SearchStatsTests extends AbstractNodesTests {
     @Test public void testSimpleStats() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 500; i++) {
             client.prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 500; i++) {
             client.prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
 
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < 200; i++) {
             client.prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
         }
 

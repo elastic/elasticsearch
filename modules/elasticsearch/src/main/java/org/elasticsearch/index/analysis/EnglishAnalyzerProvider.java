@@ -38,7 +38,7 @@ public class EnglishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Engli
     @Inject public EnglishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new EnglishAnalyzer(version,
-                Analysis.parseStopWords(env, settings, EnglishAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, EnglishAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

@@ -31,7 +31,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -84,7 +89,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         // If 1, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
         this.stemEnglishPossessive = settings.getAsBoolean("stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
-        Set<String> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
+        Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words", version);
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(Lucene.VERSION, protectedWords);
     }
 

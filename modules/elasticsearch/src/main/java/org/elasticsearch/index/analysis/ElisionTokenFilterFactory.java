@@ -39,7 +39,7 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public ElisionTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.articles = Analysis.parseArticles(env, settings);
+        this.articles = Analysis.parseArticles(env, settings, version);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

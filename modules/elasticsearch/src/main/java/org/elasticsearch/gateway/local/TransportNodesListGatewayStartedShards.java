@@ -111,10 +111,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticSearchException {
-        for (Map.Entry<ShardId, Long> entry : gateway.currentStartedShards().shards().entrySet()) {
-            if (entry.getKey().equals(request.shardId)) {
-                assert entry.getValue() != null;
-                return new NodeLocalGatewayStartedShards(clusterService.localNode(), entry.getValue());
+        LocalGatewayStartedShards startedShards = gateway.currentStartedShards();
+        if (startedShards != null) {
+            for (Map.Entry<ShardId, Long> entry : startedShards.shards().entrySet()) {
+                if (entry.getKey().equals(request.shardId)) {
+                    assert entry.getValue() != null;
+                    return new NodeLocalGatewayStartedShards(clusterService.localNode(), entry.getValue());
+                }
             }
         }
         return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);

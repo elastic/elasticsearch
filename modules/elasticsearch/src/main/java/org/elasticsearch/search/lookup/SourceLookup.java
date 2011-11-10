@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
@@ -63,8 +64,11 @@ public class SourceLookup implements Map {
         try {
             Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
             Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
-            byte[] source = sourceField.getBinaryValue();
-            this.source = sourceAsMap(source, 0, source.length);
+            if (sourceField == null) {
+                source = ImmutableMap.of();
+            } else {
+                this.source = sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+            }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
         } finally {

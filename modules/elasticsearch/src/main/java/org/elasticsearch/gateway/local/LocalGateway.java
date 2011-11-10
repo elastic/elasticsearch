@@ -34,14 +34,16 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.compress.lzf.LZFOutputStream;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.thread.LoggingRunnable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -60,7 +62,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -427,54 +428,74 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             final long version = event.state().metaData().version();
             builder.version(version);
             builder.metaData(event.state().metaData());
+            LocalGatewayMetaState stateToWrite = builder.build();
 
+            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
+            StreamOutput streamOutput;
             try {
-                File stateLocation = new File(nodeEnv.nodeDataLocations()[0], "_state");
-                if (!stateLocation.exists()) {
-                    FileSystemUtils.mkdirs(stateLocation);
+                try {
+                    if (compress) {
+                        streamOutput = cachedEntry.cachedLZFBytes();
+                    } else {
+                        streamOutput = cachedEntry.cachedBytes();
+                    }
+                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
+                    if (prettyPrint) {
+                        xContentBuilder.prettyPrint();
+                    }
+                    xContentBuilder.startObject();
+                    LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
+                    xContentBuilder.endObject();
+                    xContentBuilder.close();
+                } catch (Exception e) {
+                    logger.warn("failed to serialize local gateway state", e);
+                    return;
                 }
-                File stateFile = new File(stateLocation, "metadata-" + version);
-                OutputStream fos = new FileOutputStream(stateFile);
-                if (compress) {
-                    fos = new LZFOutputStream(fos);
-                }
-                LocalGatewayMetaState stateToWrite = builder.build();
-                XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, fos);
-                if (prettyPrint) {
-                    xContentBuilder.prettyPrint();
-                }
-                xContentBuilder.startObject();
-                LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
-                xContentBuilder.endObject();
-                xContentBuilder.close();
-                fos.close();
 
-                FileSystemUtils.syncFile(stateFile);
-
-                currentMetaState = stateToWrite;
-
-                // delete all the other files
+                boolean serializedAtLeastOnce = false;
                 for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                    stateLocation = new File(dataLocation, "_state");
+                    File stateLocation = new File(dataLocation, "_state");
                     if (!stateLocation.exists()) {
-                        continue;
+                        FileSystemUtils.mkdirs(stateLocation);
                     }
-                    File[] files = stateLocation.listFiles(new FilenameFilter() {
-                        @Override public boolean accept(File dir, String name) {
-                            return name.startsWith("metadata-") && !name.equals("metadata-" + version);
+                    File stateFile = new File(stateLocation, "metadata-" + version);
+                    FileOutputStream fos = null;
+                    try {
+                        fos = new FileOutputStream(stateFile);
+                        fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+                        fos.getChannel().force(true);
+                        serializedAtLeastOnce = true;
+                    } catch (Exception e) {
+                        logger.warn("failed to write local gateway state to {}", e, stateFile);
+                    } finally {
+                        Closeables.closeQuietly(fos);
+                    }
+                }
+                if (serializedAtLeastOnce) {
+                    currentMetaState = stateToWrite;
+                    metaDataPersistedAtLeastOnce = true;
+
+                    // delete all the other files
+                    for (File dataLocation : nodeEnv.nodeDataLocations()) {
+                        File stateLocation = new File(dataLocation, "_state");
+                        if (!stateLocation.exists()) {
+                            continue;
                         }
-                    });
-                    if (files != null) {
-                        for (File file : files) {
-                            file.delete();
+                        File[] files = stateLocation.listFiles(new FilenameFilter() {
+                            @Override public boolean accept(File dir, String name) {
+                                return name.startsWith("metadata-") && !name.equals("metadata-" + version);
+                            }
+                        });
+                        if (files != null) {
+                            for (File file : files) {
+                                file.delete();
+                            }
                         }
                     }
                 }
-
-            } catch (IOException e) {
-                logger.warn("failed to write updated state", e);
+            } finally {
+                CachedStreamOutput.pushEntry(cachedEntry);
             }
-            metaDataPersistedAtLeastOnce = true;
         }
     }
 
@@ -488,52 +509,72 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
 
         @Override public void run() {
+
+            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                File stateLocation = new File(nodeEnv.nodeDataLocations()[0], "_state");
-                if (!stateLocation.exists()) {
-                    FileSystemUtils.mkdirs(stateLocation);
-                }
-                File stateFile = new File(stateLocation, "shards-" + event.state().version());
-                OutputStream fos = new FileOutputStream(stateFile);
-                if (compress) {
-                    fos = new LZFOutputStream(fos);
-                }
-
-                XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, fos);
-                if (prettyPrint) {
-                    xContentBuilder.prettyPrint();
-                }
-                xContentBuilder.startObject();
-                LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
-                xContentBuilder.endObject();
-                xContentBuilder.close();
-
-                fos.close();
-
-                FileSystemUtils.syncFile(stateFile);
-
-                currentStartedShards = stateToWrite;
-            } catch (IOException e) {
-                logger.warn("failed to write updated state", e);
-                return;
-            }
-
-            // delete all the other files
-            for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                File stateLocation = new File(dataLocation, "_state");
-                if (!stateLocation.exists()) {
-                    continue;
-                }
-                File[] files = stateLocation.listFiles(new FilenameFilter() {
-                    @Override public boolean accept(File dir, String name) {
-                        return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
+                StreamOutput streamOutput;
+                try {
+                    if (compress) {
+                        streamOutput = cachedEntry.cachedLZFBytes();
+                    } else {
+                        streamOutput = cachedEntry.cachedBytes();
                     }
-                });
-                if (files != null) {
-                    for (File file : files) {
-                        file.delete();
+                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
+                    if (prettyPrint) {
+                        xContentBuilder.prettyPrint();
+                    }
+                    xContentBuilder.startObject();
+                    LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
+                    xContentBuilder.endObject();
+                    xContentBuilder.close();
+                } catch (Exception e) {
+                    logger.warn("failed to serialize local gateway shard states", e);
+                    return;
+                }
+
+                boolean serializedAtLeastOnce = false;
+                for (File dataLocation : nodeEnv.nodeDataLocations()) {
+                    File stateLocation = new File(dataLocation, "_state");
+                    if (!stateLocation.exists()) {
+                        FileSystemUtils.mkdirs(stateLocation);
+                    }
+                    File stateFile = new File(stateLocation, "shards-" + event.state().version());
+                    FileOutputStream fos = null;
+                    try {
+                        fos = new FileOutputStream(stateFile);
+                        fos.write(cachedEntry.bytes().underlyingBytes(), 0, cachedEntry.bytes().size());
+                        fos.getChannel().force(true);
+                        serializedAtLeastOnce = true;
+                    } catch (Exception e) {
+                        logger.warn("failed to write local gateway shards state to {}", e, stateFile);
+                    } finally {
+                        Closeables.closeQuietly(fos);
                     }
                 }
+
+                if (serializedAtLeastOnce) {
+                    currentStartedShards = stateToWrite;
+
+                    // delete all the other files
+                    for (File dataLocation : nodeEnv.nodeDataLocations()) {
+                        File stateLocation = new File(dataLocation, "_state");
+                        if (!stateLocation.exists()) {
+                            continue;
+                        }
+                        File[] files = stateLocation.listFiles(new FilenameFilter() {
+                            @Override public boolean accept(File dir, String name) {
+                                return name.startsWith("shards-") && !name.equals("shards-" + event.state().version());
+                            }
+                        });
+                        if (files != null) {
+                            for (File file : files) {
+                                file.delete();
+                            }
+                        }
+                    }
+                }
+            } finally {
+                CachedStreamOutput.pushEntry(cachedEntry);
             }
         }
     }

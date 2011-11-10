@@ -22,10 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queryParser.MapperQueryParser;
 import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.ParseException;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.trove.impl.Constants;
 import org.elasticsearch.common.trove.map.hash.TObjectFloatHashMap;
@@ -147,6 +149,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.analyzeWildcard(parser.booleanValue());
                 } else if ("rewrite".equals(currentFieldName)) {
                     qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
+                } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                    qpSettings.minimumShouldMatch(parser.textOrNull());
                 }
             }
         }
@@ -184,6 +188,9 @@ public class QueryStringQueryParser implements QueryParser {
             query = queryParser.parse(qpSettings.queryString());
             query.setBoost(qpSettings.boost());
             query = optimizeQuery(fixNegativeQueryIfNeeded(query));
+            if (query instanceof BooleanQuery) {
+                Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
+            }
             parseContext.indexCache().queryParserCache().put(qpSettings, query);
             return query;
         } catch (ParseException e) {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -93,7 +94,7 @@ public class NodeEnvironment extends AbstractComponent {
                     }
                 } catch (IOException e) {
                     logger.trace("failed to obtain node lock on {}", e, dir.getAbsolutePath());
-                    lastException = e;
+                    lastException = new IOException("failed to obtain lock on " + dir.getAbsolutePath(), e);
                     // release all the ones that were obtained up until now
                     for (int i = 0; i < locks.length; i++) {
                         if (locks[i] != null) {
@@ -122,6 +123,13 @@ public class NodeEnvironment extends AbstractComponent {
         this.nodeFiles = nodesFiles;
         if (logger.isDebugEnabled()) {
             logger.debug("using node location [{}], local_node_id [{}]", nodesFiles, localNodeId);
+        }
+        if (logger.isTraceEnabled()) {
+            StringBuilder sb = new StringBuilder("node data locations details:\n");
+            for (File file : nodesFiles) {
+                sb.append(" -> ").append(file.getAbsolutePath()).append(", free_space [").append(new ByteSizeValue(file.getFreeSpace())).append(", usable_space [").append(new ByteSizeValue(file.getUsableSpace())).append("\n");
+            }
+            logger.trace(sb.toString());
         }
 
         this.nodeIndicesLocations = new File[nodeFiles.length];

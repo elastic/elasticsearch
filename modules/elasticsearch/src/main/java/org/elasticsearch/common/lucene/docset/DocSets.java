@@ -79,14 +79,15 @@ public class DocSets {
                 if (disi == null) {
                     into.clear(0, into.length());
                 } else {
-                    int bitSetDoc = into.nextSetBit(0);
-                    int disiDoc;
-                    while (bitSetDoc != -1 && (disiDoc = disi.advance(bitSetDoc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                    int numBits = into.length();
+                    int disiDoc, bitSetDoc = into.nextSetBit(0);
+                    while (bitSetDoc != -1 && (disiDoc = disi.advance(bitSetDoc)) < numBits) {
                         into.clear(bitSetDoc, disiDoc);
-                        bitSetDoc = into.nextSetBit(disiDoc + 1);
+                        disiDoc++;
+                        bitSetDoc = (disiDoc < numBits) ? into.nextSetBit(disiDoc) : -1;
                     }
                     if (bitSetDoc != -1) {
-                        into.clear(bitSetDoc, into.length());
+                        into.clear(bitSetDoc, numBits);
                     }
                 }
             }

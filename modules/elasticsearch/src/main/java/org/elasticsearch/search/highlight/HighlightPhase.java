@@ -25,6 +25,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.vectorhighlight.*;
@@ -32,6 +33,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.document.SingleFieldSelector;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -101,16 +104,23 @@ public class HighlightPhase implements SearchHitPhase {
                 // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
                 // slower plain highlighter
                 if (mapper.termVector() != Field.TermVector.WITH_POSITIONS_OFFSETS) {
-                    if (!context.queryRewritten()) {
-                        try {
-                            context.updateRewriteQuery(context.searcher().rewrite(context.query()));
-                        } catch (IOException e) {
-                            throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
-                        }
-                    }
                     // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
                     // let the highlighter handle MultiTerm ones
-                    QueryScorer queryScorer = new QueryScorer(context.parsedQuery().query(), null);
+
+                    // QueryScorer uses WeightedSpanTermExtractor to extract terms, but we can't really plug into
+                    // it, so, we hack here (and really only support top level queries)
+                    Query query = context.parsedQuery().query();
+                    if (query instanceof FunctionScoreQuery) {
+                        query = ((FunctionScoreQuery) query).getSubQuery();
+                    } else if (query instanceof FiltersFunctionScoreQuery) {
+                        query = ((FiltersFunctionScoreQuery) query).getSubQuery();
+                    } else if (query instanceof ConstantScoreQuery) {
+                        ConstantScoreQuery q = (ConstantScoreQuery) query;
+                        if (q.getQuery() != null) {
+                            query = q.getQuery();
+                        }
+                    }
+                    QueryScorer queryScorer = new QueryScorer(query, null);
                     queryScorer.setExpandMultiTermQuery(true);
                     Fragmenter fragmenter;
                     if (field.numberOfFragments() == 0) {

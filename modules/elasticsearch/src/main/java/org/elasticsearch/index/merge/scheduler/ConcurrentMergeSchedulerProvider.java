@@ -44,6 +44,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
 
     private final int maxThreadCount;
+    private final int maxMergeCount;
 
     private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomConcurrentMergeScheduler>();
 
@@ -52,11 +53,13 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
 
         // TODO LUCENE MONITOR this will change in Lucene 4.0
         this.maxThreadCount = componentSettings.getAsInt("max_thread_count", Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2)));
+        this.maxMergeCount = componentSettings.getAsInt("max_merge_count", maxThreadCount + 2);
         logger.debug("using [concurrent] merge scheduler with max_thread_count[{}]", maxThreadCount);
     }
 
     @Override public MergeScheduler newMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
+        concurrentMergeScheduler.setMaxMergeCount(maxMergeCount);
         concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
         schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;

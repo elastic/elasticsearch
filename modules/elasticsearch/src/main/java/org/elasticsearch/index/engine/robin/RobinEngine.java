@@ -359,6 +359,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } catch (OutOfMemoryError e) {
             failEngine(e);
             throw new CreateFailedEngineException(shardId, create, e);
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("OutOfMemoryError")) {
+                failEngine(e);
+            }
+            throw new CreateFailedEngineException(shardId, create, e);
         } finally {
             rwl.readLock().unlock();
         }
@@ -478,6 +483,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } catch (OutOfMemoryError e) {
             failEngine(e);
             throw new IndexFailedEngineException(shardId, index, e);
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("OutOfMemoryError")) {
+                failEngine(e);
+            }
+            throw new IndexFailedEngineException(shardId, index, e);
         } finally {
             rwl.readLock().unlock();
         }
@@ -592,6 +602,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             throw new DeleteFailedEngineException(shardId, delete, e);
         } catch (OutOfMemoryError e) {
             failEngine(e);
+            throw new DeleteFailedEngineException(shardId, delete, e);
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("OutOfMemoryError")) {
+                failEngine(e);
+            }
             throw new DeleteFailedEngineException(shardId, delete, e);
         } finally {
             rwl.readLock().unlock();
@@ -757,6 +772,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
             } catch (AlreadyClosedException e) {
                 // an index writer got replaced on us, ignore
+            } catch (OutOfMemoryError e) {
+                failEngine(e);
+                throw new RefreshFailedEngineException(shardId, e);
+            } catch (IllegalStateException e) {
+                if (e.getMessage().contains("OutOfMemoryError")) {
+                    failEngine(e);
+                }
+                throw new RefreshFailedEngineException(shardId, e);
             } catch (Exception e) {
                 if (indexWriter == null) {
                     throw new EngineClosedException(shardId, failedEngine);
@@ -765,9 +788,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 } else {
                     throw new RefreshFailedEngineException(shardId, e);
                 }
-            } catch (OutOfMemoryError e) {
-                failEngine(e);
-                throw new RefreshFailedEngineException(shardId, e);
             }
         } finally {
             rwl.readLock().unlock();
@@ -821,10 +841,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         current.markForClose();
 
                         refreshVersioningTable(threadPool.estimatedTimeInMillis());
-                    } catch (Exception e) {
-                        throw new FlushFailedEngineException(shardId, e);
                     } catch (OutOfMemoryError e) {
                         failEngine(e);
+                        throw new FlushFailedEngineException(shardId, e);
+                    } catch (IllegalStateException e) {
+                        if (e.getMessage().contains("OutOfMemoryError")) {
+                            failEngine(e);
+                        }
+                        throw new FlushFailedEngineException(shardId, e);
+                    } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                 } finally {
@@ -866,12 +891,17 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                                 // when tans overrides it
                                 translog.makeTransientCurrent();
                             }
-                        } catch (Exception e) {
-                            translog.revertTransient();
-                            throw new FlushFailedEngineException(shardId, e);
                         } catch (OutOfMemoryError e) {
                             translog.revertTransient();
                             failEngine(e);
+                            throw new FlushFailedEngineException(shardId, e);
+                        } catch (IllegalStateException e) {
+                            if (e.getMessage().contains("OutOfMemoryError")) {
+                                failEngine(e);
+                            }
+                            throw new FlushFailedEngineException(shardId, e);
+                        } catch (Exception e) {
+                            translog.revertTransient();
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }
@@ -931,10 +961,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).enableMerge();
             }
             indexWriter.maybeMerge();
-        } catch (Exception e) {
-            throw new OptimizeFailedEngineException(shardId, e);
         } catch (OutOfMemoryError e) {
             failEngine(e);
+            throw new OptimizeFailedEngineException(shardId, e);
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("OutOfMemoryError")) {
+                failEngine(e);
+            }
+            throw new OptimizeFailedEngineException(shardId, e);
+        } catch (Exception e) {
             throw new OptimizeFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();
@@ -965,10 +1000,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 } else {
                     indexWriter.optimize(optimize.maxNumSegments(), false);
                 }
-            } catch (Exception e) {
-                throw new OptimizeFailedEngineException(shardId, e);
             } catch (OutOfMemoryError e) {
                 failEngine(e);
+                throw new OptimizeFailedEngineException(shardId, e);
+            } catch (IllegalStateException e) {
+                if (e.getMessage().contains("OutOfMemoryError")) {
+                    failEngine(e);
+                }
+                throw new OptimizeFailedEngineException(shardId, e);
+            } catch (Exception e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
                 rwl.readLock().unlock();

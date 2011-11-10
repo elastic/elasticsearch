@@ -396,15 +396,16 @@ public class Store extends AbstractIndexShardComponent {
                 if (delegates.length == 1) {
                     directory = delegates[0];
                 } else {
-                    long size = Long.MAX_VALUE;
+                    long size = Long.MIN_VALUE;
                     for (Directory delegate : delegates) {
                         if (delegate instanceof FSDirectory) {
-                            long currentSize = ((FSDirectory) delegate).getDirectory().getFreeSpace();
-                            if (currentSize < size) {
+                            long currentSize = ((FSDirectory) delegate).getDirectory().getUsableSpace();
+                            if (currentSize > size) {
                                 size = currentSize;
                                 directory = delegate;
                             } else if (currentSize == size && ThreadLocalRandom.current().nextBoolean()) {
                                 directory = delegate;
+                            } else {
                             }
                         } else {
                             directory = delegate; // really, make sense to have multiple directories for FS

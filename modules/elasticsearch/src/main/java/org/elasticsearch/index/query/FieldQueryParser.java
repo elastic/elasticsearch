@@ -22,8 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queryParser.MapperQueryParser;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParserSettings;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -96,6 +98,8 @@ public class FieldQueryParser implements QueryParser {
                         qpSettings.analyzeWildcard(parser.booleanValue());
                     } else if ("rewrite".equals(currentFieldName)) {
                         qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
+                    } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                        qpSettings.minimumShouldMatch(parser.textOrNull());
                     }
                 }
             }
@@ -129,6 +133,9 @@ public class FieldQueryParser implements QueryParser {
             query = queryParser.parse(qpSettings.queryString());
             query.setBoost(qpSettings.boost());
             query = optimizeQuery(fixNegativeQueryIfNeeded(query));
+            if (query instanceof BooleanQuery) {
+                Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
+            }
             parseContext.indexCache().queryParserCache().put(qpSettings, query);
             return query;
         } catch (ParseException e) {

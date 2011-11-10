@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
@@ -70,6 +71,24 @@ public class MappingMetaData {
         public String[] pathElements() {
             return this.pathElements;
         }
+
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Id id = (Id) o;
+
+            if (path != null ? !path.equals(id.path) : id.path != null) return false;
+            if (!Arrays.equals(pathElements, id.pathElements)) return false;
+
+            return true;
+        }
+
+        @Override public int hashCode() {
+            int result = path != null ? path.hashCode() : 0;
+            result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
+            return result;
+        }
     }
 
     public static class Routing {
@@ -106,6 +125,26 @@ public class MappingMetaData {
 
         public String[] pathElements() {
             return this.pathElements;
+        }
+
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Routing routing = (Routing) o;
+
+            if (required != routing.required) return false;
+            if (path != null ? !path.equals(routing.path) : routing.path != null) return false;
+            if (!Arrays.equals(pathElements, routing.pathElements)) return false;
+
+            return true;
+        }
+
+        @Override public int hashCode() {
+            int result = (required ? 1 : 0);
+            result = 31 * result + (path != null ? path.hashCode() : 0);
+            result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
+            return result;
         }
     }
 
@@ -172,6 +211,31 @@ public class MappingMetaData {
 
         public FormatDateTimeFormatter dateTimeFormatter() {
             return this.dateTimeFormatter;
+        }
+
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Timestamp timestamp = (Timestamp) o;
+
+            if (enabled != timestamp.enabled) return false;
+            if (dateTimeFormatter != null ? !dateTimeFormatter.equals(timestamp.dateTimeFormatter) : timestamp.dateTimeFormatter != null)
+                return false;
+            if (format != null ? !format.equals(timestamp.format) : timestamp.format != null) return false;
+            if (path != null ? !path.equals(timestamp.path) : timestamp.path != null) return false;
+            if (!Arrays.equals(pathElements, timestamp.pathElements)) return false;
+
+            return true;
+        }
+
+        @Override public int hashCode() {
+            int result = (enabled ? 1 : 0);
+            result = 31 * result + (path != null ? path.hashCode() : 0);
+            result = 31 * result + (format != null ? format.hashCode() : 0);
+            result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
+            result = 31 * result + (dateTimeFormatter != null ? dateTimeFormatter.hashCode() : 0);
+            return result;
         }
     }
 
@@ -387,6 +451,30 @@ public class MappingMetaData {
             out.writeBoolean(false);
         }
         out.writeUTF(mappingMd.timestamp().format());
+    }
+
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        MappingMetaData that = (MappingMetaData) o;
+
+        if (!id.equals(that.id)) return false;
+        if (!routing.equals(that.routing)) return false;
+        if (!source.equals(that.source)) return false;
+        if (!timestamp.equals(that.timestamp)) return false;
+        if (!type.equals(that.type)) return false;
+
+        return true;
+    }
+
+    @Override public int hashCode() {
+        int result = type.hashCode();
+        result = 31 * result + source.hashCode();
+        result = 31 * result + id.hashCode();
+        result = 31 * result + routing.hashCode();
+        result = 31 * result + timestamp.hashCode();
+        return result;
     }
 
     public static MappingMetaData readFrom(StreamInput in) throws IOException {

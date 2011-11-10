@@ -638,14 +638,11 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A filter that restricts search results to values that have a matching prefix in a given
-     * field.
-     *
-     * @param name   The field name
-     * @param prefix The prefix
+     * A query that will execute the wrapped query only for the specified indices, and "match_all" when
+     * it does not match those indices.
      */
-    public static PrefixFilterBuilder inQuery(String name, String prefix) {
-        return new PrefixFilterBuilder(name, prefix);
+    public static IndicesQueryBuilder indicesQuery(QueryBuilder queryBuilder, String... indices) {
+        return new IndicesQueryBuilder(queryBuilder, indices);
     }
 
     /**

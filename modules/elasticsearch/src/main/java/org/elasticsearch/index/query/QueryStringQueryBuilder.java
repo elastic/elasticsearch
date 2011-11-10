@@ -80,6 +80,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
 
     private String rewrite = null;
 
+    private String minimumShouldMatch;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -242,6 +244,11 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public QueryStringQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -312,6 +319,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
         }
         if (rewrite != null) {
             builder.field("rewrite", rewrite);
+        }
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_write", minimumShouldMatch);
         }
         builder.endObject();
     }

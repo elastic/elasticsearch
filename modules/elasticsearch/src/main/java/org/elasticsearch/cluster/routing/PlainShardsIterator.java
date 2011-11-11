@@ -65,7 +65,7 @@ public class PlainShardsIterator implements ShardsIterator {
         if (size == 0) {
             return null;
         }
-        return shards.get((index + 1) % size);
+        return shards.get(index);
     }
 
     @Override public ShardRouting nextOrNull() {

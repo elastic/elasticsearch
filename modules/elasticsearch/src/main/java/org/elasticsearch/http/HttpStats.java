@@ -30,13 +30,15 @@ import java.io.IOException;
 public class HttpStats implements Streamable, ToXContent {
 
     private long serverOpen;
+    private long totalOpen;
 
     HttpStats() {
 
     }
 
-    public HttpStats(long serverOpen) {
+    public HttpStats(long serverOpen, long totalOpen) {
         this.serverOpen = serverOpen;
+        this.totalOpen = totalOpen;
     }
 
     public long serverOpen() {
@@ -47,6 +49,14 @@ public class HttpStats implements Streamable, ToXContent {
         return serverOpen();
     }
 
+    public long totalOpen() {
+        return this.totalOpen;
+    }
+
+    public long getTotalOpen() {
+        return this.totalOpen;
+    }
+
     public static HttpStats readHttpStats(StreamInput in) throws IOException {
         HttpStats stats = new HttpStats();
         stats.readFrom(in);
@@ -55,15 +65,18 @@ public class HttpStats implements Streamable, ToXContent {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
+        totalOpen = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
+        out.writeVLong(totalOpen);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("http");
-        builder.field("server_open", serverOpen);
+        builder.field("current_open", serverOpen);
+        builder.field("total_opened", totalOpen);
         builder.endObject();
         return builder;
     }

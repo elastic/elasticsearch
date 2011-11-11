@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.netty;
 
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.netty.channel.ChannelEvent;
@@ -39,14 +40,24 @@ import java.util.Set;
 @ChannelHandler.Sharable
 public class OpenChannelsHandler implements ChannelUpstreamHandler {
 
-    private Set<Channel> openChannels = ConcurrentCollections.newConcurrentSet();
-    private CounterMetric openChannelsMetric = new CounterMetric();
+    final Set<Channel> openChannels = ConcurrentCollections.newConcurrentSet();
+    final CounterMetric openChannelsMetric = new CounterMetric();
+    final CounterMetric totalChannelsMetric = new CounterMetric();
 
-    private final ChannelFutureListener remover = new ChannelFutureListener() {
+    final ESLogger logger;
+
+    public OpenChannelsHandler(ESLogger logger) {
+        this.logger = logger;
+    }
+
+    final ChannelFutureListener remover = new ChannelFutureListener() {
         public void operationComplete(ChannelFuture future) throws Exception {
             boolean removed = openChannels.remove(future.getChannel());
             if (removed) {
                 openChannelsMetric.dec();
+            }
+            if (logger.isTraceEnabled()) {
+                logger.trace("channel closed: {}", future.getChannel());
             }
         }
     };
@@ -54,10 +65,15 @@ public class OpenChannelsHandler implements ChannelUpstreamHandler {
     @Override public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e) throws Exception {
         if (e instanceof ChannelStateEvent) {
             ChannelStateEvent evt = (ChannelStateEvent) e;
-            if (evt.getState() == ChannelState.OPEN) {
+            // OPEN is also sent to when closing channel, but with FALSE on it to indicate it closes
+            if (evt.getState() == ChannelState.OPEN && Boolean.TRUE.equals(evt.getValue())) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("channel opened: {}", ctx.getChannel());
+                }
                 boolean added = openChannels.add(ctx.getChannel());
                 if (added) {
                     openChannelsMetric.inc();
+                    totalChannelsMetric.inc();
                     ctx.getChannel().getCloseFuture().addListener(remover);
                 }
             }
@@ -67,6 +83,10 @@ public class OpenChannelsHandler implements ChannelUpstreamHandler {
 
     public long numberOfOpenChannels() {
         return openChannelsMetric.count();
+    }
+
+    public long totalChannels() {
+        return totalChannelsMetric.count();
     }
 
     public void close() {

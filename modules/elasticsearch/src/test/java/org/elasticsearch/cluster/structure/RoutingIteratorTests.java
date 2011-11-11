@@ -85,11 +85,13 @@ public class RoutingIteratorTests {
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
         assertThat(shardIterator.size(), equalTo(3));
+        ShardRouting firstRouting = shardIterator.firstOrNull();
         assertThat(shardIterator.firstOrNull(), notNullValue());
         assertThat(shardIterator.remaining(), equalTo(3));
         assertThat(shardIterator.firstOrNull(), sameInstance(shardIterator.firstOrNull()));
         assertThat(shardIterator.remaining(), equalTo(3));
         ShardRouting shardRouting1 = shardIterator.nextOrNull();
+        assertThat(firstRouting, sameInstance(shardRouting1));
         assertThat(shardRouting1, notNullValue());
         assertThat(shardIterator.remaining(), equalTo(2));
         ShardRouting shardRouting2 = shardIterator.nextOrNull();
@@ -119,11 +121,13 @@ public class RoutingIteratorTests {
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
         assertThat(shardIterator.size(), equalTo(2));
+        ShardRouting firstRouting = shardIterator.firstOrNull();
         assertThat(shardIterator.firstOrNull(), notNullValue());
         assertThat(shardIterator.remaining(), equalTo(2));
         assertThat(shardIterator.firstOrNull(), sameInstance(shardIterator.firstOrNull()));
         assertThat(shardIterator.remaining(), equalTo(2));
         ShardRouting shardRouting1 = shardIterator.nextOrNull();
+        assertThat(shardRouting1, sameInstance(firstRouting));
         assertThat(shardRouting1, notNullValue());
         assertThat(shardIterator.remaining(), equalTo(1));
         ShardRouting shardRouting2 = shardIterator.nextOrNull();
@@ -137,9 +141,11 @@ public class RoutingIteratorTests {
 
         shardIterator = routingTable.index("test1").shard(0).shardsIt(1);
         assertThat(shardIterator.size(), equalTo(2));
+        firstRouting = shardIterator.firstOrNull();
         assertThat(shardIterator.firstOrNull(), notNullValue());
         assertThat(shardIterator.firstOrNull(), sameInstance(shardIterator.firstOrNull()));
         ShardRouting shardRouting3 = shardIterator.nextOrNull();
+        assertThat(firstRouting, sameInstance(shardRouting3));
         assertThat(shardRouting1, notNullValue());
         ShardRouting shardRouting4 = shardIterator.nextOrNull();
         assertThat(shardRouting2, notNullValue());
@@ -154,9 +160,11 @@ public class RoutingIteratorTests {
 
         shardIterator = routingTable.index("test1").shard(0).shardsIt(2);
         assertThat(shardIterator.size(), equalTo(2));
+        firstRouting = shardIterator.firstOrNull();
         assertThat(shardIterator.firstOrNull(), notNullValue());
         assertThat(shardIterator.firstOrNull(), sameInstance(shardIterator.firstOrNull()));
         ShardRouting shardRouting5 = shardIterator.nextOrNull();
+        assertThat(shardRouting5, sameInstance(firstRouting));
         assertThat(shardRouting5, notNullValue());
         ShardRouting shardRouting6 = shardIterator.nextOrNull();
         assertThat(shardRouting6, notNullValue());
@@ -169,9 +177,11 @@ public class RoutingIteratorTests {
 
         shardIterator = routingTable.index("test1").shard(0).shardsIt(3);
         assertThat(shardIterator.size(), equalTo(2));
+        firstRouting = shardIterator.firstOrNull();
         assertThat(shardIterator.firstOrNull(), notNullValue());
         assertThat(shardIterator.firstOrNull(), sameInstance(shardIterator.firstOrNull()));
         ShardRouting shardRouting7 = shardIterator.nextOrNull();
+        assertThat(shardRouting7, sameInstance(firstRouting));
         assertThat(shardRouting7, notNullValue());
         ShardRouting shardRouting8 = shardIterator.nextOrNull();
         assertThat(shardRouting8, notNullValue());
@@ -181,6 +191,23 @@ public class RoutingIteratorTests {
 
         assertThat(shardRouting7, sameInstance(shardRouting3));
         assertThat(shardRouting8, sameInstance(shardRouting4));
+
+        shardIterator = routingTable.index("test1").shard(0).shardsIt(4);
+        assertThat(shardIterator.size(), equalTo(2));
+        firstRouting = shardIterator.firstOrNull();
+        assertThat(shardIterator.firstOrNull(), notNullValue());
+        assertThat(shardIterator.firstOrNull(), sameInstance(shardIterator.firstOrNull()));
+        ShardRouting shardRouting9 = shardIterator.nextOrNull();
+        assertThat(shardRouting9, sameInstance(firstRouting));
+        assertThat(shardRouting9, notNullValue());
+        ShardRouting shardRouting10 = shardIterator.nextOrNull();
+        assertThat(shardRouting10, notNullValue());
+        assertThat(shardRouting10, not(sameInstance(shardRouting9)));
+        assertThat(shardIterator.nextOrNull(), nullValue());
+        assertThat(shardIterator.nextOrNull(), nullValue());
+
+        assertThat(shardRouting9, sameInstance(shardRouting5));
+        assertThat(shardRouting10, sameInstance(shardRouting6));
     }
 
     @Test public void testRandomRouting() {

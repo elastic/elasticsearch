@@ -163,7 +163,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        this.serverOpenChannels = new OpenChannelsHandler();
+        this.serverOpenChannels = new OpenChannelsHandler(logger);
 
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
@@ -258,7 +258,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Override public HttpStats stats() {
         OpenChannelsHandler channels = serverOpenChannels;
-        return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels());
+        return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
     }
 
     void dispatchRequest(HttpRequest request, HttpChannel channel) {
@@ -277,8 +277,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http traffic, closing connection", e.getCause());
-                ctx.getChannel().disconnect();
+                logger.warn("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                ctx.getChannel().close();
+            } else {
+                logger.debug("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                ctx.getChannel().close();
             }
         }
     }

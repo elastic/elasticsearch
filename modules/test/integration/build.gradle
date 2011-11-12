@@ -1,6 +1,7 @@
 dependsOn(':elasticsearch')
 
 apply plugin: 'java'
+apply plugin: 'maven'
 apply plugin: 'eclipse'
 
 archivesBaseName = "$rootProject.archivesBaseName-$project.archivesBaseName"

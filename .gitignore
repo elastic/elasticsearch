@@ -30,7 +30,10 @@ plugins/transport/thrift/build
 .idea/modules/plugin-river-rabbitmq.iml
 .idea/projectCodeStyle.xml
 
-
+*~
+nbactions.xml
+nb-configuration.xml
+target/
 
 ## eclipse ignores (use 'gradle eclipse' to build eclipse projects)
 .project

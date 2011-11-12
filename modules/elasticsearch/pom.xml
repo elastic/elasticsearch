@@ -112,7 +112,7 @@
             <version>6.1.1</version>
             <scope>test</scope>
         </dependency>
-    </dependencies>
+    </dependencies>      
     <repositories>
         <repository>
             <name>JBOSS</name>
@@ -120,8 +120,8 @@
             <url>https://repository.jboss.org/nexus/content/groups/public</url>
         </repository>
     </repositories>    
-    <build>
-        <plugins>
+    <build>    
+        <plugins>            
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -130,7 +130,44 @@
                     <source>1.6</source>
                     <target>1.6</target>
                 </configuration>
+            </plugin>            
+             <!-- include test files ending on *Tests too -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.10</version>                
+                <configuration>
+                    <skip>false</skip>
+                    <includes>
+                        <include>**/*Tests.java</include>                           
+                    </includes>
+                </configuration>                
             </plugin>
-        </plugins>
+        </plugins>        
+        <resources>
+            <resource>
+                <directory>${project.basedir}/src/main/java</directory>
+                <excludes>
+                    <exclude>**/*.java</exclude>
+                </excludes>
+                <includes>
+                    <include>**/**</include>
+                </includes>
+            </resource>            
+        </resources>        
+        <testResources>
+            <testResource>
+                <directory>${project.basedir}/src/test/java</directory>
+                <excludes>
+                    <exclude>**/*.java</exclude>
+                </excludes>
+                <includes>
+                    <include>**/**</include>
+                </includes>
+            </testResource>            
+        </testResources>                
     </build>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
 </project>

@@ -110,7 +110,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        this.serverOpenChannels = new OpenChannelsHandler();
+        this.serverOpenChannels = new OpenChannelsHandler(logger);
 
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(

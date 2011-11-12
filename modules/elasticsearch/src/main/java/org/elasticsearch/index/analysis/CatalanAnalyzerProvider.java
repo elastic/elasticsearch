@@ -38,7 +38,7 @@ public class CatalanAnalyzerProvider extends AbstractIndexAnalyzerProvider<Catal
     @Inject public CatalanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new CatalanAnalyzer(version,
-                Analysis.parseStopWords(env, settings, CatalanAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, CatalanAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

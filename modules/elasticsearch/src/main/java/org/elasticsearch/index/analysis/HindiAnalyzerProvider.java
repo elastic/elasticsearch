@@ -38,7 +38,7 @@ public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider<HindiAn
     @Inject public HindiAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new HindiAnalyzer(version,
-                Analysis.parseStopWords(env, settings, HindiAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, HindiAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.apache.lucene.util.Version;
 
 import java.util.Set;
 
@@ -42,11 +41,11 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         super(index, indexSettings, name, settings);
 
         boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
-        Set<String> rules = Analysis.getWordSet(env, settings, "keywords");
+        Set<?> rules = Analysis.getWordSet(env, settings, "keywords", version);
         if (rules == null) {
             throw new ElasticSearchIllegalArgumentException("keyword filter requires either `keywords` or `keywords_path` to be configured");
         }
-        keywordLookup = new CharArraySet(Version.LUCENE_32, rules, ignoreCase);
+        keywordLookup = new CharArraySet(version, rules, ignoreCase);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

@@ -245,7 +245,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             return;
         }
 
-        serverOpenChannels = new OpenChannelsHandler();
+        serverOpenChannels = new OpenChannelsHandler(logger);
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_boss")),

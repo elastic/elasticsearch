@@ -22,11 +22,11 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.OpenBitSetDISI;
+import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 
 import java.io.IOException;
@@ -42,17 +42,13 @@ public class XBooleanFilter extends Filter {
     ArrayList<Filter> notFilters = null;
     ArrayList<Filter> mustFilters = null;
 
-    private DocIdSetIterator getDISI(ArrayList<Filter> filters, int index, IndexReader reader)
+    private DocIdSet getDISI(ArrayList<Filter> filters, int index, IndexReader reader)
             throws IOException {
         DocIdSet docIdSet = filters.get(index).getDocIdSet(reader);
-        if (docIdSet == null) {
-            return DocIdSet.EMPTY_DOCIDSET.iterator();
+        if (docIdSet == DocIdSet.EMPTY_DOCIDSET || docIdSet == DocSet.EMPTY_DOC_SET) {
+            return null;
         }
-        DocIdSetIterator iterator = docIdSet.iterator();
-        if (iterator == null) {
-            return DocIdSet.EMPTY_DOCIDSET.iterator();
-        }
-        return iterator;
+        return docIdSet;
     }
 
     public List<Filter> getShouldFilters() {
@@ -77,34 +73,39 @@ public class XBooleanFilter extends Filter {
 
         if (shouldFilters != null) {
             for (int i = 0; i < shouldFilters.size(); i++) {
+                final DocIdSet disi = getDISI(shouldFilters, i, reader);
+                if (disi == null) continue;
                 if (res == null) {
-                    res = DocSets.createFixedBitSet(getDISI(shouldFilters, i, reader), reader.maxDoc());
-                } else {
-                    DocIdSet dis = shouldFilters.get(i).getDocIdSet(reader);
-                    DocSets.or(res, dis);
+                    res = new FixedBitSet(reader.maxDoc());
                 }
+                DocSets.or(res, disi);
             }
         }
 
         if (notFilters != null) {
             for (int i = 0; i < notFilters.size(); i++) {
                 if (res == null) {
-                    res = DocSets.createFixedBitSet(getDISI(notFilters, i, reader), reader.maxDoc());
-                    res.flip(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
-                } else {
-                    DocIdSet dis = notFilters.get(i).getDocIdSet(reader);
-                    DocSets.andNot(res, dis);
+                    res = new FixedBitSet(reader.maxDoc());
+                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
+                }
+                final DocIdSet disi = getDISI(notFilters, i, reader);
+                if (disi != null) {
+                    DocSets.andNot(res, disi);
                 }
             }
         }
 
         if (mustFilters != null) {
             for (int i = 0; i < mustFilters.size(); i++) {
+                final DocIdSet disi = getDISI(mustFilters, i, reader);
+                if (disi == null) {
+                    return null;
+                }
                 if (res == null) {
-                    res = DocSets.createFixedBitSet(getDISI(mustFilters, i, reader), reader.maxDoc());
+                    res = new FixedBitSet(reader.maxDoc());
+                    DocSets.or(res, disi);
                 } else {
-                    DocIdSet dis = mustFilters.get(i).getDocIdSet(reader);
-                    DocSets.and(res, dis);
+                    DocSets.and(res, disi);
                 }
             }
         }

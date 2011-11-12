@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -46,6 +47,7 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Charsets;
@@ -61,7 +63,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -120,41 +125,39 @@ public class Analysis {
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 
-    public static Set<?> parseArticles(Environment env, Settings settings) {
+    public static Set<?> parseArticles(Environment env, Settings settings, Version version) {
         String value = settings.get("articles");
         if (value != null) {
             if ("_none_".equals(value)) {
-                return ImmutableSet.of();
+                return CharArraySet.EMPTY_SET;
             } else {
-                return ImmutableSet.copyOf(Strings.commaDelimitedListToSet(value));
+                return new CharArraySet(version, Strings.commaDelimitedListToSet(value), settings.getAsBoolean("articles_case", false));
             }
         }
         String[] articles = settings.getAsArray("articles", null);
         if (articles != null) {
-            Set setArticles = new HashSet<String>(Arrays.asList(articles));
-            return setArticles;
+            return new CharArraySet(version, Arrays.asList(articles), settings.getAsBoolean("articles_case", false));
         }
-        Set<String> pathLoadedArticles = getWordSet(env, settings, "articles");
+        CharArraySet pathLoadedArticles = getWordSet(env, settings, "articles", version);
         if (pathLoadedArticles != null) {
-            Set setArticles = new HashSet<String>(pathLoadedArticles);
-            return setArticles;
+            return pathLoadedArticles;
         }
 
         return null;
     }
 
-    public static Set<?> parseStopWords(Environment env, Settings settings, Set<?> defaultStopWords) {
+    public static Set<?> parseStopWords(Environment env, Settings settings, Set<?> defaultStopWords, Version version) {
         String value = settings.get("stopwords");
         if (value != null) {
             if ("_none_".equals(value)) {
-                return ImmutableSet.of();
+                return CharArraySet.EMPTY_SET;
             } else {
-                return ImmutableSet.copyOf(Strings.commaDelimitedListToSet(value));
+                return new CharArraySet(version, Strings.commaDelimitedListToSet(value), settings.getAsBoolean("stopwords_case", false));
             }
         }
         String[] stopWords = settings.getAsArray("stopwords", null);
         if (stopWords != null) {
-            Set setStopWords = new HashSet<String>();
+            CharArraySet setStopWords = new CharArraySet(version, stopWords.length, settings.getAsBoolean("stopwords_case", false));
             for (String stopWord : stopWords) {
                 if (namedStopWords.containsKey(stopWord)) {
                     setStopWords.addAll(namedStopWords.get(stopWord));
@@ -164,9 +167,9 @@ public class Analysis {
             }
             return setStopWords;
         }
-        Set<String> pathLoadedStopWords = getWordSet(env, settings, "stopwords");
+        List<String> pathLoadedStopWords = getWordList(env, settings, "stopwords");
         if (pathLoadedStopWords != null) {
-            Set setStopWords = new HashSet<String>();
+            CharArraySet setStopWords = new CharArraySet(version, pathLoadedStopWords.size(), settings.getAsBoolean("stopwords_case", false));
             for (String stopWord : pathLoadedStopWords) {
                 if (namedStopWords.containsKey(stopWord)) {
                     setStopWords.addAll(namedStopWords.get(stopWord));
@@ -180,12 +183,12 @@ public class Analysis {
         return defaultStopWords;
     }
 
-    public static Set<String> getWordSet(Environment env, Settings settings, String settingsPrefix) {
+    public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix, Version version) {
         List<String> wordList = getWordList(env, settings, settingsPrefix);
         if (wordList == null) {
             return null;
         }
-        return new HashSet<String>(wordList);
+        return new CharArraySet(version, wordList, settings.getAsBoolean(settingsPrefix + "_case", false));
     }
 
     /**
@@ -244,7 +247,6 @@ public class Analysis {
 
     /**
      * @return null If no settings set for "settingsPrefix" then return <code>null</code>.
-     *
      * @throws ElasticSearchIllegalArgumentException
      *          If the Reader can not be instantiated.
      */

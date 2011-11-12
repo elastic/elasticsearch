@@ -321,7 +321,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder {
             builder.field("rewrite", rewrite);
         }
         if (minimumShouldMatch != null) {
-            builder.field("minimum_should_write", minimumShouldMatch);
+            builder.field("minimum_should_match", minimumShouldMatch);
         }
         builder.endObject();
     }

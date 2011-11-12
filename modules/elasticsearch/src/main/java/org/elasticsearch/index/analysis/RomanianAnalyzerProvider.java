@@ -38,7 +38,7 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Roma
     @Inject public RomanianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         analyzer = new RomanianAnalyzer(version,
-                Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet()),
+                Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet(), version),
                 Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
     }
 

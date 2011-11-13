@@ -35,8 +35,19 @@ public class LZFEncoder {
      * Result consists of a sequence of chunks.
      */
     public static byte[] encode(byte[] data, int length) throws IOException {
+        return encode(data, 0, length);
+    }
+
+    /**
+     * Method for compressing given input data using LZF encoding and
+     * block structure (compatible with lzf command line utility).
+     * Result consists of a sequence of chunks.
+     *
+     * @since 0.8.1
+     */
+    public static byte[] encode(byte[] data, int offset, int length) throws IOException {
         ChunkEncoder enc = new ChunkEncoder(length, BufferRecycler.instance());
-        byte[] result = encode(enc, data, length);
+        byte[] result = encode(enc, data, offset, length);
         // important: may be able to reuse buffers
         enc.close();
         return result;
@@ -44,9 +55,17 @@ public class LZFEncoder {
 
     public static byte[] encode(ChunkEncoder enc, byte[] data, int length)
             throws IOException {
+        return encode(enc, data, 0, length);
+    }
+
+    /**
+     * @since 0.8.1
+     */
+    public static byte[] encode(ChunkEncoder enc, byte[] data, int offset, int length)
+            throws IOException {
         int left = length;
         int chunkLen = Math.min(LZFChunk.MAX_CHUNK_LEN, left);
-        LZFChunk first = enc.encodeChunk(data, 0, chunkLen);
+        LZFChunk first = enc.encodeChunk(data, offset, chunkLen);
         left -= chunkLen;
         // shortcut: if it all fit in, no need to coalesce:
         if (left < 1) {
@@ -54,13 +73,13 @@ public class LZFEncoder {
         }
         // otherwise need to get other chunks:
         int resultBytes = first.length();
-        int inputOffset = chunkLen;
+        offset += chunkLen;
         LZFChunk last = first;
 
         do {
             chunkLen = Math.min(left, LZFChunk.MAX_CHUNK_LEN);
-            LZFChunk chunk = enc.encodeChunk(data, inputOffset, chunkLen);
-            inputOffset += chunkLen;
+            LZFChunk chunk = enc.encodeChunk(data, offset, chunkLen);
+            offset += chunkLen;
             left -= chunkLen;
             resultBytes += chunk.length();
             last.setNext(chunk);

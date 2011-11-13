@@ -56,14 +56,6 @@ public final class QueryParsers {
         if ("constant_score_filter".equals(rewriteMethod) || "constantScoreFilter".equals(rewriteMethod)) {
             return MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
         }
-        if (rewriteMethod.startsWith("top_terms_")) {
-            int size = Integer.parseInt(rewriteMethod.substring("top_terms_".length()));
-            return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
-        }
-        if (rewriteMethod.startsWith("topTerms")) {
-            int size = Integer.parseInt(rewriteMethod.substring("topTerms".length()));
-            return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
-        }
         if (rewriteMethod.startsWith("top_terms_boost_")) {
             int size = Integer.parseInt(rewriteMethod.substring("top_terms_boost_".length()));
             return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
@@ -71,6 +63,14 @@ public final class QueryParsers {
         if (rewriteMethod.startsWith("topTermsBoost")) {
             int size = Integer.parseInt(rewriteMethod.substring("topTermsBoost".length()));
             return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
+        }
+        if (rewriteMethod.startsWith("top_terms_")) {
+            int size = Integer.parseInt(rewriteMethod.substring("top_terms_".length()));
+            return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
+        }
+        if (rewriteMethod.startsWith("topTerms")) {
+            int size = Integer.parseInt(rewriteMethod.substring("topTerms".length()));
+            return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
         }
         throw new ElasticSearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }

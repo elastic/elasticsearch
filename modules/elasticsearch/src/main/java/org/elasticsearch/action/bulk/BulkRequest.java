@@ -158,7 +158,7 @@ public class BulkRequest implements ActionRequest {
                         version = parser.longValue();
                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                         versionType = VersionType.fromString(parser.text());
-                    } else if ("percolate".equals(currentFieldName)) {
+                    } else if ("percolate".equals(currentFieldName) || "_percolate".equals(currentFieldName)) {
                         percolate = parser.textOrNull();
                     }
                 }

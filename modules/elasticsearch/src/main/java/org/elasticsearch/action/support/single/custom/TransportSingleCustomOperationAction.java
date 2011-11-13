@@ -142,6 +142,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                                         Response response = shardOperation(request, shard.id());
                                         listener.onResponse(response);
                                     } catch (Exception e) {
+                                        shardsIt.reset();
                                         onFailure(shard, e);
                                     }
                                 }
@@ -153,6 +154,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                                 listener.onResponse(response);
                                 return;
                             } catch (Exception e) {
+                                shardsIt.reset();
                                 onFailure(shard, e);
                             }
                         }
@@ -204,6 +206,8 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                                 onFailure(shard, e);
                             }
                         }
+                    } else {
+                        perform(lastException);
                     }
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());

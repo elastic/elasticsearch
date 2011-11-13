@@ -866,8 +866,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 mapper.toXContent(builder, params);
             }
         }
-        if (additionalMappers != null) {
+        if (additionalMappers != null && additionalMappers.length > 0) {
+            TreeMap<String, Mapper> additionalSortedMappers = new TreeMap<String, Mapper>();
             for (Mapper mapper : additionalMappers) {
+                additionalSortedMappers.put(mapper.name(), mapper);
+            }
+
+            for (Mapper mapper : additionalSortedMappers.values()) {
                 mapper.toXContent(builder, params);
             }
         }

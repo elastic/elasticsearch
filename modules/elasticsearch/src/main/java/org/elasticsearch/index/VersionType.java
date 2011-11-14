@@ -25,7 +25,8 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
  */
 public enum VersionType {
     INTERNAL((byte) 0),
-    EXTERNAL((byte) 1);
+    EXTERNAL((byte) 1),
+    EXTERNAL_RELAXED((byte) 2);
 
     private final byte value;
 
@@ -42,6 +43,8 @@ public enum VersionType {
             return INTERNAL;
         } else if ("external".equals(versionType)) {
             return EXTERNAL;
+        } else if ("external_relaxed".equals(versionType)) {
+            return EXTERNAL_RELAXED;
         }
         throw new ElasticSearchIllegalArgumentException("No version type match [" + versionType + "]");
     }
@@ -54,6 +57,8 @@ public enum VersionType {
             return INTERNAL;
         } else if ("external".equals(versionType)) {
             return EXTERNAL;
+        } else if ("external_relaxed".equals(versionType)) {
+            return EXTERNAL_RELAXED;
         }
         throw new ElasticSearchIllegalArgumentException("No version type match [" + versionType + "]");
     }
@@ -63,6 +68,8 @@ public enum VersionType {
             return INTERNAL;
         } else if (value == 1) {
             return EXTERNAL;
+        } else if (value == 2) {
+            return EXTERNAL_RELAXED;
         }
         throw new ElasticSearchIllegalArgumentException("No version type match [" + value + "]");
     }

@@ -54,6 +54,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.collect.Maps.*;
 
@@ -81,7 +82,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetStats stats() {
-        return new GetStats(existsMetric.count(), existsMetric.sum(), missingMetric.count(), missingMetric.sum());
+        return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()));
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...

@@ -306,11 +306,16 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
         writeAllowed();
         index = indexingService.preIndex(index);
-        if (logger.isTraceEnabled()) {
-            logger.trace("index {}", index.docs());
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index {}", index.docs());
+            }
+            engine.index(index);
+            index.endTime(System.nanoTime());
+        } catch (RuntimeException ex) {
+            indexingService.failedIndex(index);
+            throw ex;
         }
-        engine.index(index);
-        index.endTime(System.nanoTime());
         indexingService.postIndex(index);
         return index.parsedDoc();
     }
@@ -324,11 +329,16 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public void delete(Engine.Delete delete) throws ElasticSearchException {
         writeAllowed();
         delete = indexingService.preDelete(delete);
-        if (logger.isTraceEnabled()) {
-            logger.trace("delete [{}]", delete.uid().text());
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("delete [{}]", delete.uid().text());
+            }
+            engine.delete(delete);
+            delete.endTime(System.nanoTime());
+        } catch (RuntimeException ex) {
+            indexingService.failedDelete(delete);
+            throw ex;
         }
-        engine.delete(delete);
-        delete.endTime(System.nanoTime());
         indexingService.postDelete(delete);
     }
 

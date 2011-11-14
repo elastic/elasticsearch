@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.search.ip;
+package org.elasticsearch.test.integration.search.simple;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -32,10 +33,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
-/**
- * @author kimchy (shay.banon)
- */
-public class IpSearchTests extends AbstractNodesTests {
+public class SimpleSearchTests extends AbstractNodesTests {
 
     private Client client;
 
@@ -53,12 +51,8 @@ public class IpSearchTests extends AbstractNodesTests {
         return client("node1");
     }
 
-    @Test public void filterExistsMissingTests() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+    @Test public void simpleIpTests() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
 
@@ -76,5 +70,33 @@ public class IpSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         assertThat(search.hits().totalHits(), equalTo(1l));
+    }
+
+    @Test public void simpleDateRangeWithUpperInclusiveEnabledTests() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // test include upper on ranges to include the full day on the upper bound
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        searchResponse = client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+
+    @Test public void simpleDateRangeWithUpperInclusiveDisabledTests() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.mapping.date.parse_upper_inclusive", false)).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // test include upper on ranges to include the full day on the upper bound (disabled here though...)
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 }

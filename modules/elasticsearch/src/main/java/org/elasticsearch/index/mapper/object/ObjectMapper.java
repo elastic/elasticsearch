@@ -510,7 +510,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                         // remove the current field name from path, since the object builder adds it as well...
                         context.path().remove();
-                        BuilderContext builderContext = new BuilderContext(context.path());
+                        BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
                         putMapper(objectMapper);
                         // now re add it
@@ -595,7 +595,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             mapper = mappers.get(currentFieldName);
             if (mapper == null) {
                 newMapper = true;
-                BuilderContext builderContext = new BuilderContext(context.path());
+                BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                 if (token == XContentParser.Token.VALUE_STRING) {
                     boolean resolved = false;
 

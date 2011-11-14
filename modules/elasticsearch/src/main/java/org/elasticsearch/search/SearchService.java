@@ -232,6 +232,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
         try {
+            context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
             contextProcessing(context);
             queryPhase.execute(context);
@@ -243,6 +244,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onQueryPhase(context, System.nanoTime() - time);
             return context.queryResult();
         } catch (RuntimeException e) {
+            context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             freeContext(context);
             throw e;
@@ -254,6 +256,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) throws ElasticSearchException {
         SearchContext context = findContext(request.id());
         try {
+            context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
             contextProcessing(context);
             processScroll(request, context);
@@ -262,6 +265,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onQueryPhase(context, System.nanoTime() - time);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
         } catch (RuntimeException e) {
+            context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             freeContext(context);
             throw e;
@@ -281,12 +285,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
         try {
+            context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
             contextProcessedSuccessfully(context);
             context.indexShard().searchService().onQueryPhase(context, System.nanoTime() - time);
             return context.queryResult();
         } catch (RuntimeException e) {
+            context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             freeContext(context);
             throw e;
@@ -300,16 +306,28 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         activeContexts.put(context.id(), context);
         contextProcessing(context);
         try {
+            context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
-            queryPhase.execute(context);
+            try {
+                queryPhase.execute(context);
+            } catch (RuntimeException e) {
+                context.indexShard().searchService().onFailedQueryPhase(context);
+                throw e;
+            }
             long time2 = System.nanoTime();
             context.indexShard().searchService().onQueryPhase(context, time2 - time);
-            shortcutDocIdsToLoad(context);
-            fetchPhase.execute(context);
-            if (context.scroll() == null) {
-                freeContext(context.id());
-            } else {
-                contextProcessedSuccessfully(context);
+            context.indexShard().searchService().onPreFetchPhase(context);
+            try {
+                shortcutDocIdsToLoad(context);
+                fetchPhase.execute(context);
+                if (context.scroll() == null) {
+                    freeContext(context.id());
+                } else {
+                    contextProcessedSuccessfully(context);
+                }
+            } catch (RuntimeException e) {
+                context.indexShard().searchService().onFailedFetchPhase(context);
+                throw e;
             }
             context.indexShard().searchService().onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
@@ -333,16 +351,28 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
         try {
+            context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
-            queryPhase.execute(context);
+            try {
+                queryPhase.execute(context);
+            } catch (RuntimeException e) {
+                context.indexShard().searchService().onFailedQueryPhase(context);
+                throw e;
+            }
             long time2 = System.nanoTime();
             context.indexShard().searchService().onQueryPhase(context, time2 - time);
-            shortcutDocIdsToLoad(context);
-            fetchPhase.execute(context);
-            if (context.scroll() == null) {
-                freeContext(request.id());
-            } else {
-                contextProcessedSuccessfully(context);
+            context.indexShard().searchService().onPreFetchPhase(context);
+            try {
+                shortcutDocIdsToLoad(context);
+                fetchPhase.execute(context);
+                if (context.scroll() == null) {
+                    freeContext(request.id());
+                } else {
+                    contextProcessedSuccessfully(context);
+                }
+            } catch (RuntimeException e) {
+                context.indexShard().searchService().onFailedFetchPhase(context);
+                throw e;
             }
             context.indexShard().searchService().onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
@@ -360,16 +390,28 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         contextProcessing(context);
         try {
             processScroll(request, context);
+            context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
-            queryPhase.execute(context);
+            try {
+                queryPhase.execute(context);
+            } catch (RuntimeException e) {
+                context.indexShard().searchService().onFailedQueryPhase(context);
+                throw e;
+            }
             long time2 = System.nanoTime();
             context.indexShard().searchService().onQueryPhase(context, time2 - time);
-            shortcutDocIdsToLoad(context);
-            fetchPhase.execute(context);
-            if (context.scroll() == null) {
-                freeContext(request.id());
-            } else {
-                contextProcessedSuccessfully(context);
+            context.indexShard().searchService().onPreFetchPhase(context);
+            try {
+                shortcutDocIdsToLoad(context);
+                fetchPhase.execute(context);
+                if (context.scroll() == null) {
+                    freeContext(request.id());
+                } else {
+                    contextProcessedSuccessfully(context);
+                }
+            } catch (RuntimeException e) {
+                context.indexShard().searchService().onFailedFetchPhase(context);
+                throw e;
             }
             context.indexShard().searchService().onFetchPhase(context, System.nanoTime() - time2);
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
@@ -387,6 +429,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         contextProcessing(context);
         try {
             context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+            context.indexShard().searchService().onPreFetchPhase(context);
             long time = System.nanoTime();
             fetchPhase.execute(context);
             if (context.scroll() == null) {
@@ -397,6 +440,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onFetchPhase(context, System.nanoTime() - time);
             return context.fetchResult();
         } catch (RuntimeException e) {
+            context.indexShard().searchService().onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
             freeContext(context);
             throw e;

@@ -40,27 +40,33 @@ public class SearchStats implements Streamable, ToXContent {
 
         private long queryCount;
         private long queryTimeInMillis;
+        private long queryCurrent;
 
         private long fetchCount;
         private long fetchTimeInMillis;
+        private long fetchCurrent;
 
         Stats() {
 
         }
 
-        public Stats(long queryCount, long queryTimeInMillis, long fetchCount, long fetchTimeInMillis) {
+        public Stats(long queryCount, long queryTimeInMillis, long queryCurrent, long fetchCount, long fetchTimeInMillis, long fetchCurrent) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
+            this.queryCurrent = queryCurrent;
             this.fetchCount = fetchCount;
             this.fetchTimeInMillis = fetchTimeInMillis;
+            this.fetchCurrent = fetchCurrent;
         }
 
         public void add(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
+            queryCurrent += stats.queryCurrent;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
+            fetchCurrent += stats.fetchCurrent;
         }
 
         public long queryCount() {
@@ -83,6 +89,14 @@ public class SearchStats implements Streamable, ToXContent {
             return queryTimeInMillis;
         }
 
+        public long queryCurrent() {
+            return queryCurrent;
+        }
+
+        public long getQueryCurrent() {
+            return queryCurrent;
+        }
+
         public long fetchCount() {
             return fetchCount;
         }
@@ -103,6 +117,15 @@ public class SearchStats implements Streamable, ToXContent {
             return fetchTimeInMillis;
         }
 
+        public long fetchCurrent() {
+            return fetchCurrent;
+        }
+
+        public long getFetchCurrent() {
+            return fetchCurrent;
+        }
+
+
         public static Stats readStats(StreamInput in) throws IOException {
             Stats stats = new Stats();
             stats.readFrom(in);
@@ -112,27 +135,33 @@ public class SearchStats implements Streamable, ToXContent {
         @Override public void readFrom(StreamInput in) throws IOException {
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
+            queryCurrent = in.readVLong();
 
             fetchCount = in.readVLong();
             fetchTimeInMillis = in.readVLong();
+            fetchCurrent = in.readVLong();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
+            out.writeVLong(queryCurrent);
 
             out.writeVLong(fetchCount);
             out.writeVLong(fetchTimeInMillis);
+            out.writeVLong(fetchCurrent);
         }
 
         @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.field(Fields.QUERY_TIME, queryTime().toString());
             builder.field(Fields.QUERY_TIME_IN_MILLIS, queryTimeInMillis);
+            builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.field(Fields.FETCH_TIME, fetchTime().toString());
             builder.field(Fields.FETCH_TIME_IN_MILLIS, fetchTimeInMillis);
+            builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
             return builder;
         }
@@ -205,9 +234,11 @@ public class SearchStats implements Streamable, ToXContent {
         static final XContentBuilderString QUERY_TOTAL = new XContentBuilderString("query_total");
         static final XContentBuilderString QUERY_TIME = new XContentBuilderString("query_time");
         static final XContentBuilderString QUERY_TIME_IN_MILLIS = new XContentBuilderString("query_time_in_millis");
+        static final XContentBuilderString QUERY_CURRENT = new XContentBuilderString("query_current");
         static final XContentBuilderString FETCH_TOTAL = new XContentBuilderString("fetch_total");
         static final XContentBuilderString FETCH_TIME = new XContentBuilderString("fetch_time");
         static final XContentBuilderString FETCH_TIME_IN_MILLIS = new XContentBuilderString("fetch_time_in_millis");
+        static final XContentBuilderString FETCH_CURRENT = new XContentBuilderString("fetch_current");
     }
 
     public static SearchStats readSearchStats(StreamInput in) throws IOException {

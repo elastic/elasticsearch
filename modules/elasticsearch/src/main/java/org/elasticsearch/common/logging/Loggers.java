@@ -106,7 +106,7 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(ESLogger parentLogger, String s) {
-        return getLogger(parentLogger.getName() + s, parentLogger.getPrefix());
+        return ESLoggerFactory.getLogger(parentLogger.getPrefix(), getLoggerName(parentLogger.getName() + s));
     }
 
     public static ESLogger getLogger(String s) {

@@ -140,14 +140,18 @@ public class DocumentMapper implements ToXContent {
 
         private final String index;
 
+        @Nullable private final Settings indexSettings;
+
         private final RootObjectMapper rootObjectMapper;
 
         private ImmutableMap<String, Object> meta = ImmutableMap.of();
 
-        private Mapper.BuilderContext builderContext = new Mapper.BuilderContext(new ContentPath(1));
+        private final Mapper.BuilderContext builderContext;
 
         public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder) {
             this.index = index;
+            this.indexSettings = indexSettings;
+            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
             IdFieldMapper idFieldMapper = new IdFieldMapper();
             if (indexSettings != null) {
@@ -203,7 +207,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(index, docMapperParser, rootObjectMapper, meta,
+            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta,
                     indexAnalyzer, searchAnalyzer,
                     rootMappers);
         }
@@ -212,11 +216,13 @@ public class DocumentMapper implements ToXContent {
 
     private ThreadLocal<ParseContext> cache = new ThreadLocal<ParseContext>() {
         @Override protected ParseContext initialValue() {
-            return new ParseContext(index, docMapperParser, DocumentMapper.this, new ContentPath(0));
+            return new ParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
         }
     };
 
     private final String index;
+
+    private final Settings indexSettings;
 
     private final String type;
 
@@ -250,12 +256,13 @@ public class DocumentMapper implements ToXContent {
 
     private final Object mutex = new Object();
 
-    public DocumentMapper(String index, DocumentMapperParser docMapperParser,
+    public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
                           NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers) {
         this.index = index;
+        this.indexSettings = indexSettings;
         this.type = rootObjectMapper.name();
         this.docMapperParser = docMapperParser;
         this.meta = meta;

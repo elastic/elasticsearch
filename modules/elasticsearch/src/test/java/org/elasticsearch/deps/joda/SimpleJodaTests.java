@@ -61,6 +61,16 @@ public class SimpleJodaTests {
         assertThat(millis, equalTo(0l));
     }
 
+    @Test public void testUpperBound() {
+        MutableDateTime dateTime = new MutableDateTime(3000, 12, 31, 23, 59, 59, 999, DateTimeZone.UTC);
+        DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
+
+        String value = "2000-01-01";
+        int i = formatter.parseInto(dateTime, value, 0);
+        assertThat(i, equalTo(value.length()));
+        assertThat(dateTime.toString(), equalTo("2000-01-01T23:59:59.999Z"));
+    }
+
     @Test public void testIsoDateFormatDateOptionalTimeUTC() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00Z");

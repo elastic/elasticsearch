@@ -22,7 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllEntries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -53,7 +55,9 @@ public class ParseContext {
 
     private Analyzer analyzer;
 
-    private String index;
+    private final String index;
+
+    @Nullable private final Settings indexSettings;
 
     private SourceToParse sourceToParse;
     private byte[] source;
@@ -78,8 +82,9 @@ public class ParseContext {
 
     private AllEntries allEntries = new AllEntries();
 
-    public ParseContext(String index, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
+    public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
+        this.indexSettings = indexSettings;
         this.docMapper = docMapper;
         this.docMapperParser = docMapperParser;
         this.path = path;
@@ -126,6 +131,10 @@ public class ParseContext {
 
     public String index() {
         return this.index;
+    }
+
+    @Nullable public Settings indexSettings() {
+        return this.indexSettings;
     }
 
     public String type() {

@@ -22,6 +22,7 @@ package org.elasticsearch.index.indexing;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -113,6 +114,8 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     }
 
     public Engine.Index preIndex(Engine.Index index) {
+        totalStats.indexCurrent.inc();
+        typeStats(index.type()).indexCurrent.inc();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 index = listener.preIndex(index);
@@ -124,7 +127,10 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void postIndex(Engine.Index index) {
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
-        typeStats(index.type()).indexMetric.inc(took);
+        totalStats.indexCurrent.dec();
+        StatsHolder typeStats = typeStats(index.type());
+        typeStats.indexMetric.inc(took);
+        typeStats.indexCurrent.dec();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 listener.postIndex(index);
@@ -132,7 +138,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
+    public void failedIndex(Engine.Index index) {
+        totalStats.indexCurrent.dec();
+        typeStats(index.type()).indexCurrent.dec();
+    }
+
     public Engine.Delete preDelete(Engine.Delete delete) {
+        totalStats.deleteCurrent.inc();
+        typeStats(delete.type()).deleteCurrent.inc();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 delete = listener.preDelete(delete);
@@ -144,12 +157,20 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void postDelete(Engine.Delete delete) {
         long took = delete.endTime() - delete.startTime();
         totalStats.deleteMetric.inc(took);
-        typeStats(delete.type()).deleteMetric.inc(took);
+        totalStats.deleteCurrent.dec();
+        StatsHolder typeStats = typeStats(delete.type());
+        typeStats.deleteMetric.inc(took);
+        typeStats.deleteCurrent.dec();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 listener.postDelete(delete);
             }
         }
+    }
+
+    public void failedDelete(Engine.Delete delete) {
+        totalStats.deleteCurrent.dec();
+        typeStats(delete.type()).deleteCurrent.dec();
     }
 
     public Engine.DeleteByQuery preDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
@@ -172,7 +193,16 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void clear() {
         totalStats.clear();
         synchronized (this) {
-            typesStats = ImmutableMap.of();
+            if (!typesStats.isEmpty()) {
+                MapBuilder<String, StatsHolder> typesStatsBuilder = MapBuilder.newMapBuilder();
+                for (Map.Entry<String, StatsHolder> typeStats : typesStats.entrySet()) {
+                    if (typeStats.getValue().totalCurrent() > 0) {
+                        typeStats.getValue().clear();
+                        typesStatsBuilder.put(typeStats.getKey(), typeStats.getValue());
+                    }
+                }
+                typesStats = typesStatsBuilder.immutableMap();
+            }
         }
     }
 
@@ -193,11 +223,17 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     static class StatsHolder {
         public final MeanMetric indexMetric = new MeanMetric();
         public final MeanMetric deleteMetric = new MeanMetric();
+        public final CounterMetric indexCurrent = new CounterMetric();
+        public final CounterMetric deleteCurrent = new CounterMetric();
 
         public IndexingStats.Stats stats() {
             return new IndexingStats.Stats(
-                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
-                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()));
+                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
+                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count());
+        }
+
+        public long totalCurrent() {
+            return indexCurrent.count() + deleteMetric.count();
         }
 
         public void clear() {

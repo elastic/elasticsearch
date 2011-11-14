@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -39,14 +41,20 @@ public interface Mapper extends ToXContent {
 
     @NotThreadSafe
     public static class BuilderContext {
+        private final Settings indexSettings;
         private final ContentPath contentPath;
 
-        public BuilderContext(ContentPath contentPath) {
+        public BuilderContext(@Nullable Settings indexSettings, ContentPath contentPath) {
             this.contentPath = contentPath;
+            this.indexSettings = indexSettings;
         }
 
         public ContentPath path() {
             return this.contentPath;
+        }
+
+        @Nullable public Settings indexSettings() {
+            return this.indexSettings;
         }
     }
 

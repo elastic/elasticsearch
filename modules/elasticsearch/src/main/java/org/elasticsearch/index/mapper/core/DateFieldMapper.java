@@ -30,6 +30,8 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -64,6 +66,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public static final String NULL_VALUE = null;
 
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
+        public static final boolean PARSE_UPPER_INCLUSIVE = true;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, DateFieldMapper> {
@@ -95,8 +98,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override public DateFieldMapper build(BuilderContext context) {
+            boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
+            if (context.indexSettings() != null) {
+                parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
+            }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue, timeUnit);
+                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue, timeUnit, parseUpperInclusive);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -123,6 +130,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     protected final FormatDateTimeFormatter dateTimeFormatter;
 
+    private final boolean parseUpperInclusive;
+
     private String nullValue;
 
     protected final TimeUnit timeUnit;
@@ -130,13 +139,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
                               Field.Index index, Field.Store store,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                              String nullValue, TimeUnit timeUnit) {
+                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive) {
         super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())));
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;
+        this.parseUpperInclusive = parseUpperInclusive;
     }
 
     @Override protected double parseFuzzyFactor(String fuzzyFactor) {
@@ -212,21 +222,21 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseStringValue(lowerTerm),
-                upperTerm == null ? null : parseStringValue(upperTerm),
+                upperTerm == null ? null : includeUpper ? parseUpperInclusiveStringValue(upperTerm) : parseStringValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseStringValue(lowerTerm),
-                upperTerm == null ? null : parseStringValue(upperTerm),
+                upperTerm == null ? null : includeUpper ? parseUpperInclusiveStringValue(upperTerm) : parseStringValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
                 lowerTerm == null ? null : parseStringValue(lowerTerm),
-                upperTerm == null ? null : parseStringValue(upperTerm),
+                upperTerm == null ? null : includeUpper ? parseUpperInclusiveStringValue(upperTerm) : parseStringValue(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -354,6 +364,24 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected long parseStringValue(String value) {
         try {
             return dateTimeFormatter.parser().parseMillis(value);
+        } catch (RuntimeException e) {
+            try {
+                long time = Long.parseLong(value);
+                return timeUnit.toMillis(time);
+            } catch (NumberFormatException e1) {
+                throw new MapperParsingException("failed to parse date field, tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+            }
+        }
+    }
+
+    protected long parseUpperInclusiveStringValue(String value) {
+        if (!parseUpperInclusive) {
+            return parseStringValue(value);
+        }
+        try {
+            MutableDateTime dateTime = new MutableDateTime(3000, 12, 31, 23, 59, 59, 999, DateTimeZone.UTC);
+            dateTimeFormatter.parser().parseInto(dateTime, value, 0);
+            return dateTime.getMillis();
         } catch (RuntimeException e) {
             try {
                 long time = Long.parseLong(value);

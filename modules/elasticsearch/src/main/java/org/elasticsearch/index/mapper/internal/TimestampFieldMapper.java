@@ -90,7 +90,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         }
 
         @Override public TimestampFieldMapper build(BuilderContext context) {
-            return new TimestampFieldMapper(store, index, enabled, path, dateTimeFormatter);
+            boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
+            if (context.indexSettings() != null) {
+                parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
+            }
+            return new TimestampFieldMapper(store, index, enabled, path, dateTimeFormatter, parseUpperInclusive);
         }
     }
 
@@ -119,13 +123,13 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private final String path;
 
     public TimestampFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER);
+        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.PARSE_UPPER_INCLUSIVE);
     }
 
-    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path, FormatDateTimeFormatter dateTimeFormatter) {
+    protected TimestampFieldMapper(Field.Store store, Field.Index index, boolean enabled, String path, FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS,
-                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/);
+                Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/, parseUpperInclusive);
         this.enabled = enabled;
         this.path = path;
     }

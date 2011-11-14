@@ -1,5 +1,6 @@
 package org.elasticsearch.common.compress.lzf.util;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.compress.lzf.ChunkDecoder;
 import org.elasticsearch.common.compress.lzf.impl.UnsafeChunkDecoder;
 import org.elasticsearch.common.compress.lzf.impl.VanillaChunkDecoder;
@@ -25,6 +26,10 @@ public class ChunkDecoderFactory {
         } catch (Throwable t) {
         }
         if (impl == null) {
+            impl = VanillaChunkDecoder.class;
+        }
+        // ES: Because of this: https://github.com/ning/compress/issues/13, disable the optimized by default
+        if (!Booleans.parseBoolean(System.getProperty("compress.lzf.decoder.optimized"), false)) {
             impl = VanillaChunkDecoder.class;
         }
         _instance = new ChunkDecoderFactory(impl);

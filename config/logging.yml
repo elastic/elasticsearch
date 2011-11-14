@@ -15,6 +15,11 @@ logger:
   # discovery
   #discovery: TRACE
 
+  index.search.slowlog: TRACE, index_search_slow_log_file
+
+additivity:
+  index.search.slowlog: false
+
 appender:
   console:
     type: console
@@ -29,4 +34,11 @@ appender:
     layout:
       type: pattern
       conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"
-      
+
+  index_search_slow_log_file:
+    type: dailyRollingFile
+    file: ${path.logs}/${cluster.name}_index_search_slowlog.log
+    datePattern: "'.'yyyy-MM-dd"
+    layout:
+      type: pattern
+      conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"

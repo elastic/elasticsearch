@@ -20,6 +20,7 @@
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 
 /**
  */
@@ -27,5 +28,6 @@ public class ShardSearchModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(ShardSearchService.class).asEagerSingleton();
+        bind(ShardSlowLogSearchService.class).asEagerSingleton();
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,12 +39,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShardSearchService extends AbstractIndexShardComponent {
 
+    private final ShardSlowLogSearchService slowLogSearchService;
+
     private final StatsHolder totalStats = new StatsHolder();
 
     private volatile Map<String, StatsHolder> groupsStats = ImmutableMap.of();
 
-    @Inject public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogSearchService slowLogSearchService) {
         super(shardId, indexSettings);
+        this.slowLogSearchService = slowLogSearchService;
     }
 
     /**
@@ -101,6 +105,7 @@ public class ShardSearchService extends AbstractIndexShardComponent {
                 statsHolder.queryCurrent.dec();
             }
         }
+        slowLogSearchService.onQueryPhase(searchContext, tookInNanos);
     }
 
     public void onPreFetchPhase(SearchContext searchContext) {
@@ -132,6 +137,7 @@ public class ShardSearchService extends AbstractIndexShardComponent {
                 statsHolder.fetchCurrent.dec();
             }
         }
+        slowLogSearchService.onFetchPhase(searchContext, tookInNanos);
     }
 
     public void clear() {

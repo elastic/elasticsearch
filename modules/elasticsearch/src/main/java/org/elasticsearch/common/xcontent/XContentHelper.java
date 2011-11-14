@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.base.Charsets;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,6 +31,25 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class XContentHelper {
+
+    public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {
+        XContentType xContentType = XContentFactory.xContentType(data, offset, length);
+        if (xContentType == XContentType.JSON && reformatJson) {
+            return new String(data, offset, length, Charsets.UTF_8);
+        }
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(xContentType).createParser(data, offset, length);
+            parser.nextToken();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.copyCurrentStructure(parser);
+            return builder.string();
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
 
     /**
      * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge

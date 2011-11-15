@@ -144,7 +144,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
             String script = scripts.get(i);
             if (script != null) {
                 SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
-                scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(searchScript);
+                scoreFunction = new CustomScoreQueryParser.ScriptScoreFunction(script, vars, searchScript);
             } else {
                 scoreFunction = new BoostScoreFunction(boosts.get(i));
             }

@@ -23,7 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
-import org.elasticsearch.search.fetch.SearchHitPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -32,17 +33,24 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class ExplainSearchHitPhase implements SearchHitPhase {
+public class ExplainFetchSubPhase implements FetchSubPhase {
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of("explain", new ExplainParseElement());
     }
 
-    @Override public boolean executionNeeded(SearchContext context) {
+    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+        return false;
+    }
+
+    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    }
+
+    @Override public boolean hitExecutionNeeded(SearchContext context) {
         return context.explain();
     }
 
-    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         try {
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(context.searcher().explain(context.query(), hitContext.hit().docId()));

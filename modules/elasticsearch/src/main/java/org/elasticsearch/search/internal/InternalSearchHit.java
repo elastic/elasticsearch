@@ -69,7 +69,7 @@ public class InternalSearchHit implements SearchHit {
 
     private Map<String, SearchHitField> fields = ImmutableMap.of();
 
-    private Map<String, HighlightField> highlightFields = ImmutableMap.of();
+    private Map<String, HighlightField> highlightFields = null;
 
     private Object[] sortValues = EMPTY_SORT_VALUES;
 
@@ -230,7 +230,14 @@ public class InternalSearchHit implements SearchHit {
         this.fields = fields;
     }
 
+    public Map<String, HighlightField> internalHighlightFields() {
+        return highlightFields;
+    }
+
     @Override public Map<String, HighlightField> highlightFields() {
+        if (highlightFields == null) {
+            return ImmutableMap.of();
+        }
         return this.highlightFields;
     }
 

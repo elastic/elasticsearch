@@ -41,10 +41,10 @@ import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
-import org.elasticsearch.search.fetch.explain.ExplainSearchHitPhase;
-import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersSearchHitPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsSearchHitPhase;
-import org.elasticsearch.search.fetch.version.VersionSearchHitPhase;
+import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase;
+import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -62,18 +62,18 @@ import java.util.Map;
  */
 public class FetchPhase implements SearchPhase {
 
-    private final SearchHitPhase[] hitPhases;
+    private final FetchSubPhase[] fetchSubPhases;
 
-    @Inject public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsSearchHitPhase scriptFieldsPhase,
-                              MatchedFiltersSearchHitPhase matchFiltersPhase, ExplainSearchHitPhase explainPhase, VersionSearchHitPhase versionPhase) {
-        this.hitPhases = new SearchHitPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
+    @Inject public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
+                              MatchedFiltersFetchSubPhase matchFiltersPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase) {
+        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
     }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("fields", new FieldsParseElement());
-        for (SearchHitPhase hitPhase : hitPhases) {
-            parseElements.putAll(hitPhase.parseElements());
+        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
+            parseElements.putAll(fetchSubPhase.parseElements());
         }
         return parseElements.build();
     }
@@ -199,14 +199,21 @@ public class FetchPhase implements SearchPhase {
                 }
             }
 
-            for (SearchHitPhase hitPhase : hitPhases) {
-                SearchHitPhase.HitContext hitContext = new SearchHitPhase.HitContext();
-                if (hitPhase.executionNeeded(context)) {
+            for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
+                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+                if (fetchSubPhase.hitExecutionNeeded(context)) {
                     hitContext.reset(searchHit, subReader, subDoc, doc);
-                    hitPhase.execute(context, hitContext);
+                    fetchSubPhase.hitExecute(context, hitContext);
                 }
             }
         }
+
+        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
+            if (fetchSubPhase.hitsExecutionNeeded(context)) {
+                fetchSubPhase.hitsExecute(context, hits);
+            }
+        }
+
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 

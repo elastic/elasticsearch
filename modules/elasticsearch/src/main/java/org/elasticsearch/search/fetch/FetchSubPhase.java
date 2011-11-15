@@ -22,7 +22,6 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -32,7 +31,7 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public interface SearchHitPhase {
+public interface FetchSubPhase {
 
     public static class HitContext {
         private InternalSearchHit hit;
@@ -66,10 +65,14 @@ public interface SearchHitPhase {
 
     Map<String, ? extends SearchParseElement> parseElements();
 
-    boolean executionNeeded(SearchContext context);
+    boolean hitExecutionNeeded(SearchContext context);
 
     /**
      * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
      */
-    void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException;
+    void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException;
+
+    boolean hitsExecutionNeeded(SearchContext context);
+
+    void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException;
 }

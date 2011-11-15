@@ -13,7 +13,7 @@ dependencies {
 
     // joda 2.0 moved to using volatile fields for datetime, which hurts performance for facets!
     runtime 'joda-time:joda-time:1.6.2'
-    runtime 'org.mvel:mvel2:2.1.Beta6'
+    runtime 'org.mvel:mvel2:2.1.Beta7'
 
     runtime 'org.codehaus.jackson:jackson-core-asl:1.9.2'
     runtime 'org.codehaus.jackson:jackson-smile:1.9.2'

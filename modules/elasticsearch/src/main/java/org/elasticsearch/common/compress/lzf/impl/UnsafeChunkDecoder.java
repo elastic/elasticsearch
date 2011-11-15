@@ -89,7 +89,7 @@ public class UnsafeChunkDecoder extends ChunkDecoder {
             if (len < 7) {
                 ctrl -= in[inPos++] & 255;
                 if (ctrl < -7) { // non-overlapping? can use efficient bulk copy
-                    copyLong(out, outPos + ctrl, out, outPos);
+                    moveLong(out, outPos, outEnd, ctrl);
                     outPos += len + 2;
                     continue;
                 }
@@ -181,9 +181,17 @@ public class UnsafeChunkDecoder extends ChunkDecoder {
         return outPos;
     }
 
-    private final static void copyLong(byte[] src, int srcIndex, byte[] dest, int destIndex) {
-        long value = unsafe.getLong(src, BYTE_ARRAY_OFFSET + srcIndex);
-        unsafe.putLong(dest, (BYTE_ARRAY_OFFSET + destIndex), value);
+    /* Note: 'delta' is negative (back ref); dataEnd is the first location AFTER
+     * end of expected uncompressed data (i.e. end marker)
+     */
+    private final static void moveLong(byte[] data, int resultOffset, int dataEnd, int delta) {
+        if ((resultOffset + 8) < dataEnd) {
+            final long rawOffset = BYTE_ARRAY_OFFSET + resultOffset;
+            long value = unsafe.getLong(data, rawOffset + delta);
+            unsafe.putLong(data, rawOffset, value);
+            return;
+        }
+        System.arraycopy(data, resultOffset + delta, data, resultOffset, data.length - resultOffset);
     }
 
     private final static void copyUpTo32(byte[] in, int inputIndex, byte[] out, int outputIndex, int lengthMinusOne) {

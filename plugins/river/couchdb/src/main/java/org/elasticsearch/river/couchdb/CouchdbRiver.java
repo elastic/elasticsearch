@@ -404,7 +404,12 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 }
 
                 if (lastSeq != null) {
-                    file = file + "&since=" + lastSeq;
+                    try {
+                        file = file + "&since=" + URLEncoder.encode(lastSeq, "UTF-8");
+                    } catch (UnsupportedEncodingException e) {
+                        // should not happen, but in any case...
+                        file = file + "&since=" + lastSeq;
+                    }
                 }
 
                 if (logger.isDebugEnabled()) {

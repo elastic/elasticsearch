@@ -90,16 +90,22 @@ public class CustomScoreQueryParser implements QueryParser {
             throw new ElasticSearchIllegalStateException("No search context on going...");
         }
         SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, vars);
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(searchScript));
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(script, vars, searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }
 
     public static class ScriptScoreFunction implements ScoreFunction {
 
+        private final String sScript;
+
+        private final Map<String, Object> params;
+
         private final SearchScript script;
 
-        public ScriptScoreFunction(SearchScript script) {
+        public ScriptScoreFunction(String sScript, Map<String, Object> params, SearchScript script) {
+            this.sScript = sScript;
+            this.params = params;
             this.script = script;
         }
 
@@ -118,6 +124,10 @@ public class CustomScoreQueryParser implements QueryParser {
             Explanation exp = new Explanation(score, "script score function: product of:");
             exp.addDetail(subQueryExpl);
             return exp;
+        }
+
+        @Override public String toString() {
+            return "script[" + sScript + "], params [" + params + "]";
         }
     }
 }

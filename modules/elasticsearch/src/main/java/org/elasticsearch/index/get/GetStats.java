@@ -37,15 +37,17 @@ public class GetStats implements Streamable, ToXContent {
     private long existsTimeInMillis;
     private long missingCount;
     private long missingTimeInMillis;
+    private long current;
 
     public GetStats() {
     }
 
-    public GetStats(long existsCount, long existsTimeInMillis, long missingCount, long missingTimeInMillis) {
+    public GetStats(long existsCount, long existsTimeInMillis, long missingCount, long missingTimeInMillis, long current) {
         this.existsCount = existsCount;
         this.existsTimeInMillis = existsTimeInMillis;
         this.missingCount = missingCount;
         this.missingTimeInMillis = missingTimeInMillis;
+        this.current = current;
     }
 
     public void add(GetStats stats) {
@@ -56,6 +58,7 @@ public class GetStats implements Streamable, ToXContent {
         existsTimeInMillis += stats.existsTimeInMillis;
         missingCount += stats.missingCount;
         missingTimeInMillis += stats.missingTimeInMillis;
+        current += stats.current;
     }
 
     public long count() {
@@ -130,6 +133,14 @@ public class GetStats implements Streamable, ToXContent {
         return missingTime();
     }
 
+    public long current() {
+        return this.current;
+    }
+
+    public long getCurrent() {
+        return this.current;
+    }
+
     @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, count());
@@ -141,6 +152,7 @@ public class GetStats implements Streamable, ToXContent {
         builder.field(Fields.MISSING_TOTAL, missingCount);
         builder.field(Fields.MISSING_TIME, missingTime().toString());
         builder.field(Fields.MISSING_TIME_IN_MILLIS, missingTimeInMillis);
+        builder.field(Fields.CURRENT, current);
         builder.endObject();
         return builder;
     }
@@ -156,6 +168,7 @@ public class GetStats implements Streamable, ToXContent {
         static final XContentBuilderString MISSING_TOTAL = new XContentBuilderString("missing_total");
         static final XContentBuilderString MISSING_TIME = new XContentBuilderString("missing_time");
         static final XContentBuilderString MISSING_TIME_IN_MILLIS = new XContentBuilderString("missing_time_in_millis");
+        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
     }
 
     public static GetStats readGetStats(StreamInput in) throws IOException {
@@ -169,6 +182,7 @@ public class GetStats implements Streamable, ToXContent {
         existsTimeInMillis = in.readVLong();
         missingCount = in.readVLong();
         missingTimeInMillis = in.readVLong();
+        current = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -176,5 +190,6 @@ public class GetStats implements Streamable, ToXContent {
         out.writeVLong(existsTimeInMillis);
         out.writeVLong(missingCount);
         out.writeVLong(missingTimeInMillis);
+        out.writeVLong(current);
     }
 }

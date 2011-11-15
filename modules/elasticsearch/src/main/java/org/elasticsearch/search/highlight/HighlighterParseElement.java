@@ -69,7 +69,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String[] globalPreTags = DEFAULT_PRE_TAGS;
         String[] globalPostTags = DEFAULT_POST_TAGS;
         boolean globalScoreOrdered = false;
-        boolean globalHighlightFilter = true;
+        boolean globalHighlightFilter = false;
         int globalFragmentSize = 100;
         int globalNumOfFragments = 5;
         String globalEncoder = "default";
@@ -106,9 +106,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalFragmentSize = parser.intValue();
                 } else if ("number_of_fragments".equals(topLevelFieldName) || "numberOfFragments".equals(topLevelFieldName)) {
                     globalNumOfFragments = parser.intValue();
-                }
-                else if ("encoder".equals(topLevelFieldName)){
-                   globalEncoder = parser.text();
+                } else if ("encoder".equals(topLevelFieldName)) {
+                    globalEncoder = parser.text();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -180,7 +179,7 @@ public class HighlighterParseElement implements SearchParseElement {
             if (field.numberOfFragments() == -1) {
                 field.numberOfFragments(globalNumOfFragments);
             }
-            if (field.encoder() == null){
+            if (field.encoder() == null) {
                 field.encoder(globalEncoder);
             }
 

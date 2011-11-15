@@ -26,6 +26,7 @@ import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.IndexCache;
@@ -72,6 +73,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private final MeanMetric existsMetric = new MeanMetric();
     private final MeanMetric missingMetric = new MeanMetric();
+    private final CounterMetric currentMetric = new CounterMetric();
 
     @Inject public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
                                    MapperService mapperService, IndexCache indexCache) {
@@ -82,7 +84,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetStats stats() {
-        return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()));
+        return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()), currentMetric.count());
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -92,14 +94,19 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
-        long now = System.nanoTime();
-        GetResult getResult = innerGet(type, id, gFields, realtime);
-        if (getResult.exists()) {
-            existsMetric.inc(System.nanoTime() - now);
-        } else {
-            missingMetric.inc(System.nanoTime() - now);
+        currentMetric.inc();
+        try {
+            long now = System.nanoTime();
+            GetResult getResult = innerGet(type, id, gFields, realtime);
+            if (getResult.exists()) {
+                existsMetric.inc(System.nanoTime() - now);
+            } else {
+                missingMetric.inc(System.nanoTime() - now);
+            }
+            return getResult;
+        } finally {
+            currentMetric.dec();
         }
-        return getResult;
     }
 
     public GetResult innerGet(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {

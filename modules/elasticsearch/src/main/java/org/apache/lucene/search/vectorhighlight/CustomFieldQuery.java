@@ -142,11 +142,15 @@ public class CustomFieldQuery extends FieldQuery {
             }
         } else if (sourceFilter instanceof XBooleanFilter) {
             XBooleanFilter booleanFilter = (XBooleanFilter) sourceFilter;
-            for (Filter filter : booleanFilter.getMustFilters()) {
-                flatten(filter, flatQueries);
+            if (booleanFilter.getMustFilters() != null) {
+                for (Filter filter : booleanFilter.getMustFilters()) {
+                    flatten(filter, flatQueries);
+                }
             }
-            for (Filter filter : booleanFilter.getNotFilters()) {
-                flatten(filter, flatQueries);
+            if (booleanFilter.getShouldFilters() != null) {
+                for (Filter filter : booleanFilter.getShouldFilters()) {
+                    flatten(filter, flatQueries);
+                }
             }
         }
     }

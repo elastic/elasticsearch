@@ -231,7 +231,7 @@ public class HighlightPhase implements SearchHitPhase {
                         }
                     }
                     FastVectorHighlighter highlighter = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
-                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), hitContext.reader(), field);
+                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.parsedQuery().query(), hitContext.reader(), field);
 
                     String[] fragments;
                     try {

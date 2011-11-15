@@ -79,6 +79,9 @@ public class NestedChildrenCollector extends FacetCollector {
     }
 
     @Override public void collect(int parentDoc) throws IOException {
+        if (parentDoc == 0) {
+            return;
+        }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
         for (int i = (parentDoc - 1); i > prevParentDoc; i--) {
             if (!currentReader.isDeleted(i) && childDocs.get(i)) {

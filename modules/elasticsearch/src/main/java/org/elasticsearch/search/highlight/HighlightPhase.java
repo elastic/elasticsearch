@@ -40,9 +40,10 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
-import org.elasticsearch.search.fetch.SearchHitPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
+import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -58,7 +59,7 @@ import static org.elasticsearch.common.collect.Maps.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class HighlightPhase implements SearchHitPhase {
+public class HighlightPhase implements FetchSubPhase {
 
     public static class Encoders {
         public static Encoder DEFAULT = new DefaultEncoder();
@@ -69,11 +70,18 @@ public class HighlightPhase implements SearchHitPhase {
         return ImmutableMap.of("highlight", new HighlighterParseElement());
     }
 
-    @Override public boolean executionNeeded(SearchContext context) {
+    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+        return false;
+    }
+
+    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    }
+
+    @Override public boolean hitExecutionNeeded(SearchContext context) {
         return context.highlight() != null;
     }
 
-    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         try {
             DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
 

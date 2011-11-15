@@ -28,10 +28,10 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.facet.FacetModule;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.fetch.explain.ExplainSearchHitPhase;
-import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersSearchHitPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsSearchHitPhase;
-import org.elasticsearch.search.fetch.version.VersionSearchHitPhase;
+import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase;
+import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
 
@@ -51,10 +51,10 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(SearchPhaseController.class).asEagerSingleton();
 
         bind(FetchPhase.class).asEagerSingleton();
-        bind(ExplainSearchHitPhase.class).asEagerSingleton();
-        bind(ScriptFieldsSearchHitPhase.class).asEagerSingleton();
-        bind(VersionSearchHitPhase.class).asEagerSingleton();
-        bind(MatchedFiltersSearchHitPhase.class).asEagerSingleton();
+        bind(ExplainFetchSubPhase.class).asEagerSingleton();
+        bind(ScriptFieldsFetchSubPhase.class).asEagerSingleton();
+        bind(VersionFetchSubPhase.class).asEagerSingleton();
+        bind(MatchedFiltersFetchSubPhase.class).asEagerSingleton();
         bind(HighlightPhase.class).asEagerSingleton();
 
         bind(SearchServiceTransportAction.class).asEagerSingleton();

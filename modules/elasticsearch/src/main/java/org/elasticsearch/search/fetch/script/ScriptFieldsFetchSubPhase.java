@@ -24,7 +24,8 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.fetch.SearchHitPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -35,9 +36,9 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class ScriptFieldsSearchHitPhase implements SearchHitPhase {
+public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
-    @Inject public ScriptFieldsSearchHitPhase() {
+    @Inject public ScriptFieldsFetchSubPhase() {
     }
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
@@ -47,11 +48,18 @@ public class ScriptFieldsSearchHitPhase implements SearchHitPhase {
         return parseElements.build();
     }
 
-    @Override public boolean executionNeeded(SearchContext context) {
+    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+        return false;
+    }
+
+    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    }
+
+    @Override public boolean hitExecutionNeeded(SearchContext context) {
         return context.hasScriptFields();
     }
 
-    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             scriptField.script().setNextReader(hitContext.reader());
             scriptField.script().setNextDocId(hitContext.docId());

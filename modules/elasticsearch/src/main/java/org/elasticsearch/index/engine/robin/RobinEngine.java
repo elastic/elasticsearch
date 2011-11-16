@@ -420,7 +420,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // the actual version checking is one in an external system, and we just want to not index older versions
                         if (currentVersion >= 0) { // we can check!, its there
                             if (currentVersion >= create.version()) {
-                                if(create.versionType() != VersionType.EXTERNAL_RELAXED) {
+                                if(create.versionType() != VersionType.EXTERNAL_QUIET) {
                                     throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, create.version());
                                 } else {
                                     create.version(currentVersion); //update the request version to reflect the current index version
@@ -548,7 +548,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // the actual version checking is one in an external system, and we just want to not index older versions
                         if (currentVersion >= 0) { // we can check!, its there
                             if (currentVersion >= index.version()) {
-                                if(index.versionType() != VersionType.EXTERNAL_RELAXED) {
+                                if(index.versionType() != VersionType.EXTERNAL_QUIET) {
                                     throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, index.version());
                                 } else {
                                     index.version(currentVersion); //update the request version to reflect the current index version
@@ -666,7 +666,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             // its an external version, that's fine, we allow it to be set
                             //throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
                         } else if (currentVersion >= delete.version()) {
-                            if(delete.versionType() != VersionType.EXTERNAL_RELAXED) {
+                            if(delete.versionType() != VersionType.EXTERNAL_QUIET) {
                                 throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
                             } else {
                                 delete.version(currentVersion); //update the request version to reflect the current index version

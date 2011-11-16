@@ -285,7 +285,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         assertThat(indexResponse.version(), equalTo(1l));
     }
 
-    @Test public void testRelaxedExternalVersioning() throws Exception {
+    @Test public void testQuietExternalVersioning() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {
@@ -294,21 +294,21 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value12").setVersion(12).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value12").setVersion(12).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(indexResponse.version(), equalTo(12l));
 
-        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value14").setVersion(14).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value14").setVersion(14).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(indexResponse.version(), equalTo(14l));
 
 
         //it's ok, but the version returned is 14 - nothing happened
-        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value13").setVersion(13).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value13").setVersion(13).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(indexResponse.version(), equalTo(14l));
         assertThat((String) client.prepareGet("test", "type", "1").execute().actionGet().sourceAsMap().get("field1"), equalTo("value14"));
 
 
         //it's ok, but the version returned is 14 - nothing happened
-        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value14-secondattempt").setVersion(14).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value14-secondattempt").setVersion(14).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(indexResponse.version(), equalTo(14l));
         assertThat((String) client.prepareGet("test", "type", "1").execute().actionGet().sourceAsMap().get("field1"), equalTo("value14"));
 
@@ -317,15 +317,15 @@ public class SimpleVersioningTests extends AbstractNodesTests {
             assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(14l));
         }
 
-        DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(deleteResponse.notFound(), equalTo(false));
         assertThat(deleteResponse.version(), equalTo(17l));
 
-        deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(deleteResponse.notFound(), equalTo(false));
         assertThat(deleteResponse.version(), equalTo(17l));
 
-        deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL_RELAXED).execute().actionGet();
+        deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL_QUIET).execute().actionGet();
         assertThat(deleteResponse.notFound(), equalTo(true));
         assertThat(deleteResponse.version(), equalTo(18l));
     }

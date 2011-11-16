@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,6 +48,26 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class QueryParseContext {
+
+    private static ThreadLocal<String[]> typesContext = new ThreadLocal<String[]>();
+
+    public static void setTypes(String[] types) {
+        typesContext.set(types);
+    }
+
+    public static String[] getTypes() {
+        return typesContext.get();
+    }
+
+    public static String[] setTypesWithPrevious(String[] types) {
+        String[] old = typesContext.get();
+        setTypes(types);
+        return old;
+    }
+
+    public static void removeTypes() {
+        typesContext.remove();
+    }
 
     private final Index index;
 
@@ -203,8 +222,7 @@ public class QueryParseContext {
     }
 
     public FieldMapper fieldMapper(String name) {
-        SearchContext searchContext = SearchContext.current();
-        FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name, searchContext == null ? null : searchContext.types());
+        FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name, getTypes());
         if (fieldMappers == null) {
             return null;
         }
@@ -220,12 +238,10 @@ public class QueryParseContext {
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        SearchContext searchContext = SearchContext.current();
-        return indexQueryParser.mapperService.smartName(name, searchContext == null ? null : searchContext.types());
+        return indexQueryParser.mapperService.smartName(name, getTypes());
     }
 
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
-        SearchContext searchContext = SearchContext.current();
-        return indexQueryParser.mapperService.smartNameObjectMapper(name, searchContext == null ? null : searchContext.types());
+        return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
     }
 }

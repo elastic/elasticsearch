@@ -59,9 +59,12 @@ public class HasChildQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                // since we switch types, make sure we change the context
+                String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
                 }
+                QueryParseContext.setTypes(origTypes);
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();

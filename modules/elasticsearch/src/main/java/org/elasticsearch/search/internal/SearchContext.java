@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -68,10 +69,12 @@ public class SearchContext implements Releasable {
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
+        QueryParseContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
         current.remove();
+        QueryParseContext.removeTypes();
     }
 
     public static SearchContext current() {

@@ -172,8 +172,6 @@ public class XContentMapConverter {
             gen.writeBinary((byte[]) value);
         } else if (value instanceof Date) {
             gen.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
-        } else if (type == java.sql.Date.class) {
-            gen.writeString(XContentBuilder.defaultDatePrinter.print(((java.sql.Date) value).getTime()));
         } else {
             gen.writeString(value.toString());
         }

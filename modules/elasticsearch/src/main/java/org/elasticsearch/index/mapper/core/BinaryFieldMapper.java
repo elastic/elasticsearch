@@ -19,16 +19,10 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
-
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
@@ -42,6 +36,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeContext;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
+
+import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -135,7 +136,12 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
     }
 
     @Override public byte[] valueFromString(String value) {
-        return null;
+        // assume its base64 (json)
+        try {
+            return Base64.decode(value);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override public String valueAsString(Fieldable field) {

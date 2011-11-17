@@ -24,7 +24,12 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -165,7 +170,7 @@ public class XContentMapConverter {
             writeObjectArray(gen, (Object[]) value);
         } else if (type == byte[].class) {
             gen.writeBinary((byte[]) value);
-        } else if (type == Date.class) {
+        } else if (value instanceof Date) {
             gen.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
         } else if (type == java.sql.Date.class) {
             gen.writeString(XContentBuilder.defaultDatePrinter.print(((java.sql.Date) value).getTime()));

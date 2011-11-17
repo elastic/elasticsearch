@@ -181,7 +181,11 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (analyzer == null) {
             analyzer = context.analyzer();
             if (analyzer == null) {
-                analyzer = Lucene.STANDARD_ANALYZER;
+                analyzer = context.docMapper().indexAnalyzer();
+                if (analyzer == null) {
+                    // This should not happen, should we log warn it?
+                    analyzer = Lucene.STANDARD_ANALYZER;
+                }
             }
         }
         return analyzer;

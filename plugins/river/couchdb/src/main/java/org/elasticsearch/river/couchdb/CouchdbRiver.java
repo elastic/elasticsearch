@@ -58,6 +58,9 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
@@ -72,12 +75,14 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
     private final String riverIndexName;
 
+    private final String couchProtocol;
     private final String couchHost;
     private final int couchPort;
     private final String couchDb;
     private final String couchFilter;
     private final String couchFilterParamsUrl;
     private final String basicAuth;
+    private final boolean noVerify;
     private final boolean couchIgnoreAttachments;
 
     private final String indexName;
@@ -102,6 +107,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
         if (settings.settings().containsKey("couchdb")) {
             Map<String, Object> couchSettings = (Map<String, Object>) settings.settings().get("couchdb");
+            couchProtocol = XContentMapValues.nodeStringValue(couchSettings.get("protocol"), "http");
+            noVerify = XContentMapValues.nodeBooleanValue(couchSettings.get("no_verify"), false);
             couchHost = XContentMapValues.nodeStringValue(couchSettings.get("host"), "localhost");
             couchPort = XContentMapValues.nodeIntegerValue(couchSettings.get("port"), 5984);
             couchDb = XContentMapValues.nodeStringValue(couchSettings.get("db"), riverName.name());
@@ -135,12 +142,14 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 script = null;
             }
         } else {
+            couchProtocol = "http";
             couchHost = "localhost";
             couchPort = 5984;
             couchDb = "db";
             couchFilter = null;
             couchFilterParamsUrl = null;
             couchIgnoreAttachments = false;
+            noVerify = false;
             basicAuth = null;
             script = null;
         }
@@ -438,13 +447,24 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 HttpURLConnection connection = null;
                 InputStream is = null;
                 try {
-                    URL url = new URL("http", couchHost, couchPort, file);
+                    URL url = new URL(couchProtocol, couchHost, couchPort, file);
                     connection = (HttpURLConnection) url.openConnection();
                     if (basicAuth != null) {
                         connection.addRequestProperty("Authorization", basicAuth);
                     }
                     connection.setDoInput(true);
                     connection.setUseCaches(false);
+
+                    if (noVerify) {
+                      ((HttpsURLConnection)connection).setHostnameVerifier(
+                          new HostnameVerifier(){
+                              public boolean verify(String string, SSLSession ssls) {
+                                  return true;
+                              }
+                          }
+                      );
+                    }
+
                     is = connection.getInputStream();
 
                     final BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));

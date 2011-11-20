@@ -170,6 +170,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     logger.debug("[{}][{}] failed to bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().toString().toLowerCase(),
                             new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                    // nullify the request so it won't execute on the replicas
+                    request.items()[i] = null;
                 }
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
@@ -190,6 +192,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     logger.debug("[{}][{}] failed to bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                     responses[i] = new BulkItemResponse(item.id(), "delete",
                             new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                    // nullify the request so it won't execute on the replicas
+                    request.items()[i] = null;
                 }
             }
         }
@@ -242,6 +246,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         final BulkShardRequest request = shardRequest.request;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
+            if (item == null) {
+                continue;
+            }
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {

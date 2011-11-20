@@ -168,8 +168,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
                     // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
                     value = cachedEntry.bytes().copiedByteArray();
                     CachedStreamOutput.pushEntry(cachedEntry);
-                    // update the data in the context, so it can be compressed and stored compressed outside...
-                    context.source(value, 0, value.length);
                 }
             }
         }

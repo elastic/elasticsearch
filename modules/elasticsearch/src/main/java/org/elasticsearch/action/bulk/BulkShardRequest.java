@@ -72,7 +72,12 @@ public class BulkShardRequest extends ShardReplicationOperationRequest {
         out.writeVInt(shardId);
         out.writeVInt(items.length);
         for (BulkItemRequest item : items) {
-            item.writeTo(out);
+            if (item != null) {
+                out.writeBoolean(true);
+                item.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
         out.writeBoolean(refresh);
     }
@@ -82,7 +87,9 @@ public class BulkShardRequest extends ShardReplicationOperationRequest {
         shardId = in.readVInt();
         items = new BulkItemRequest[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
-            items[i] = BulkItemRequest.readBulkItem(in);
+            if (in.readBoolean()) {
+                items[i] = BulkItemRequest.readBulkItem(in);
+            }
         }
         refresh = in.readBoolean();
     }

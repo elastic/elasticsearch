@@ -144,7 +144,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
 
-        this.compression = settings.getAsBoolean("http.compression", true);
+        this.compression = settings.getAsBoolean("http.compression", false);
         this.compressionLevel = settings.getAsInt("http.compression_level", 6);
 
         // validate max content length

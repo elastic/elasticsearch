@@ -189,6 +189,16 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                     return null;
                 }
                 value = nullValue;
+            } else if (externalValue instanceof String) {
+                String sExternalValue = (String) externalValue;
+                if (sExternalValue.length() == 0) {
+                    if (nullValue == null) {
+                        return null;
+                    }
+                    value = nullValue;
+                } else {
+                    value = Integer.parseInt(sExternalValue);
+                }
             } else {
                 value = ((Number) externalValue).intValue();
             }
@@ -197,7 +207,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             }
         } else {
             XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
+                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
                 if (nullValue == null) {
                     return null;
                 }

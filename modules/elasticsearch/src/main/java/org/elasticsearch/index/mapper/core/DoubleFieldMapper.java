@@ -189,6 +189,16 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                     return null;
                 }
                 value = nullValue;
+            } else if (externalValue instanceof String) {
+                String sExternalValue = (String) externalValue;
+                if (sExternalValue.length() == 0) {
+                    if (nullValue == null) {
+                        return null;
+                    }
+                    value = nullValue;
+                } else {
+                    value = Double.parseDouble(sExternalValue);
+                }
             } else {
                 value = ((Number) externalValue).doubleValue();
             }
@@ -197,7 +207,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             }
         } else {
             XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
+                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
                 if (nullValue == null) {
                     return null;
                 }

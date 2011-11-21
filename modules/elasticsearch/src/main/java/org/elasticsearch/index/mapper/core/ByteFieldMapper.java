@@ -189,6 +189,16 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                     return null;
                 }
                 value = nullValue;
+            } else if (externalValue instanceof String) {
+                String sExternalValue = (String) externalValue;
+                if (sExternalValue.length() == 0) {
+                    if (nullValue == null) {
+                        return null;
+                    }
+                    value = nullValue;
+                } else {
+                    value = Byte.parseByte(sExternalValue);
+                }
             } else {
                 value = ((Number) externalValue).byteValue();
             }
@@ -197,7 +207,8 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             }
         } else {
             XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
+                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
                 if (nullValue == null) {
                     return null;
                 }

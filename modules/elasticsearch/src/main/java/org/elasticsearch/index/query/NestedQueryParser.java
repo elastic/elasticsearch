@@ -108,8 +108,6 @@ public class NestedQueryParser implements QueryParser {
             query = new DeletionAwareConstantScoreQuery(filter);
         }
 
-        query.setBoost(boost);
-
         MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
         if (mapper == null) {
             throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
@@ -141,6 +139,7 @@ public class NestedQueryParser implements QueryParser {
         parentFilterContext.set(currentParentFilterContext);
 
         BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, scoreMode);
+        joinQuery.setBoost(boost);
 
         if (scope != null) {
             SearchContext.current().addNestedQuery(scope, joinQuery);

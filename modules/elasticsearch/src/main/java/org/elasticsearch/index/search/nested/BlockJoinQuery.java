@@ -144,12 +144,12 @@ public class BlockJoinQuery extends Query {
 
         @Override
         public float sumOfSquaredWeights() throws IOException {
-            return childWeight.sumOfSquaredWeights();
+            return childWeight.sumOfSquaredWeights() * joinQuery.getBoost() * joinQuery.getBoost();
         }
 
         @Override
         public void normalize(float norm) {
-            childWeight.normalize(norm);
+            childWeight.normalize(norm * joinQuery.getBoost());
         }
 
         @Override
@@ -378,10 +378,12 @@ public class BlockJoinQuery extends Query {
     public Query rewrite(IndexReader reader) throws IOException {
         final Query childRewrite = childQuery.rewrite(reader);
         if (childRewrite != childQuery) {
-            return new BlockJoinQuery(childQuery,
+            Query rewritten = new BlockJoinQuery(childQuery,
                     childRewrite,
                     parentsFilter,
                     scoreMode).setCollector(childCollector);
+            rewritten.setBoost(getBoost());
+            return rewritten;
         } else {
             return this;
         }
@@ -390,16 +392,6 @@ public class BlockJoinQuery extends Query {
     @Override
     public String toString(String field) {
         return "BlockJoinQuery (" + childQuery.toString() + ")";
-    }
-
-    @Override
-    public void setBoost(float boost) {
-        throw new UnsupportedOperationException("this query cannot support boosting; please use childQuery.setBoost instead");
-    }
-
-    @Override
-    public float getBoost() {
-        throw new UnsupportedOperationException("this query cannot support boosting; please use childQuery.getBoost instead");
     }
 
     @Override

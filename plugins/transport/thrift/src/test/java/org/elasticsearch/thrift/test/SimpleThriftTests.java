@@ -87,6 +87,10 @@ public class SimpleThriftTests {
         request = new RestRequest(Method.GET, "/_cluster/health");
         response = client.execute(request);
         assertThat(response.getStatus(), equalTo(Status.OK));
+
+        request = new RestRequest(Method.GET, "/bogusindex");
+        response = client.execute(request);
+        assertThat(response.getStatus(), equalTo(Status.BAD_REQUEST));
     }
 
     private Map<String, Object> parseBody(RestResponse response) throws IOException {

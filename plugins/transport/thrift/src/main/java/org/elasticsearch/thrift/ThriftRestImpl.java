@@ -29,12 +29,15 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.StringRestResponse;
 import org.elasticsearch.rest.XContentRestResponse;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -54,7 +57,7 @@ public class ThriftRestImpl extends AbstractComponent implements Rest.Iface {
         }
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<org.elasticsearch.thrift.RestResponse> ref = new AtomicReference<org.elasticsearch.thrift.RestResponse>();
-        restController.dispatchRequest(new ThriftRestRequest(request), new RestChannel() {
+        boolean dispatched = restController.dispatchRequest(new ThriftRestRequest(request), new RestChannel() {
             @Override public void sendResponse(RestResponse response) {
                 try {
                     ref.set(convert(response));
@@ -64,6 +67,14 @@ public class ThriftRestImpl extends AbstractComponent implements Rest.Iface {
                 latch.countDown();
             }
         });
+        if (!dispatched) {
+            try {
+                ref.set(convert(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.getUri() + "] and method [" + request.getMethod() + "]")));
+            } catch (IOException e) {
+                // ignore, will not happen... (from convert)
+            }
+            latch.countDown();
+        }
         try {
             latch.await();
             return ref.get();

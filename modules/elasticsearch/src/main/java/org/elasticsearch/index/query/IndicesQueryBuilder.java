@@ -39,7 +39,7 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(CustomBoostFactorQueryParser.NAME);
+        builder.startObject(IndicesQueryParser.NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("indices", indices);

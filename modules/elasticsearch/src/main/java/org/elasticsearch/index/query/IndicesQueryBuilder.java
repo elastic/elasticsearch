@@ -25,7 +25,7 @@ import java.io.IOException;
 
 /**
  * A query that will execute the wrapped query only for the specified indices, and "match_all" when
- * it does not match those indices.
+ * it does not match those indices (by default).
  */
 public class IndicesQueryBuilder extends BaseQueryBuilder {
 
@@ -33,9 +33,28 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
 
     private final String[] indices;
 
+    private String sNoMatchQuery;
+    private QueryBuilder noMatchQuery;
+
     public IndicesQueryBuilder(QueryBuilder queryBuilder, String... indices) {
         this.queryBuilder = queryBuilder;
         this.indices = indices;
+    }
+
+    /**
+     * Sets the no match query, can either be <tt>all</tt> or <tt>none</tt>.
+     */
+    public IndicesQueryBuilder noMatchQuery(String type) {
+        this.sNoMatchQuery = type;
+        return this;
+    }
+
+    /**
+     * Sets the query to use when it executes on an index that does not match the indices provided.
+     */
+    public IndicesQueryBuilder noMatchQuery(QueryBuilder noMatchQuery) {
+        this.noMatchQuery = noMatchQuery;
+        return this;
     }
 
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -43,6 +62,12 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("indices", indices);
+        if (noMatchQuery != null) {
+            builder.field("no_match_query");
+            noMatchQuery.toXContent(builder, params);
+        } else if (sNoMatchQuery != null) {
+            builder.field("no_match_query", sNoMatchQuery);
+        }
         builder.endObject();
     }
 }

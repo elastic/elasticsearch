@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,12 +51,15 @@ public class IndicesQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
+        Query noMatchQuery = Queries.MATCH_ALL_QUERY;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                } else if ("no_match_query".equals(currentFieldName)) {
+                    noMatchQuery = parseContext.parseInnerQuery();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("indices".equals(currentFieldName)) {
@@ -70,6 +74,13 @@ public class IndicesQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("index".equals(currentFieldName)) {
                     indices.add(parser.text());
+                } else if ("no_match_query".equals(currentFieldName)) {
+                    String type = parser.text();
+                    if ("all".equals(type)) {
+                        noMatchQuery = Queries.MATCH_ALL_QUERY;
+                    } else if ("none".equals(type)) {
+                        noMatchQuery = MatchNoDocsQuery.INSTANCE;
+                    }
                 }
             }
         }
@@ -84,6 +95,6 @@ public class IndicesQueryParser implements QueryParser {
                 return query;
             }
         }
-        return Queries.MATCH_ALL_QUERY;
+        return noMatchQuery;
     }
 }

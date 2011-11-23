@@ -38,6 +38,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class TimeValue implements Serializable, Streamable {
 
+    public static TimeValue timeValueNanos(long nanos) {
+        return new TimeValue(nanos, TimeUnit.NANOSECONDS);
+    }
+
     public static TimeValue timeValueMillis(long millis) {
         return new TimeValue(millis, TimeUnit.MILLISECONDS);
     }
@@ -189,7 +193,7 @@ public class TimeValue implements Serializable, Streamable {
     }
 
     @Override public String toString() {
-        if (duration < 0 && timeUnit == TimeUnit.MILLISECONDS) {
+        if (duration < 0) {
             return Long.toString(duration);
         }
         long nanos = nanos();

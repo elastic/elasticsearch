@@ -211,10 +211,14 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             } while (agg != null && value.equals(agg.current));
 
             if (count > minCount) {
-                if (excluded == null || !excluded.contains(value)) {
-                    InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
-                    ordered.add(entry);
+                if (excluded != null && excluded.contains(value)) {
+                    continue;
                 }
+                if (matcher != null && !matcher.reset(value).matches()) {
+                    continue;
+                }
+                InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
+                ordered.add(entry);
             }
         }
 

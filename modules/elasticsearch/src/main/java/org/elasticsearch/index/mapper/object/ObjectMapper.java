@@ -510,7 +510,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                         // remove the current field name from path, since the object builder adds it as well...
                         context.path().remove();
-                        BuilderContext builderContext = new BuilderContext(context.path());
+                        BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
                         putMapper(objectMapper);
                         // now re add it
@@ -595,7 +595,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             mapper = mappers.get(currentFieldName);
             if (mapper == null) {
                 newMapper = true;
-                BuilderContext builderContext = new BuilderContext(context.path());
+                BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                 if (token == XContentParser.Token.VALUE_STRING) {
                     boolean resolved = false;
 
@@ -608,6 +608,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             mapper = builder.build(builderContext);
                             resolved = true;
                         }
+                    }
+
+                    if (!resolved && context.parser().textLength() == 0) {
+                        // empty string with no mapping, treat it like null value
+                        return;
                     }
 
                     if (!resolved && context.root().dateDetection()) {
@@ -866,8 +871,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 mapper.toXContent(builder, params);
             }
         }
-        if (additionalMappers != null) {
+        if (additionalMappers != null && additionalMappers.length > 0) {
+            TreeMap<String, Mapper> additionalSortedMappers = new TreeMap<String, Mapper>();
             for (Mapper mapper : additionalMappers) {
+                additionalSortedMappers.put(mapper.name(), mapper);
+            }
+
+            for (Mapper mapper : additionalSortedMappers.values()) {
                 mapper.toXContent(builder, params);
             }
         }

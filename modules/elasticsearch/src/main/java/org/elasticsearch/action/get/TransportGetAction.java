@@ -35,7 +35,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,15 +47,12 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     private final IndicesService indicesService;
 
-    private final ScriptService scriptService;
-
     private final boolean realtime;
 
     @Inject public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                      IndicesService indicesService, ScriptService scriptService, ThreadPool threadPool) {
+                                      IndicesService indicesService, ThreadPool threadPool) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
-        this.scriptService = scriptService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
     }

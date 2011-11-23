@@ -40,27 +40,33 @@ public class IndexingStats implements Streamable, ToXContent {
 
         private long indexCount;
         private long indexTimeInMillis;
+        private long indexCurrent;
 
         private long deleteCount;
         private long deleteTimeInMillis;
+        private long deleteCurrent;
 
         Stats() {
 
         }
 
-        public Stats(long indexCount, long indexTimeInMillis, long deleteCount, long deleteTimeInMillis) {
+        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long deleteCount, long deleteTimeInMillis, long deleteCurrent) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
+            this.indexCurrent = indexCurrent;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
+            this.deleteCurrent = deleteCurrent;
         }
 
         public void add(Stats stats) {
             indexCount += stats.indexCount;
             indexTimeInMillis += stats.indexTimeInMillis;
+            indexCurrent += stats.indexCurrent;
 
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
+            deleteCurrent += stats.deleteCurrent;
         }
 
         public long indexCount() {
@@ -83,6 +89,14 @@ public class IndexingStats implements Streamable, ToXContent {
             return indexTimeInMillis;
         }
 
+        public long indexCurrent() {
+            return indexCurrent;
+        }
+
+        public long getIndexCurrent() {
+            return indexCurrent;
+        }
+
         public long deleteCount() {
             return deleteCount;
         }
@@ -103,6 +117,15 @@ public class IndexingStats implements Streamable, ToXContent {
             return deleteTimeInMillis;
         }
 
+
+        public long deleteCurrent() {
+            return deleteCurrent;
+        }
+
+        public long getDeleteCurrent() {
+            return deleteCurrent;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             Stats stats = new Stats();
             stats.readFrom(in);
@@ -112,27 +135,33 @@ public class IndexingStats implements Streamable, ToXContent {
         @Override public void readFrom(StreamInput in) throws IOException {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
+            indexCurrent = in.readVLong();
 
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
+            deleteCurrent = in.readVLong();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
+            out.writeVLong(indexCurrent);
 
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
+            out.writeVLong(deleteCurrent);
         }
 
         @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
             builder.field(Fields.INDEX_TIME, indexTime().toString());
             builder.field(Fields.INDEX_TIME_IN_MILLIS, indexTimeInMillis);
+            builder.field(Fields.INDEX_CURRENT, indexCurrent);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.field(Fields.DELETE_TIME, deleteTime().toString());
             builder.field(Fields.DELETE_TIME_IN_MILLIS, deleteTimeInMillis);
+            builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             return builder;
         }
@@ -205,9 +234,11 @@ public class IndexingStats implements Streamable, ToXContent {
         static final XContentBuilderString INDEX_TOTAL = new XContentBuilderString("index_total");
         static final XContentBuilderString INDEX_TIME = new XContentBuilderString("index_time");
         static final XContentBuilderString INDEX_TIME_IN_MILLIS = new XContentBuilderString("index_time_in_millis");
+        static final XContentBuilderString INDEX_CURRENT = new XContentBuilderString("index_current");
         static final XContentBuilderString DELETE_TOTAL = new XContentBuilderString("delete_total");
         static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
         static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");
+        static final XContentBuilderString DELETE_CURRENT = new XContentBuilderString("delete_current");
     }
 
     public static IndexingStats readIndexingStats(StreamInput in) throws IOException {

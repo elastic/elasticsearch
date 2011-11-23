@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -68,10 +69,12 @@ public class SearchContext implements Releasable {
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
+        QueryParseContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
         current.remove();
+        QueryParseContext.removeTypes();
     }
 
     public static SearchContext current() {
@@ -80,11 +83,11 @@ public class SearchContext implements Releasable {
 
     private final long id;
 
+    private final InternalSearchRequest request;
+
     private final SearchShardTarget shardTarget;
 
     private SearchType searchType;
-
-    private final int numberOfShards;
 
     private final Engine.Searcher engineSearcher;
 
@@ -102,10 +105,6 @@ public class SearchContext implements Releasable {
 
     private final FetchSearchResult fetchResult;
 
-    private final long nowInMillis;
-
-    private final TimeValue timeout;
-
     private float queryBoost = 1.0f;
 
 
@@ -122,8 +121,6 @@ public class SearchContext implements Releasable {
     private int from = -1;
 
     private int size = -1;
-
-    private String[] types;
 
     private Sort sort;
 
@@ -163,15 +160,12 @@ public class SearchContext implements Releasable {
 
     private Map<String, BlockJoinQuery> nestedQueries;
 
-    public SearchContext(long id, SearchShardTarget shardTarget, SearchType searchType, int numberOfShards, long nowInMillis, TimeValue timeout,
-                         String[] types, Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
+    public SearchContext(long id, InternalSearchRequest request, SearchShardTarget shardTarget,
+                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
         this.id = id;
-        this.nowInMillis = nowInMillis;
-        this.searchType = searchType;
+        this.request = request;
+        this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        this.numberOfShards = numberOfShards;
-        this.timeout = timeout;
-        this.types = types;
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
         this.dfsResult = new DfsSearchResult(id, shardTarget);
@@ -204,6 +198,10 @@ public class SearchContext implements Releasable {
         return this.id;
     }
 
+    public InternalSearchRequest request() {
+        return this.request;
+    }
+
     public SearchType searchType() {
         return this.searchType;
     }
@@ -218,15 +216,15 @@ public class SearchContext implements Releasable {
     }
 
     public int numberOfShards() {
-        return this.numberOfShards;
+        return request.numberOfShards();
     }
 
     public boolean hasTypes() {
-        return types != null && types.length > 0;
+        return request.types() != null && request.types().length > 0;
     }
 
     public String[] types() {
-        return types;
+        return request.types();
     }
 
     public float queryBoost() {
@@ -239,7 +237,7 @@ public class SearchContext implements Releasable {
     }
 
     public long nowInMillis() {
-        return nowInMillis;
+        return request.nowInMillis();
     }
 
     public Scroll scroll() {
@@ -320,7 +318,7 @@ public class SearchContext implements Releasable {
     }
 
     public TimeValue timeout() {
-        return timeout;
+        return request.timeout();
     }
 
     public SearchContext minimumScore(float minimumScore) {
@@ -536,18 +534,18 @@ public class SearchContext implements Releasable {
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return mapperService().smartName(name, types);
+        return mapperService().smartName(name, request.types());
     }
 
     public FieldMappers smartNameFieldMappers(String name) {
-        return mapperService().smartNameFieldMappers(name, types);
+        return mapperService().smartNameFieldMappers(name, request.types());
     }
 
     public FieldMapper smartNameFieldMapper(String name) {
-        return mapperService().smartNameFieldMapper(name, types);
+        return mapperService().smartNameFieldMapper(name, request.types());
     }
 
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
-        return mapperService().smartNameObjectMapper(name, types);
+        return mapperService().smartNameObjectMapper(name, request.types());
     }
 }

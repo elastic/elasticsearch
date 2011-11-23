@@ -635,7 +635,7 @@ public final class XContentBuilder {
             field(name, ((Byte) value).byteValue());
         } else if (type == Boolean.class) {
             field(name, ((Boolean) value).booleanValue());
-        } else if (type == Date.class) {
+        } else if (value instanceof Date) {
             field(name, (Date) value);
         } else if (type == byte[].class) {
             field(name, (byte[]) value);
@@ -686,7 +686,7 @@ public final class XContentBuilder {
             field(name, ((Byte) value).byteValue());
         } else if (type == Boolean.class) {
             field(name, ((Boolean) value).booleanValue());
-        } else if (type == Date.class) {
+        } else if (value instanceof Date) {
             field(name, (Date) value);
         } else if (type == byte[].class) {
             field(name, (byte[]) value);
@@ -736,7 +736,7 @@ public final class XContentBuilder {
             value((Boolean) value);
         } else if (type == byte[].class) {
             value((byte[]) value);
-        } else if (type == Date.class) {
+        } else if (value instanceof Date) {
             value((Date) value);
         } else if (value instanceof ReadableInstant) {
             value((ReadableInstant) value);

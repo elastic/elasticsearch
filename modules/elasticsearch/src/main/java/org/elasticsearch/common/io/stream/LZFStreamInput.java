@@ -20,8 +20,9 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.compress.lzf.BufferRecycler;
+import org.elasticsearch.common.compress.lzf.ChunkDecoder;
 import org.elasticsearch.common.compress.lzf.LZFChunk;
-import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.util.ChunkDecoderFactory;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -30,6 +31,14 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public class LZFStreamInput extends StreamInput {
+    /**
+     * Underlying decoder in use.
+     */
+    private final ChunkDecoder _decoder;
+
+    /**
+     * Object that handles details of buffer recycling
+     */
     private final BufferRecycler _recycler;
 
     /**
@@ -49,7 +58,7 @@ public class LZFStreamInput extends StreamInput {
      * but at least one). Default is false, meaning that 'optimal' read
      * is used.
      */
-    protected boolean cfgFullReads = true; // ES: ALWAYS TRUE since we need to throw EOF when doing readBytes
+    protected boolean _cfgFullReads = true; // ES: ALWAYS TRUE since we need to throw EOF when doing readBytes
 
     /* the current buffer of compressed bytes (from which to decode) */
     private byte[] _inputBuffer;
@@ -74,6 +83,7 @@ public class LZFStreamInput extends StreamInput {
         } else {
             _recycler = BufferRecycler.instance();
         }
+        _decoder = ChunkDecoderFactory.optimalInstance();
         inputStream = in;
         inputStreamClosed = false;
 
@@ -120,7 +130,7 @@ public class LZFStreamInput extends StreamInput {
         System.arraycopy(_decodedBytes, bufferPosition, buffer, offset, chunkLength);
         bufferPosition += chunkLength;
 
-        if (chunkLength == length || !cfgFullReads) {
+        if (chunkLength == length || !_cfgFullReads) {
             return chunkLength;
         }
         // Need more data, then
@@ -212,7 +222,7 @@ public class LZFStreamInput extends StreamInput {
         if (inputStreamClosed) {
             return false;
         }
-        bufferLength = LZFDecoder.decompressChunk(inputStream, _inputBuffer, _decodedBytes);
+        bufferLength = _decoder.decodeChunk(inputStream, _inputBuffer, _decodedBytes);
         if (bufferLength < 0) {
             return false;
         }

@@ -184,6 +184,16 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                     return null;
                 }
                 value = nullValue;
+            } else if (externalValue instanceof String) {
+                String sExternalValue = (String) externalValue;
+                if (sExternalValue.length() == 0) {
+                    if (nullValue == null) {
+                        return null;
+                    }
+                    value = nullValue;
+                } else {
+                    value = Float.parseFloat(sExternalValue);
+                }
             } else {
                 value = ((Number) externalValue).floatValue();
             }
@@ -192,7 +202,8 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             }
         } else {
             XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
+                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
                 if (nullValue == null) {
                     return null;
                 }

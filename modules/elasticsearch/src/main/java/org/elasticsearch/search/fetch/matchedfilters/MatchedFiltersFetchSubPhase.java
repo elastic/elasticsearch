@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch.matchedfilters;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchException;
@@ -27,9 +26,8 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.fetch.SearchHitPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -40,17 +38,24 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class MatchedFiltersSearchHitPhase implements SearchHitPhase {
+public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of();
     }
 
-    @Override public boolean executionNeeded(SearchContext context) {
+    @Override public boolean hitsExecutionNeeded(SearchContext context) {
+        return false;
+    }
+
+    @Override public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    }
+
+    @Override public boolean hitExecutionNeeded(SearchContext context) {
         return !context.parsedQuery().namedFilters().isEmpty();
     }
 
-    @Override public void execute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    @Override public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
         for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
             String name = entry.getKey();

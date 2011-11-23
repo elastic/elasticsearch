@@ -26,6 +26,7 @@ import org.elasticsearch.common.BytesHolder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.IndexCache;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.collect.Maps.*;
 
@@ -71,6 +73,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private final MeanMetric existsMetric = new MeanMetric();
     private final MeanMetric missingMetric = new MeanMetric();
+    private final CounterMetric currentMetric = new CounterMetric();
 
     @Inject public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
                                    MapperService mapperService, IndexCache indexCache) {
@@ -81,7 +84,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetStats stats() {
-        return new GetStats(existsMetric.count(), existsMetric.sum(), missingMetric.count(), missingMetric.sum());
+        return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()), currentMetric.count());
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -91,14 +94,19 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
-        long now = System.nanoTime();
-        GetResult getResult = innerGet(type, id, gFields, realtime);
-        if (getResult.exists()) {
-            existsMetric.inc(System.nanoTime() - now);
-        } else {
-            missingMetric.inc(System.nanoTime() - now);
+        currentMetric.inc();
+        try {
+            long now = System.nanoTime();
+            GetResult getResult = innerGet(type, id, gFields, realtime);
+            if (getResult.exists()) {
+                existsMetric.inc(System.nanoTime() - now);
+            } else {
+                missingMetric.inc(System.nanoTime() - now);
+            }
+            return getResult;
+        } finally {
+            currentMetric.dec();
         }
-        return getResult;
     }
 
     public GetResult innerGet(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
@@ -294,7 +302,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     searchLookup = new SearchLookup(mapperService, indexCache.fieldData());
                                     searchLookup.source().setNextSource(SourceLookup.sourceAsMap(source.source.bytes(), source.source.offset(), source.source.length()));
                                 }
+
+                                FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
                                 value = searchLookup.source().extractValue(field);
+                                if (x != null && value instanceof String) {
+                                    value = x.valueFromString((String)value);
+                                }
                             }
                         }
                         if (value != null) {

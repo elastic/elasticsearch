@@ -68,7 +68,7 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
                 equalTo(true));
     }
 
-    @Test public void testRecoverAfterMasterNodes() {
+    @Test public void testRecoverAfterMasterNodes() throws Exception {
         logger.info("--> start master_node (1)");
         startNode("master1", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
@@ -98,6 +98,7 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
 
         logger.info("--> start master_node (2)");
         startNode("master2", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
+        Thread.sleep(300);
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .state().blocks().global(ClusterBlockLevel.METADATA).isEmpty(),
                 equalTo(true));

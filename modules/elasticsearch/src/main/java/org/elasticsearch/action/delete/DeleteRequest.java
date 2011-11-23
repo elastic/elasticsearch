@@ -185,7 +185,11 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
      * and not the id.
      */
     public DeleteRequest routing(String routing) {
-        this.routing = routing;
+        if (routing != null && routing.length() == 0) {
+            this.routing = null;
+        } else {
+            this.routing = routing;
+        }
         return this;
     }
 

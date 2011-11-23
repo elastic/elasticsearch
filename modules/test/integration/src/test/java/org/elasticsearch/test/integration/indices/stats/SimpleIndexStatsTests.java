@@ -88,6 +88,12 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.index("test2").primaries().docs().count(), equalTo(1l));
         assertThat(stats.index("test2").total().docs().count(), equalTo(2l));
 
+        // make sure that number of requests in progress is 0
+        assertThat(stats.index("test1").total().indexing().total().indexCurrent(), equalTo(0l));
+        assertThat(stats.index("test1").total().indexing().total().deleteCurrent(), equalTo(0l));
+        assertThat(stats.index("test1").total().search().total().fetchCurrent(), equalTo(0l));
+        assertThat(stats.index("test1").total().search().total().queryCurrent(), equalTo(0l));
+
         // check flags
         stats = client.admin().indices().prepareStats()
                 .setDocs(false)
@@ -110,6 +116,8 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.primaries().indexing().typeStats().get("type1").indexCount(), equalTo(1l));
         assertThat(stats.primaries().indexing().typeStats().get("type").indexCount(), equalTo(1l));
         assertThat(stats.primaries().indexing().typeStats().get("type2"), nullValue());
+        assertThat(stats.primaries().indexing().typeStats().get("type1").indexCurrent(), equalTo(0l));
+        assertThat(stats.primaries().indexing().typeStats().get("type1").deleteCurrent(), equalTo(0l));
 
         assertThat(stats.total().get().count(), equalTo(0l));
         // check get

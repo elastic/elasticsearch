@@ -39,6 +39,17 @@ public class LZFStreamOutput extends StreamOutput {
     protected byte[] _outputBuffer;
     protected int _position = 0;
 
+
+    /**
+     * Configuration setting that governs whether basic 'flush()' should
+     * first complete a block or not.
+     * <p>
+     * Default value is 'true'
+     *
+     * @since 0.8
+     */
+    protected boolean _cfgFinishBlockOnFlush = true;
+
     private final boolean neverClose;
 
     public LZFStreamOutput(StreamOutput out, boolean neverClose) {
@@ -64,6 +75,10 @@ public class LZFStreamOutput extends StreamOutput {
     }
 
     @Override public void writeBytes(byte[] buffer, int offset, int length) throws IOException {
+        // ES, check if length is 0, and don't write in this case
+        if (length == 0) {
+            return;
+        }
         final int BUFFER_LEN = _outputBuffer.length;
 
         // simple case first: buffering only (for trivially short writes)
@@ -96,7 +111,7 @@ public class LZFStreamOutput extends StreamOutput {
 
     @Override
     public void flush() throws IOException {
-        if (_position > 0) {
+        if (_cfgFinishBlockOnFlush && _position > 0) {
             writeCompressedBlock();
         }
         _outputStream.flush();
@@ -104,19 +119,22 @@ public class LZFStreamOutput extends StreamOutput {
 
     @Override
     public void close() throws IOException {
-        flush();
+        if (_position > 0) {
+            writeCompressedBlock();
+        }
         if (neverClose) {
             // just reset here the LZF stream (not the underlying stream, since we might want to read from it)
             _position = 0;
             return;
         }
-        _outputStream.close();
+        _outputStream.flush();
         _encoder.close();
         byte[] buf = _outputBuffer;
         if (buf != null) {
             _outputBuffer = null;
             _recycler.releaseOutputBuffer(buf);
         }
+        _outputStream.close();
     }
 
     @Override public void reset() throws IOException {
@@ -143,7 +161,7 @@ public class LZFStreamOutput extends StreamOutput {
 
         do {
             int chunkLen = Math.min(LZFChunk.MAX_CHUNK_LEN, left);
-            _encoder.encodeAndWriteChunk(_outputBuffer, 0, chunkLen, _outputStream);
+            _encoder.encodeAndWriteChunk(_outputBuffer, offset, chunkLen, _outputStream);
             offset += chunkLen;
             left -= chunkLen;
         } while (left > 0);

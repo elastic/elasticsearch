@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
@@ -305,8 +306,16 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (defaultMapper != null) {
             defaultMapper.toXContent(builder, params);
         }
-        for (Mapper mapper : mappers.values()) {
-            mapper.toXContent(builder, params);
+        if (mappers.size() <= 1) {
+            for (Mapper mapper : mappers.values()) {
+                mapper.toXContent(builder, params);
+            }
+        } else {
+            // sort the mappers (by name) if there is more than one mapping
+            TreeMap<String, Mapper> sortedMappers = new TreeMap<String, Mapper>(mappers);
+            for (Mapper mapper : sortedMappers.values()) {
+                mapper.toXContent(builder, params);
+            }
         }
         builder.endObject();
 

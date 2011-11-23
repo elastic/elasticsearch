@@ -20,7 +20,7 @@ import java.io.OutputStream;
  * is only used if it actually reduces chunk size (including overhead
  * of additional header bytes)
  *
- * @author tatu@ning.com
+ * @author Tatu Saloranta (tatu@ning.com)
  */
 public class ChunkEncoder {
     // Beyond certain point we won't be able to compress; let's use 16 bytes as cut-off
@@ -38,6 +38,10 @@ public class ChunkEncoder {
 
     private final BufferRecycler _recycler;
 
+    /**
+     * Hash table contains lookup based on 3-byte sequence; key is hash
+     * of such triplet, value is offset in buffer.
+     */
     private int[] _hashTable;
 
     private final int _hashModulo;
@@ -78,7 +82,7 @@ public class ChunkEncoder {
 
     /**
      * Method to close once encoder is no longer in use. Note: after calling
-     * this method, further calls to {@link #_encodeChunk} will fail
+     * this method, further calls to {@link #encodeChunk} will fail
      */
     public void close() {
         byte[] buf = _encodeBuffer;
@@ -177,7 +181,7 @@ public class ChunkEncoder {
     private int tryCompress(byte[] in, int inPos, int inEnd, byte[] out, int outPos) {
         final int[] hashTable = _hashTable;
         ++outPos;
-        int hash = first(in, 0);
+        int seen = first(in, 0); // past 4 bytes we have seen... (last one is LSB)
         int literals = 0;
         inEnd -= 4;
         final int firstPos = inPos; // so that we won't have back references across block boundary
@@ -185,18 +189,18 @@ public class ChunkEncoder {
         while (inPos < inEnd) {
             byte p2 = in[inPos + 2];
             // next
-            hash = (hash << 8) + (p2 & 255);
-            int off = hash(hash);
+            seen = (seen << 8) + (p2 & 255);
+            int off = hash(seen);
             int ref = hashTable[off];
             hashTable[off] = inPos;
 
             // First expected common case: no back-ref (for whatever reason)
             if (ref >= inPos // can't refer forward (i.e. leftovers)
                     || ref < firstPos // or to previous block
-                    || (off = inPos - ref - 1) >= MAX_OFF
+                    || (off = inPos - ref) > MAX_OFF
                     || in[ref + 2] != p2 // must match hash
-                    || in[ref + 1] != (byte) (hash >> 8)
-                    || in[ref] != (byte) (hash >> 16)) {
+                    || in[ref + 1] != (byte) (seen >> 8)
+                    || in[ref] != (byte) (seen >> 16)) {
                 out[outPos++] = in[inPos++];
                 literals++;
                 if (literals == LZFChunk.MAX_LITERAL) {
@@ -222,6 +226,7 @@ public class ChunkEncoder {
                 len++;
             }
             len -= 2;
+            --off; // was off by one earlier
             if (len < 7) {
                 out[outPos++] = (byte) ((off >> 8) + (len << 5));
             } else {
@@ -231,19 +236,20 @@ public class ChunkEncoder {
             out[outPos++] = (byte) off;
             outPos++;
             inPos += len;
-            hash = first(in, inPos);
-            hash = (hash << 8) + (in[inPos + 2] & 255);
-            hashTable[hash(hash)] = inPos++;
-            hash = (hash << 8) + (in[inPos + 2] & 255); // hash = next(hash, in, inPos);
-            hashTable[hash(hash)] = inPos++;
+            seen = first(in, inPos);
+            seen = (seen << 8) + (in[inPos + 2] & 255);
+            hashTable[hash(seen)] = inPos;
+            ++inPos;
+            seen = (seen << 8) + (in[inPos + 2] & 255); // hash = next(hash, in, inPos);
+            hashTable[hash(seen)] = inPos;
+            ++inPos;
         }
-        inEnd += 4;
         // try offlining the tail
-        return tryCompressTail(in, inPos, inEnd, out, outPos, literals);
+        return handleTail(in, inPos, inEnd + 4, out, outPos, literals);
     }
 
-    private int tryCompressTail(byte[] in, int inPos, int inEnd, byte[] out, int outPos,
-                                int literals) {
+    private int handleTail(byte[] in, int inPos, int inEnd, byte[] out, int outPos,
+                           int literals) {
         while (inPos < inEnd) {
             out[outPos++] = in[inPos++];
             literals++;

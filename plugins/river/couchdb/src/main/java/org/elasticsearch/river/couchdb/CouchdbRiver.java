@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -44,6 +45,9 @@ import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,6 +56,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -70,12 +75,14 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
     private final String riverIndexName;
 
+    private final String couchProtocol;
     private final String couchHost;
     private final int couchPort;
     private final String couchDb;
     private final String couchFilter;
     private final String couchFilterParamsUrl;
     private final String basicAuth;
+    private final boolean noVerify;
     private final boolean couchIgnoreAttachments;
 
     private final String indexName;
@@ -100,6 +107,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
         if (settings.settings().containsKey("couchdb")) {
             Map<String, Object> couchSettings = (Map<String, Object>) settings.settings().get("couchdb");
+            couchProtocol = XContentMapValues.nodeStringValue(couchSettings.get("protocol"), "http");
+            noVerify = XContentMapValues.nodeBooleanValue(couchSettings.get("no_verify"), false);
             couchHost = XContentMapValues.nodeStringValue(couchSettings.get("host"), "localhost");
             couchPort = XContentMapValues.nodeIntegerValue(couchSettings.get("port"), 5984);
             couchDb = XContentMapValues.nodeStringValue(couchSettings.get("db"), riverName.name());
@@ -133,12 +142,14 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 script = null;
             }
         } else {
+            couchProtocol = "http";
             couchHost = "localhost";
             couchPort = 5984;
             couchDb = "db";
             couchFilter = null;
             couchFilterParamsUrl = null;
             couchIgnoreAttachments = false;
+            noVerify = false;
             basicAuth = null;
             script = null;
         }
@@ -201,7 +212,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
     }
 
     @SuppressWarnings({"unchecked"})
-    private String processLine(String s, BulkRequestBuilder bulk) {
+    private Object processLine(String s, BulkRequestBuilder bulk) {
         Map<String, Object> ctx;
         try {
             ctx = XContentFactory.xContent(XContentType.JSON).createParser(s).mapAndClose();
@@ -213,7 +224,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
             logger.warn("received error {}", s);
             return null;
         }
-        String seq = ctx.get("seq").toString();
+        Object seq = ctx.get("seq");
         String id = ctx.get("id").toString();
 
         // Ignore design documents
@@ -310,8 +321,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     continue;
                 }
                 BulkRequestBuilder bulk = client.prepareBulk();
-                String lastSeq = null;
-                String lineSeq = processLine(s, bulk);
+                Object lastSeq = null;
+                Object lineSeq = processLine(s, bulk);
                 if (lineSeq != null) {
                     lastSeq = lineSeq;
                 }
@@ -336,11 +347,29 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
                 if (lastSeq != null) {
                     try {
+                        // we always store it as a string
+                        String lastSeqAsString = null;
+                        if (lastSeq instanceof List) {
+                            // bigcouch uses array for the seq
+                            try {
+                                XContentBuilder builder = XContentFactory.jsonBuilder();
+                                builder.startObject();
+                                for (Object value : ((List) lastSeq)) {
+                                    builder.value(value);
+                                }
+                                builder.endObject();
+                                lastSeqAsString = builder.string();
+                            } catch (Exception e) {
+                                logger.error("failed to convert last_seq to a json string", e);
+                            }
+                        } else {
+                            lastSeqAsString = lastSeq.toString();
+                        }
                         if (logger.isTraceEnabled()) {
-                            logger.trace("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeq);
+                            logger.trace("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeqAsString);
                         }
                         bulk.add(indexRequest(riverIndexName).type(riverName.name()).id("_seq")
-                                .source(jsonBuilder().startObject().startObject("couchdb").field("last_seq", lastSeq).endObject().endObject()));
+                                .source(jsonBuilder().startObject().startObject("couchdb").field("last_seq", lastSeqAsString).endObject().endObject()));
                     } catch (IOException e) {
                         logger.warn("failed to add last_seq entry to bulk indexing");
                     }
@@ -376,7 +405,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     if (lastSeqGetResponse.exists()) {
                         Map<String, Object> couchdbState = (Map<String, Object>) lastSeqGetResponse.sourceAsMap().get("couchdb");
                         if (couchdbState != null) {
-                            lastSeq = couchdbState.get("last_seq").toString();
+                            lastSeq = couchdbState.get("last_seq").toString(); // we know its always a string
                         }
                     }
                 } catch (Exception e) {
@@ -404,7 +433,12 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 }
 
                 if (lastSeq != null) {
-                    file = file + "&since=" + lastSeq;
+                    try {
+                        file = file + "&since=" + URLEncoder.encode(lastSeq, "UTF-8");
+                    } catch (UnsupportedEncodingException e) {
+                        // should not happen, but in any case...
+                        file = file + "&since=" + lastSeq;
+                    }
                 }
 
                 if (logger.isDebugEnabled()) {
@@ -414,13 +448,24 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 HttpURLConnection connection = null;
                 InputStream is = null;
                 try {
-                    URL url = new URL("http", couchHost, couchPort, file);
+                    URL url = new URL(couchProtocol, couchHost, couchPort, file);
                     connection = (HttpURLConnection) url.openConnection();
                     if (basicAuth != null) {
                         connection.addRequestProperty("Authorization", basicAuth);
                     }
                     connection.setDoInput(true);
                     connection.setUseCaches(false);
+
+                    if (noVerify) {
+                        ((HttpsURLConnection) connection).setHostnameVerifier(
+                                new HostnameVerifier() {
+                                    public boolean verify(String string, SSLSession ssls) {
+                                        return true;
+                                    }
+                                }
+                        );
+                    }
+
                     is = connection.getInputStream();
 
                     final BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));

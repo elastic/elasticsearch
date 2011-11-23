@@ -22,8 +22,10 @@ package org.elasticsearch.index.search.stats;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,12 +39,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShardSearchService extends AbstractIndexShardComponent {
 
+    private final ShardSlowLogSearchService slowLogSearchService;
+
     private final StatsHolder totalStats = new StatsHolder();
 
     private volatile Map<String, StatsHolder> groupsStats = ImmutableMap.of();
 
-    @Inject public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogSearchService slowLogSearchService) {
         super(shardId, indexSettings);
+        this.slowLogSearchService = slowLogSearchService;
     }
 
     /**
@@ -72,28 +77,82 @@ public class ShardSearchService extends AbstractIndexShardComponent {
         return new SearchStats(total, groupsSt);
     }
 
-    public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        totalStats.queryMetric.inc(tookInNanos);
+    public void onPreQueryPhase(SearchContext searchContext) {
+        totalStats.queryCurrent.inc();
         if (searchContext.groupStats() != null) {
             for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                groupStats(searchContext.groupStats().get(i)).queryMetric.inc(tookInNanos);
+                groupStats(searchContext.groupStats().get(i)).queryCurrent.inc();
             }
         }
     }
 
-    public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        totalStats.fetchMetric.inc(tookInNanos);
+    public void onFailedQueryPhase(SearchContext searchContext) {
+        totalStats.queryCurrent.dec();
         if (searchContext.groupStats() != null) {
             for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                groupStats(searchContext.groupStats().get(i)).fetchMetric.inc(tookInNanos);
+                groupStats(searchContext.groupStats().get(i)).queryCurrent.dec();
             }
         }
+    }
+
+    public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
+        totalStats.queryMetric.inc(tookInNanos);
+        totalStats.queryCurrent.dec();
+        if (searchContext.groupStats() != null) {
+            for (int i = 0; i < searchContext.groupStats().size(); i++) {
+                StatsHolder statsHolder = groupStats(searchContext.groupStats().get(i));
+                statsHolder.queryMetric.inc(tookInNanos);
+                statsHolder.queryCurrent.dec();
+            }
+        }
+        slowLogSearchService.onQueryPhase(searchContext, tookInNanos);
+    }
+
+    public void onPreFetchPhase(SearchContext searchContext) {
+        totalStats.fetchCurrent.inc();
+        if (searchContext.groupStats() != null) {
+            for (int i = 0; i < searchContext.groupStats().size(); i++) {
+                groupStats(searchContext.groupStats().get(i)).fetchCurrent.inc();
+            }
+        }
+    }
+
+    public void onFailedFetchPhase(SearchContext searchContext) {
+        totalStats.fetchCurrent.dec();
+        if (searchContext.groupStats() != null) {
+            for (int i = 0; i < searchContext.groupStats().size(); i++) {
+                groupStats(searchContext.groupStats().get(i)).fetchCurrent.dec();
+            }
+        }
+    }
+
+
+    public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
+        totalStats.fetchMetric.inc(tookInNanos);
+        totalStats.fetchCurrent.dec();
+        if (searchContext.groupStats() != null) {
+            for (int i = 0; i < searchContext.groupStats().size(); i++) {
+                StatsHolder statsHolder = groupStats(searchContext.groupStats().get(i));
+                statsHolder.fetchMetric.inc(tookInNanos);
+                statsHolder.fetchCurrent.dec();
+            }
+        }
+        slowLogSearchService.onFetchPhase(searchContext, tookInNanos);
     }
 
     public void clear() {
         totalStats.clear();
         synchronized (this) {
-            groupsStats = ImmutableMap.of();
+            if (!groupsStats.isEmpty()) {
+                MapBuilder<String, StatsHolder> typesStatsBuilder = MapBuilder.newMapBuilder();
+                for (Map.Entry<String, StatsHolder> typeStats : groupsStats.entrySet()) {
+                    if (typeStats.getValue().totalCurrent() > 0) {
+                        typeStats.getValue().clear();
+                        typesStatsBuilder.put(typeStats.getKey(), typeStats.getValue());
+                    }
+                }
+                groupsStats = typesStatsBuilder.immutableMap();
+            }
         }
     }
 
@@ -114,11 +173,17 @@ public class ShardSearchService extends AbstractIndexShardComponent {
     static class StatsHolder {
         public final MeanMetric queryMetric = new MeanMetric();
         public final MeanMetric fetchMetric = new MeanMetric();
+        public final CounterMetric queryCurrent = new CounterMetric();
+        public final CounterMetric fetchCurrent = new CounterMetric();
 
         public SearchStats.Stats stats() {
             return new SearchStats.Stats(
-                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
-                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()));
+                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
+                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count());
+        }
+
+        public long totalCurrent() {
+            return queryCurrent.count() + fetchCurrent.count();
         }
 
         public void clear() {

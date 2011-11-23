@@ -45,6 +45,9 @@ import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,9 +61,6 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
@@ -347,11 +347,29 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
                 if (lastSeq != null) {
                     try {
+                        // we always store it as a string
+                        String lastSeqAsString = null;
+                        if (lastSeq instanceof List) {
+                            // bigcouch uses array for the seq
+                            try {
+                                XContentBuilder builder = XContentFactory.jsonBuilder();
+                                builder.startObject();
+                                for (Object value : ((List) lastSeq)) {
+                                    builder.value(value);
+                                }
+                                builder.endObject();
+                                lastSeqAsString = builder.string();
+                            } catch (Exception e) {
+                                logger.error("failed to convert last_seq to a json string", e);
+                            }
+                        } else {
+                            lastSeqAsString = lastSeq.toString();
+                        }
                         if (logger.isTraceEnabled()) {
-                            logger.trace("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeq);
+                            logger.trace("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeqAsString);
                         }
                         bulk.add(indexRequest(riverIndexName).type(riverName.name()).id("_seq")
-                                .source(jsonBuilder().startObject().startObject("couchdb").field("last_seq", lastSeq).endObject().endObject()));
+                                .source(jsonBuilder().startObject().startObject("couchdb").field("last_seq", lastSeqAsString).endObject().endObject()));
                     } catch (IOException e) {
                         logger.warn("failed to add last_seq entry to bulk indexing");
                     }
@@ -380,14 +398,14 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     return;
                 }
 
-                Object lastSeq = null;
+                String lastSeq = null;
                 try {
                     client.admin().indices().prepareRefresh(riverIndexName).execute().actionGet();
                     GetResponse lastSeqGetResponse = client.prepareGet(riverIndexName, riverName().name(), "_seq").execute().actionGet();
                     if (lastSeqGetResponse.exists()) {
                         Map<String, Object> couchdbState = (Map<String, Object>) lastSeqGetResponse.sourceAsMap().get("couchdb");
                         if (couchdbState != null) {
-                            lastSeq = couchdbState.get("last_seq");
+                            lastSeq = couchdbState.get("last_seq").toString(); // we know its always a string
                         }
                     }
                 } catch (Exception e) {
@@ -415,28 +433,11 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 }
 
                 if (lastSeq != null) {
-                    String lastSeqAsString = null;
-                    if (lastSeq instanceof List) {
-                        // bigcouch uses array for the seq
-                        try {
-                            XContentBuilder builder = XContentFactory.jsonBuilder();
-                            builder.startObject();
-                            for (Object value : ((List) lastSeq)) {
-                                builder.value(value);
-                            }
-                            builder.endObject();
-                            lastSeqAsString = builder.string();
-                        } catch (Exception e) {
-                            logger.error("failed to convert last_seq to a json string", e);
-                        }
-                    } else {
-                        lastSeqAsString = lastSeq.toString();
-                    }
                     try {
-                        file = file + "&since=" + URLEncoder.encode(lastSeqAsString, "UTF-8");
+                        file = file + "&since=" + URLEncoder.encode(lastSeq, "UTF-8");
                     } catch (UnsupportedEncodingException e) {
                         // should not happen, but in any case...
-                        file = file + "&since=" + lastSeqAsString;
+                        file = file + "&since=" + lastSeq;
                     }
                 }
 
@@ -456,13 +457,13 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     connection.setUseCaches(false);
 
                     if (noVerify) {
-                      ((HttpsURLConnection)connection).setHostnameVerifier(
-                          new HostnameVerifier(){
-                              public boolean verify(String string, SSLSession ssls) {
-                                  return true;
-                              }
-                          }
-                      );
+                        ((HttpsURLConnection) connection).setHostnameVerifier(
+                                new HostnameVerifier() {
+                                    public boolean verify(String string, SSLSession ssls) {
+                                        return true;
+                                    }
+                                }
+                        );
                     }
 
                     is = connection.getInputStream();

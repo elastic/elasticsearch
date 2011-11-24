@@ -28,8 +28,8 @@ public class ChunkDecoderFactory {
         if (impl == null) {
             impl = VanillaChunkDecoder.class;
         }
-        // ES: Because of this: https://github.com/ning/compress/issues/13, disable the optimized by default
-        if (!Booleans.parseBoolean(System.getProperty("compress.lzf.decoder.optimized"), false)) {
+        // ES: Seems like: https://github.com/ning/compress/issues/13, is fixed, so enable by defualt, but only from 0.19
+        if (!Booleans.parseBoolean(System.getProperty("compress.lzf.decoder.optimized"), true)) {
             impl = VanillaChunkDecoder.class;
         }
         _instance = new ChunkDecoderFactory(impl);

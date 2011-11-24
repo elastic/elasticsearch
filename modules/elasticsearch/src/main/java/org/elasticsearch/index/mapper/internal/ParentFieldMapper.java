@@ -22,6 +22,11 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.PublicTermsFilter;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +39,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -172,6 +178,32 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return Uid.createUid(type, value);
         }
         return value;
+    }
+
+    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        if (context == null) {
+            return super.fieldQuery(value, context);
+        }
+        return new ConstantScoreQuery(fieldFilter(value, context));
+    }
+
+    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        if (context == null) {
+            return super.fieldFilter(value, context);
+        }
+        // we use all types, cause we don't know if its exact or not...
+        PublicTermsFilter filter = new PublicTermsFilter();
+        for (String type : context.mapperService().types()) {
+            filter.addTerm(names.createIndexNameTerm(Uid.createUid(type, value)));
+        }
+        return filter;
+    }
+
+    /**
+     * We don't need to analyzer the text, and we need to convert it to UID...
+     */
+    @Override public boolean useFieldQueryWithQueryString() {
+        return true;
     }
 
     public Term term(String type, String id) {

@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeFilter;
 import org.apache.lucene.search.TermRangeQuery;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -342,8 +343,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         return false;
     }
 
-    @Override public Query fieldQuery(String value, QueryParseContext context) {
+    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
         return new TermQuery(names().createIndexNameTerm(indexedValue(value)));
+    }
+
+    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        return new TermFilter(names().createIndexNameTerm(indexedValue(value)));
     }
 
     @Override public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
@@ -352,10 +357,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
         return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
-    }
-
-    @Override public Filter fieldFilter(String value) {
-        return new TermFilter(names().createIndexNameTerm(indexedValue(value)));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

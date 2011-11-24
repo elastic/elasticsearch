@@ -156,7 +156,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * Numeric field level query are basically range queries with same value and included. That's the recommended
      * way to execute it.
      */
-    @Override public Query fieldQuery(String value, QueryParseContext context) {
+    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
         return rangeQuery(value, value, true, true);
     }
 
@@ -168,7 +168,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * Numeric field level filter are basically range queries with same value and included. That's the recommended
      * way to execute it.
      */
-    @Override public Filter fieldFilter(String value) {
+    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
         return rangeFilter(value, value, true, true);
     }
 

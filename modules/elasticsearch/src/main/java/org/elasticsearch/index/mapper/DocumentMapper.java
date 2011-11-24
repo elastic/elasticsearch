@@ -282,7 +282,7 @@ public class DocumentMapper implements ToXContent {
         this.indexAnalyzer = indexAnalyzer;
         this.searchAnalyzer = searchAnalyzer;
 
-        this.typeFilter = typeMapper().fieldFilter(type);
+        this.typeFilter = typeMapper().fieldFilter(type, null);
 
         if (rootMapper(ParentFieldMapper.class) != null) {
             // mark the routing field mapper as required

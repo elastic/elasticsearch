@@ -85,7 +85,7 @@ public class TermFilterParser implements FilterParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().fieldFilter(value);
+                filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
             }
         }
         if (filter == null) {

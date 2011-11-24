@@ -101,7 +101,7 @@ public class CachedStreamOutput {
 
     private static final SoftWrapper<Queue<Entry>> cache = new SoftWrapper<Queue<Entry>>();
     private static final AtomicInteger counter = new AtomicInteger();
-    public static int BYTES_LIMIT = 10 * 1024 * 1024; // don't cache entries that are bigger than that...
+    public static int BYTES_LIMIT = 1 * 1024 * 1024; // don't cache entries that are bigger than that...
     public static int COUNT_LIMIT = 100;
 
     public static void clear() {

@@ -218,7 +218,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
-                pipeline.addLast("decoder", new SizeHeaderFrameDecoder());
                 pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
                 return pipeline;
             }
@@ -261,7 +260,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("openChannels", serverOpenChannels);
-                pipeline.addLast("decoder", new SizeHeaderFrameDecoder());
                 pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
                 return pipeline;
             }

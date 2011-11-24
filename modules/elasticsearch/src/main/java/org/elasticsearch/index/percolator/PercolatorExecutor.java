@@ -33,15 +33,20 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.IndexCache;
@@ -216,7 +221,15 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     public Query parseQuery(String name, byte[] source, int sourceOffset, int sourceLength) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
+            if (LZF.isCompressed(source, sourceOffset, sourceLength)) {
+                BytesStreamInput siBytes = new BytesStreamInput(source, sourceOffset, sourceLength);
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                XContentType contentType = XContentFactory.xContentType(siLzf);
+                siLzf.resetToBufferStart();
+                parser = XContentFactory.xContent(contentType).createParser(siLzf);
+            } else {
+                parser = XContentFactory.xContent(source, sourceOffset, sourceLength).createParser(source, sourceOffset, sourceLength);
+            }
             Query query = null;
             String currentFieldName = null;
             XContentParser.Token token;

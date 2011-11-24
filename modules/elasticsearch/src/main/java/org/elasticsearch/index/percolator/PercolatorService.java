@@ -253,14 +253,14 @@ public class PercolatorService extends AbstractIndexComponent {
 
         @Override public Engine.Create preCreate(Engine.Create create) {
             if (create.type().equals(index().name())) {
-                percolator.addQuery(create.id(), create.source());
+                percolator.addQuery(create.id(), create.source(), create.sourceOffset(), create.sourceLength());
             }
             return create;
         }
 
         @Override public Engine.Index preIndex(Engine.Index index) {
             if (index.type().equals(index().name())) {
-                percolator.addQuery(index.id(), index.source());
+                percolator.addQuery(index.id(), index.source(), index.sourceOffset(), index.sourceLength());
             }
             return index;
         }

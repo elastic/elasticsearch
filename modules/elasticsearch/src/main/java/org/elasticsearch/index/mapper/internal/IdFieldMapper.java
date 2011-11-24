@@ -22,7 +22,12 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,6 +39,8 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.search.UidFilter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -143,6 +150,26 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override public String indexedValue(String value) {
         return value;
+    }
+
+    @Override public boolean useFieldQueryWithQueryString() {
+        return true;
+    }
+
+    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        if (indexed() || context == null) {
+            return super.fieldQuery(value, context);
+        }
+        UidFilter filter = new UidFilter(context.mapperService().types(), ImmutableList.of(value), context.indexCache().bloomCache());
+        // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
+        return new ConstantScoreQuery(filter);
+    }
+
+    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
+        if (indexed() || context == null) {
+            return super.fieldFilter(value, context);
+        }
+        return new UidFilter(context.mapperService().types(), ImmutableList.of(value), context.indexCache().bloomCache());
     }
 
     @Override public void preParse(ParseContext context) throws IOException {

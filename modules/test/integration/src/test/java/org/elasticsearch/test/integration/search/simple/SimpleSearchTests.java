@@ -72,6 +72,19 @@ public class SimpleSearchTests extends AbstractNodesTests {
         assertThat(search.hits().totalHits(), equalTo(1l));
     }
 
+    @Test public void simpleIdTests() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        // id is not indexed, but lets see that we automatically convert to
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.termQuery("_id", "1")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+
     @Test public void simpleDateRangeWithUpperInclusiveEnabledTests() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();

@@ -25,6 +25,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.field.data.FieldDataType;
@@ -156,7 +157,7 @@ public interface FieldMapper<T> {
     /**
      * A field query for the specified value.
      */
-    Query fieldQuery(String value, QueryParseContext context);
+    Query fieldQuery(String value, @Nullable QueryParseContext context);
 
     Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
 
@@ -167,7 +168,7 @@ public interface FieldMapper<T> {
      */
     Query queryStringTermQuery(Term term);
 
-    Filter fieldFilter(String value);
+    Filter fieldFilter(String value, @Nullable QueryParseContext context);
 
     /**
      * Constructs a range query based on the mapper.

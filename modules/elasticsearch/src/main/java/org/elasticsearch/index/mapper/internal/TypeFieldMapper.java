@@ -27,6 +27,7 @@ import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -132,15 +133,15 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         return names().createIndexNameTerm(value);
     }
 
-    @Override public Filter fieldFilter(String value) {
+    @Override public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
         if (index == Field.Index.NO) {
             return new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.typePrefix(value)));
         }
         return new TermFilter(names().createIndexNameTerm(value));
     }
 
-    @Override public Query fieldQuery(String value, QueryParseContext context) {
-        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value), null));
+    @Override public Query fieldQuery(String value, @Nullable QueryParseContext context) {
+        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value, context), null));
     }
 
     @Override public boolean useFieldQueryWithQueryString() {

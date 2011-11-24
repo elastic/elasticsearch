@@ -353,11 +353,13 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                             // bigcouch uses array for the seq
                             try {
                                 XContentBuilder builder = XContentFactory.jsonBuilder();
-                                builder.startObject();
+                                //builder.startObject();
+                                builder.startArray();
                                 for (Object value : ((List) lastSeq)) {
                                     builder.value(value);
                                 }
-                                builder.endObject();
+                                builder.endArray();
+                                //builder.endObject();
                                 lastSeqAsString = builder.string();
                             } catch (Exception e) {
                                 logger.error("failed to convert last_seq to a json string", e);

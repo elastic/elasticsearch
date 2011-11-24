@@ -20,6 +20,7 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
@@ -173,9 +174,9 @@ public class PercolatorService extends AbstractIndexComponent {
             // the _source is the query
             Document document = reader.document(doc, new UidAndSourceFieldSelector());
             String id = Uid.createUid(document.get(UidFieldMapper.NAME)).id();
-            byte[] source = document.getBinaryValue(SourceFieldMapper.NAME);
             try {
-                queries.put(id, percolator.parseQuery(id, source, 0, source.length));
+                Fieldable sourceField = document.getFieldable(SourceFieldMapper.NAME);
+                queries.put(id, percolator.parseQuery(id, sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength()));
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }

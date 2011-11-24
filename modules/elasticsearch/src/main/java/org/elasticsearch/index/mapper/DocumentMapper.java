@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -132,7 +133,7 @@ public class DocumentMapper implements ToXContent {
 
     public static class Builder {
 
-        private Map<Class<? extends RootMapper>, RootMapper> rootMappers = Maps.newHashMap();
+        private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<Class<? extends RootMapper>, RootMapper>();
 
         private NamedAnalyzer indexAnalyzer;
 
@@ -161,13 +162,13 @@ public class DocumentMapper implements ToXContent {
                 }
             }
             this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
-            // add default mappers
+            // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper());
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper());
             this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper());
-            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
             this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
+            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper());
             this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper());

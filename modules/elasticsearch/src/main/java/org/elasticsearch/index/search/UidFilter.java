@@ -33,19 +33,20 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class UidFilter extends Filter {
 
-    private final List<Term> uids;
+    private final Set<Term> uids;
 
     private final BloomCache bloomCache;
 
     public UidFilter(Collection<String> types, List<String> ids, BloomCache bloomCache) {
         this.bloomCache = bloomCache;
-        this.uids = new ArrayList<Term>(types.size() * ids.size());
+        this.uids = new TreeSet<Term>();
         for (String type : types) {
             for (String id : ids) {
                 uids.add(UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id)));

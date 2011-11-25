@@ -495,7 +495,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 dynamic = context.root().dynamic();
             }
             if (dynamic == Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(currentFieldName);
+                throw new StrictDynamicMappingException(fullPath, currentFieldName);
             } else if (dynamic == Dynamic.TRUE) {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
@@ -582,7 +582,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             dynamic = context.root().dynamic();
         }
         if (dynamic == Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(currentFieldName);
+            throw new StrictDynamicMappingException(fullPath, currentFieldName);
         }
         if (dynamic == Dynamic.FALSE) {
             return;

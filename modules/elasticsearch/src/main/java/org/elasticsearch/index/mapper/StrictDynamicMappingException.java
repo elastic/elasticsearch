@@ -22,12 +22,11 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- * @author kimchy (shay.banon)
  */
 public class StrictDynamicMappingException extends MapperException {
 
-    public StrictDynamicMappingException(String fieldName) {
-        super("mapping set to strict, dynamic introduction of [" + fieldName + "] is not allowed");
+    public StrictDynamicMappingException(String path, String fieldName) {
+        super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
     }
 
     @Override public RestStatus status() {

@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.pt.PortugueseLightStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
+import org.apache.lucene.analysis.el.GreekStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -141,6 +142,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SpanishLightStemFilter(tokenStream);
         } else if ("light_swedish".equalsIgnoreCase(language) || "lightSwedish".equalsIgnoreCase(language)) {
             return new SpanishLightStemFilter(tokenStream);
+        } else if ("greek".equalsIgnoreCase(language)) {
+            return new GreekStemFilter(tokenStream);
         }
         return new SnowballFilter(tokenStream, language);
     }

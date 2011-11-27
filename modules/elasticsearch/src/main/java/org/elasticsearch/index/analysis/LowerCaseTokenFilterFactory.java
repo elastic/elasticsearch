@@ -21,6 +21,9 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.el.GreekLowerCaseFilter;
+import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -32,12 +35,23 @@ import org.elasticsearch.index.settings.IndexSettings;
  */
 public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private final String lang;
+
     @Inject public LowerCaseTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
+        this.lang = settings.get("language", null);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new LowerCaseFilter(version, tokenStream);
+        if (lang == null) {
+            return new LowerCaseFilter(version, tokenStream);
+        } else if (lang.equalsIgnoreCase("greek")) {
+            return new GreekLowerCaseFilter(version, tokenStream);
+        } else if (lang.equalsIgnoreCase("turkish")) {
+            return new TurkishLowerCaseFilter(tokenStream);
+        } else {
+            throw new ElasticSearchIllegalArgumentException("language [" + lang + "] not support for lower case");
+        }
     }
 }
 

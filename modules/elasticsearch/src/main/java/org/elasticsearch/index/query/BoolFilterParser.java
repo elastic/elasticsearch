@@ -21,16 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.OpenFilterClause;
+import org.apache.lucene.search.FilterClause;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
-import java.util.List;
-
-import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -49,7 +46,7 @@ public class BoolFilterParser implements FilterParser {
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        List<OpenFilterClause> clauses = newArrayList();
+        XBooleanFilter boolFilter = new XBooleanFilter();
 
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
@@ -62,24 +59,24 @@ public class BoolFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
-                    clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
+                    boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
+                    boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                 } else if ("should".equals(currentFieldName)) {
-                    clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                    boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("must".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
+                        boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
                     }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
+                        boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                     }
                 } else if ("should".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                        boolFilter.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
                     }
                 }
             } else if (token.isValue()) {
@@ -93,10 +90,6 @@ public class BoolFilterParser implements FilterParser {
             }
         }
 
-        XBooleanFilter boolFilter = new XBooleanFilter();
-        for (OpenFilterClause filterClause : clauses) {
-            boolFilter.add(filterClause);
-        }
         Filter filter = boolFilter;
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

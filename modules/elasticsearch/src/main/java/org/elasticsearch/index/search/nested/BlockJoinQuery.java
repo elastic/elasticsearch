@@ -349,10 +349,18 @@ public class BlockJoinQuery extends Query {
                 return parentDoc = NO_MORE_DOCS;
             }
 
+            // CHANGE: Remove this and if parentTarget is 0, we can simply call nextdoc
+            // Every parent must have at least one child:
+            // assert parentTarget != 0;
+            if (parentTarget == 0) {
+                return nextDoc();
+            }
+
             final int prevParentDoc = parentBits.prevSetBit(parentTarget - 1);
 
             //System.out.println("  rolled back to prevParentDoc=" + prevParentDoc + " vs parentDoc=" + parentDoc);
-            assert prevParentDoc >= parentDoc;
+            // CHANGE: Commented out the assert because it might happen with a single nested and parent doc reader
+            //assert prevParentDoc >= parentDoc;
             if (prevParentDoc > nextChildDoc) {
                 nextChildDoc = childScorer.advance(prevParentDoc);
                 // System.out.println("  childScorer advanced to child docID=" + nextChildDoc);

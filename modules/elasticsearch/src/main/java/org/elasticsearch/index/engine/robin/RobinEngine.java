@@ -761,8 +761,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (dirty || refresh.force()) {
                         dirty = false;
                         AcquirableResource<ReaderSearcherHolder> current = nrtResource;
-                        IndexReader newReader = current.resource().reader().reopen(true);
-                        if (newReader != current.resource().reader()) {
+                        IndexReader newReader = IndexReader.openIfChanged(current.resource().reader(), true);
+                        if (newReader != null) {
                             ExtendedIndexSearcher indexSearcher = new ExtendedIndexSearcher(newReader);
                             indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
                             nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
@@ -998,7 +998,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     indexWriter.maybeMerge();
                     possibleMergeNeeded = false;
                 } else {
-                    indexWriter.optimize(optimize.maxNumSegments(), false);
+                    indexWriter.forceMerge(optimize.maxNumSegments(), false);
                 }
             } catch (OutOfMemoryError e) {
                 failEngine(e);

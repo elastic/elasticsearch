@@ -96,8 +96,7 @@ public class VectorHighlighterTests {
         // now check with the custom field query
         prefixQuery = new PrefixQuery(new Term("content", "ba"));
         assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT.getClass().getName()));
-        CustomFieldQuery.reader.set(reader);
-        fragment = highlighter.getBestFragment(new CustomFieldQuery(prefixQuery, highlighter),
+        fragment = highlighter.getBestFragment(new CustomFieldQuery(prefixQuery, reader, highlighter),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
 

@@ -162,7 +162,8 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
             collector = new FilteredCollector(collector, searchContext.parsedFilter());
         }
         if (searchContext.timeout() != null) {
-            collector = new TimeLimitingCollector(collector, searchContext.timeout().millis());
+            // TODO: change to use our own counter that uses the scheduler in ThreadPool
+            collector = new TimeLimitingCollector(collector, TimeLimitingCollector.getGlobalCounter(), searchContext.timeout().millis());
         }
         if (scopeCollectors != null) {
             List<Collector> collectors = scopeCollectors.get(processingScope);

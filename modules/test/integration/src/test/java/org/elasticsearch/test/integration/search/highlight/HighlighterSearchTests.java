@@ -405,7 +405,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
-     @Test public void testFastVectorHighlighterOffsetParameter() throws Exception {
+    @Test public void testFastVectorHighlighterOffsetParameter() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -434,7 +434,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         for (SearchHit hit : search.hits()) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
-            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("hlighting <em>bug</em> present in elasticsearch "));
+            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("highlighting <em>bug</em> present in elasticsearch "));
         }
     }
 
@@ -464,7 +464,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(fieldQuery("title", "test")).setEncoder("html")
-                .addHighlightedField("title",50,1,10)
+                .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
 
@@ -477,6 +477,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a html escaping highlighting <em>test</em> for *&amp;? elasticsearch"));
         }
     }
+
     @Test public void testEscapeHtml_vector() throws Exception {
 
         try {
@@ -498,7 +499,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(fieldQuery("title", "test")).setEncoder("html")
-                .addHighlightedField("title",50,1,10)
+                .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
 
@@ -508,7 +509,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         for (SearchHit hit : search.hits()) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
-            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("hlighting <em>test</em> for *&amp;? elasticsearch "));
+            assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("highlighting <em>test</em> for *&amp;? elasticsearch "));
         }
     }
 }

@@ -46,7 +46,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     private final Set<CustomTieredMergePolicyProvider> policies = new CopyOnWriteArraySet<CustomTieredMergePolicyProvider>();
 
     private volatile boolean compoundFormat;
-    private volatile double expungeDeletesPctAllowed;
+    private volatile double forceMergeDeletesPctAllowed;
     private volatile ByteSizeValue floorSegment;
     private volatile int maxMergeAtOnce;
     private volatile int maxMergeAtOnceExplicit;
@@ -63,7 +63,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
         this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", store.suggestUseCompoundFile());
         this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
-        this.expungeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d); // percentage
+        this.forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d); // percentage
         this.floorSegment = componentSettings.getAsBytesSize("floor_segment", new ByteSizeValue(2, ByteSizeUnit.MB));
         this.maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", 10);
         this.maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", 30);
@@ -73,7 +73,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         this.reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", 2.0d);
 
         logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}], async_merge[{}]",
-                expungeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight, asyncMerge);
+                forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight, asyncMerge);
 
         indexSettingsService.addListener(applySettings);
     }
@@ -87,7 +87,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             mergePolicy = new CustomTieredMergePolicyProvider(this);
         }
         mergePolicy.setUseCompoundFile(compoundFormat);
-        mergePolicy.setExpungeDeletesPctAllowed(expungeDeletesPctAllowed);
+        mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
@@ -116,12 +116,12 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override public void onRefreshSettings(Settings settings) {
-            double expungeDeletesPctAllowed = settings.getAsDouble("index.merge.policy.expunge_deletes_allowed", TieredMergePolicyProvider.this.expungeDeletesPctAllowed);
-            if (expungeDeletesPctAllowed != TieredMergePolicyProvider.this.expungeDeletesPctAllowed) {
-                logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", TieredMergePolicyProvider.this.expungeDeletesPctAllowed, expungeDeletesPctAllowed);
-                TieredMergePolicyProvider.this.expungeDeletesPctAllowed = expungeDeletesPctAllowed;
+            double expungeDeletesPctAllowed = settings.getAsDouble("index.merge.policy.expunge_deletes_allowed", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed);
+            if (expungeDeletesPctAllowed != TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed) {
+                logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed, expungeDeletesPctAllowed);
+                TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed = expungeDeletesPctAllowed;
                 for (CustomTieredMergePolicyProvider policy : policies) {
-                    policy.setExpungeDeletesPctAllowed(expungeDeletesPctAllowed);
+                    policy.setForceMergeDeletesPctAllowed(expungeDeletesPctAllowed);
                 }
             }
 
@@ -241,18 +241,18 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             return super.findMerges(infos);
         }
 
-        @Override public MergePolicy.MergeSpecification findMergesToExpungeDeletes(SegmentInfos segmentInfos) throws CorruptIndexException, IOException {
+        @Override public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
-            return super.findMergesToExpungeDeletes(segmentInfos);
+            return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
         }
 
-        @Override public MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToOptimize) throws IOException {
+        @Override public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
-            return super.findMergesForOptimize(infos, maxSegmentCount, segmentsToOptimize);
+            return super.findForcedDeletesMerges(infos);
         }
     }
 }

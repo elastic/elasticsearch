@@ -28,7 +28,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.search.vectorhighlight.*;
+import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
+import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
+import org.apache.lucene.search.vectorhighlight.FieldQuery;
+import org.apache.lucene.search.vectorhighlight.FragListBuilder;
+import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.FastStringReader;
@@ -222,7 +230,7 @@ public class HighlightPhase implements FetchSubPhase {
                         if (field.fragmentOffset() == -1)
                             fragListBuilder = new SimpleFragListBuilder();
                         else
-                            fragListBuilder = new MarginFragListBuilder(field.fragmentOffset());
+                            fragListBuilder = new SimpleFragListBuilder(field.fragmentOffset());
 
                         if (field.scoreOrdered()) {
                             if (mapper.stored()) {
@@ -238,11 +246,11 @@ public class HighlightPhase implements FetchSubPhase {
                             }
                         }
                     }
-                    FastVectorHighlighter highlighter = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
-                    FieldQuery fieldQuery = buildFieldQuery(highlighter, context.parsedQuery().query(), hitContext.reader(), field);
-
                     String[] fragments;
                     try {
+                        FastVectorHighlighter highlighter = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
+                        FieldQuery fieldQuery = buildFieldQuery(highlighter, context.parsedQuery().query(), hitContext.reader(), field);
+
                         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
                         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
                         fragments = highlighter.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fragmentCharSize(), numberOfFragments,
@@ -259,14 +267,12 @@ public class HighlightPhase implements FetchSubPhase {
 
             hitContext.hit().highlightFields(highlightFields);
         } finally {
-            CustomFieldQuery.reader.remove();
             CustomFieldQuery.highlightFilters.remove();
         }
     }
 
-    private FieldQuery buildFieldQuery(FastVectorHighlighter highlighter, Query query, IndexReader indexReader, SearchContextHighlight.Field field) {
-        CustomFieldQuery.reader.set(indexReader);
+    private FieldQuery buildFieldQuery(FastVectorHighlighter highlighter, Query query, IndexReader indexReader, SearchContextHighlight.Field field) throws IOException {
         CustomFieldQuery.highlightFilters.set(field.highlightFilter());
-        return new CustomFieldQuery(query, highlighter);
+        return new CustomFieldQuery(query, indexReader, highlighter);
     }
 }

@@ -208,18 +208,18 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
             return super.findMerges(infos);
         }
 
-        @Override public MergeSpecification findMergesToExpungeDeletes(SegmentInfos segmentInfos) throws CorruptIndexException, IOException {
+        @Override public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
-            return super.findMergesToExpungeDeletes(segmentInfos);
+            return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
         }
 
-        @Override public MergeSpecification findMergesForOptimize(SegmentInfos infos, int maxNumSegments, Map<SegmentInfo, Boolean> segmentsToOptimize) throws IOException {
+        @Override public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
-            return super.findMergesForOptimize(infos, maxNumSegments, segmentsToOptimize);
+            return super.findForcedDeletesMerges(infos);
         }
     }
 }

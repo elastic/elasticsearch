@@ -61,15 +61,7 @@ public class DocSets {
             other = ((FixedBitDocSet) other).set();
         }
         if (other instanceof FixedBitSet) {
-            // copied from OpenBitSet#and
-            long[] intoBits = into.getBits();
-            long[] otherBits = ((FixedBitSet) other).getBits();
-            assert intoBits.length == otherBits.length;
-            // testing against zero can be more efficient
-            int pos = intoBits.length;
-            while (--pos >= 0) {
-                intoBits[pos] &= otherBits[pos];
-            }
+            into.and((FixedBitSet) other);
         } else {
             if (other == null) {
                 into.clear(0, into.length());
@@ -79,16 +71,7 @@ public class DocSets {
                 if (disi == null) {
                     into.clear(0, into.length());
                 } else {
-                    int numBits = into.length();
-                    int disiDoc, bitSetDoc = into.nextSetBit(0);
-                    while (bitSetDoc != -1 && (disiDoc = disi.advance(bitSetDoc)) < numBits) {
-                        into.clear(bitSetDoc, disiDoc);
-                        disiDoc++;
-                        bitSetDoc = (disiDoc < numBits) ? into.nextSetBit(disiDoc) : -1;
-                    }
-                    if (bitSetDoc != -1) {
-                        into.clear(bitSetDoc, numBits);
-                    }
+                    into.and(disi);
                 }
             }
         }
@@ -102,22 +85,12 @@ public class DocSets {
             other = ((FixedBitDocSet) other).set();
         }
         if (other instanceof FixedBitSet) {
-            // copied from OpenBitSet#andNot
-            long[] intoBits = into.getBits();
-            long[] otherBits = ((FixedBitSet) other).getBits();
-            assert intoBits.length == otherBits.length;
-            int idx = intoBits.length;
-            while (--idx >= 0) {
-                intoBits[idx] &= ~otherBits[idx];
-            }
+            into.andNot((FixedBitSet) other);
         } else {
             // copied from OpenBitSetDISI#inPlaceNot
             DocIdSetIterator disi = other.iterator();
             if (disi != null) {
-                int doc;
-                while ((doc = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    into.clear(doc);
-                }
+                into.andNot(disi);
             }
         }
     }

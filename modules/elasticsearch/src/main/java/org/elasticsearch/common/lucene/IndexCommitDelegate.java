@@ -66,8 +66,8 @@ public abstract class IndexCommitDelegate extends IndexCommit {
         return delegate.isDeleted();
     }
 
-    @Override public boolean isOptimized() {
-        return delegate.isOptimized();
+    @Override public int getSegmentCount() {
+        return delegate.getSegmentCount();
     }
 
     @Override public boolean equals(Object other) {

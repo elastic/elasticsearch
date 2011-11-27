@@ -232,14 +232,22 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
             Query query = null;
             String currentFieldName = null;
-            XContentParser.Token token;
+            XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new ElasticSearchException("Failed to add query [" + name + "], not starting with OBJECT");
+            }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         query = queryParserService.parse(parser).query();
+                        break;
+                    } else {
+                        parser.skipChildren();
                     }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    parser.skipChildren();
                 }
             }
             return query;

@@ -19,7 +19,7 @@
       <library name="lucene-icu">
         <CLASSES>
           <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-icu4j/jars/lucene-icu4j-3.2.0.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-icu/jars/lucene-icu-3.4.0.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-icu/jars/lucene-icu-3.5.0.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES>

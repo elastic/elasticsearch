@@ -25,6 +25,7 @@ import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.FieldSelectorResult;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.document.NumericField;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -42,14 +43,11 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.List;
 
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -176,43 +174,6 @@ public class SimpleLuceneTests {
         indexWriter.close();
     }
 
-    @Test public void testNRT() throws Exception {
-        Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-        IndexReader reader = IndexReader.open(indexWriter, true);
-
-        List<IndexReader> readers = Lists.newArrayList();
-        for (int i = 0; i < 100; i++) {
-            readers.add(reader);
-            indexWriter.addDocument(doc()
-                    .add(field("id", Integer.toString(i)))
-                    .boost(i).build());
-
-            reader = refreshReader(reader);
-        }
-        reader.close();
-
-
-        // verify that all readers are closed
-        // also, SADLY, verifies that new readers are always created, meaning that caching based on index reader are useless
-        IdentityHashMap<IndexReader, Boolean> identityReaders = new IdentityHashMap<IndexReader, Boolean>();
-        for (IndexReader reader1 : readers) {
-            assertThat(reader1.getRefCount(), equalTo(0));
-            assertThat(identityReaders.containsKey(reader1), equalTo(false));
-            identityReaders.put(reader1, Boolean.TRUE);
-
-            if (reader1.getSequentialSubReaders() != null) {
-                for (IndexReader reader2 : reader1.getSequentialSubReaders()) {
-                    assertThat(reader2.getRefCount(), equalTo(0));
-                    assertThat(reader2.getSequentialSubReaders(), nullValue());
-
-                    assertThat(identityReaders.containsKey(reader2), equalTo(false));
-                    identityReaders.put(reader2, Boolean.TRUE);
-                }
-            }
-        }
-    }
-
     @Test public void testNRTSearchOnClosedWriter() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
@@ -242,22 +203,20 @@ public class SimpleLuceneTests {
         Document doc = new Document();
         NumericField field = new NumericField("int1").setIntValue(1);
         field.setOmitNorms(true);
-        field.setOmitTermFreqAndPositions(true);
+        field.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
         doc.add(field);
 
         field = new NumericField("int1").setIntValue(1);
-        field.setOmitNorms(true);
-        field.setOmitTermFreqAndPositions(true);
         doc.add(field);
 
         field = new NumericField("int2").setIntValue(1);
         field.setOmitNorms(true);
-        field.setOmitTermFreqAndPositions(false);
+        field.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
         doc.add(field);
 
         field = new NumericField("int2").setIntValue(1);
         field.setOmitNorms(true);
-        field.setOmitTermFreqAndPositions(false);
+        field.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
         doc.add(field);
 
         indexWriter.addDocument(doc);

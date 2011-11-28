@@ -31,8 +31,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -45,7 +43,6 @@ import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
@@ -93,15 +90,8 @@ public class RestGetMappingAction extends BaseRestHandler {
                                 continue;
                             }
                             foundType = true;
-                            byte[] mappingSource = mappingMd.source().uncompressed();
-                            XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                            Map<String, Object> mapping = parser.map();
-                            if (mapping.size() == 1 && mapping.containsKey(mappingMd.type())) {
-                                // the type name is the root value, reduce it
-                                mapping = (Map<String, Object>) mapping.get(mappingMd.type());
-                            }
                             builder.field(mappingMd.type());
-                            builder.map(mapping);
+                            builder.map(mappingMd.sourceAsMap());
                         }
                         if (!foundType) {
                             channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types.iterator().next())));
@@ -116,15 +106,8 @@ public class RestGetMappingAction extends BaseRestHandler {
                                     // filter this type out...
                                     continue;
                                 }
-                                byte[] mappingSource = mappingMd.source().uncompressed();
-                                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                                Map<String, Object> mapping = parser.map();
-                                if (mapping.size() == 1 && mapping.containsKey(mappingMd.type())) {
-                                    // the type name is the root value, reduce it
-                                    mapping = (Map<String, Object>) mapping.get(mappingMd.type());
-                                }
                                 builder.field(mappingMd.type());
-                                builder.map(mapping);
+                                builder.map(mappingMd.sourceAsMap());
                             }
 
                             builder.endObject();

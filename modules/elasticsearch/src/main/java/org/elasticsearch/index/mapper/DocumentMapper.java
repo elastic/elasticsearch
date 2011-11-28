@@ -31,14 +31,11 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -428,15 +425,7 @@ public class DocumentMapper implements ToXContent {
         XContentParser parser = source.parser();
         try {
             if (parser == null) {
-                if (LZF.isCompressed(source.source(), source.sourceOffset(), source.sourceLength())) {
-                    BytesStreamInput siBytes = new BytesStreamInput(source.source(), source.sourceOffset(), source.sourceLength());
-                    LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                    XContentType contentType = XContentFactory.xContentType(siLzf);
-                    siLzf.resetToBufferStart();
-                    parser = XContentFactory.xContent(contentType).createParser(siLzf);
-                } else {
-                    parser = XContentFactory.xContent(source.source(), source.sourceOffset(), source.sourceLength()).createParser(source.source(), source.sourceOffset(), source.sourceLength());
-                }
+                parser = XContentHelper.createParser(source.source(), source.sourceOffset(), source.sourceLength());
             }
             context.reset(parser, new Document(), source, listener);
 

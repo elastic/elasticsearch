@@ -24,13 +24,8 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.compress.lzf.LZF;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
@@ -79,27 +74,8 @@ public class SourceLookup implements Map {
         return this.source;
     }
 
-    public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) {
-        XContentParser parser = null;
-        try {
-            if (LZF.isCompressed(bytes, offset, length)) {
-                BytesStreamInput siBytes = new BytesStreamInput(bytes, offset, length);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                XContentType contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
-                parser = XContentFactory.xContent(contentType).createParser(siLzf);
-                return parser.map();
-            } else {
-                parser = XContentFactory.xContent(bytes, offset, length).createParser(bytes, offset, length);
-                return parser.map();
-            }
-        } catch (Exception e) {
-            throw new ElasticSearchParseException("Failed to parse source to map", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
+    public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) throws ElasticSearchParseException {
+        return XContentHelper.convertToMap(bytes, offset, length).v2();
     }
 
     public void setNextReader(IndexReader reader) {

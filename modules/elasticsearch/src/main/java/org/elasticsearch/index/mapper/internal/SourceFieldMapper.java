@@ -24,12 +24,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.lzf.LZF;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -37,6 +35,7 @@ import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.InternalMapper;
@@ -229,19 +228,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (filtered) {
             // we don't update the context source if we filter, we want to keep it as is...
 
-            XContentType contentType;
-            Map<String, Object> sourceAsMap;
-            if (LZF.isCompressed(data, dataOffset, dataLength)) {
-                BytesStreamInput siBytes = new BytesStreamInput(data, dataOffset, dataLength);
-                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                contentType = XContentFactory.xContentType(siLzf);
-                siLzf.resetToBufferStart();
-                sourceAsMap = XContentFactory.xContent(contentType).createParser(siLzf).mapAndClose();
-            } else {
-                contentType = XContentFactory.xContentType(data, dataOffset, dataLength);
-                sourceAsMap = XContentFactory.xContent(contentType).createParser(data, dataOffset, dataLength).mapAndClose();
-            }
-            Map<String, Object> filteredSource = XContentMapValues.filter(sourceAsMap, includes, excludes);
+            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(data, dataOffset, dataLength);
+            Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
             CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             StreamOutput streamOutput;
             if (compress != null && compress && (compressThreshold == -1 || dataLength > compressThreshold)) {
@@ -249,7 +237,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             } else {
                 streamOutput = cachedEntry.cachedBytes();
             }
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType, streamOutput).map(filteredSource);
+            XContentBuilder builder = XContentFactory.contentBuilder(mapTuple.v1(), streamOutput).map(filteredSource);
             builder.close();
 
             data = cachedEntry.bytes().copiedByteArray();

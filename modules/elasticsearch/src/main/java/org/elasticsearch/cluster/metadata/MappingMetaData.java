@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -329,6 +330,25 @@ public class MappingMetaData {
 
     public CompressedString source() {
         return this.source;
+    }
+
+    /**
+     * Converts the serialized compressed form of the mappings into a parsed map.
+     */
+    public Map<String, Object> sourceAsMap() throws IOException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressed(), 0, source.compressed().length).v2();
+        if (mapping.size() == 1 && mapping.containsKey(type())) {
+            // the type name is the root value, reduce it
+            mapping = (Map<String, Object>) mapping.get(type());
+        }
+        return mapping;
+    }
+
+    /**
+     * Converts the serialized compressed form of the mappings into a parsed map.
+     */
+    public Map<String, Object> getSourceAsMap() throws IOException {
+        return sourceAsMap();
     }
 
     public Id id() {

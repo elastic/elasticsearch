@@ -19,7 +19,13 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compress.lzf.LZF;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.LZFStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +37,35 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class XContentHelper {
+
+    public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
+        if (LZF.isCompressed(data, offset, length)) {
+            BytesStreamInput siBytes = new BytesStreamInput(data, offset, length);
+            LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+            XContentType contentType = XContentFactory.xContentType(siLzf);
+            siLzf.resetToBufferStart();
+            return XContentFactory.xContent(contentType).createParser(siLzf);
+        } else {
+            return XContentFactory.xContent(data, offset, length).createParser(data, offset, length);
+        }
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length) throws ElasticSearchParseException {
+        try {
+            if (LZF.isCompressed(data, offset, length)) {
+                BytesStreamInput siBytes = new BytesStreamInput(data, offset, length);
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                XContentType contentType = XContentFactory.xContentType(siLzf);
+                siLzf.resetToBufferStart();
+                return Tuple.create(contentType, XContentFactory.xContent(contentType).createParser(siLzf).mapAndClose());
+            } else {
+                XContentType contentType = XContentFactory.xContentType(data, offset, length);
+                return Tuple.create(contentType, XContentFactory.xContent(contentType).createParser(data, offset, length).mapAndClose());
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("Failed to parse content to map", e);
+        }
+    }
 
     public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson) throws IOException {
         XContentType xContentType = XContentFactory.xContentType(data, offset, length);

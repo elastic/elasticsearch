@@ -74,6 +74,7 @@ public class NodeInfo extends NodeOperationResponse {
         this.jvm = jvm;
         this.network = network;
         this.transport = transport;
+        this.http = http;
     }
 
     /**

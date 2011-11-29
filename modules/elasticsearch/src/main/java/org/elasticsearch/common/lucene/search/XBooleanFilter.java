@@ -25,7 +25,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterClause;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.OpenBitSetDISI;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
 
@@ -107,18 +106,6 @@ public class XBooleanFilter extends Filter {
         }
 
         return res;
-    }
-
-    /**
-     * Provide a SortedVIntList when it is definitely smaller
-     * than an OpenBitSet.
-     *
-     * @deprecated Either use CachingWrapperFilter, or
-     *             switch to a different DocIdSet implementation yourself.
-     *             This method will be removed in Lucene 4.0
-     */
-    protected final DocIdSet finalResult(OpenBitSetDISI result, int maxDocs) {
-        return result;
     }
 
     /**

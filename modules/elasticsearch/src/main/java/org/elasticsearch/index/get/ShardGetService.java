@@ -306,7 +306,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
                                 value = searchLookup.source().extractValue(field);
                                 if (x != null && value instanceof String) {
-                                    value = x.valueFromString((String)value);
+                                    value = x.valueFromString((String) value);
                                 }
                             }
                         }
@@ -322,6 +322,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             getField.values().add(value);
                         }
                     }
+                }
+
+                // if source is not enabled, don't return it even though we have it from the translog
+                if (sourceRequested && !docMapper.sourceMapper().enabled()) {
+                    sourceRequested = false;
                 }
 
                 return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceRequested ? source.source : null, fields);

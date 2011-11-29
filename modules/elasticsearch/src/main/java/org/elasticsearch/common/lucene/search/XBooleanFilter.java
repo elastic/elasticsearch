@@ -79,15 +79,20 @@ public class XBooleanFilter extends Filter {
                 }
                 DocSets.or(res, disi);
             }
+
+            // if no should clauses match, return null (act as min_should_match set to 1)
+            if (res == null && !shouldFilters.isEmpty()) {
+                return null;
+            }
         }
 
-        // if no should clauses match, return null (act as min_should_match set to 1)
-        if (res == null) {
-            return null;
-        }
 
         if (notFilters != null) {
             for (int i = 0; i < notFilters.size(); i++) {
+                if (res == null) {
+                    res = new FixedBitSet(reader.maxDoc());
+                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
+                }
                 final DocIdSet disi = getDISI(notFilters, i, reader);
                 if (disi != null) {
                     DocSets.andNot(res, disi);
@@ -101,7 +106,12 @@ public class XBooleanFilter extends Filter {
                 if (disi == null) {
                     return null;
                 }
-                DocSets.and(res, disi);
+                if (res == null) {
+                    res = new FixedBitSet(reader.maxDoc());
+                    DocSets.or(res, disi);
+                } else {
+                    DocSets.and(res, disi);
+                }
             }
         }
 

@@ -82,6 +82,11 @@ public class XBooleanFilter extends Filter {
             }
         }
 
+        // if no should clauses match, return null (act as min_should_match set to 1)
+        if (res == null) {
+            return null;
+        }
+
         if (notFilters != null) {
             for (int i = 0; i < notFilters.size(); i++) {
                 if (res == null) {

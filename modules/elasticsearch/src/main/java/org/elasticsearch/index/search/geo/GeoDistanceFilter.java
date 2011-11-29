@@ -173,7 +173,7 @@ public class GeoDistanceFilter extends Filter {
             return false;
         }
 
-        @Override public boolean get(int doc) throws IOException {
+        @Override public boolean get(int doc) {
             if (!fieldData.hasValue(doc)) {
                 return false;
             }

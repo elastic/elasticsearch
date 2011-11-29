@@ -44,11 +44,15 @@ public class FixedBitDocSet extends DocSet {
         return true;
     }
 
+    @Override public int length() {
+        return set.length();
+    }
+
     public FixedBitSet set() {
         return set;
     }
 
-    @Override public boolean get(int doc) throws IOException {
+    @Override public boolean get(int doc) {
         return set.get(doc);
     }
 

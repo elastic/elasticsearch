@@ -29,14 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  */
 public class NodeClosedException extends ElasticSearchException {
 
-    private final DiscoveryNode node;
-
     public NodeClosedException(DiscoveryNode node) {
         super("node closed " + node);
-        this.node = node;
-    }
-
-    public DiscoveryNode node() {
-        return node;
     }
 }

@@ -41,7 +41,11 @@ public class AllDocSet extends DocSet {
         return true;
     }
 
-    @Override public boolean get(int doc) throws IOException {
+    @Override public int length() {
+        return maxDoc;
+    }
+
+    @Override public boolean get(int doc) {
         return doc < maxDoc;
     }
 

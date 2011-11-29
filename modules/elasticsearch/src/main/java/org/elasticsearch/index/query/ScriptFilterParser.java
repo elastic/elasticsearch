@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
@@ -174,7 +175,7 @@ public class ScriptFilterParser implements FilterParser {
                 return false;
             }
 
-            @Override public boolean get(int doc) throws IOException {
+            @Override public boolean get(int doc) {
                 searchScript.setNextDocId(doc);
                 Object val = searchScript.run();
                 if (val == null) {
@@ -186,7 +187,7 @@ public class ScriptFilterParser implements FilterParser {
                 if (val instanceof Number) {
                     return ((Number) val).longValue() != 0;
                 }
-                throw new IOException("Can't handle type [" + val + "] in script filter");
+                throw new ElasticSearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
             }
         }
     }

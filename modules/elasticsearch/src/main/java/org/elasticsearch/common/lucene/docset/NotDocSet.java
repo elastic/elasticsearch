@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.lucene.docset;
 
-import java.io.IOException;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -40,7 +38,7 @@ public class NotDocSet extends GetDocSet {
 //        return set.isCacheable();
     }
 
-    @Override public boolean get(int doc) throws IOException {
+    @Override public boolean get(int doc) {
         return !set.get(doc);
     }
 

@@ -36,11 +36,18 @@ public class OrDocSet extends DocSet {
         this.sets = sets;
     }
 
-    @Override public boolean get(int doc) throws IOException {
+    @Override public boolean get(int doc) {
         for (DocSet s : sets) {
             if (s.get(doc)) return true;
         }
         return false;
+    }
+
+    @Override public int length() {
+        if (sets.isEmpty()) {
+            return 0;
+        }
+        return sets.get(0).length();
     }
 
     @Override public boolean isCacheable() {

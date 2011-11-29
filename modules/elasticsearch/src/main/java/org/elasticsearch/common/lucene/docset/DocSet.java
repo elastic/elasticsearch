@@ -21,16 +21,17 @@ package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class DocSet extends DocIdSet {
+public abstract class DocSet extends DocIdSet implements Bits {
 
     public static final DocSet EMPTY_DOC_SET = new DocSet() {
-        @Override public boolean get(int doc) throws IOException {
+        @Override public boolean get(int doc) {
             return false;
         }
 
@@ -45,9 +46,13 @@ public abstract class DocSet extends DocIdSet {
         @Override public long sizeInBytes() {
             return 0;
         }
+
+        @Override public int length() {
+            return 0;
+        }
     };
 
-    public abstract boolean get(int doc) throws IOException;
+    public abstract boolean get(int doc);
 
     public abstract long sizeInBytes();
 }

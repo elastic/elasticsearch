@@ -54,7 +54,7 @@ public class LimitFilter extends NoCacheFilter {
             this.limit = limit;
         }
 
-        @Override public boolean get(int doc) throws IOException {
+        @Override public boolean get(int doc) {
             if (++counter > limit) {
                 return false;
             }

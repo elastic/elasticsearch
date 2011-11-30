@@ -81,7 +81,7 @@ public class NestedQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("_scope".equals(currentFieldName)) {
                     scope = parser.text();
-                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(scoreMode)) {
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                     String sScoreMode = parser.text();
                     if ("avg".equals(sScoreMode)) {
                         scoreMode = BlockJoinQuery.ScoreMode.Avg;

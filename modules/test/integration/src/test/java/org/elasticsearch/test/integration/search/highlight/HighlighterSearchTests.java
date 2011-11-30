@@ -97,9 +97,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
 
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
@@ -110,11 +111,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addHighlightedField("attachments.body", -1, 0)
                 .execute().actionGet();
 
-        System.out.println(search);
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
 
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1 <em>attachment</em> 2"));
@@ -150,9 +150,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
 
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             assertThat(hit.highlightFields().get("title").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch "));
@@ -163,9 +164,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addHighlightedField("attachments.body", -1, 0)
                 .execute().actionGet();
 
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             assertThat(hit.highlightFields().get("attachments.body").fragments()[0], equalTo("<em>attachment</em> 1 <em>attachment</em> 2 "));
@@ -428,9 +430,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
@@ -456,21 +459,17 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             client.prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch").setRefresh(true).execute().actionGet();
         }
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("field1", "test"))
-                .from(0).size(60).explain(true)
-                .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
-
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(fieldQuery("title", "test")).setEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
 
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
@@ -503,9 +502,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
 
 
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+
         assertThat(search.hits().totalHits(), equalTo(5l));
         assertThat(search.hits().hits().length, equalTo(5));
-        assertThat(search.getFailedShards(), equalTo(0));
 
         for (SearchHit hit : search.hits()) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...

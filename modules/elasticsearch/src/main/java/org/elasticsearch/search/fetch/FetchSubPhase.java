@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,14 +36,19 @@ public interface FetchSubPhase {
 
     public static class HitContext {
         private InternalSearchHit hit;
+        private IndexReader topLevelReader;
+        private int topLevelDocId;
         private IndexReader reader;
         private int docId;
         private Document doc;
+        private Map<String, Object> cache;
 
-        public void reset(InternalSearchHit hit, IndexReader reader, int docId, Document doc) {
+        public void reset(InternalSearchHit hit, IndexReader reader, int docId, IndexReader topLevelReader, int topLevelDocId, Document doc) {
             this.hit = hit;
             this.reader = reader;
             this.docId = docId;
+            this.topLevelReader = topLevelReader;
+            this.topLevelDocId = topLevelDocId;
             this.doc = doc;
         }
 
@@ -58,8 +64,23 @@ public interface FetchSubPhase {
             return docId;
         }
 
+        public IndexReader topLevelReader() {
+            return topLevelReader;
+        }
+
+        public int topLevelDocId() {
+            return topLevelDocId;
+        }
+
         public Document doc() {
             return doc;
+        }
+
+        public Map<String, Object> cache() {
+            if (cache == null) {
+                cache = Maps.newHashMap();
+            }
+            return cache;
         }
     }
 

@@ -202,7 +202,7 @@ public class FetchPhase implements SearchPhase {
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
                 if (fetchSubPhase.hitExecutionNeeded(context)) {
-                    hitContext.reset(searchHit, subReader, subDoc, doc);
+                    hitContext.reset(searchHit, subReader, subDoc, context.searcher().getIndexReader(), docId, doc);
                     fetchSubPhase.hitExecute(context, hitContext);
                 }
             }

@@ -94,6 +94,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.docs(request.paramAsBoolean("docs", indicesStatsRequest.docs()));
         indicesStatsRequest.store(request.paramAsBoolean("store", indicesStatsRequest.store()));
         indicesStatsRequest.indexing(request.paramAsBoolean("indexing", indicesStatsRequest.indexing()));
+        indicesStatsRequest.search(request.paramAsBoolean("search", indicesStatsRequest.search()));
         indicesStatsRequest.get(request.paramAsBoolean("get", indicesStatsRequest.get()));
         indicesStatsRequest.merge(request.paramAsBoolean("merge", indicesStatsRequest.merge()));
         indicesStatsRequest.refresh(request.paramAsBoolean("refresh", indicesStatsRequest.refresh()));

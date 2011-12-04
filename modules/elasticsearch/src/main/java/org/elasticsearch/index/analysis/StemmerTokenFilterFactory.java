@@ -21,8 +21,12 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.PorterStemFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ar.ArabicStemFilter;
+import org.apache.lucene.analysis.br.BrazilianStemFilter;
+import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanLightStemFilter;
 import org.apache.lucene.analysis.de.GermanMinimalStemFilter;
+import org.apache.lucene.analysis.el.GreekStemFilter;
 import org.apache.lucene.analysis.en.EnglishMinimalStemFilter;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
@@ -38,7 +42,6 @@ import org.apache.lucene.analysis.pt.PortugueseLightStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
-import org.apache.lucene.analysis.el.GreekStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -60,12 +63,18 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        if ("armenian".equalsIgnoreCase(language)) {
+        if ("arabic".equalsIgnoreCase(language)) {
+            return new ArabicStemFilter(tokenStream);
+        } else if ("armenian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new ArmenianStemmer());
         } else if ("basque".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new BasqueStemmer());
+        } else if ("brazilian".equalsIgnoreCase(language)) {
+            return new BrazilianStemFilter(tokenStream);
         } else if ("catalan".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new CatalanStemmer());
+        } else if ("czech".equalsIgnoreCase(language)) {
+            return new CzechStemFilter(tokenStream);
         } else if ("danish".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new DanishStemmer());
         } else if ("dutch".equalsIgnoreCase(language)) {

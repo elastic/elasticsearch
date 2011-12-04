@@ -123,7 +123,7 @@ public class Version {
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch Version: " + Version.CURRENT + "JVM: " + JvmInfo.jvmInfo().vmVersion());
+        System.out.println("ElasticSearch Version: " + Version.CURRENT + ", JVM: " + JvmInfo.jvmInfo().vmVersion());
     }
 
     @Override public String toString() {

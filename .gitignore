@@ -1,35 +1,12 @@
+.idea/
 .gradle/
-elasticsearch.iws
-.idea/workspace.xml
+*.iml
 work/
 /data/
 logs/
 .DS_Store
 build/
-test-output/
-modules/elasticsearch/build/
-modules/test/integration/build/
-modules/test/testng/build/
-modules/benchmark/micro/build/
-plugins/analysis/icu/build
-plugins/cloud/aws/build
-plugins/hadoop/build
-plugins/lang/groovy/build
-plugins/lang/javascript/build
-plugins/lang/python/build
-plugins/mapper/attachments/build
-plugins/river/couchdb/build
-plugins/river/rabbitmq/build
-plugins/river/twitter/build
-plugins/river/wikipedia/build
-plugins/transport/memcached/build
-plugins/transport/thrift/build
-.idea/gradle.xml
-.idea/misc.xml
-.idea/modules/elasticsearch-root.iml
-.idea/modules/plugin-river-rabbitmq.iml
-.idea/projectCodeStyle.xml
-
+target/
 
 
 ## eclipse ignores (use 'gradle eclipse' to build eclipse projects)

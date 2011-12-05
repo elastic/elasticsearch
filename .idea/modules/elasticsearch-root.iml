@@ -16,19 +16,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
-    <orderEntry type="module" module-name="plugin-lang-groovy" />
-    <orderEntry type="module" module-name="plugin-lang-javascript" />
-    <orderEntry type="module" module-name="plugin-lang-python" />
-    <orderEntry type="module" module-name="plugin-mapper-attachments" />
-    <orderEntry type="module" module-name="plugin-transport-memcached" />
-    <orderEntry type="module" module-name="plugin-transport-thrift" />
-    <orderEntry type="module" module-name="plugin-analysis-icu" />
-    <orderEntry type="module" module-name="plugins-hadoop" />
-    <orderEntry type="module" module-name="plugin-cloud-aws" />
-    <orderEntry type="module" module-name="plugin-river-twitter" />
-    <orderEntry type="module" module-name="plugin-river-couchdb" />
-    <orderEntry type="module" module-name="plugin-river-rabbitmq" />
-    <orderEntry type="module" module-name="plugin-river-wikipedia" />
     <orderEntry type="module" module-name="test-integration" />
   </component>
 </module>

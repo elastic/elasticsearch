@@ -15,8 +15,6 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="elasticsearch" />
-    <orderEntry type="module" module-name="test-integration" />
   </component>
 </module>
 

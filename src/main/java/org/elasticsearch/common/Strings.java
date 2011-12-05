@@ -36,7 +36,7 @@ public class Strings {
 
     private static final String WINDOWS_FOLDER_SEPARATOR = "\\";
 
-    private static final String TOP_PATH = "..";
+    private static final String TOP_PATH = "src/test";
 
     private static final String CURRENT_PATH = ".";
 

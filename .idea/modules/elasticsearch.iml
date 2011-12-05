@@ -5,8 +5,6 @@
     <output-test url="file://$MODULE_DIR$/../../modules/elasticsearch/build/classes/test" />
     <exclude-output />
     <content url="file://$MODULE_DIR$/../../modules/elasticsearch">
-      <sourceFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/src/main/java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/src/test/java" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/build" />
       <excludeFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/work" />
     </content>

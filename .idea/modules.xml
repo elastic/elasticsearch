@@ -5,20 +5,6 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//benchmark-micro.iml" filepath="$PROJECT_DIR$/.idea/modules//benchmark-micro.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/elasticsearch.iml" filepath="$PROJECT_DIR$/.idea/modules/elasticsearch.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/elasticsearch-root.iml" filepath="$PROJECT_DIR$/.idea/modules/elasticsearch-root.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin-analysis-icu.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin-analysis-icu.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-cloud-aws.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-cloud-aws.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin-lang-groovy.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin-lang-groovy.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-lang-javascript.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-lang-javascript.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-lang-python.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-lang-python.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-couchdb.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-couchdb.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-rabbitmq.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-rabbitmq.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin-river-twitter.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin-river-twitter.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-wikipedia.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-wikipedia.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-memcached.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-memcached.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-thrift.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-thrift.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-wares.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-wares.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugins-hadoop.iml" filepath="$PROJECT_DIR$/.idea/modules//plugins-hadoop.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//test-integration.iml" filepath="$PROJECT_DIR$/.idea/modules//test-integration.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//test-testng.iml" filepath="$PROJECT_DIR$/.idea/modules//test-testng.iml" />
     </modules>

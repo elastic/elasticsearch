@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="jline">
-    <CLASSES>
-      <root url="jar://$GRADLE_REPOSITORY$/jline/jline/jars/jline-0.9.94.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

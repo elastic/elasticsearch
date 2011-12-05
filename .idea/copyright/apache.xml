@@ -1,9 +1,0 @@
-<component name="CopyrightManager">
-  <copyright>
-    <option name="notice" value="Licensed to Elastic Search and Shay Banon under one&#10;or more contributor license agreements.  See the NOTICE file&#10;distributed with this work for additional information&#10;regarding copyright ownership. Elastic Search licenses this &#10;file to you under the Apache License, Version 2.0 (the&#10;&quot;License&quot;); you may not use this file except in compliance&#10;with the License.  You may obtain a copy of the License at&#10;&#10;   http://www.apache.org/licenses/LICENSE-2.0&#10;&#10;Unless required by applicable law or agreed to in writing,&#10;software distributed under the License is distributed on an&#10;&quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY&#10;KIND, either express or implied.  See the License for the&#10;specific language governing permissions and limitations&#10;under the License." />
-    <option name="keyword" value="Copyright" />
-    <option name="allowReplaceKeyword" value="" />
-    <option name="myName" value="apache" />
-    <option name="myLocal" value="true" />
-  </copyright>
-</component>
